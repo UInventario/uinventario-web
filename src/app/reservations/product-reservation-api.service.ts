@@ -5,7 +5,7 @@ import { RuntimeConfigService } from '../core/runtime-config.service';
 export interface ProductReservationData {
   id: string;
   reservationNumber: string;
-  status: 'ACTIVE';
+  status: 'ACTIVE' | 'RELEASED' | 'EXPIRED' | 'CONSUMED';
   customer: { id: string; name: string; identifier: string | null };
   context: {
     branch: { id: string; name: string };
@@ -15,6 +15,9 @@ export interface ProductReservationData {
   responsible: { id: string; email: string };
   expiresAt: string;
   createdAt: string;
+  closedAt: string | null;
+  closureReason: string | null;
+  sale: { id: string; receiptNumber: string } | null;
   lines: Array<{
     id: string;
     product: { id: string; name: string; sku: string };
@@ -49,5 +52,26 @@ export class ProductReservationApiService {
       withCredentials: true,
       headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
     });
+  }
+
+  release(id: string, reason: string, idempotencyKey: string) {
+    return this.http.post<{
+      data: ProductReservationData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(
+      `${this.config.apiBaseUrl()}/reservations/${id}/release`,
+      { reason },
+      {
+        withCredentials: true,
+        headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+      },
+    );
+  }
+
+  expireDue() {
+    return this.http.post<{
+      data: ProductReservationData[];
+      meta: { apiVersion: '1'; expiredCount: number };
+    }>(`${this.config.apiBaseUrl()}/reservations/expire-due`, {}, { withCredentials: true });
   }
 }

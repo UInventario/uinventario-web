@@ -2,10 +2,11 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { DatePipe } from '@angular/common';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { finalize, forkJoin } from 'rxjs';
+import { finalize, forkJoin, Observable } from 'rxjs';
 import { ProductApiService, ProductData } from '../catalog/product-api.service';
 import { CustomerApiService, CustomerData } from '../customers/customer-api.service';
 import { InventoryApiService, InventoryLocationData } from '../inventory/inventory-api.service';
+import { PosApiService, PosCartQuote } from '../pos/pos-api.service';
 import {
   ProductReservationApiService,
   ProductReservationData,
@@ -26,6 +27,7 @@ export class ProductReservationPanelComponent implements OnInit {
   private readonly customersApi = inject(CustomerApiService);
   private readonly productsApi = inject(ProductApiService);
   private readonly inventoryApi = inject(InventoryApiService);
+  private readonly posApi = inject(PosApiService);
   private pending: { input: ProductReservationInput; key: string } | null = null;
 
   protected readonly customers = signal<CustomerData[]>([]);
@@ -36,6 +38,13 @@ export class ProductReservationPanelComponent implements OnInit {
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly success = signal<string | null>(null);
+  protected readonly actionBusy = signal(false);
+  protected readonly saleReservation = signal<ProductReservationData | null>(null);
+  protected readonly saleQuote = signal<PosCartQuote | null>(null);
+  protected readonly cashReceived = this.formBuilder.nonNullable.control('', [
+    Validators.required,
+    Validators.pattern(/^(0|[1-9]\d{0,11})(\.\d{1,2})?$/),
+  ]);
   protected readonly form = this.formBuilder.nonNullable.group({
     customerId: ['', Validators.required],
     locationId: ['', Validators.required],
@@ -103,6 +112,108 @@ export class ProductReservationPanelComponent implements OnInit {
           );
         },
       });
+  }
+
+  protected release(reservation: ProductReservationData): void {
+    if (this.actionBusy() || reservation.status !== 'ACTIVE') return;
+    this.runAction(
+      this.api.release(
+        reservation.id,
+        'Liberada por el usuario',
+        `web-reservation-release-${crypto.randomUUID()}`,
+      ),
+      `Reserva ${reservation.reservationNumber} liberada.`,
+    );
+  }
+
+  protected expireDue(): void {
+    if (this.actionBusy()) return;
+    this.runAction(this.api.expireDue(), 'Reservas vencidas procesadas.');
+  }
+
+  protected prepareSale(reservation: ProductReservationData): void {
+    if (this.actionBusy() || reservation.status !== 'ACTIVE') return;
+    this.actionBusy.set(true);
+    this.error.set(null);
+    this.posApi
+      .quote(
+        reservation.lines.map((line) => ({
+          productId: line.product.id,
+          quantity: line.quantity,
+        })),
+        reservation.id,
+      )
+      .pipe(finalize(() => this.actionBusy.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.saleReservation.set(reservation);
+          this.saleQuote.set(data);
+          this.cashReceived.setValue(data.totals.total);
+        },
+        error: (error: HttpErrorResponse) => this.setActionError(error),
+      });
+  }
+
+  protected consume(): void {
+    const reservation = this.saleReservation();
+    if (!reservation || this.cashReceived.invalid || this.actionBusy()) return;
+    this.actionBusy.set(true);
+    this.error.set(null);
+    this.posApi
+      .createCashSale(
+        {
+          reservationId: reservation.id,
+          customerId: reservation.customer.id,
+          lines: reservation.lines.map((line) => ({
+            productId: line.product.id,
+            quantity: line.quantity,
+          })),
+          cashReceived: this.cashReceived.value,
+        },
+        `web-reservation-sale-${crypto.randomUUID()}`,
+      )
+      .pipe(finalize(() => this.actionBusy.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.success.set(`Reserva consumida en la venta ${data.receiptNumber}.`);
+          this.saleReservation.set(null);
+          this.saleQuote.set(null);
+          this.loadReservations();
+        },
+        error: (error: HttpErrorResponse) => this.setActionError(error),
+      });
+  }
+
+  protected cancelSale(): void {
+    this.saleReservation.set(null);
+    this.saleQuote.set(null);
+  }
+
+  protected statusLabel(status: ProductReservationData['status']): string {
+    return { ACTIVE: 'Activa', RELEASED: 'Liberada', EXPIRED: 'Vencida', CONSUMED: 'Consumida' }[
+      status
+    ];
+  }
+
+  private runAction(request: Observable<unknown>, message: string): void {
+    this.actionBusy.set(true);
+    this.error.set(null);
+    request.pipe(finalize(() => this.actionBusy.set(false))).subscribe({
+      next: () => {
+        this.success.set(message);
+        this.loadReservations();
+      },
+      error: (error: HttpErrorResponse) => this.setActionError(error),
+    });
+  }
+
+  private setActionError(error: HttpErrorResponse): void {
+    this.error.set(
+      typeof error.error?.message === 'string'
+        ? error.error.message
+        : 'La reserva cambió o no fue posible completar la operación.',
+    );
+    if (error.status === 409) this.loadReservations();
   }
 
   private lineGroup() {
