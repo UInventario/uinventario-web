@@ -60,6 +60,26 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await expect(page.locator('.context').first()).toContainText(
     'Sucursal Principal · Bodega Principal · Caja Principal',
   );
+  const coreNavigation = page.getByRole('navigation', { name: 'Módulos principales' });
+  await expect(coreNavigation.getByRole('link')).toHaveCount(6);
+  const productLink = coreNavigation.getByRole('link', { name: 'Productos' });
+  const inventoryLink = coreNavigation.getByRole('link', { name: 'Inventario' });
+  await productLink.focus();
+  await expect(productLink).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(inventoryLink).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/app#stock-overview-title$/);
+  await expect(page.getByRole('heading', { name: 'Existencias reales' })).toBeInViewport();
+
+  await coreNavigation.getByRole('link', { name: 'Empresa' }).click();
+  await expect(page).toHaveURL(/\/onboarding$/);
+  await expect(page.getByRole('heading', { name: 'Administra Tienda Login' })).toBeVisible();
+  await expect(page.getByLabel('Nombre legal')).toHaveValue('Tienda Login, S.A. de C.V.');
+  await page.getByRole('button', { name: 'Guardar empresa' }).click();
+  await expect(page.getByRole('status')).toHaveText('Datos de empresa guardados.');
+  await page.getByRole('link', { name: 'Volver a operación' }).click();
+  await expect(page).toHaveURL(/\/app$/);
   await page.screenshot({
     path: testInfo.outputPath('operational-context.png'),
     fullPage: true,

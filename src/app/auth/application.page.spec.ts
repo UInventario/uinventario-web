@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { of, Subject, throwError } from 'rxjs';
+import { provideRouter } from '@angular/router';
 import { ProductApiService } from '../catalog/product-api.service';
 import { InventoryApiService } from '../inventory/inventory-api.service';
 import { CashSaleData, PosApiService } from '../pos/pos-api.service';
@@ -121,6 +122,7 @@ describe('ApplicationPage', () => {
     await TestBed.configureTestingModule({
       imports: [ApplicationPage],
       providers: [
+        provideRouter([]),
         { provide: ProductApiService, useValue: products },
         { provide: InventoryApiService, useValue: inventory },
         { provide: PosApiService, useValue: pos },
@@ -424,6 +426,17 @@ describe('ApplicationPage', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('No fue posible cargar las existencias.');
+  });
+
+  it('distinguishes insufficient permissions from an operational failure', () => {
+    inventory.listStock.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 403 })));
+    (fixture.componentInstance as unknown as { searchStock(): void }).searchStock();
+    fixture.detectChanges();
+
+    const alert = fixture.nativeElement.querySelector('.stock-overview [role="alert"]');
+    expect(alert.textContent).toContain(
+      'No tienes permisos suficientes para realizar esta operación.',
+    );
   });
 
   it('quotes a cart and prevents duplicate cash sale submission', () => {

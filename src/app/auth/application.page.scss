@@ -9,6 +9,22 @@ main {
   color: #17212b;
 }
 
+.skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 20;
+  padding: 0.65rem 0.8rem;
+  border-radius: 0.5rem;
+  background: #17212b;
+  color: #fff;
+  transform: translateY(-150%);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
 header {
   display: flex;
   align-items: center;
@@ -37,6 +53,7 @@ header div {
 }
 
 button {
+  min-height: 2.75rem;
   border: 0;
   border-radius: 0.6rem;
   cursor: pointer;
@@ -52,23 +69,68 @@ button {
 
 nav {
   display: flex;
+  position: sticky;
+  top: 0;
+  z-index: 10;
   gap: 0.25rem;
-  padding: 0.75rem 1.5rem 0;
+  overflow-x: auto;
+  padding: 0.55rem 1.5rem;
   background: #fff;
+  border-bottom: 1px solid #dbe3ea;
+  scrollbar-width: thin;
 }
 
 nav a {
-  display: inline-block;
-  padding: 0.7rem 1rem;
-  border-bottom: 3px solid #0b5cab;
+  display: inline-flex;
+  min-height: 2.75rem;
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 0.6rem 0.85rem;
+  border-radius: 0.6rem;
   color: #0b5cab;
   font-weight: 700;
+  text-decoration: none;
+}
+
+nav a:hover {
+  background: #e9f1f8;
+}
+
+.operation-status {
+  display: flex;
+  position: sticky;
+  top: 3.85rem;
+  z-index: 9;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  padding: 0.5rem 1rem;
+  background: #fff4ce;
+  color: #674d00;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.operation-spinner {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: #996f00;
 }
 
 section {
   max-width: 76rem;
   margin: 0 auto;
   padding: 2.2rem 1.5rem;
+}
+
+#products-title,
+#stock-overview-title,
+#movement-history-title,
+#pos-title,
+#sales-title {
+  scroll-margin-top: 5rem;
 }
 
 .eyebrow {
@@ -165,6 +227,12 @@ input:focus,
 select:focus {
   border-color: #0b5cab;
   outline: 3px solid rgba(11, 92, 171, 0.16);
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid rgba(11, 92, 171, 0.35);
+  outline-offset: 2px;
 }
 
 .field-error {
@@ -498,6 +566,12 @@ dd {
   padding-top: 0;
 }
 
+.pos-workspace > h2,
+.sales-heading h2 {
+  margin: 0.25rem 0;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+}
+
 .pos-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(20rem, 0.8fr);
@@ -791,6 +865,10 @@ dd {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  nav {
+    padding-inline: 0.75rem;
   }
 
   section {

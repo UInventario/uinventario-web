@@ -25,6 +25,12 @@ header {
   justify-content: space-between;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .brand {
   display: grid;
   width: 3rem;
@@ -63,6 +69,10 @@ h1 {
   border-radius: 0.6rem;
   background: #eaf7ee;
   color: #137333;
+}
+
+.maintenance-success {
+  margin-top: 1rem;
 }
 
 form {
@@ -133,6 +143,21 @@ button {
   color: #0b5cab;
 }
 
+.back {
+  min-height: 2.75rem;
+  padding: 0.8rem;
+  border-radius: 0.65rem;
+  color: #0b5cab;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.back:focus-visible,
+button:focus-visible {
+  outline: 3px solid rgba(11, 92, 171, 0.35);
+  outline-offset: 2px;
+}
+
 button:disabled {
   cursor: wait;
   opacity: 0.62;
@@ -164,6 +189,16 @@ dd {
 }
 
 @media (max-width: 36rem) {
+  .header-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .back,
+  .logout {
+    text-align: center;
+  }
+
   dl {
     grid-template-columns: 1fr;
   }
