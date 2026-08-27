@@ -5,11 +5,12 @@ import { catchError, finalize, tap, throwError } from 'rxjs';
 import { RuntimeConfigService } from '../core/runtime-config.service';
 
 export interface SessionData {
-  user: { id: string; email: string; roles: string[] };
+  user: { id: string; email: string; roles: string[]; permissions: string[] };
   tenant: { id: string; name: string };
   context: {
     branch: { id: string; name: string } | null;
     warehouse: { id: string; name: string } | null;
+    cashRegister: { id: string; name: string; code: string } | null;
   };
   nextStep: 'ONBOARDING' | 'APPLICATION';
 }

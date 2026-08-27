@@ -9,7 +9,11 @@
 
     <p class="eyebrow">
       {{
-        progress()?.currentStep === 'COMPANY' ? 'Paso 1 de 3 · Empresa' : 'Paso 2 de 3 · Sucursal'
+        progress()?.currentStep === 'COMPANY'
+          ? 'Paso 1 de 3 · Empresa'
+          : initialLocation()
+            ? 'Paso 3 de 3 · Caja'
+            : 'Paso 2 de 3 · Sucursal'
       }}
     </p>
     <h1 id="onboarding-title">Prepara {{ session()?.tenant?.name }}</h1>
@@ -21,7 +25,7 @@
 
     @if (initialLocation()) {
       <div class="success" role="status">
-        Sucursal y bodega listas. El siguiente paso es crear la caja inicial.
+        Sucursal y bodega listas. Crea la caja inicial para comenzar a operar.
       </div>
       <dl>
         <div>
@@ -93,6 +97,18 @@
 
         <button class="primary" type="submit" [disabled]="saving()">
           {{ saving() ? 'Creando…' : 'Crear sucursal y bodega' }}
+        </button>
+      </form>
+    } @else if (!initialCashRegister()) {
+      <form [formGroup]="cashRegisterForm" (ngSubmit)="submitInitialCashRegister()" novalidate>
+        <label for="cashRegisterName">Nombre de la caja</label>
+        <input id="cashRegisterName" formControlName="name" maxlength="120" />
+        @if (cashRegisterForm.controls.name.touched && cashRegisterForm.controls.name.invalid) {
+          <p class="field-error">Escribe el nombre de la caja.</p>
+        }
+
+        <button class="primary" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Creando…' : 'Crear caja y comenzar' }}
         </button>
       </form>
     }

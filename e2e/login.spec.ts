@@ -39,34 +39,51 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await page.getByLabel('Zona horaria').fill('America/Mexico_City');
   await page.getByRole('button', { name: 'Crear sucursal y bodega' }).click();
   await expect(
-    page.getByText('Sucursal y bodega listas. El siguiente paso es crear la caja inicial.'),
+    page.getByText('Sucursal y bodega listas. Crea la caja inicial para comenzar a operar.'),
   ).toBeVisible();
+
+  await page.goto('/app');
+  await expect(page).toHaveURL(/\/onboarding$/);
+  await expect(page.getByLabel('Nombre de la caja')).toHaveValue('Caja Principal');
+  await page.getByLabel('Nombre de la caja').fill('');
+  await page.getByRole('button', { name: 'Crear caja y comenzar' }).click();
+  await expect(page.getByText('Escribe el nombre de la caja.')).toBeVisible();
+  await page.getByLabel('Nombre de la caja').fill('Caja Principal');
   await page.screenshot({
-    path: testInfo.outputPath('initial-location-configured.png'),
+    path: testInfo.outputPath('initial-register-step.png'),
+    fullPage: true,
+  });
+
+  await page.getByRole('button', { name: 'Crear caja y comenzar' }).click();
+  await expect(page).toHaveURL(/\/app$/);
+  await expect(page.getByRole('heading', { name: 'Productos', exact: true })).toBeVisible();
+  await expect(page.getByText('Sucursal Principal · Bodega Principal · Caja Principal')).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath('operational-context.png'),
     fullPage: true,
   });
 
   await page.reload();
-  await expect(page).toHaveURL(/\/onboarding$/);
+  await expect(page).toHaveURL(/\/app$/);
   await expect(page.getByText('Sucursal Principal')).toBeVisible();
   await expect(page.getByText('Bodega Principal')).toBeVisible();
-  await expect(page.getByText('Ubicación general')).toBeVisible();
+  await expect(page.getByText('Caja Principal')).toBeVisible();
 
   const refresh = await page.request.post('http://localhost:3000/api/v1/auth/sessions/refresh');
   expect(refresh.status()).toBe(200);
   await page.reload();
-  await expect(page.getByText(email)).toBeVisible();
+  await expect(page.getByText('Caja Principal')).toBeVisible();
 
   const secondTab = await context.newPage();
-  await secondTab.goto('/onboarding');
-  await expect(secondTab.getByText(email)).toBeVisible();
+  await secondTab.goto('/app');
+  await expect(secondTab.getByText('Caja Principal')).toBeVisible();
 
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
   await expect(page).toHaveURL(/\/login$/);
   await expect(secondTab).toHaveURL(/\/login$/);
 
-  await page.goto('/onboarding');
-  await expect(page).toHaveURL(/\/login\?returnUrl=%2Fonboarding$/);
+  await page.goto('/app');
+  await expect(page).toHaveURL(/\/login\?returnUrl=%2Fapp$/);
 });
 
 test('protects private routes and reports invalid credentials generically', async ({ page }) => {

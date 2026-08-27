@@ -1,9 +1,11 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
 import { finalize } from 'rxjs';
 import {
   CompanyOnboardingData,
+  InitialCashRegisterData,
   InitialLocationData,
   OnboardingApiService,
 } from './onboarding-api.service';
@@ -40,6 +42,7 @@ export class OnboardingPage implements OnInit {
   private readonly formBuilder = inject(FormBuilder);
   private readonly onboarding = inject(OnboardingApiService);
   private readonly sessions = inject(SessionApiService);
+  private readonly router = inject(Router);
 
   protected readonly session = this.sessions.session;
   protected readonly loading = signal(true);
@@ -48,6 +51,7 @@ export class OnboardingPage implements OnInit {
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly progress = signal<CompanyOnboardingData['progress'] | null>(null);
   protected readonly initialLocation = signal<InitialLocationData | null>(null);
+  protected readonly initialCashRegister = signal<InitialCashRegisterData | null>(null);
   protected readonly countries = buildCountryOptions();
   protected readonly form = this.formBuilder.nonNullable.group({
     legalName: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
@@ -60,13 +64,24 @@ export class OnboardingPage implements OnInit {
     warehouseName: ['Bodega Principal', [Validators.required, Validators.minLength(2)]],
     locationName: ['Ubicación general', [Validators.required, Validators.minLength(2)]],
   });
+  protected readonly cashRegisterForm = this.formBuilder.nonNullable.group({
+    name: [
+      'Caja Principal',
+      [Validators.required, Validators.minLength(2), Validators.maxLength(120)],
+    ],
+  });
 
   ngOnInit(): void {
     this.onboarding.getCompany().subscribe({
       next: ({ data }) => {
         this.applyCompany(data);
-        if (data.progress.currentStep === 'BRANCH') this.loadInitialLocation();
-        else this.loading.set(false);
+        if (data.progress.currentStep === 'COMPLETE') {
+          void this.router.navigateByUrl('/app');
+        } else if (data.progress.currentStep === 'BRANCH') {
+          this.loadInitialLocation();
+        } else {
+          this.loading.set(false);
+        }
       },
       error: () => {
         this.loading.set(false);
@@ -113,9 +128,32 @@ export class OnboardingPage implements OnInit {
       .subscribe({
         next: ({ data }) => {
           this.initialLocation.set(data);
-          this.sessions.loadCurrent().subscribe({ error: () => undefined });
+          this.loadInitialCashRegister();
         },
         error: () => this.errorMessage.set('No fue posible crear la sucursal inicial.'),
+      });
+  }
+
+  protected submitInitialCashRegister(): void {
+    if (this.cashRegisterForm.invalid || this.saving()) {
+      this.cashRegisterForm.markAllAsTouched();
+      return;
+    }
+    this.saving.set(true);
+    this.errorMessage.set(null);
+    this.onboarding
+      .configureInitialCashRegister(this.cashRegisterForm.getRawValue())
+      .pipe(finalize(() => this.saving.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.initialCashRegister.set(data);
+          this.sessions.loadCurrent().subscribe({
+            next: () => void this.router.navigateByUrl('/app'),
+            error: () =>
+              this.errorMessage.set('La caja se creó, pero no pudimos actualizar la sesión.'),
+          });
+        },
+        error: () => this.errorMessage.set('No fue posible crear la caja inicial.'),
       });
   }
 
@@ -152,9 +190,24 @@ export class OnboardingPage implements OnInit {
               warehouseName: data.warehouse.name,
               locationName: data.location.name,
             });
+            this.loadInitialCashRegister();
           }
         },
         error: () => this.errorMessage.set('No fue posible cargar la sucursal inicial.'),
+      });
+  }
+
+  private loadInitialCashRegister(): void {
+    this.loading.set(true);
+    this.onboarding
+      .getInitialCashRegister()
+      .pipe(finalize(() => this.loading.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.initialCashRegister.set(data);
+          if (data) this.cashRegisterForm.setValue({ name: data.cashRegister.name });
+        },
+        error: () => this.errorMessage.set('No fue posible cargar la caja inicial.'),
       });
   }
 }

@@ -16,9 +16,14 @@ describe('LoginPage', () => {
 
   const response: SessionResponse = {
     data: {
-      user: { id: 'user-id', email: 'admin@example.com', roles: ['ADMIN'] },
+      user: {
+        id: 'user-id',
+        email: 'admin@example.com',
+        roles: ['ADMIN'],
+        permissions: ['TENANT_MANAGE', 'PRODUCTS_MANAGE', 'STOCK_MANAGE', 'SALES_MANAGE'],
+      },
       tenant: { id: 'tenant-id', name: 'Tienda Central' },
-      context: { branch: null, warehouse: null },
+      context: { branch: null, warehouse: null, cashRegister: null },
       nextStep: 'ONBOARDING',
     },
     meta: {
