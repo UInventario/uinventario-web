@@ -3,6 +3,26 @@ import { OfflineBootstrapData } from './offline-bootstrap-api.service';
 import { OFFLINE_SCHEMA_VERSION, OfflineStoreService } from './offline-store.service';
 
 describe('OfflineStoreService', () => {
+  class FakeBroadcastChannel {
+    static readonly channels = new Set<FakeBroadcastChannel>();
+    private readonly listeners = new Set<(event: MessageEvent<string>) => void>();
+
+    constructor(readonly name: string) {
+      FakeBroadcastChannel.channels.add(this);
+    }
+
+    addEventListener(_: string, listener: (event: MessageEvent<string>) => void): void {
+      this.listeners.add(listener);
+    }
+
+    postMessage(data: string): void {
+      for (const channel of FakeBroadcastChannel.channels) {
+        if (channel !== this && channel.name === this.name) {
+          for (const listener of channel.listeners) listener({ data } as MessageEvent<string>);
+        }
+      }
+    }
+  }
   const firstScope = {
     tenantId: 'tenant-1',
     userId: 'user-1',
@@ -15,7 +35,9 @@ describe('OfflineStoreService', () => {
     Object.assign(globalThis, {
       indexedDB: new IDBFactory(),
       IDBKeyRange,
+      BroadcastChannel: FakeBroadcastChannel as unknown as typeof BroadcastChannel,
     });
+    FakeBroadcastChannel.channels.clear();
   });
 
   it('persists a versioned bootstrap across service instances and clears it on logout', async () => {
@@ -250,6 +272,21 @@ describe('OfflineStoreService', () => {
       condition: 'FRESH',
       allowedActions: { CASH_SALE: true },
     });
+  });
+
+  it('notifies another tab when the shared outbox changes', async () => {
+    const firstTab = new OfflineStoreService();
+    const secondTab = new OfflineStoreService();
+    const firstListener = vi.fn();
+    const secondListener = vi.fn();
+    firstTab.watchOutbox(firstScope, firstListener);
+    secondTab.watchOutbox(firstScope, secondListener);
+
+    await firstTab.queue(firstScope, 'INVENTORY_COUNT', { countedQuantity: '2' });
+
+    expect(firstListener).toHaveBeenCalledOnce();
+    expect(secondListener).toHaveBeenCalledOnce();
+    expect(await secondTab.outbox(firstScope)).toHaveLength(1);
   });
 
   function response(scope: typeof firstScope): OfflineBootstrapData {

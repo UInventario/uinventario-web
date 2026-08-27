@@ -1658,8 +1658,8 @@
           </div>
         }
         @if (queuedOfflineSale(); as queued) {
-          <div class="success sale-complete" role="status">
-            <strong>Venta guardada para sincronizar</strong>
+          <div class="catalog-state sale-complete" role="status">
+            <strong>Venta pendiente de confirmación</strong>
             <span
               >Total {{ cartQuote()?.currency || currentCashRegisterShift()?.currency }}
               {{ queued.total }}</span

@@ -170,7 +170,7 @@ export class OfflineInventoryPanelComponent implements OnInit {
           quantity: value.quantity,
         });
       }
-      this.success.set(`Operación #${command.sequence} guardada para sincronización.`);
+      this.success.set(`Operación #${command.sequence} pendiente de confirmación.`);
       this.form.patchValue({ quantity: '', reason: '', reference: '' });
     } catch (error) {
       this.error.set(

@@ -1,5 +1,14 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, HostListener, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
+import {
+  Component,
+  computed,
+  HostListener,
+  inject,
+  OnDestroy,
+  OnInit,
+  signal,
+} from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { SessionApiService } from '../auth/session-api.service';
 import { OfflineBootstrapApiService, OfflineBootstrapData } from './offline-bootstrap-api.service';
@@ -12,6 +21,7 @@ import { OfflineOutboxService } from './offline-outbox.service';
 
 @Component({
   selector: 'app-offline-bootstrap-panel',
+  imports: [DatePipe],
   templateUrl: './offline-bootstrap-panel.component.html',
   styleUrl: './offline-bootstrap-panel.component.scss',
 })
@@ -31,6 +41,15 @@ export class OfflineBootstrapPanelComponent implements OnInit, OnDestroy {
     typeof navigator === 'undefined' ? true : navigator.onLine,
   );
   protected readonly freshness = signal<OfflineFreshnessState | null>(null);
+  protected readonly reviewingCommandId = signal<string | null>(null);
+  protected readonly operationalState = computed<
+    'ONLINE' | 'OFFLINE' | 'SYNCING' | 'ERROR' | 'CONFLICT'
+  >(() => {
+    if (this.syncing() || this.sendingCommands() || this.preparing()) return 'SYNCING';
+    if (this.error()) return 'ERROR';
+    if (this.rejectedCommands() > 0) return 'CONFLICT';
+    return this.onlineState() ? 'ONLINE' : 'OFFLINE';
+  });
   protected readonly downloaded = signal(0);
   protected readonly result = signal<{
     entities: number;
@@ -39,6 +58,8 @@ export class OfflineBootstrapPanelComponent implements OnInit, OnDestroy {
   } | null>(null);
   protected readonly error = signal<string | null>(null);
   private freshnessTimer: ReturnType<typeof setInterval> | undefined;
+  private stopWatchingOutbox: (() => void) | undefined;
+  private watchedScopeKey: string | undefined;
 
   ngOnInit(): void {
     void this.restore();
@@ -47,6 +68,7 @@ export class OfflineBootstrapPanelComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     if (this.freshnessTimer !== undefined) clearInterval(this.freshnessTimer);
+    this.stopWatchingOutbox?.();
   }
 
   @HostListener('window:online')
@@ -92,6 +114,7 @@ export class OfflineBootstrapPanelComponent implements OnInit, OnDestroy {
       } while (cursor);
       if (!lastPage) throw new Error('El servidor no entregó un bootstrap válido.');
       await this.store.replaceBootstrap(lastPage, entities);
+      this.watchScope(lastPage.scope);
       await this.refreshOutbox(lastPage.scope);
       await this.refreshFreshness(lastPage.scope);
       this.result.set({
@@ -201,10 +224,56 @@ export class OfflineBootstrapPanelComponent implements OnInit, OnDestroy {
     );
   }
 
+  protected commandKind(command: OfflineOutboxCommand): string {
+    return (
+      {
+        CASH_SALE: 'Venta en efectivo',
+        INVENTORY_COUNT: 'Conteo de inventario',
+        INVENTORY_MOVEMENT: 'Movimiento de inventario',
+      } satisfies Record<OfflineOutboxCommand['kind'], string>
+    )[command.kind];
+  }
+
+  protected commandStatus(command: OfflineOutboxCommand): string {
+    if (command.status === 'PENDING') return 'Pendiente';
+    if (command.status === 'SENT') return 'Esperando confirmación';
+    if (command.status === 'ERROR' && command.retryable) return 'Error de conexión';
+    return 'Conflicto';
+  }
+
+  protected statusLabel(): string {
+    return (
+      {
+        ONLINE: 'En línea',
+        OFFLINE: 'Sin conexión',
+        SYNCING: 'Sincronizando',
+        ERROR: 'Error de sincronización',
+        CONFLICT: 'Conflictos por revisar',
+      } as const
+    )[this.operationalState()];
+  }
+
+  protected toggleReview(commandId: string): void {
+    this.reviewingCommandId.update((current) => (current === commandId ? null : commandId));
+  }
+
+  protected commandGuidance(command: OfflineOutboxCommand): string {
+    if (command.retryable) return 'Puedes reintentar conservando la misma clave idempotente.';
+    const code = (command.lastError as { details?: { code?: string } } | null)?.details?.code;
+    if (code === 'INVENTORY_COUNT_CONFLICT') {
+      return 'Sincroniza existencias y captura un conteo nuevo; el saldo anterior no se sobrescribió.';
+    }
+    if (code === 'OFFLINE_COMMAND_PERMISSION_DENIED') {
+      return 'La operación quedó rechazada. Solicita permisos antes de capturar una nueva.';
+    }
+    return 'La operación no se aplicó. Revisa los datos actuales antes de capturar una nueva.';
+  }
+
   private async restore(): Promise<void> {
     try {
       if (!this.sessions.session()) return;
       const scope = await this.currentScope();
+      this.watchScope(scope);
       const summary = await this.store.summary(scope);
       if (summary) {
         this.downloaded.set(summary.entities);
@@ -245,6 +314,16 @@ export class OfflineBootstrapPanelComponent implements OnInit, OnDestroy {
     this.rejectedCommands.set(
       commands.filter(({ status, retryable }) => status === 'ERROR' && !retryable).length,
     );
+  }
+
+  private watchScope(scope: Awaited<ReturnType<typeof this.currentScope>>): void {
+    const key = this.store.scopeKey(scope);
+    if (this.watchedScopeKey === key) return;
+    this.stopWatchingOutbox?.();
+    this.watchedScopeKey = key;
+    this.stopWatchingOutbox = this.store.watchOutbox(scope, () => {
+      void this.refreshOutbox(scope).catch((error: unknown) => this.error.set(this.message(error)));
+    });
   }
 
   protected sensitiveBlocked(state: OfflineFreshnessState): boolean {

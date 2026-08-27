@@ -1739,7 +1739,7 @@ describe('ApplicationPage', () => {
       { lines: [{ productId: 'product', quantity: '1' }], cashReceived: '120.00' },
       idempotencyKey,
     );
-    expect(fixture.nativeElement.textContent).toContain('Venta guardada para sincronizar');
+    expect(fixture.nativeElement.textContent).toContain('Venta pendiente de confirmación');
     expect(fixture.nativeElement.textContent).toContain('Sólo efectivo, sin sobreventa');
   });
 
