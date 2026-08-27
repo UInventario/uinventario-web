@@ -1,0 +1,90 @@
+<section class="classification-panel" aria-labelledby="classification-title">
+  <div>
+    <p class="eyebrow">Organización del catálogo</p>
+    <h2 id="classification-title">Categorías y marcas</h2>
+    <p>Administra nombres reales y conserva los productos al desactivar una clasificación.</p>
+  </div>
+  @if (error()) {
+    <p class="error" role="alert">{{ error() }}</p>
+  }
+  @if (success()) {
+    <p class="success" role="status">{{ success() }}</p>
+  }
+  @if (loading()) {
+    <p role="status">Cargando clasificaciones…</p>
+  } @else {
+    <div class="classification-grid">
+      @for (kind of ['categories', 'brands']; track kind) {
+        <section>
+          <h3>{{ kind === 'categories' ? 'Categorías' : 'Marcas' }}</h3>
+          <form
+            (ngSubmit)="create($any(kind), newName.value); newName.value = ''"
+            class="create-classification"
+            #createForm="ngForm"
+          >
+            <input
+              #newName
+              [name]="kind + '-name'"
+              [attr.aria-label]="'Nueva ' + singular($any(kind)).toLowerCase()"
+              minlength="2"
+              [maxlength]="kind === 'categories' ? 80 : 120"
+              required
+              ngModel
+            />
+            <button type="submit" [disabled]="createForm.invalid || !!busyId()">Agregar</button>
+          </form>
+          <ul>
+            @for (item of items($any(kind)); track item.id) {
+              <li [class.inactive]="!item.active">
+                <div>
+                  <input
+                    [attr.aria-label]="'Nombre de ' + singular($any(kind)).toLowerCase()"
+                    [value]="item.name"
+                    [disabled]="!item.active || busyId() === item.id"
+                    (change)="rename($any(kind), item, $any($event.target).value)"
+                  />
+                  <small
+                    >{{ item.productCount }} producto(s) ·
+                    {{ item.active ? 'Activa' : 'Inactiva' }}</small
+                  >
+                </div>
+                @if (item.active) {
+                  <select #replacement [attr.aria-label]="'Reasignar productos de ' + item.name">
+                    <option value="">Sin clasificación</option>
+                    @for (
+                      candidate of activeReplacements($any(kind), item.id);
+                      track candidate.id
+                    ) {
+                      <option [value]="candidate.id">{{ candidate.name }}</option>
+                    }
+                  </select>
+                  <button
+                    type="button"
+                    class="danger"
+                    [disabled]="!!busyId()"
+                    (click)="deactivate($any(kind), item, replacement.value)"
+                  >
+                    Desactivar
+                  </button>
+                } @else {
+                  <button
+                    type="button"
+                    class="secondary"
+                    [disabled]="!!busyId()"
+                    (click)="reactivate($any(kind), item.id)"
+                  >
+                    Reactivar
+                  </button>
+                }
+              </li>
+            } @empty {
+              <li class="empty">
+                Aún no hay {{ kind === 'categories' ? 'categorías' : 'marcas' }}.
+              </li>
+            }
+          </ul>
+        </section>
+      }
+    </div>
+  }
+</section>
