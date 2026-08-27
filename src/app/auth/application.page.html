@@ -7,14 +7,31 @@
     <button class="secondary" type="button" (click)="logout()">Cerrar sesión</button>
   </header>
   <nav aria-label="Módulos principales">
-    <a routerLink="/onboarding">Empresa</a>
-    <a routerLink="/app" fragment="products-title">Productos</a>
-    <a routerLink="/app" fragment="stock-overview-title">Inventario</a>
-    <a routerLink="/app" fragment="movement-history-title">Movimientos</a>
-    <a routerLink="/app" fragment="pos-title">Punto de venta</a>
-    <a routerLink="/app" fragment="sales-title">Historial</a>
-    <a routerLink="/app" fragment="audit-title">Auditoría</a>
+    @if (canManageTenant()) {
+      <a routerLink="/onboarding">Empresa</a>
+    }
+    @if (canManageProducts()) {
+      <a routerLink="/app" fragment="products-title">Productos</a>
+    }
+    @if (canManageStock()) {
+      <a routerLink="/app" fragment="stock-overview-title">Inventario</a>
+      <a routerLink="/app" fragment="movement-history-title">Movimientos</a>
+    }
+    @if (canManageSales()) {
+      <a routerLink="/app" fragment="pos-title">Punto de venta</a>
+      <a routerLink="/app" fragment="sales-title">Historial</a>
+    }
+    @if (canViewAudit()) {
+      <a routerLink="/app" fragment="audit-title">Auditoría</a>
+    }
   </nav>
+
+  @if (hasNoCoreAccess()) {
+    <section class="empty" role="status" aria-labelledby="no-access-title">
+      <h1 id="no-access-title">Sin módulos asignados</h1>
+      <p>Tu sesión es válida, pero un administrador debe asignarte permisos.</p>
+    </section>
+  }
 
   @if (pendingOperation(); as operation) {
     <div class="operation-status" role="status" aria-live="polite">
@@ -24,6 +41,7 @@
 
   <section
     aria-labelledby="products-title"
+    [hidden]="!canManageProducts() && !canManageStock()"
     [attr.aria-busy]="loadingCatalog() || loadingOptions() || saving()"
   >
     <p class="eyebrow">Catálogo</p>
@@ -33,7 +51,7 @@
       {{ session()?.context?.cashRegister?.name }}
     </p>
 
-    <div class="workspace">
+    <div class="workspace" [hidden]="!canManageProducts()">
       <form class="product-form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
         <div class="form-heading">
           <div>
@@ -236,7 +254,7 @@
               </div>
             </dl>
 
-            <section class="stock-card" aria-labelledby="stock-title">
+            <section class="stock-card" aria-labelledby="stock-title" [hidden]="!canManageStock()">
               <div class="stock-heading">
                 <div>
                   <p class="eyebrow">Inventario</p>
@@ -321,6 +339,7 @@
     <section
       class="stock-overview"
       aria-labelledby="stock-overview-title"
+      [hidden]="!canManageStock()"
       [attr.aria-busy]="loadingStockList()"
     >
       <div class="overview-heading">
@@ -410,6 +429,7 @@
     <section
       class="stock-overview movement-history"
       aria-labelledby="movement-history-title"
+      [hidden]="!canManageStock()"
       [attr.aria-busy]="loadingMovementHistory()"
     >
       <div class="overview-heading">
@@ -523,6 +543,7 @@
   <section
     class="pos-workspace"
     aria-labelledby="pos-title"
+    [hidden]="!canManageSales()"
     [attr.aria-busy]="searchingPos() || quotingCart() || savingSale()"
   >
     <p class="eyebrow">Caja</p>
@@ -667,6 +688,7 @@
   <section
     class="sales-workspace"
     aria-labelledby="sales-title"
+    [hidden]="!canManageSales()"
     [attr.aria-busy]="loadingSales() || loadingSaleDetail()"
   >
     <p class="eyebrow">Auditoría</p>
@@ -821,6 +843,7 @@
   <section
     class="stock-overview audit-log"
     aria-labelledby="audit-title"
+    [hidden]="!canViewAudit()"
     [attr.aria-busy]="loadingAudit()"
   >
     <div class="overview-heading">

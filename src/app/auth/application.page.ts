@@ -53,6 +53,29 @@ export class ApplicationPage implements OnInit {
   } | null = null;
 
   protected readonly session = this.sessions.session;
+  protected readonly canManageTenant = computed(
+    () => this.session()?.user.permissions.includes('TENANT_MANAGE') ?? false,
+  );
+  protected readonly canManageProducts = computed(
+    () => this.session()?.user.permissions.includes('PRODUCTS_MANAGE') ?? false,
+  );
+  protected readonly canManageStock = computed(
+    () => this.session()?.user.permissions.includes('STOCK_MANAGE') ?? false,
+  );
+  protected readonly canManageSales = computed(
+    () => this.session()?.user.permissions.includes('SALES_MANAGE') ?? false,
+  );
+  protected readonly canViewAudit = computed(
+    () => this.session()?.user.roles.includes('ADMIN') ?? false,
+  );
+  protected readonly hasNoCoreAccess = computed(
+    () =>
+      !this.canManageTenant() &&
+      !this.canManageProducts() &&
+      !this.canManageStock() &&
+      !this.canManageSales() &&
+      !this.canViewAudit(),
+  );
   protected readonly categories = signal<Array<{ id: string; name: string }>>([]);
   protected readonly brands = signal<Array<{ id: string; name: string }>>([]);
   protected readonly createdProduct = signal<ProductData | null>(null);
@@ -160,13 +183,17 @@ export class ApplicationPage implements OnInit {
   });
 
   ngOnInit(): void {
-    this.loadOptions();
-    this.loadLocations();
-    this.loadProducts(1);
-    this.loadStockList(1);
-    this.loadMovementHistory(1);
-    this.loadSales(1);
-    this.loadAuditEvents();
+    if (this.canManageProducts()) {
+      this.loadOptions();
+      this.loadProducts(1);
+    }
+    if (this.canManageStock()) {
+      this.loadLocations();
+      this.loadStockList(1);
+      this.loadMovementHistory(1);
+    }
+    if (this.canManageSales()) this.loadSales(1);
+    if (this.canViewAudit()) this.loadAuditEvents();
   }
 
   protected submit(): void {
