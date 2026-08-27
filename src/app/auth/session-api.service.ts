@@ -3,6 +3,7 @@ import { inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, finalize, tap, throwError } from 'rxjs';
 import { RuntimeConfigService } from '../core/runtime-config.service';
+import { OfflineStoreService } from '../offline/offline-store.service';
 
 export interface SessionData {
   user: { id: string; email: string; roles: string[]; permissions: string[] };
@@ -27,6 +28,7 @@ export class SessionApiService {
   private readonly http = inject(HttpClient);
   private readonly config = inject(RuntimeConfigService);
   private readonly router = inject(Router);
+  private readonly offlineStore = inject(OfflineStoreService);
   private readonly channel =
     typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('uinventario-session');
   private renewalTimer: ReturnType<typeof setTimeout> | undefined;
@@ -103,6 +105,18 @@ export class SessionApiService {
 
   private acceptSession(response: SessionResponse): void {
     this.session.set(response.data);
+    void this.offlineStore
+      .deviceId()
+      .then((deviceId) =>
+        this.offlineStore.clearIncompatible({
+          tenantId: response.data.tenant.id,
+          userId: response.data.user.id,
+          deviceId,
+          branchId: response.data.context.branch?.id ?? null,
+          cashRegisterId: response.data.context.cashRegister?.id ?? null,
+        }),
+      )
+      .catch(() => undefined);
     this.scheduleRenewal(response.meta.sessionExpiresAt);
   }
 
@@ -153,5 +167,6 @@ export class SessionApiService {
   private clearLocalState(): void {
     this.cancelRenewal();
     this.session.set(null);
+    void this.offlineStore.clearAll().catch(() => undefined);
   }
 }
