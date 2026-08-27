@@ -15,8 +15,14 @@ El flujo inicial se encuentra en `/registro`: valida los datos, crea la cuenta m
 
 El ambiente y la URL de la API se cargan en tiempo de ejecución desde
 `public/config.json`. Para cada ambiente, el pipeline debe sustituir ese archivo sin
-recompilar: `environment` es `local`, `dev` o `prod`, y `apiBaseUrl` debe ser HTTPS
-fuera de local. Este archivo es público y nunca puede contener secretos.
+recompilar: `environment` es `local`, `dev` o `prod`, y `apiBaseUrl` debe ser una
+ruta same-origin o una URL HTTPS fuera de local. Este archivo es público y nunca
+puede contener secretos.
+
+En Cloud Run, el servidor de la imagen genera `config.json` con `/api/v1` y
+reenvía `/api/*` a `API_UPSTREAM`. El navegador conserva así una sola origin para
+la Web y la cookie de sesión segura. `GET /health/live` verifica el runtime sin
+depender de la API. La receta coordinada está en la documentación operativa del API.
 
 ## Gates
 
@@ -57,6 +63,7 @@ npm run format:check
 npm run lint
 npm run typecheck
 npm run test:ci
+npm run test:server
 npm run build
 ```
 

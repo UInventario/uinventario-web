@@ -27,10 +27,21 @@ describe('RuntimeConfigService', () => {
     expect(fetch).toHaveBeenCalledWith('/config.json', { cache: 'no-store' });
   });
 
+  it('accepts the same-origin API proxy used by Cloud Run', async () => {
+    respond({ environment: 'prod', apiBaseUrl: '/api/v1/' });
+    const service = new RuntimeConfigService();
+
+    await service.load();
+
+    expect(service.environment()).toBe('prod');
+    expect(service.apiBaseUrl()).toBe('/api/v1');
+  });
+
   it.each([
     [{ apiBaseUrl: 'http://localhost:3000/api/v1' }, 'environment válido'],
     [{ environment: 'prod' }, 'requiere apiBaseUrl'],
     [{ environment: 'prod', apiBaseUrl: 'http://api.example.invalid/api/v1' }, 'no es segura'],
+    [{ environment: 'prod', apiBaseUrl: '//api.example.invalid/api/v1' }, 'no es segura'],
     [
       { environment: 'dev', apiBaseUrl: 'https://example-user@api.example.invalid/api/v1' },
       'no es segura',

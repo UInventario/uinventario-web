@@ -28,6 +28,16 @@ export class RuntimeConfigService {
       throw new Error('La configuración requiere apiBaseUrl.');
     }
 
+    if (apiBaseUrl.startsWith('//')) {
+      throw new Error('apiBaseUrl no es segura para el ambiente configurado.');
+    }
+
+    if (apiBaseUrl.startsWith('/')) {
+      this.environment.set(config.environment!);
+      this.apiBaseUrl.set(apiBaseUrl);
+      return;
+    }
+
     let parsed: URL;
     try {
       parsed = new URL(apiBaseUrl);
