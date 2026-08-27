@@ -3,7 +3,22 @@ import { inject, Injectable } from '@angular/core';
 import { RuntimeConfigService } from '../core/runtime-config.service';
 
 export type InventoryMovementType =
-  'INITIAL' | 'ENTRY' | 'EXIT' | 'RETURN' | 'LOSS' | 'DAMAGE' | 'ADJUSTMENT' | 'SALE';
+  | 'INITIAL'
+  | 'ENTRY'
+  | 'EXIT'
+  | 'RETURN'
+  | 'LOSS'
+  | 'DAMAGE'
+  | 'ADJUSTMENT'
+  | 'STATE_TRANSITION'
+  | 'SALE';
+
+export type InventoryStockState = 'AVAILABLE' | 'RESERVED' | 'DAMAGED' | 'IN_TRANSIT';
+
+export interface InventoryStateQuantity {
+  code: InventoryStockState;
+  quantity: string;
+}
 
 export interface InventoryLocationData {
   id: string;
@@ -15,28 +30,41 @@ export interface InventoryBalanceData {
   product: { id: string; name: string; sku: string };
   location: InventoryLocationData;
   quantity: string;
+  availableQuantity?: string;
+  totalQuantity?: string;
+  states?: InventoryStateQuantity[];
 }
 
 export interface InventoryMovementInput {
   productId: string;
   locationId: string;
-  type: Exclude<InventoryMovementType, 'SALE'>;
+  type: Exclude<InventoryMovementType, 'STATE_TRANSITION' | 'SALE'>;
   quantity: string;
   reason: string;
   reference?: string;
+}
+
+export interface InventoryStateTransitionInput {
+  productId: string;
+  locationId: string;
+  fromState: InventoryStockState;
+  toState: InventoryStockState;
+  quantity: string;
+  reason: string;
+  reference: string;
 }
 
 export interface InventoryStockItem {
   product: { id: string; name: string; sku: string; active: boolean };
   availableQuantity: string;
   totalQuantity: string;
-  states: Array<{ code: 'AVAILABLE'; quantity: string }>;
+  states: InventoryStateQuantity[];
 }
 
 export interface InventoryMovementHistoryItem {
   id: string;
   type: InventoryMovementType;
-  direction: 'IN' | 'OUT';
+  direction: 'IN' | 'OUT' | 'TRANSFER';
   quantityChange: string;
   resultingQuantity: string;
   reason: string;
@@ -50,6 +78,11 @@ export interface InventoryMovementHistoryItem {
     warehouse: { id: string; name: string };
   };
   responsible: { id: string; email: string };
+  stateTransition: {
+    from: InventoryStockState;
+    to: InventoryStockState;
+    quantity: string;
+  } | null;
 }
 
 interface LocationsResponse {
@@ -70,6 +103,11 @@ interface MovementResponse {
     reason: string;
     reference: string | null;
     createdAt: string;
+    stateTransition: {
+      from: InventoryStockState;
+      to: InventoryStockState;
+      quantity: string;
+    } | null;
   };
   meta: { apiVersion: '1'; idempotentReplay: boolean };
 }
@@ -156,6 +194,15 @@ export class InventoryApiService {
     const headers = new HttpHeaders().set('Idempotency-Key', idempotencyKey);
     return this.http.post<MovementResponse>(
       `${this.config.apiBaseUrl()}/inventory/movements`,
+      input,
+      { headers, withCredentials: true },
+    );
+  }
+
+  createStateTransition(input: InventoryStateTransitionInput, idempotencyKey: string) {
+    const headers = new HttpHeaders().set('Idempotency-Key', idempotencyKey);
+    return this.http.post<MovementResponse>(
+      `${this.config.apiBaseUrl()}/inventory/state-transitions`,
       input,
       { headers, withCredentials: true },
     );

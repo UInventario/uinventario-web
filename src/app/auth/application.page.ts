@@ -15,6 +15,8 @@ import {
   InventoryMovementInput,
   InventoryMovementHistoryItem,
   InventoryMovementType,
+  InventoryStateTransitionInput,
+  InventoryStockState,
   InventoryStockItem,
 } from '../inventory/inventory-api.service';
 import { SessionApiService } from './session-api.service';
@@ -31,6 +33,7 @@ const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
 const BARCODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{3,63}$/;
 const QUANTITY_PATTERN = /^-?(0|[1-9]\d{0,11})(\.\d{1,3})?$/;
+const POSITIVE_QUANTITY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,3})?$/;
 const CART_QUANTITY_PATTERN = /^(0|[1-9]\d{0,8})(\.\d{1,3})?$/;
 
 interface CartEntry {
@@ -52,6 +55,10 @@ export class ApplicationPage implements OnInit {
   private readonly pos = inject(PosApiService);
   private readonly audit = inject(AuditApiService);
   private pendingMovement: { input: InventoryMovementInput; key: string } | null = null;
+  private pendingStateTransition: {
+    input: InventoryStateTransitionInput;
+    key: string;
+  } | null = null;
   private pendingSale: {
     input: { lines: Array<{ productId: string; quantity: string }>; cashReceived: string };
     key: string;
@@ -98,10 +105,13 @@ export class ApplicationPage implements OnInit {
   protected readonly loadingDetail = signal(false);
   protected readonly saving = signal(false);
   protected readonly savingStock = signal(false);
+  protected readonly savingStateTransition = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly catalogError = signal<string | null>(null);
   protected readonly stockError = signal<string | null>(null);
   protected readonly stockSuccess = signal<string | null>(null);
+  protected readonly stateTransitionError = signal<string | null>(null);
+  protected readonly stateTransitionSuccess = signal<string | null>(null);
   protected readonly stockList = signal<InventoryStockItem[]>([]);
   protected readonly stockListError = signal<string | null>(null);
   protected readonly loadingStockList = signal(true);
@@ -146,6 +156,7 @@ export class ApplicationPage implements OnInit {
     if (this.saving()) return this.editingProduct() ? 'Guardando producto…' : 'Creando producto…';
     if (this.retiringProduct()) return 'Retirando producto del catálogo…';
     if (this.savingStock()) return 'Registrando movimiento de inventario…';
+    if (this.savingStateTransition()) return 'Actualizando estado del inventario…';
     if (this.savingSale()) return 'Confirmando venta y actualizando inventario…';
     if (this.quotingCart()) return 'Validando precios y existencias…';
     return null;
@@ -190,6 +201,13 @@ export class ApplicationPage implements OnInit {
     quantity: ['', [Validators.required, Validators.pattern(QUANTITY_PATTERN)]],
     reason: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
     reference: ['', [Validators.maxLength(120)]],
+  });
+  protected readonly stateTransitionForm = this.formBuilder.nonNullable.group({
+    fromState: ['AVAILABLE' as InventoryStockState, [Validators.required]],
+    toState: ['RESERVED' as InventoryStockState, [Validators.required]],
+    quantity: ['', [Validators.required, Validators.pattern(POSITIVE_QUANTITY_PATTERN)]],
+    reason: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
+    reference: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
   });
 
   ngOnInit(): void {
@@ -366,8 +384,31 @@ export class ApplicationPage implements OnInit {
       LOSS: 'Pérdida',
       DAMAGE: 'Daño',
       ADJUSTMENT: 'Ajuste',
+      STATE_TRANSITION: 'Cambio de estado',
       SALE: 'Venta',
     }[type];
+  }
+
+  protected stockStateLabel(state: InventoryStockState): string {
+    return {
+      AVAILABLE: 'Disponible',
+      RESERVED: 'Reservado',
+      DAMAGED: 'Dañado',
+      IN_TRANSIT: 'En tránsito',
+    }[state];
+  }
+
+  protected transitionTargets(): InventoryStockState[] {
+    return this.stateTransitionForm.controls.fromState.value === 'AVAILABLE'
+      ? ['RESERVED', 'DAMAGED', 'IN_TRANSIT']
+      : ['AVAILABLE'];
+  }
+
+  protected transitionSourceChanged(): void {
+    const targets = this.transitionTargets();
+    if (!targets.includes(this.stateTransitionForm.controls.toState.value)) {
+      this.stateTransitionForm.controls.toState.setValue(targets[0]);
+    }
   }
 
   protected movementRequiresReference(): boolean {
@@ -568,6 +609,7 @@ export class ApplicationPage implements OnInit {
         PRODUCT_CREATED: 'Producto creado',
         PRODUCT_UPDATED: 'Producto actualizado',
         INVENTORY_MOVEMENT_CREATED: 'Movimiento registrado',
+        INVENTORY_STATE_TRANSITION_CREATED: 'Estado de inventario actualizado',
         SALE_COMPLETED: 'Venta completada',
       }[action] ?? action
     );
@@ -646,6 +688,75 @@ export class ApplicationPage implements OnInit {
         error: (error: HttpErrorResponse) => {
           if (error.status > 0 && error.status < 500) this.pendingMovement = null;
           this.stockError.set(this.stockMessageFor(error));
+        },
+      });
+  }
+
+  protected changeStockState(): void {
+    const product = this.selectedProduct();
+    const locationId = this.stockForm.controls.locationId.value;
+    if (
+      !product ||
+      !locationId ||
+      this.stateTransitionForm.invalid ||
+      this.savingStateTransition()
+    ) {
+      this.stateTransitionForm.markAllAsTouched();
+      return;
+    }
+    const value = this.stateTransitionForm.getRawValue();
+    if (
+      Number(value.quantity) <= 0 ||
+      !this.transitionTargets().includes(value.toState) ||
+      value.fromState === value.toState
+    ) {
+      this.stateTransitionError.set(
+        'Selecciona una transición válida y una cantidad mayor que cero.',
+      );
+      return;
+    }
+    const input: InventoryStateTransitionInput = {
+      productId: product.id,
+      locationId,
+      fromState: value.fromState,
+      toState: value.toState,
+      quantity: value.quantity.trim(),
+      reason: value.reason.trim(),
+      reference: value.reference.trim(),
+    };
+    const pending = this.pendingStateTransition;
+    const idempotencyKey =
+      pending && JSON.stringify(pending.input) === JSON.stringify(input)
+        ? pending.key
+        : `web-state-${globalThis.crypto.randomUUID()}`;
+    this.pendingStateTransition = { input, key: idempotencyKey };
+    this.savingStateTransition.set(true);
+    this.stateTransitionError.set(null);
+    this.stateTransitionSuccess.set(null);
+    this.inventory
+      .createStateTransition(input, idempotencyKey)
+      .pipe(finalize(() => this.savingStateTransition.set(false)))
+      .subscribe({
+        next: () => {
+          this.pendingStateTransition = null;
+          this.stateTransitionSuccess.set(
+            `${this.stockStateLabel(value.fromState)} → ${this.stockStateLabel(value.toState)}: ${value.quantity}.`,
+          );
+          this.stateTransitionForm.reset({
+            fromState: 'AVAILABLE',
+            toState: 'RESERVED',
+            quantity: '',
+            reason: '',
+            reference: '',
+          });
+          this.loadBalance(product.id);
+          this.loadStockList(this.stockPage());
+          this.loadMovementHistory(1);
+          this.loadAuditEvents();
+        },
+        error: (error: HttpErrorResponse) => {
+          if (error.status > 0 && error.status < 500) this.pendingStateTransition = null;
+          this.stateTransitionError.set(this.stateTransitionMessageFor(error));
         },
       });
   }
@@ -907,6 +1018,22 @@ export class ApplicationPage implements OnInit {
     if (error.status === 403) return this.permissionMessage();
     if (error.status === 0) return 'No pudimos conectar con el servicio. Intenta nuevamente.';
     return 'No fue posible registrar el movimiento.';
+  }
+
+  private stateTransitionMessageFor(error: HttpErrorResponse): string {
+    const code = (error.error as { code?: string } | null)?.code;
+    if (code === 'INVALID_STOCK_STATE_TRANSITION') {
+      return 'Ese cambio no es válido; pasa primero por Disponible.';
+    }
+    if (code === 'INSUFFICIENT_STOCK_STATE') {
+      return 'No hay cantidad suficiente en el estado de origen.';
+    }
+    if (code === 'IDEMPOTENCY_KEY_REUSED') {
+      return 'El cambio fue modificado durante el reintento. Revísalo e intenta nuevamente.';
+    }
+    if (error.status === 403) return this.permissionMessage();
+    if (error.status === 0) return 'No pudimos conectar con el servicio. Intenta nuevamente.';
+    return 'No fue posible actualizar el estado del inventario.';
   }
 
   private posMessageFor(error: HttpErrorResponse): string {
