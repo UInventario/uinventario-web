@@ -33,6 +33,12 @@ import {
   OrganizationBranchData,
   OrganizationWarehouseData,
 } from '../organization/organization-api.service';
+import {
+  InventoryTransferApiService,
+  InventoryTransferData,
+  InventoryTransferInput,
+  InventoryTransferStatus,
+} from '../inventory/inventory-transfer-api.service';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
@@ -61,11 +67,14 @@ export class ApplicationPage implements OnInit {
   private readonly pos = inject(PosApiService);
   private readonly audit = inject(AuditApiService);
   private readonly organization = inject(OrganizationApiService);
+  private readonly transfers = inject(InventoryTransferApiService);
   private pendingMovement: { input: InventoryMovementInput; key: string } | null = null;
   private pendingStateTransition: {
     input: InventoryStateTransitionInput;
     key: string;
   } | null = null;
+  private pendingTransfer: { input: InventoryTransferInput; key: string } | null = null;
+  private pendingTransferDispatch: { id: string; key: string } | null = null;
   private pendingSale: {
     input: { lines: Array<{ productId: string; quantity: string }>; cashReceived: string };
     key: string;
@@ -116,6 +125,8 @@ export class ApplicationPage implements OnInit {
   protected readonly savingStock = signal(false);
   protected readonly savingStateTransition = signal(false);
   protected readonly savingOrganization = signal(false);
+  protected readonly savingTransfer = signal(false);
+  protected readonly transferActionId = signal<string | null>(null);
   protected readonly switchingContext = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly catalogError = signal<string | null>(null);
@@ -127,6 +138,10 @@ export class ApplicationPage implements OnInit {
   protected readonly loadingOrganization = signal(true);
   protected readonly organizationError = signal<string | null>(null);
   protected readonly organizationSuccess = signal<string | null>(null);
+  protected readonly transferList = signal<InventoryTransferData[]>([]);
+  protected readonly loadingTransfers = signal(true);
+  protected readonly transferError = signal<string | null>(null);
+  protected readonly transferSuccess = signal<string | null>(null);
   protected readonly editingBranch = signal<OrganizationBranchData | null>(null);
   protected readonly editingWarehouse = signal<
     (OrganizationWarehouseData & { branchId: string }) | null
@@ -181,6 +196,8 @@ export class ApplicationPage implements OnInit {
     if (this.savingStock()) return 'Registrando movimiento de inventario…';
     if (this.savingStateTransition()) return 'Actualizando estado del inventario…';
     if (this.savingOrganization()) return 'Guardando estructura operativa…';
+    if (this.savingTransfer()) return 'Creando transferencia…';
+    if (this.transferActionId()) return 'Actualizando transferencia…';
     if (this.switchingContext()) return 'Cambiando contexto operativo…';
     if (this.savingSale()) return 'Confirmando venta y actualizando inventario…';
     if (this.quotingCart()) return 'Validando precios y existencias…';
@@ -238,6 +255,14 @@ export class ApplicationPage implements OnInit {
     branchId: ['', [Validators.required]],
     warehouseId: ['', [Validators.required]],
   });
+  protected readonly transferForm = this.formBuilder.nonNullable.group({
+    destinationWarehouseId: ['', [Validators.required]],
+    sourceLocationId: ['', [Validators.required]],
+    destinationLocationId: ['', [Validators.required]],
+    quantity: ['', [Validators.required, Validators.pattern(POSITIVE_QUANTITY_PATTERN)]],
+    reference: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
+    reason: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
+  });
   protected readonly branchForm = this.formBuilder.nonNullable.group({
     name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
     timezone: ['America/Mexico_City', [Validators.required, Validators.maxLength(64)]],
@@ -262,6 +287,7 @@ export class ApplicationPage implements OnInit {
       this.loadLocations();
       this.loadStockList(1);
       this.loadMovementHistory(1);
+      this.loadTransfers();
     }
     if (this.canManageSales()) this.loadSales(1);
     if (this.canViewAudit()) this.loadAuditEvents();
@@ -384,6 +410,34 @@ export class ApplicationPage implements OnInit {
     }
   }
 
+  protected transferDestinations(): Array<{
+    branch: OrganizationBranchData;
+    warehouse: OrganizationWarehouseData;
+  }> {
+    const currentWarehouseId = this.session()?.context.warehouse?.id;
+    return this.activeBranches().flatMap((branch) =>
+      branch.warehouses
+        .filter(({ active, id }) => active && id !== currentWarehouseId)
+        .map((warehouse) => ({ branch, warehouse })),
+    );
+  }
+
+  protected transferDestinationLocations() {
+    const warehouseId = this.transferForm.controls.destinationWarehouseId.value;
+    return (
+      this.transferDestinations().find(({ warehouse }) => warehouse.id === warehouseId)?.warehouse
+        .locations ?? []
+    ).filter(({ active }) => active);
+  }
+
+  protected transferDestinationChanged(): void {
+    const locations = this.transferDestinationLocations();
+    const current = this.transferForm.controls.destinationLocationId.value;
+    if (!locations.some(({ id }) => id === current)) {
+      this.transferForm.controls.destinationLocationId.setValue(locations[0]?.id ?? '');
+    }
+  }
+
   protected changeContext(): void {
     if (this.contextForm.invalid || this.switchingContext()) {
       this.contextForm.markAllAsTouched();
@@ -406,6 +460,7 @@ export class ApplicationPage implements OnInit {
         next: () => {
           this.organizationSuccess.set('Contexto operativo actualizado.');
           this.stockForm.controls.locationId.setValue('');
+          this.transferForm.controls.sourceLocationId.setValue('');
           this.locations.set([]);
           this.stockBalance.set(null);
           this.cart.set([]);
@@ -417,6 +472,8 @@ export class ApplicationPage implements OnInit {
             this.loadLocations();
             this.loadStockList(1);
             this.loadMovementHistory(1);
+            this.loadTransfers();
+            this.syncTransferTargets();
           }
           if (this.canManageSales()) this.loadSales(1);
         },
@@ -631,7 +688,17 @@ export class ApplicationPage implements OnInit {
       ADJUSTMENT: 'Ajuste',
       STATE_TRANSITION: 'Cambio de estado',
       SALE: 'Venta',
+      TRANSFER_OUT: 'Transferencia despachada',
+      TRANSFER_IN: 'Transferencia en tránsito',
     }[type];
+  }
+
+  protected transferStatusLabel(status: InventoryTransferStatus): string {
+    return {
+      DRAFT: 'Borrador',
+      DISPATCHED: 'Despachada',
+      CANCELLED: 'Cancelada',
+    }[status];
   }
 
   protected stockStateLabel(state: InventoryStockState): string {
@@ -855,6 +922,9 @@ export class ApplicationPage implements OnInit {
         PRODUCT_UPDATED: 'Producto actualizado',
         INVENTORY_MOVEMENT_CREATED: 'Movimiento registrado',
         INVENTORY_STATE_TRANSITION_CREATED: 'Estado de inventario actualizado',
+        INVENTORY_TRANSFER_CREATED: 'Transferencia creada',
+        INVENTORY_TRANSFER_DISPATCHED: 'Transferencia despachada',
+        INVENTORY_TRANSFER_CANCELLED: 'Transferencia cancelada',
         SESSION_CONTEXT_CHANGED: 'Contexto operativo actualizado',
         BRANCH_CREATED: 'Sucursal creada',
         BRANCH_UPDATED: 'Sucursal actualizada',
@@ -1013,6 +1083,107 @@ export class ApplicationPage implements OnInit {
       });
   }
 
+  protected createTransfer(): void {
+    const product = this.selectedProduct();
+    const value = this.transferForm.getRawValue();
+    if (
+      !product ||
+      !product.active ||
+      this.transferForm.invalid ||
+      Number(value.quantity) <= 0 ||
+      this.savingTransfer()
+    ) {
+      this.transferForm.markAllAsTouched();
+      if (!product) this.transferError.set('Selecciona un producto del catálogo.');
+      return;
+    }
+    const input: InventoryTransferInput = {
+      destinationWarehouseId: value.destinationWarehouseId,
+      reference: value.reference.trim(),
+      reason: value.reason.trim(),
+      lines: [
+        {
+          productId: product.id,
+          sourceLocationId: value.sourceLocationId,
+          destinationLocationId: value.destinationLocationId,
+          quantity: value.quantity.trim(),
+        },
+      ],
+    };
+    const pending = this.pendingTransfer;
+    const key =
+      pending && JSON.stringify(pending.input) === JSON.stringify(input)
+        ? pending.key
+        : `web-transfer-${globalThis.crypto.randomUUID()}`;
+    this.pendingTransfer = { input, key };
+    this.savingTransfer.set(true);
+    this.transferError.set(null);
+    this.transferSuccess.set(null);
+    this.transfers
+      .create(input, key)
+      .pipe(finalize(() => this.savingTransfer.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.pendingTransfer = null;
+          this.transferSuccess.set(`Transferencia ${data.reference} creada como borrador.`);
+          this.transferForm.controls.quantity.setValue('');
+          this.transferForm.controls.reference.setValue('');
+          this.transferForm.controls.reason.setValue('');
+          this.loadTransfers();
+          this.loadAuditEvents();
+        },
+        error: (error: HttpErrorResponse) => {
+          if (error.status > 0 && error.status < 500) this.pendingTransfer = null;
+          this.transferError.set(this.transferMessageFor(error));
+        },
+      });
+  }
+
+  protected dispatchTransfer(transfer: InventoryTransferData): void {
+    if (this.transferActionId()) return;
+    const pending = this.pendingTransferDispatch;
+    const key =
+      pending?.id === transfer.id
+        ? pending.key
+        : `web-transfer-dispatch-${globalThis.crypto.randomUUID()}`;
+    this.pendingTransferDispatch = { id: transfer.id, key };
+    this.transferActionId.set(transfer.id);
+    this.transferError.set(null);
+    this.transferSuccess.set(null);
+    this.transfers
+      .dispatch(transfer.id, key)
+      .pipe(finalize(() => this.transferActionId.set(null)))
+      .subscribe({
+        next: ({ data }) => {
+          this.pendingTransferDispatch = null;
+          this.transferSuccess.set(`Transferencia ${data.reference} despachada.`);
+          this.refreshInventoryAfterTransfer();
+        },
+        error: (error: HttpErrorResponse) => {
+          if (error.status > 0 && error.status < 500) this.pendingTransferDispatch = null;
+          this.transferError.set(this.transferMessageFor(error));
+        },
+      });
+  }
+
+  protected cancelTransfer(transfer: InventoryTransferData): void {
+    if (this.transferActionId()) return;
+    this.transferActionId.set(transfer.id);
+    this.transferError.set(null);
+    this.transferSuccess.set(null);
+    this.transfers
+      .cancel(transfer.id)
+      .pipe(finalize(() => this.transferActionId.set(null)))
+      .subscribe({
+        next: ({ data }) => {
+          this.transferSuccess.set(`Transferencia ${data.reference} cancelada.`);
+          this.loadTransfers();
+          this.loadAuditEvents();
+        },
+        error: (error: HttpErrorResponse) => this.transferError.set(this.transferMessageFor(error)),
+      });
+  }
+
   private loadOptions(): void {
     this.loadingOptions.set(true);
     this.products
@@ -1053,6 +1224,7 @@ export class ApplicationPage implements OnInit {
           if (!this.warehouseForm.controls.branchId.value) {
             this.warehouseForm.controls.branchId.setValue(branch?.id ?? '');
           }
+          this.syncTransferTargets();
         },
         error: (error: HttpErrorResponse) =>
           this.organizationError.set(
@@ -1067,6 +1239,9 @@ export class ApplicationPage implements OnInit {
         this.locations.set(data);
         if (!this.stockForm.controls.locationId.value && data[0]) {
           this.stockForm.controls.locationId.setValue(data[0].id);
+        }
+        if (!this.transferForm.controls.sourceLocationId.value && data[0]) {
+          this.transferForm.controls.sourceLocationId.setValue(data[0].id);
         }
         const product = this.selectedProduct();
         if (product) this.loadBalance(product.id);
@@ -1174,6 +1349,43 @@ export class ApplicationPage implements OnInit {
           );
         },
       });
+  }
+
+  private loadTransfers(): void {
+    this.loadingTransfers.set(true);
+    this.transferError.set(null);
+    this.transfers
+      .list()
+      .pipe(finalize(() => this.loadingTransfers.set(false)))
+      .subscribe({
+        next: ({ data }) => this.transferList.set(data),
+        error: (error: HttpErrorResponse) => {
+          this.transferList.set([]);
+          this.transferError.set(
+            this.operationMessage(error, 'No fue posible cargar las transferencias.'),
+          );
+        },
+      });
+  }
+
+  private syncTransferTargets(): void {
+    const destinations = this.transferDestinations();
+    const selected = this.transferForm.controls.destinationWarehouseId.value;
+    if (!destinations.some(({ warehouse }) => warehouse.id === selected)) {
+      this.transferForm.controls.destinationWarehouseId.setValue(
+        destinations[0]?.warehouse.id ?? '',
+      );
+    }
+    this.transferDestinationChanged();
+  }
+
+  private refreshInventoryAfterTransfer(): void {
+    this.loadTransfers();
+    this.loadStockList(this.stockPage());
+    this.loadMovementHistory(1);
+    this.loadAuditEvents();
+    const selected = this.selectedProduct();
+    if (selected) this.loadBalance(selected.id);
   }
 
   private loadSales(page: number): void {
@@ -1333,6 +1545,25 @@ export class ApplicationPage implements OnInit {
     if (error.status === 403) return this.permissionMessage();
     if (error.status === 0) return 'No pudimos conectar con el servicio. Intenta nuevamente.';
     return 'No fue posible guardar la estructura operativa.';
+  }
+
+  private transferMessageFor(error: HttpErrorResponse): string {
+    const code = (error.error as { code?: string } | null)?.code;
+    if (code === 'INSUFFICIENT_AVAILABLE_STOCK') {
+      return 'La ubicación de origen no tiene stock disponible suficiente.';
+    }
+    if (code === 'INVALID_TRANSFER_TARGET') {
+      return 'Revisa la bodega, ubicaciones y producto de la transferencia.';
+    }
+    if (code === 'TRANSFER_STATUS_CONFLICT') {
+      return 'La transferencia ya no permite esta operación. Actualiza la lista.';
+    }
+    if (code === 'IDEMPOTENCY_KEY_REUSED') {
+      return 'La transferencia cambió durante el reintento. Revísala e intenta nuevamente.';
+    }
+    if (error.status === 403) return this.permissionMessage();
+    if (error.status === 0) return 'No pudimos conectar con el servicio. Intenta nuevamente.';
+    return 'No fue posible procesar la transferencia.';
   }
 
   private posMessageFor(error: HttpErrorResponse): string {
