@@ -975,6 +975,7 @@ export class ApplicationPage implements OnInit {
       TRANSFER_IN: 'Transferencia en tránsito',
       TRANSFER_RECEIPT: 'Transferencia recibida',
       TRANSFER_DISCREPANCY: 'Diferencia de transferencia',
+      PURCHASE_RECEIPT: 'Recepción de compra',
     }[type];
   }
 
@@ -985,6 +986,7 @@ export class ApplicationPage implements OnInit {
       SALE: 'Venta',
       TRANSFER: 'Transferencia',
       RECEIPT: 'Recepción',
+      PURCHASE_RECEIPT: 'Recepción de compra',
     }[type];
   }
 

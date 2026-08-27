@@ -272,6 +272,14 @@
                           @if (receipt.overageReason) {
                             · Sobrante: {{ receipt.overageReason }}
                           }
+                          @for (line of receipt.lines; track line.id) {
+                            <small>
+                              {{ receiptLineSku(order, line.purchaseOrderLineId) }} ·
+                              {{ line.receivedQuantity }} × {{ line.unitCost }} =
+                              {{ line.totalCost }} · costo catálogo {{ line.previousCatalogCost }} →
+                              {{ line.resultingCatalogCost }}
+                            </small>
+                          }
                         </li>
                       }
                     </ol>

@@ -280,7 +280,7 @@ export class PurchaseOrderPanelComponent implements OnInit {
           this.receiving.set(null);
           this.receiptLines.clear();
           this.success.set(
-            `Recepción registrada. La orden ${data.folio} quedó ${this.statusLabel(data.status).toLowerCase()}.`,
+            `Recepción, stock y costo registrados. La orden ${data.folio} quedó ${this.statusLabel(data.status).toLowerCase()}.`,
           );
           this.load(1);
         },
@@ -310,6 +310,10 @@ export class PurchaseOrderPanelComponent implements OnInit {
       RECEIVED: 'Recibida',
       CANCELLED: 'Cancelada',
     }[status];
+  }
+
+  protected receiptLineSku(order: PurchaseOrderData, lineId: string): string {
+    return order.lines.find(({ id }) => id === lineId)?.productSku ?? 'Producto';
   }
 
   protected submit(): void {
