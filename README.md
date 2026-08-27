@@ -70,6 +70,9 @@ npm run build
 El workflow `CI` ejecuta esta secuencia en cada PR y push a `develop` o `master`.
 El job se llama `verify`; cualquier paso fallido detiene el job y, por contrato,
 el pipeline de despliegue debe ejecutar este gate antes de publicar.
+`cloudbuild.yaml` aplica el mismo orden antes de construir y desplegar la imagen;
+la configuración y el rollback están documentados en
+`uinventario-api/docs/operations/cloud-build.md`.
 
 El E2E requiere MySQL local sano y el build actual de `uinventario-api`; Playwright levanta temporalmente API y Web.
 
