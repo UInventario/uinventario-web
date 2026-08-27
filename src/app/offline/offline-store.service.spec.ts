@@ -19,7 +19,7 @@ describe('OfflineStoreService', () => {
   });
 
   it('persists a versioned bootstrap across service instances and clears it on logout', async () => {
-    expect(OFFLINE_SCHEMA_VERSION).toBe(1);
+    expect(OFFLINE_SCHEMA_VERSION).toBe(2);
     const store = new OfflineStoreService();
     const deviceId = await store.deviceId();
     const bootstrap = response(firstScope);
@@ -37,15 +37,7 @@ describe('OfflineStoreService', () => {
   it('removes incompatible identities and keeps outbox commands scope-isolated', async () => {
     const store = new OfflineStoreService();
     await store.replaceBootstrap(response(firstScope), response(firstScope).page.entities);
-    await store.enqueue({
-      commandId: 'command-1',
-      scopeKey: store.scopeKey(firstScope),
-      idempotencyKey: 'idem-1',
-      type: 'SALE_CREATE',
-      payload: { total: '10.00' },
-      createdAt: '2026-08-27T20:00:00.000Z',
-      attempts: 0,
-    });
+    await store.queue(firstScope, 'CASH_SALE', { total: '10.00' });
     const afterReload = new OfflineStoreService();
     expect(await afterReload.pending(firstScope)).toHaveLength(1);
 
@@ -59,16 +51,64 @@ describe('OfflineStoreService', () => {
   it('rejects reusable credentials in pending command payloads', async () => {
     const store = new OfflineStoreService();
     await expect(
-      store.enqueue({
-        commandId: 'unsafe-command',
-        scopeKey: store.scopeKey(firstScope),
-        idempotencyKey: 'idem-unsafe',
-        type: 'UNSAFE',
-        payload: { authorizationToken: 'must-not-be-stored' },
-        createdAt: '2026-08-27T20:00:00.000Z',
-        attempts: 0,
+      store.queue(firstScope, 'CASH_SALE', {
+        authorizationToken: 'must-not-be-stored',
       }),
     ).rejects.toMatchObject({ code: 'WRITE_FAILED' });
+  });
+
+  it('allocates causal sequences and persists command delivery states', async () => {
+    const store = new OfflineStoreService();
+    const first = await store.queue(firstScope, 'INVENTORY_MOVEMENT', { quantity: '2' });
+    const second = await store.queue(firstScope, 'CASH_SALE', { total: '10.00' });
+
+    expect([first.sequence, second.sequence]).toEqual([1, 2]);
+    expect(first.idempotencyKey).toContain(first.commandId);
+    await store.markSent([first.commandId, second.commandId]);
+    expect((await store.pending(firstScope)).map(({ status }) => status)).toEqual(['SENT', 'SENT']);
+
+    await store.settle([
+      {
+        commandId: first.commandId,
+        sequence: 1,
+        status: 'CONFIRMED',
+        replay: false,
+        result: { id: 'movement-1' },
+      },
+      {
+        commandId: second.commandId,
+        sequence: 2,
+        status: 'ERROR',
+        replay: false,
+        error: { status: 422 },
+      },
+    ]);
+
+    expect(await store.pending(firstScope)).toEqual([]);
+    expect((await store.outbox(firstScope)).map(({ status }) => status)).toEqual([
+      'CONFIRMED',
+      'ERROR',
+    ]);
+  });
+
+  it('backs off transport failures without sending later causal commands early', async () => {
+    const store = new OfflineStoreService();
+    const first = await store.queue(firstScope, 'INVENTORY_MOVEMENT', { quantity: '2' });
+    await store.markSent([first.commandId]);
+    await store.retry([first.commandId], new Error('network down'));
+    await store.queue(firstScope, 'INVENTORY_MOVEMENT', { quantity: '3' });
+
+    expect(await store.pending(firstScope)).toEqual([]);
+    expect(await store.outbox(firstScope)).toEqual([
+      expect.objectContaining({
+        sequence: 1,
+        status: 'ERROR',
+        attempts: 1,
+        retryable: true,
+        lastError: { name: 'Error', message: 'network down' },
+      }),
+      expect.objectContaining({ sequence: 2, status: 'PENDING' }),
+    ]);
   });
 
   it('advances the cursor atomically with upserts and tombstones', async () => {
@@ -120,6 +160,39 @@ describe('OfflineStoreService', () => {
     expect(await store.deviceId()).toMatch(/^[0-9a-f-]{36}$/i);
     await store.replaceBootstrap(response(firstScope), response(firstScope).page.entities);
     expect(await store.summary(firstScope)).toEqual(expect.objectContaining({ entities: 2 }));
+  });
+
+  it('drops incompatible version-one outbox entries during the causal-sequence upgrade', async () => {
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open('uinventario-offline', 1);
+      request.onupgradeneeded = () => {
+        request.result.createObjectStore('meta', { keyPath: 'key' });
+        request.result.createObjectStore('scopes', { keyPath: 'key' });
+        const entities = request.result.createObjectStore('entities', { keyPath: 'storageKey' });
+        entities.createIndex('scopeKey', 'scopeKey');
+        const outbox = request.result.createObjectStore('outbox', { keyPath: 'commandId' });
+        outbox.createIndex('scopeKey', 'scopeKey');
+        outbox.put({
+          commandId: 'legacy-command',
+          scopeKey: [
+            firstScope.tenantId,
+            firstScope.userId,
+            firstScope.deviceId,
+            firstScope.branchId,
+            '-',
+          ].join(':'),
+        });
+      };
+      request.onsuccess = () => {
+        request.result.close();
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+
+    const store = new OfflineStoreService();
+    expect(await store.outbox(firstScope)).toEqual([]);
+    expect((await store.queue(firstScope, 'INVENTORY_MOVEMENT', {})).sequence).toBe(1);
   });
 
   function response(scope: typeof firstScope): OfflineBootstrapData {

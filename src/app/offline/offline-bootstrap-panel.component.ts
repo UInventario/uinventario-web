@@ -1,9 +1,10 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, HostListener, inject, OnInit, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { SessionApiService } from '../auth/session-api.service';
 import { OfflineBootstrapApiService, OfflineBootstrapData } from './offline-bootstrap-api.service';
 import { OfflineStoreService } from './offline-store.service';
+import { OfflineOutboxService } from './offline-outbox.service';
 
 @Component({
   selector: 'app-offline-bootstrap-panel',
@@ -13,10 +14,13 @@ import { OfflineStoreService } from './offline-store.service';
 export class OfflineBootstrapPanelComponent implements OnInit {
   private readonly api = inject(OfflineBootstrapApiService);
   private readonly store = inject(OfflineStoreService);
+  private readonly outbox = inject(OfflineOutboxService);
   private readonly sessions = inject(SessionApiService);
 
   protected readonly preparing = signal(false);
   protected readonly syncing = signal(false);
+  protected readonly sendingCommands = signal(false);
+  protected readonly pendingCommands = signal(0);
   protected readonly downloaded = signal(0);
   protected readonly result = signal<{
     entities: number;
@@ -27,6 +31,12 @@ export class OfflineBootstrapPanelComponent implements OnInit {
 
   ngOnInit(): void {
     void this.restore();
+  }
+
+  @HostListener('window:online')
+  protected online(): void {
+    if (!this.sessions.session()) return;
+    void this.sendPending();
   }
 
   protected async prepare(): Promise<void> {
@@ -60,6 +70,7 @@ export class OfflineBootstrapPanelComponent implements OnInit {
       } while (cursor);
       if (!lastPage) throw new Error('El servidor no entregó un bootstrap válido.');
       await this.store.replaceBootstrap(lastPage, entities);
+      await this.refreshOutbox(lastPage.scope);
       this.result.set({
         entities: this.downloaded(),
         generatedAt: lastPage.generatedAt,
@@ -72,21 +83,33 @@ export class OfflineBootstrapPanelComponent implements OnInit {
     }
   }
 
+  protected async sendPending(): Promise<void> {
+    if (this.sendingCommands()) return;
+    this.sendingCommands.set(true);
+    this.error.set(null);
+    try {
+      const scope = await this.currentScope();
+      await this.outbox.flush(scope);
+      await this.refreshOutbox(scope);
+    } catch (error) {
+      this.error.set(this.message(error));
+      try {
+        await this.refreshOutbox(await this.currentScope());
+      } catch {
+        // The session may have ended while the request was in flight.
+      }
+    } finally {
+      this.sendingCommands.set(false);
+    }
+  }
+
   protected async sync(): Promise<void> {
     if (this.syncing() || this.preparing()) return;
     this.syncing.set(true);
     this.error.set(null);
     try {
-      const session = this.sessions.session();
-      if (!session) throw new Error('La sesión ya no está disponible.');
-      const deviceId = await this.store.deviceId();
-      const scope = {
-        tenantId: session.tenant.id,
-        userId: session.user.id,
-        deviceId,
-        branchId: session.context.branch?.id ?? null,
-        cashRegisterId: session.context.cashRegister?.id ?? null,
-      };
+      const scope = await this.currentScope();
+      const deviceId = scope.deviceId;
       const summary = await this.store.summary(scope);
       if (!summary) {
         await this.prepare();
@@ -124,16 +147,9 @@ export class OfflineBootstrapPanelComponent implements OnInit {
 
   private async restore(): Promise<void> {
     try {
-      const session = this.sessions.session();
-      if (!session) return;
-      const deviceId = await this.store.deviceId();
-      const summary = await this.store.summary({
-        tenantId: session.tenant.id,
-        userId: session.user.id,
-        deviceId,
-        branchId: session.context.branch?.id ?? null,
-        cashRegisterId: session.context.cashRegister?.id ?? null,
-      });
+      if (!this.sessions.session()) return;
+      const scope = await this.currentScope();
+      const summary = await this.store.summary(scope);
       if (summary) {
         this.downloaded.set(summary.entities);
         this.result.set({
@@ -142,9 +158,32 @@ export class OfflineBootstrapPanelComponent implements OnInit {
           restored: true,
         });
       }
+      await this.refreshOutbox(scope);
     } catch (error) {
       this.error.set(this.message(error));
     }
+  }
+
+  private async currentScope() {
+    const session = this.sessions.session();
+    if (!session) throw new Error('La sesión ya no está disponible.');
+    return {
+      tenantId: session.tenant.id,
+      userId: session.user.id,
+      deviceId: await this.store.deviceId(),
+      branchId: session.context.branch?.id ?? null,
+      cashRegisterId: session.context.cashRegister?.id ?? null,
+    };
+  }
+
+  private async refreshOutbox(scope: Awaited<ReturnType<typeof this.currentScope>>): Promise<void> {
+    const commands = await this.store.outbox(scope);
+    this.pendingCommands.set(
+      commands.filter(
+        ({ status, retryable }) =>
+          status === 'PENDING' || status === 'SENT' || (status === 'ERROR' && retryable),
+      ).length,
+    );
   }
 
   private message(error: unknown): string {

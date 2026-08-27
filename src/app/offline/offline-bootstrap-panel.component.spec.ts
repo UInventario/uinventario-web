@@ -4,6 +4,7 @@ import { OfflineBootstrapApiService } from './offline-bootstrap-api.service';
 import { OfflineBootstrapPanelComponent } from './offline-bootstrap-panel.component';
 import { OfflineStorageError, OfflineStoreService } from './offline-store.service';
 import { SessionApiService } from '../auth/session-api.service';
+import { OfflineOutboxService } from './offline-outbox.service';
 
 describe('OfflineBootstrapPanelComponent', () => {
   let fixture: ComponentFixture<OfflineBootstrapPanelComponent>;
@@ -14,7 +15,9 @@ describe('OfflineBootstrapPanelComponent', () => {
     summary: vi.fn(),
     replaceBootstrap: vi.fn(),
     applyChanges: vi.fn(),
+    outbox: vi.fn(),
   };
+  const outbox = { flush: vi.fn() };
   const scope = {
     tenantId: 'tenant-1',
     userId: 'user-1',
@@ -31,11 +34,14 @@ describe('OfflineBootstrapPanelComponent', () => {
     store.summary.mockReset().mockResolvedValue(null);
     store.replaceBootstrap.mockReset().mockResolvedValue(undefined);
     store.applyChanges.mockReset().mockResolvedValue(undefined);
+    store.outbox.mockReset().mockResolvedValue([]);
+    outbox.flush.mockReset().mockResolvedValue({ confirmed: 0, rejected: 0 });
     await TestBed.configureTestingModule({
       imports: [OfflineBootstrapPanelComponent],
       providers: [
         { provide: OfflineBootstrapApiService, useValue: api },
         { provide: OfflineStoreService, useValue: store },
+        { provide: OfflineOutboxService, useValue: outbox },
         { provide: SessionApiService, useValue: { session: () => currentSession } },
       ],
     }).compileComponents();
@@ -174,5 +180,23 @@ describe('OfflineBootstrapPanelComponent', () => {
 
     expect(store.applyChanges.mock.calls.map((call) => call[2])).toEqual(['cursor-1', 'cursor-2']);
     expect(component.downloaded()).toBe(3);
+  });
+
+  it('sends pending commands for the authenticated offline scope', async () => {
+    currentSession = {
+      tenant: { id: 'tenant-1' },
+      user: { id: 'user-1' },
+      context: { branch: { id: 'branch-1' }, cashRegister: null },
+    };
+    store.outbox.mockResolvedValue([]);
+    const component = fixture.componentInstance as unknown as {
+      sendPending(): Promise<void>;
+      pendingCommands(): number;
+    };
+
+    await component.sendPending();
+
+    expect(outbox.flush).toHaveBeenCalledWith(scope);
+    expect(component.pendingCommands()).toBe(0);
   });
 });
