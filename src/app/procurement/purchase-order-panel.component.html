@@ -1,0 +1,185 @@
+<section
+  class="purchase-orders"
+  aria-labelledby="purchase-orders-title"
+  [attr.aria-busy]="loading()"
+>
+  <div class="heading">
+    <div>
+      <p>Compras</p>
+      <h2 id="purchase-orders-title">Órdenes de compra</h2>
+      <span>Borradores con folio, costos y totales calculados por el servidor.</span>
+    </div>
+    <strong>{{ total() }} orden(es)</strong>
+  </div>
+
+  <form class="filters" [formGroup]="searchForm" (ngSubmit)="filter()">
+    <label>
+      Buscar
+      <input id="purchaseOrderSearch" formControlName="q" placeholder="Folio o proveedor" />
+    </label>
+    <button type="submit">Filtrar</button>
+  </form>
+
+  @if (error()) {
+    <div class="message error" role="alert">{{ error() }}</div>
+  }
+  @if (success()) {
+    <div class="message success" role="status">{{ success() }}</div>
+  }
+
+  <div class="workspace">
+    <form class="editor" [formGroup]="form" (ngSubmit)="submit()">
+      <h3>{{ editing() ? 'Editar ' + editing()!.folio : 'Nueva orden' }}</h3>
+      <div class="form-row">
+        <label>
+          Proveedor
+          <select
+            id="purchaseOrderSupplier"
+            formControlName="supplierId"
+            (change)="supplierChanged()"
+          >
+            <option value="">Selecciona un proveedor</option>
+            @for (supplier of suppliers(); track supplier.id) {
+              <option [value]="supplier.id">{{ supplier.tradeName || supplier.legalName }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          Moneda
+          <input id="purchaseOrderCurrency" formControlName="currency" maxlength="3" />
+        </label>
+      </div>
+      <label>
+        Notas de la orden (opcional)
+        <textarea id="purchaseOrderNotes" formControlName="notes" maxlength="1000"></textarea>
+      </label>
+
+      <div class="line-heading">
+        <h4>Productos</h4>
+        <button type="button" class="secondary" (click)="addLine()">Agregar línea</button>
+      </div>
+      <div class="lines" formArrayName="lines">
+        @for (line of lines.controls; track line; let index = $index) {
+          <fieldset [formGroupName]="index">
+            <legend>Línea {{ index + 1 }}</legend>
+            <label class="product-field">
+              Producto del proveedor
+              <select
+                [id]="'purchaseOrderProduct' + index"
+                formControlName="supplierProductId"
+                (change)="productChanged(index)"
+              >
+                <option value="">Selecciona un producto</option>
+                @for (link of availableProducts(); track link.id) {
+                  <option [value]="link.id">
+                    {{ link.product.sku }} · {{ link.product.name }} · {{ link.supplierCode }}
+                  </option>
+                }
+              </select>
+            </label>
+            <label>
+              Cantidad
+              <input
+                [id]="'purchaseOrderQuantity' + index"
+                inputmode="decimal"
+                formControlName="quantity"
+              />
+            </label>
+            <label>
+              Costo unitario
+              <input
+                [id]="'purchaseOrderCost' + index"
+                inputmode="decimal"
+                formControlName="unitCost"
+              />
+            </label>
+            <label class="notes-field">
+              Notas (opcional)
+              <input
+                [id]="'purchaseOrderLineNotes' + index"
+                formControlName="notes"
+                maxlength="500"
+              />
+            </label>
+            <button
+              type="button"
+              class="danger"
+              (click)="removeLine(index)"
+              [disabled]="lines.length === 1"
+            >
+              Quitar
+            </button>
+          </fieldset>
+        }
+      </div>
+      @if (form.controls.supplierId.value && availableProducts().length === 0) {
+        <small class="hint"
+          >Este proveedor todavía no tiene productos y precios relacionados.</small
+        >
+      }
+      <div class="actions">
+        @if (editing()) {
+          <button type="button" class="secondary" (click)="cancelEditing()">Cancelar</button>
+        }
+        <button id="savePurchaseOrder" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Guardando…' : editing() ? 'Guardar cambios' : 'Crear borrador' }}
+        </button>
+      </div>
+    </form>
+
+    <div class="results">
+      @if (loading()) {
+        <p role="status">Cargando órdenes…</p>
+      } @else if (orders().length === 0) {
+        <div class="empty">
+          <h3>Sin órdenes de compra</h3>
+          <p>Crea el primer borrador para planificar abastecimiento.</p>
+        </div>
+      } @else {
+        <ul aria-label="Órdenes de compra">
+          @for (order of orders(); track order.id) {
+            <li>
+              <div>
+                <strong>{{ order.folio }} · {{ order.supplier.name }}</strong>
+                <span>{{ order.status }} · {{ order.currency }} {{ order.total }}</span>
+                @for (line of order.lines; track line.id) {
+                  <small>
+                    {{ line.productSku }} · {{ line.quantity }} × {{ line.unitCost }} =
+                    {{ line.subtotal }}
+                  </small>
+                }
+                @if (order.notes) {
+                  <small>{{ order.notes }}</small>
+                }
+              </div>
+              @if (order.status === 'DRAFT') {
+                <button type="button" class="secondary" (click)="edit(order)">Editar</button>
+              }
+            </li>
+          }
+        </ul>
+        @if (totalPages() > 1) {
+          <div class="pagination">
+            <button
+              type="button"
+              class="secondary"
+              (click)="previousPage()"
+              [disabled]="page() === 1"
+            >
+              Anterior
+            </button>
+            <span>Página {{ page() }} de {{ totalPages() }}</span>
+            <button
+              type="button"
+              class="secondary"
+              (click)="nextPage()"
+              [disabled]="page() === totalPages()"
+            >
+              Siguiente
+            </button>
+          </div>
+        }
+      }
+    </div>
+  </div>
+</section>

@@ -1,0 +1,185 @@
+:host {
+  display: block;
+}
+
+.purchase-orders {
+  background: #fff;
+  border: 1px solid #d8dde7;
+  border-radius: 1rem;
+  margin: 1rem 0;
+  padding: 1.25rem;
+}
+
+.heading,
+.filters,
+.line-heading,
+.actions,
+.pagination {
+  align-items: end;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.heading p {
+  color: #315c9a;
+  font-weight: 700;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+h2,
+h3,
+h4 {
+  margin: 0.2rem 0;
+}
+
+.filters {
+  background: #f6f8fb;
+  margin: 1rem 0;
+  padding: 0.75rem;
+}
+
+.workspace {
+  align-items: start;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(24rem, 1fr) minmax(20rem, 0.9fr);
+}
+
+.editor,
+.lines,
+.results ul {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.form-row {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 2fr 1fr;
+}
+
+label {
+  display: grid;
+  font-size: 0.85rem;
+  font-weight: 650;
+  gap: 0.3rem;
+}
+
+input,
+select,
+textarea,
+button {
+  border: 1px solid #aeb8ca;
+  border-radius: 0.4rem;
+  font: inherit;
+  min-height: 2.4rem;
+  padding: 0.45rem 0.65rem;
+}
+
+textarea {
+  min-height: 4rem;
+  resize: vertical;
+}
+
+button {
+  background: #164b8a;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+button.secondary {
+  background: #fff;
+  color: #173a63;
+}
+
+button.danger {
+  background: #fff;
+  border-color: #b93c39;
+  color: #8f211e;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+fieldset {
+  border: 1px solid #d8dde7;
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: 1fr 1fr;
+  margin: 0;
+  padding: 0.75rem;
+}
+
+.product-field,
+.notes-field {
+  grid-column: 1 / -1;
+}
+
+.results ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.results li {
+  align-items: center;
+  border-bottom: 1px solid #e4e8ef;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.8rem 0;
+}
+
+.results li > div,
+.results small,
+.results span {
+  display: grid;
+}
+
+.message,
+.empty,
+.hint {
+  border-radius: 0.45rem;
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+}
+
+.error {
+  background: #fff0ef;
+  color: #8f211e;
+}
+
+.success {
+  background: #edf8f1;
+  color: #176b3a;
+}
+
+.hint {
+  background: #fff7df;
+  color: #694d00;
+}
+
+@media (max-width: 800px) {
+  .workspace,
+  .form-row,
+  fieldset {
+    grid-template-columns: 1fr;
+  }
+
+  .product-field,
+  .notes-field {
+    grid-column: auto;
+  }
+
+  .filters,
+  .heading,
+  .results li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
