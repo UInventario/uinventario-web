@@ -8,30 +8,35 @@ import { SessionApiService } from '../auth/session-api.service';
 describe('OfflineBootstrapPanelComponent', () => {
   let fixture: ComponentFixture<OfflineBootstrapPanelComponent>;
   const api = { page: vi.fn() };
+  let currentSession: unknown = null;
   const store = {
     deviceId: vi.fn(),
     summary: vi.fn(),
     replaceBootstrap: vi.fn(),
+    applyChanges: vi.fn(),
   };
   const scope = {
     tenantId: 'tenant-1',
     userId: 'user-1',
-    deviceId: 'device-1',
+    deviceId: '10000000-0000-4000-8000-000000000001',
     branchId: 'branch-1',
     cashRegisterId: null,
   };
 
   beforeEach(async () => {
     api.page.mockReset();
+    Object.assign(api, { changes: vi.fn() });
+    currentSession = null;
     store.deviceId.mockReset().mockResolvedValue('10000000-0000-4000-8000-000000000001');
     store.summary.mockReset().mockResolvedValue(null);
     store.replaceBootstrap.mockReset().mockResolvedValue(undefined);
+    store.applyChanges.mockReset().mockResolvedValue(undefined);
     await TestBed.configureTestingModule({
       imports: [OfflineBootstrapPanelComponent],
       providers: [
         { provide: OfflineBootstrapApiService, useValue: api },
         { provide: OfflineStoreService, useValue: store },
-        { provide: SessionApiService, useValue: { session: () => null } },
+        { provide: SessionApiService, useValue: { session: () => currentSession } },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(OfflineBootstrapPanelComponent);
@@ -124,5 +129,50 @@ describe('OfflineBootstrapPanelComponent', () => {
     await component.prepare();
 
     expect(component.error()).toContain('seguir trabajando en línea');
+  });
+
+  it('applies every incremental page before advancing its cursor', async () => {
+    currentSession = {
+      tenant: { id: 'tenant-1' },
+      user: { id: 'user-1' },
+      context: { branch: { id: 'branch-1' }, cashRegister: null },
+    };
+    store.summary
+      .mockResolvedValueOnce({
+        entities: 2,
+        generatedAt: '2026-08-27T20:00:00.000Z',
+        storedAt: '2026-08-27T20:00:00.000Z',
+        cursor: 'cursor-0',
+      })
+      .mockResolvedValueOnce({
+        entities: 3,
+        generatedAt: '2026-08-27T20:01:00.000Z',
+        storedAt: '2026-08-27T20:01:00.000Z',
+        cursor: 'cursor-2',
+      });
+    const changes = (api as typeof api & { changes: ReturnType<typeof vi.fn> }).changes;
+    changes
+      .mockReturnValueOnce(
+        of({
+          data: {
+            scope,
+            nextCursor: 'cursor-1',
+            hasMore: true,
+            changes: [{ operation: 'UPSERT', entity: { kind: 'PRODUCT', id: '3' } }],
+          },
+        }),
+      )
+      .mockReturnValueOnce(
+        of({ data: { scope, nextCursor: 'cursor-2', hasMore: false, changes: [] } }),
+      );
+    const component = fixture.componentInstance as unknown as {
+      sync(): Promise<void>;
+      downloaded(): number;
+    };
+
+    await component.sync();
+
+    expect(store.applyChanges.mock.calls.map((call) => call[2])).toEqual(['cursor-1', 'cursor-2']);
+    expect(component.downloaded()).toBe(3);
   });
 });

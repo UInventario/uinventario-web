@@ -1,5 +1,9 @@
 import { Injectable } from '@angular/core';
-import { OfflineBootstrapData, OfflineBootstrapEntity } from './offline-bootstrap-api.service';
+import {
+  OfflineBootstrapData,
+  OfflineBootstrapEntity,
+  OfflineChange,
+} from './offline-bootstrap-api.service';
 
 const DATABASE_NAME = 'uinventario-offline';
 export const OFFLINE_SCHEMA_VERSION = 1;
@@ -40,6 +44,7 @@ export interface OfflineStoredSummary {
   entities: number;
   generatedAt: string;
   storedAt: string;
+  cursor: string;
 }
 
 export interface OfflineOutboxCommand {
@@ -135,7 +140,43 @@ export class OfflineStoreService {
       entities,
       generatedAt: storedScope.generatedAt,
       storedAt: storedScope.storedAt,
+      cursor: storedScope.initialSyncCursor,
     };
+  }
+
+  async applyChanges(
+    scope: OfflineScopeIdentity,
+    changes: OfflineChange[],
+    nextCursor: string,
+  ): Promise<void> {
+    const database = await this.open();
+    const key = this.scopeKey(scope);
+    const transaction = database.transaction(['scopes', 'entities'], 'readwrite');
+    const scopes = transaction.objectStore('scopes');
+    const entities = transaction.objectStore('entities');
+    const request = scopes.get(key) as IDBRequest<ScopeRecord | undefined>;
+    request.onsuccess = () => {
+      const stored = request.result;
+      if (!stored) {
+        transaction.abort();
+        return;
+      }
+      for (const change of changes) {
+        const storageKey = `${key}:${change.entity.kind}:${change.entity.id}`;
+        if (change.operation === 'DELETE') {
+          entities.delete(storageKey);
+        } else {
+          entities.put({ storageKey, scopeKey: key, value: change.entity } satisfies EntityRecord);
+        }
+      }
+      scopes.put({
+        ...stored,
+        initialSyncCursor: nextCursor,
+        generatedAt: new Date().toISOString(),
+        storedAt: new Date().toISOString(),
+      } satisfies ScopeRecord);
+    };
+    await this.safeTransaction(transaction);
   }
 
   async enqueue(command: OfflineOutboxCommand): Promise<void> {

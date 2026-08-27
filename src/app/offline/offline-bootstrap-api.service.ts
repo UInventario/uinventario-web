@@ -29,6 +29,22 @@ export interface OfflineBootstrapData {
   };
 }
 
+export interface OfflineChange {
+  changeId: string;
+  operation: 'UPSERT' | 'DELETE';
+  occurredAt: string;
+  entity: OfflineBootstrapEntity;
+}
+
+export interface OfflineChangesData {
+  protocolVersion: '1.0';
+  scope: OfflineBootstrapData['scope'];
+  cursor: string;
+  nextCursor: string;
+  hasMore: boolean;
+  changes: OfflineChange[];
+}
+
 interface OfflineBootstrapResponse {
   data: OfflineBootstrapData;
 }
@@ -43,6 +59,17 @@ export class OfflineBootstrapApiService {
     if (cursor) params = params.set('cursor', cursor);
     return this.http.get<OfflineBootstrapResponse>(
       `${this.config.apiBaseUrl()}/offline/bootstrap`,
+      { params, withCredentials: true },
+    );
+  }
+
+  changes(deviceId: string, cursor: string, pageSize = 100) {
+    const params = new HttpParams()
+      .set('deviceId', deviceId)
+      .set('cursor', cursor)
+      .set('pageSize', pageSize);
+    return this.http.get<{ data: OfflineChangesData }>(
+      `${this.config.apiBaseUrl()}/offline/changes`,
       { params, withCredentials: true },
     );
   }

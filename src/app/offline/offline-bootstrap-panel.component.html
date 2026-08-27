@@ -7,9 +7,21 @@
       almacenamiento local se habilitará en el siguiente incremento.
     </p>
   </div>
-  <button type="button" (click)="prepare()" [disabled]="preparing()">
-    {{ preparing() ? 'Descargando…' : 'Preparar descarga' }}
-  </button>
+  <div class="actions">
+    @if (result()) {
+      <button
+        type="button"
+        class="secondary"
+        (click)="sync()"
+        [disabled]="syncing() || preparing()"
+      >
+        {{ syncing() ? 'Sincronizando…' : 'Sincronizar cambios' }}
+      </button>
+    }
+    <button type="button" (click)="prepare()" [disabled]="preparing() || syncing()">
+      {{ preparing() ? 'Descargando…' : 'Preparar descarga' }}
+    </button>
+  </div>
   @if (preparing()) {
     <p role="status">{{ downloaded() }} registros descargados…</p>
   }
