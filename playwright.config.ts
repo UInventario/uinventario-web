@@ -26,7 +26,7 @@ export default defineConfig({
       cwd: resolve(__dirname, '../uinventario-api'),
       url: 'http://127.0.0.1:3000/health/ready',
       reuseExistingServer: true,
-      timeout: 30_000,
+      timeout: 60_000,
     },
     {
       command: 'npx ng serve --host localhost --port 4200',

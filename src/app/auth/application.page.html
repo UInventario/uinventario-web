@@ -503,4 +503,154 @@
       </div>
     </div>
   </section>
+
+  <section class="sales-workspace" aria-labelledby="sales-title">
+    <p class="eyebrow">Auditoría</p>
+    <div class="sales-heading">
+      <div>
+        <h1 id="sales-title">Historial de ventas</h1>
+        <p class="context">{{ session()?.context?.branch?.name }} · {{ salesTotal() }} venta(s)</p>
+      </div>
+    </div>
+
+    <form class="sales-filters" [formGroup]="salesFilterForm" (ngSubmit)="filterSales()">
+      <label>
+        Desde
+        <input type="date" formControlName="dateFrom" />
+      </label>
+      <label>
+        Hasta
+        <input type="date" formControlName="dateTo" />
+      </label>
+      <label>
+        Caja
+        <select formControlName="cashRegisterId">
+          <option value="">Todas</option>
+          @if (session()?.context?.cashRegister; as register) {
+            <option [value]="register.id">{{ register.name }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        Usuario
+        <select formControlName="userId">
+          <option value="">Todos</option>
+          @if (session()?.user; as user) {
+            <option [value]="user.id">{{ user.email }}</option>
+          }
+        </select>
+      </label>
+      <button class="secondary" type="submit" [disabled]="loadingSales()">Filtrar ventas</button>
+    </form>
+
+    @if (salesError()) {
+      <div class="form-error" role="alert">{{ salesError() }}</div>
+    }
+    @if (loadingSales()) {
+      <p class="catalog-state" role="status">Cargando historial…</p>
+    } @else if (salesHistory().length === 0) {
+      <div class="empty sales-empty">
+        <h2>Sin ventas para mostrar</h2>
+        <p>Ajusta los filtros o registra la primera venta.</p>
+      </div>
+    } @else {
+      <div class="sales-grid">
+        <div class="sales-list">
+          @for (sale of salesHistory(); track sale.id) {
+            <button
+              type="button"
+              class="sale-row"
+              [class.selected]="selectedSale()?.id === sale.id"
+              (click)="selectSale(sale.id)"
+              [attr.aria-label]="'Abrir venta ' + sale.receiptNumber"
+            >
+              <span
+                ><strong>{{ sale.receiptNumber }}</strong
+                ><small>{{ dateTime(sale.createdAt) }}</small></span
+              >
+              <span
+                >{{ sale.cashRegister.name }}<small>{{ sale.user.email }}</small></span
+              >
+              <span
+                ><strong>{{ sale.currency }} {{ sale.total }}</strong
+                ><small>{{ sale.status }}</small></span
+              >
+            </button>
+          }
+          @if (salesTotalPages() > 1) {
+            <div class="pagination">
+              <button
+                class="secondary"
+                type="button"
+                (click)="previousSalesPage()"
+                [disabled]="salesPage() === 1"
+              >
+                Anterior
+              </button>
+              <span>Página {{ salesPage() }} de {{ salesTotalPages() }}</span>
+              <button
+                class="secondary"
+                type="button"
+                (click)="nextSalesPage()"
+                [disabled]="salesPage() === salesTotalPages()"
+              >
+                Siguiente
+              </button>
+            </div>
+          }
+        </div>
+
+        <article class="sale-detail">
+          @if (loadingSaleDetail()) {
+            <p class="catalog-state" role="status">Cargando detalle…</p>
+          } @else if (selectedSale(); as sale) {
+            <p class="eyebrow">Venta confirmada</p>
+            <h2>{{ sale.receiptNumber }}</h2>
+            <p>
+              {{ sale.user.email }} · {{ sale.context.cashRegister.name }} ·
+              {{ dateTime(sale.createdAt) }}
+            </p>
+            <dl class="sale-payment">
+              <div>
+                <dt>Total</dt>
+                <dd>{{ sale.currency }} {{ sale.totals.total }}</dd>
+              </div>
+              <div>
+                <dt>Efectivo</dt>
+                <dd>{{ sale.currency }} {{ sale.payment.amountReceived }}</dd>
+              </div>
+              <div>
+                <dt>Cambio</dt>
+                <dd>{{ sale.currency }} {{ sale.payment.change }}</dd>
+              </div>
+            </dl>
+            <h3>Líneas</h3>
+            <ul class="sale-lines">
+              @for (line of sale.lines; track line.product.id) {
+                <li>
+                  <span
+                    ><strong>{{ line.product.name }}</strong
+                    ><small>{{ line.product.sku }} · {{ line.quantity }}</small></span
+                  ><strong>{{ sale.currency }} {{ line.total }}</strong>
+                </li>
+              }
+            </ul>
+            <h3>Movimientos de inventario</h3>
+            <ul class="sale-lines movements">
+              @for (movement of sale.movements; track movement.id) {
+                <li>
+                  <span
+                    ><strong>{{ movement.location.name }}</strong
+                    ><small>{{ movement.reference }}</small></span
+                  ><strong>{{ movement.quantityChange }} → {{ movement.resultingQuantity }}</strong>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p>Selecciona una venta para revisar su detalle.</p>
+          }
+        </article>
+      </div>
+    }
+  </section>
 </main>

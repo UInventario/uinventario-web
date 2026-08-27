@@ -39,6 +39,8 @@ El punto de venta busca productos y mantiene un carrito cuya existencia, precios
 impuesto incluido y totales son recalculados por la API en el contexto de caja activo.
 El cobro en efectivo registra una venta persistida, muestra folio y cambio, y evita
 duplicados durante envíos o reintentos; al confirmarse, refresca la existencia real.
+El historial permite filtrar ventas de la sucursal activa y auditar líneas, efectivo,
+caja, usuario y movimientos de inventario desde su detalle.
 
 ```bash
 npm run typecheck
