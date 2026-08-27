@@ -7,6 +7,10 @@ import { RuntimeConfigService } from '../core/runtime-config.service';
 export interface SessionData {
   user: { id: string; email: string; roles: string[] };
   tenant: { id: string; name: string };
+  context: {
+    branch: { id: string; name: string } | null;
+    warehouse: { id: string; name: string } | null;
+  };
   nextStep: 'ONBOARDING' | 'APPLICATION';
 }
 

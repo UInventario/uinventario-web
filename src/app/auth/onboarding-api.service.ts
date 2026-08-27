@@ -14,8 +14,20 @@ export interface CompanyOnboardingData {
   };
 }
 
+export interface InitialLocationData {
+  branch: { id: string; name: string; timezone: string };
+  warehouse: { id: string; name: string };
+  location: { id: string; name: string; code: string };
+  progress: { currentStep: 'REGISTER'; completedSteps: ['COMPANY', 'BRANCH'] };
+}
+
 interface CompanyOnboardingResponse {
   data: CompanyOnboardingData;
+  meta: { apiVersion: '1' };
+}
+
+interface InitialLocationResponse {
+  data: InitialLocationData | null;
   meta: { apiVersion: '1' };
 }
 
@@ -34,6 +46,26 @@ export class OnboardingApiService {
   configureCompany(input: { legalName: string; tradeName: string; countryCode: string }) {
     return this.http.put<CompanyOnboardingResponse>(
       `${this.config.apiBaseUrl()}/onboarding/company`,
+      input,
+      { withCredentials: true },
+    );
+  }
+
+  getInitialLocation() {
+    return this.http.get<InitialLocationResponse>(
+      `${this.config.apiBaseUrl()}/onboarding/initial-location`,
+      { withCredentials: true },
+    );
+  }
+
+  configureInitialLocation(input: {
+    branchName: string;
+    timezone: string;
+    warehouseName: string;
+    locationName: string;
+  }) {
+    return this.http.put<InitialLocationResponse>(
+      `${this.config.apiBaseUrl()}/onboarding/initial-location`,
       input,
       { withCredentials: true },
     );

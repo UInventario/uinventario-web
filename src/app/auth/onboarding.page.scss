@@ -137,3 +137,34 @@ button:disabled {
   cursor: wait;
   opacity: 0.62;
 }
+
+dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.7rem;
+  margin: 1rem 0 0;
+}
+
+dl div {
+  padding: 0.75rem;
+  border-radius: 0.65rem;
+  background: #f4f7fa;
+}
+
+dt {
+  color: #6d7f90;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+dd {
+  margin: 0.3rem 0 0;
+  color: #263d52;
+  font-weight: 700;
+}
+
+@media (max-width: 36rem) {
+  dl {
+    grid-template-columns: 1fr;
+  }
+}
