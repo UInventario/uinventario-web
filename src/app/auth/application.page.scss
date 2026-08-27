@@ -592,43 +592,6 @@ dd {
   background: #fff;
 }
 
-.customer-panel {
-  padding-bottom: 1.25rem;
-  border-bottom: 1px solid #dbe3ea;
-}
-
-.product-search-panel {
-  padding-top: 1.25rem;
-}
-
-.customer-form {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.55rem 0.7rem;
-  margin-top: 0.8rem;
-}
-
-.customer-consent {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-
-.customer-consent input {
-  width: auto;
-}
-
-.customer-results {
-  max-height: 15rem;
-  overflow: auto;
-}
-
-.customer-actions {
-  display: flex !important;
-  grid-auto-flow: column;
-  gap: 0.35rem;
-}
-
 .pos-results,
 .cart-lines {
   display: grid;
