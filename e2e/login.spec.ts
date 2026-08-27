@@ -64,7 +64,7 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   });
 
   await page.getByLabel('Nombre', { exact: true }).fill('Café molido 500 g');
-  await page.getByLabel('SKU').fill('CAFE-500');
+  await page.getByLabel('SKU', { exact: true }).fill('CAFE-500');
   await page.getByLabel('Código de barras').fill('7501234567890');
   await page.getByLabel('Categoría').fill('Abarrotes');
   await page.getByLabel('Marca').fill('Casa');
@@ -76,14 +76,42 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await page.getByRole('button', { name: 'Crear producto' }).click();
   await expect(page.getByText('Producto creado')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Café molido 500 g' })).toBeVisible();
-  await expect(page.getByText('119.90')).toBeVisible();
+  await expect(page.locator('.detail').getByText('119.90')).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath('product-created.png'),
     fullPage: true,
   });
 
+  for (let index = 1; index <= 5; index += 1) {
+    const response = await page.request.post('http://localhost:3000/api/v1/products', {
+      data: {
+        name: `Producto ${index}`,
+        sku: `PRODUCT-${index}`,
+        cost: '1.00',
+        price: '2.00',
+      },
+    });
+    expect(response.status()).toBe(201);
+  }
+  await page.getByRole('button', { name: 'Buscar' }).click();
+  await expect(page.getByText('6 producto(s)')).toBeVisible();
+  await expect(page.getByText('Página 1 de 2')).toBeVisible();
+  await page.getByRole('button', { name: 'Siguiente' }).click();
+  await expect(page.getByText('Página 2 de 2')).toBeVisible();
+
+  await page.getByLabel('Buscar por nombre, SKU o código').fill(' cafe-500 ');
+  await page.getByRole('button', { name: 'Buscar' }).click();
+  await expect(page.getByText('1 producto(s)')).toBeVisible();
+  await page.getByRole('button', { name: /Café molido 500 g/ }).click();
+  await expect(page.getByText('7501234567890')).toBeVisible();
+  await page.getByLabel('Buscar por nombre, SKU o código').fill('inexistente');
+  await page.getByRole('button', { name: 'Buscar' }).click();
+  await expect(page.getByRole('heading', { name: 'Sin resultados' })).toBeVisible();
+  await page.getByLabel('Buscar por nombre, SKU o código').fill('');
+  await page.getByRole('button', { name: 'Buscar' }).click();
+
   await page.getByLabel('Nombre', { exact: true }).fill('Producto duplicado');
-  await page.getByLabel('SKU').fill('cafe-500');
+  await page.getByLabel('SKU', { exact: true }).fill('cafe-500');
   await page.getByLabel('Código de barras').fill('7500000000001');
   await page.getByLabel('Costo').fill('1.00');
   await page.getByLabel('Precio de venta').fill('2.00');

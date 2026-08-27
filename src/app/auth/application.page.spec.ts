@@ -7,7 +7,12 @@ import { SessionApiService } from './session-api.service';
 
 describe('ApplicationPage', () => {
   let fixture: ComponentFixture<ApplicationPage>;
-  let products: { getOptions: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> };
+  let products: {
+    getOptions: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+    list: ReturnType<typeof vi.fn>;
+    get: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(async () => {
     products = {
@@ -15,6 +20,16 @@ describe('ApplicationPage', () => {
         of({ data: { categories: [], brands: [] }, meta: { apiVersion: '1' } }),
       ),
       create: vi.fn(),
+      list: vi.fn().mockReturnValue(
+        of({
+          data: [],
+          meta: {
+            apiVersion: '1',
+            pagination: { page: 1, pageSize: 5, total: 0, totalPages: 0 },
+          },
+        }),
+      ),
+      get: vi.fn(),
     };
     const sessions = {
       session: signal({
@@ -43,7 +58,7 @@ describe('ApplicationPage', () => {
   function fill(id: string, value: string): void {
     const input = fixture.nativeElement.querySelector(`#${id}`) as HTMLInputElement;
     input.value = value;
-    input.dispatchEvent(new Event('input'));
+    input.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
   function submit(): void {
@@ -98,5 +113,40 @@ describe('ApplicationPage', () => {
       price: '2.50',
     });
     expect(fixture.nativeElement.textContent).toContain('Producto creado');
+    expect(products.list).toHaveBeenLastCalledWith({ page: 1, pageSize: 5 });
+  });
+
+  it('searches and opens a tenant-scoped product detail', () => {
+    const product = {
+      id: 'product',
+      name: 'Café',
+      sku: 'CAFE-1',
+      barcode: '7501',
+      category: null,
+      brand: null,
+      cost: '1.20',
+      price: '2.50',
+      active: true,
+    };
+    products.list.mockReturnValue(
+      of({
+        data: [product],
+        meta: {
+          apiVersion: '1',
+          pagination: { page: 1, pageSize: 5, total: 1, totalPages: 1 },
+        },
+      }),
+    );
+    products.get.mockReturnValue(of({ data: product, meta: { apiVersion: '1' } }));
+    fill('productSearch', ' café ');
+    (fixture.componentInstance as unknown as { search(): void }).search();
+    fixture.detectChanges();
+
+    expect(products.list).toHaveBeenLastCalledWith({ q: 'café', page: 1, pageSize: 5 });
+    (fixture.nativeElement.querySelector('.product-list button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(products.get).toHaveBeenCalledWith('product');
+    expect(fixture.nativeElement.textContent).toContain('Sin categoría');
   });
 });

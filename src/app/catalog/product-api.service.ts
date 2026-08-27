@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { RuntimeConfigService } from '../core/runtime-config.service';
 
@@ -24,9 +24,17 @@ export interface ProductInput {
   price: string;
 }
 
-interface ProductResponse {
+export interface ProductResponse {
   data: ProductData;
   meta: { apiVersion: '1' };
+}
+
+export interface ProductListResponse {
+  data: ProductData[];
+  meta: {
+    apiVersion: '1';
+    pagination: { page: number; pageSize: number; total: number; totalPages: number };
+  };
 }
 
 interface CatalogOptionsResponse {
@@ -51,6 +59,21 @@ export class ProductApiService {
 
   create(input: ProductInput) {
     return this.http.post<ProductResponse>(`${this.config.apiBaseUrl()}/products`, input, {
+      withCredentials: true,
+    });
+  }
+
+  list(query: { q?: string; page: number; pageSize: number }) {
+    let params = new HttpParams().set('page', query.page).set('pageSize', query.pageSize);
+    if (query.q) params = params.set('q', query.q);
+    return this.http.get<ProductListResponse>(`${this.config.apiBaseUrl()}/products`, {
+      params,
+      withCredentials: true,
+    });
+  }
+
+  get(id: string) {
+    return this.http.get<ProductResponse>(`${this.config.apiBaseUrl()}/products/${id}`, {
       withCredentials: true,
     });
   }
