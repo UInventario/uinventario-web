@@ -221,6 +221,9 @@ export class ApplicationPage implements OnInit {
   });
   protected readonly movementFilterForm = this.formBuilder.nonNullable.group({
     q: ['', [Validators.maxLength(80)]],
+    location: ['', [Validators.maxLength(120)]],
+    responsible: ['', [Validators.maxLength(254)]],
+    document: ['', [Validators.maxLength(128)]],
     type: ['' as '' | InventoryMovementType],
     dateFrom: [''],
     dateTo: [''],
@@ -701,6 +704,15 @@ export class ApplicationPage implements OnInit {
       TRANSFER_IN: 'Transferencia en tránsito',
       TRANSFER_RECEIPT: 'Transferencia recibida',
       TRANSFER_DISCREPANCY: 'Diferencia de transferencia',
+    }[type];
+  }
+
+  protected movementDocumentLabel(type: InventoryMovementHistoryItem['document']['type']): string {
+    return {
+      MOVEMENT: 'Movimiento',
+      SALE: 'Venta',
+      TRANSFER: 'Transferencia',
+      RECEIPT: 'Recepción',
     }[type];
   }
 
@@ -1419,6 +1431,9 @@ export class ApplicationPage implements OnInit {
     this.inventory
       .listMovements({
         ...(value.q.trim() ? { q: value.q.trim() } : {}),
+        ...(value.location.trim() ? { location: value.location.trim() } : {}),
+        ...(value.responsible.trim() ? { responsible: value.responsible.trim() } : {}),
+        ...(value.document.trim() ? { document: value.document.trim() } : {}),
         ...(value.type ? { type: value.type } : {}),
         ...(value.dateFrom ? { dateFrom: value.dateFrom } : {}),
         ...(value.dateTo ? { dateTo: value.dateTo } : {}),

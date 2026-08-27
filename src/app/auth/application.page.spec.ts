@@ -532,6 +532,7 @@ describe('ApplicationPage', () => {
             type: 'SALE',
             direction: 'OUT',
             quantityChange: '-1.000',
+            previousQuantity: '10.000',
             resultingQuantity: '9.000',
             reason: 'Venta V-1',
             reference: 'V-1',
@@ -544,6 +545,10 @@ describe('ApplicationPage', () => {
               warehouse: { id: 'warehouse', name: 'Bodega' },
             },
             responsible: { id: 'user', email: 'admin@example.com' },
+            correlationId: 'sale',
+            idempotencyKey: 'sale-complete-key',
+            document: { type: 'SALE', id: 'sale', reference: 'V-1' },
+            stateTransition: null,
           },
         ],
         meta: {
@@ -554,6 +559,9 @@ describe('ApplicationPage', () => {
       }),
     );
     fill('movementProduct', ' café ');
+    fill('movementLocation', ' general ');
+    fill('movementResponsible', ' admin@example.com ');
+    fill('movementDocument', ' V-1 ');
     const type = fixture.nativeElement.querySelector('#movementHistoryType') as HTMLSelectElement;
     type.value = 'SALE';
     type.dispatchEvent(new Event('change', { bubbles: true }));
@@ -562,12 +570,17 @@ describe('ApplicationPage', () => {
 
     expect(inventory.listMovements).toHaveBeenLastCalledWith({
       q: 'café',
+      location: 'general',
+      responsible: 'admin@example.com',
+      document: 'V-1',
       type: 'SALE',
       page: 1,
       pageSize: 10,
     });
     expect(fixture.nativeElement.textContent).toContain('Venta V-1');
     expect(fixture.nativeElement.textContent).toContain('admin@example.com');
+    expect(fixture.nativeElement.textContent).toContain('10.000 → 9.000');
+    expect(fixture.nativeElement.textContent).toContain('sale-complete-key');
   });
 
   it('registers initial stock and shows the persisted balance', () => {

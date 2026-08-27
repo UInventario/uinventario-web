@@ -78,6 +78,7 @@ export interface InventoryMovementHistoryItem {
   type: InventoryMovementType;
   direction: 'IN' | 'OUT' | 'TRANSFER';
   quantityChange: string;
+  previousQuantity: string;
   resultingQuantity: string;
   reason: string;
   reference: string | null;
@@ -90,6 +91,13 @@ export interface InventoryMovementHistoryItem {
     warehouse: { id: string; name: string };
   };
   responsible: { id: string; email: string };
+  correlationId: string;
+  idempotencyKey: string;
+  document: {
+    type: 'MOVEMENT' | 'SALE' | 'TRANSFER' | 'RECEIPT';
+    id: string;
+    reference: string | null;
+  };
   stateTransition: {
     from: InventoryStockState;
     to: InventoryStockState;
@@ -178,6 +186,9 @@ export class InventoryApiService {
 
   listMovements(query: {
     q?: string;
+    location?: string;
+    responsible?: string;
+    document?: string;
     type?: InventoryMovementType;
     dateFrom?: string;
     dateTo?: string;
@@ -186,6 +197,9 @@ export class InventoryApiService {
   }) {
     let params = new HttpParams().set('page', query.page).set('pageSize', query.pageSize);
     if (query.q) params = params.set('q', query.q);
+    if (query.location) params = params.set('location', query.location);
+    if (query.responsible) params = params.set('responsible', query.responsible);
+    if (query.document) params = params.set('document', query.document);
     if (query.type) params = params.set('type', query.type);
     if (query.dateFrom) params = params.set('dateFrom', query.dateFrom);
     if (query.dateTo) params = params.set('dateTo', query.dateTo);
