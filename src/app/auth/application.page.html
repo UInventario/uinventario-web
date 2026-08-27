@@ -1736,6 +1736,10 @@
     </div>
   </section>
 
+  @if (canManageSales()) {
+    <app-product-reservation-panel />
+  }
+
   <section
     class="sales-workspace"
     aria-labelledby="sales-title"

@@ -1,0 +1,121 @@
+<section class="reservations" aria-labelledby="reservations-title" [attr.aria-busy]="loading()">
+  <div class="heading">
+    <div>
+      <p>Clientes e inventario</p>
+      <h2 id="reservations-title">Reservas de productos</h2>
+      <span>Aparta existencias disponibles sin registrar una venta.</span>
+    </div>
+    <strong>{{ reservations().length }} activa(s)</strong>
+  </div>
+
+  @if (error()) {
+    <div class="message error" role="alert">{{ error() }}</div>
+  }
+  @if (success()) {
+    <div class="message success" role="status">{{ success() }}</div>
+  }
+
+  <div class="workspace">
+    <form class="editor" [formGroup]="form" (ngSubmit)="submit()">
+      <h3>Nueva reserva</h3>
+      <label>
+        Cliente
+        <select id="reservationCustomer" formControlName="customerId">
+          <option value="">Selecciona un cliente</option>
+          @for (customer of customers(); track customer.id) {
+            <option [value]="customer.id">
+              {{ customer.name }}{{ customer.identifier ? ' · ' + customer.identifier : '' }}
+            </option>
+          }
+        </select>
+      </label>
+      <div class="row">
+        <label>
+          Ubicación
+          <select id="reservationLocation" formControlName="locationId">
+            <option value="">Selecciona una ubicación</option>
+            @for (location of locations(); track location.id) {
+              <option [value]="location.id">{{ location.code }} · {{ location.name }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          Vigencia (horas)
+          <input
+            id="reservationExpiry"
+            type="number"
+            min="1"
+            max="720"
+            formControlName="expiresInHours"
+          />
+        </label>
+      </div>
+
+      <div class="line-heading">
+        <h4>Productos</h4>
+        <button type="button" class="secondary" (click)="addLine()">Agregar línea</button>
+      </div>
+      <div class="lines" formArrayName="lines">
+        @for (line of lines.controls; track line; let index = $index) {
+          <fieldset [formGroupName]="index">
+            <legend>Línea {{ index + 1 }}</legend>
+            <label>
+              Producto
+              <select [id]="'reservationProduct' + index" formControlName="productId">
+                <option value="">Selecciona un producto</option>
+                @for (product of products(); track product.id) {
+                  <option [value]="product.id">{{ product.sku }} · {{ product.name }}</option>
+                }
+              </select>
+            </label>
+            <label>
+              Cantidad
+              <input
+                [id]="'reservationQuantity' + index"
+                inputmode="decimal"
+                formControlName="quantity"
+              />
+            </label>
+            <button
+              type="button"
+              class="secondary"
+              (click)="removeLine(index)"
+              [disabled]="lines.length === 1"
+            >
+              Quitar
+            </button>
+          </fieldset>
+        }
+      </div>
+      <button id="saveReservation" type="submit" [disabled]="saving() || loading()">
+        {{ saving() ? 'Apartando…' : 'Crear reserva' }}
+      </button>
+    </form>
+
+    <div class="history">
+      <h3>Reservas activas</h3>
+      @if (!loading() && reservations().length === 0) {
+        <p class="empty">Todavía no hay reservas.</p>
+      }
+      @for (reservation of reservations(); track reservation.id) {
+        <article>
+          <div>
+            <strong>{{ reservation.reservationNumber }}</strong>
+            <span
+              >{{ reservation.customer.name }} · vence
+              {{ reservation.expiresAt | date: 'short' }}</span
+            >
+          </div>
+          <ul>
+            @for (line of reservation.lines; track line.id) {
+              <li>{{ line.product.sku }} · {{ line.product.name }} · {{ line.quantity }}</li>
+            }
+          </ul>
+          <small
+            >{{ reservation.context.location.code }} · {{ reservation.responsible.email }}</small
+          >
+        </article>
+      }
+    </div>
+  </div>
+</section>
