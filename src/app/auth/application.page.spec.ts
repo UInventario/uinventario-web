@@ -30,6 +30,10 @@ describe('ApplicationPage', () => {
     retire: ReturnType<typeof vi.fn>;
     list: ReturnType<typeof vi.fn>;
     get: ReturnType<typeof vi.fn>;
+    listClassifications: ReturnType<typeof vi.fn>;
+    createClassification: ReturnType<typeof vi.fn>;
+    updateClassification: ReturnType<typeof vi.fn>;
+    deactivateClassification: ReturnType<typeof vi.fn>;
   };
   let inventory: {
     listLocations: ReturnType<typeof vi.fn>;
@@ -123,6 +127,10 @@ describe('ApplicationPage', () => {
         }),
       ),
       get: vi.fn(),
+      listClassifications: vi.fn().mockReturnValue(of({ data: [] })),
+      createClassification: vi.fn(),
+      updateClassification: vi.fn(),
+      deactivateClassification: vi.fn(),
     };
     inventory = {
       listLocations: vi.fn().mockReturnValue(
@@ -1420,7 +1428,7 @@ describe('ApplicationPage', () => {
     fixture = TestBed.createComponent(ApplicationPage);
     fixture.detectChanges();
 
-    expect(products.getOptions).not.toHaveBeenCalled();
+    expect(products.getOptions).toHaveBeenCalled();
     expect(products.list).toHaveBeenCalled();
     expect(inventory.listStock).toHaveBeenCalled();
     expect(access.listRoles).not.toHaveBeenCalled();

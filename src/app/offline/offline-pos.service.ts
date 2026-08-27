@@ -11,6 +11,8 @@ interface OfflineProduct extends OfflineBootstrapEntity {
   name: string;
   price: string;
   active: boolean;
+  categoryId: string | null;
+  brandId: string | null;
 }
 
 interface OfflineLocation extends OfflineBootstrapEntity {
@@ -38,7 +40,10 @@ export class OfflinePosService {
   private readonly store = inject(OfflineStoreService);
   private readonly sessions = inject(SessionApiService);
 
-  async search(query: string): Promise<ProductData[]> {
+  async search(
+    query: string,
+    filters: { categoryId?: string; brandId?: string } = {},
+  ): Promise<ProductData[]> {
     const scope = await this.scope();
     const freshness = await this.store.freshness(scope);
     if (!freshness.catalogReadable) {
@@ -51,8 +56,10 @@ export class OfflinePosService {
     const value = query.trim().toLocaleLowerCase();
     return products
       .filter(
-        ({ active, name, sku, barcode }) =>
+        ({ active, name, sku, barcode, categoryId, brandId }) =>
           active &&
+          (!filters.categoryId || categoryId === filters.categoryId) &&
+          (!filters.brandId || brandId === filters.brandId) &&
           [name, sku, barcode ?? ''].some((candidate) =>
             candidate.toLocaleLowerCase().includes(value),
           ),

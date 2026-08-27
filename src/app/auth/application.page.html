@@ -328,6 +328,10 @@
       {{ session()?.context?.cashRegister?.name }}
     </p>
 
+    @if (canManageProducts()) {
+      <app-catalog-classification-panel (changed)="classificationChanged()" />
+    }
+
     <div class="workspace">
       <form
         class="product-form catalog-product-form"
@@ -439,6 +443,18 @@
               <option value="ACTIVE">Activos</option>
               <option value="INACTIVE">Inactivos</option>
               <option value="ALL">Todos</option>
+            </select>
+            <select aria-label="Categoría del producto" formControlName="categoryId">
+              <option value="">Todas las categorías</option>
+              @for (category of categories(); track category.id) {
+                <option [value]="category.id">{{ category.name }}</option>
+              }
+            </select>
+            <select aria-label="Marca del producto" formControlName="brandId">
+              <option value="">Todas las marcas</option>
+              @for (brand of brands(); track brand.id) {
+                <option [value]="brand.id">{{ brand.name }}</option>
+              }
             </select>
             <button class="secondary" type="submit">Buscar</button>
           </div>
@@ -1607,6 +1623,18 @@
             <label for="posSearch">Buscar producto para venta por nombre, SKU o código</label>
             <div>
               <input id="posSearch" formControlName="q" maxlength="80" autocomplete="off" />
+              <select aria-label="Filtrar POS por categoría" formControlName="categoryId">
+                <option value="">Todas las categorías</option>
+                @for (category of categories(); track category.id) {
+                  <option [value]="category.id">{{ category.name }}</option>
+                }
+              </select>
+              <select aria-label="Filtrar POS por marca" formControlName="brandId">
+                <option value="">Todas las marcas</option>
+                @for (brand of brands(); track brand.id) {
+                  <option [value]="brand.id">{{ brand.name }}</option>
+                }
+              </select>
               <button class="secondary" type="submit" [disabled]="searchingPos()">
                 {{ searchingPos() ? 'Buscando…' : 'Buscar' }}
               </button>

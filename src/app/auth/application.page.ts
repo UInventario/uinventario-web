@@ -60,6 +60,7 @@ import { ProductReservationPanelComponent } from '../reservations/product-reserv
 import { OfflineBootstrapPanelComponent } from '../offline/offline-bootstrap-panel.component';
 import { OfflinePosService } from '../offline/offline-pos.service';
 import { OfflineInventoryPanelComponent } from '../offline/offline-inventory-panel.component';
+import { CatalogClassificationPanelComponent } from '../catalog/catalog-classification-panel.component';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const POSITIVE_MONEY_PATTERN = /^(?:[1-9]\d{0,11}(?:\.\d{1,2})?|0\.(?:0[1-9]|[1-9]\d?))$/;
@@ -87,6 +88,7 @@ interface CartEntry {
     ProductReservationPanelComponent,
     OfflineBootstrapPanelComponent,
     OfflineInventoryPanelComponent,
+    CatalogClassificationPanelComponent,
   ],
   templateUrl: './application.page.html',
   styleUrl: './application.page.scss',
@@ -366,6 +368,8 @@ export class ApplicationPage implements OnInit {
   protected readonly searchForm = this.formBuilder.nonNullable.group({
     q: ['', [Validators.maxLength(80)]],
     status: ['ACTIVE' as ProductStatusFilter],
+    categoryId: [''],
+    brandId: [''],
   });
   protected readonly stockSearchForm = this.formBuilder.nonNullable.group({
     q: ['', [Validators.maxLength(80)]],
@@ -380,7 +384,9 @@ export class ApplicationPage implements OnInit {
     dateTo: [''],
   });
   protected readonly posSearchForm = this.formBuilder.nonNullable.group({
-    q: ['', [Validators.required, Validators.maxLength(80)]],
+    q: ['', [Validators.maxLength(80)]],
+    categoryId: [''],
+    brandId: [''],
   });
   protected readonly cashForm = this.formBuilder.nonNullable.group({
     cashReceived: ['', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
@@ -507,7 +513,7 @@ export class ApplicationPage implements OnInit {
 
   ngOnInit(): void {
     this.loadOrganization();
-    if (this.canManageProducts()) {
+    if (this.canManageProducts() || this.canManageStock() || this.canManageSales()) {
       this.loadOptions();
     }
     if (this.canManageProducts() || this.canManageStock()) this.loadProducts(1);
@@ -947,6 +953,13 @@ export class ApplicationPage implements OnInit {
     this.loadProducts(1);
   }
 
+  protected classificationChanged(): void {
+    this.searchForm.patchValue({ categoryId: '', brandId: '' });
+    this.posSearchForm.patchValue({ categoryId: '', brandId: '' });
+    this.loadOptions();
+    this.loadProducts(1);
+  }
+
   protected previousPage(): void {
     if (this.page() > 1) this.loadProducts(this.page() - 1);
   }
@@ -1267,7 +1280,17 @@ export class ApplicationPage implements OnInit {
     this.searchingPos.set(true);
     this.posError.set(null);
     this.products
-      .list({ q: this.posSearchForm.controls.q.value.trim(), page: 1, pageSize: 5 })
+      .list({
+        q: this.posSearchForm.controls.q.value.trim(),
+        ...(this.posSearchForm.controls.categoryId.value
+          ? { categoryId: this.posSearchForm.controls.categoryId.value }
+          : {}),
+        ...(this.posSearchForm.controls.brandId.value
+          ? { brandId: this.posSearchForm.controls.brandId.value }
+          : {}),
+        page: 1,
+        pageSize: 5,
+      })
       .pipe(finalize(() => this.searchingPos.set(false)))
       .subscribe({
         next: ({ data }) => {
@@ -2303,10 +2326,14 @@ export class ApplicationPage implements OnInit {
     this.catalogError.set(null);
     const q = this.searchForm.controls.q.value.trim();
     const status = this.searchForm.controls.status.value;
+    const categoryId = this.searchForm.controls.categoryId.value;
+    const brandId = this.searchForm.controls.brandId.value;
     this.products
       .list({
         ...(q ? { q } : {}),
         ...(status === 'ACTIVE' ? {} : { status }),
+        ...(categoryId ? { categoryId } : {}),
+        ...(brandId ? { brandId } : {}),
         page,
         pageSize: this.pageSize,
       })
@@ -2605,7 +2632,16 @@ export class ApplicationPage implements OnInit {
     this.searchingPos.set(true);
     this.posError.set(null);
     try {
-      this.posResults.set(await this.offlinePos.search(this.posSearchForm.controls.q.value));
+      this.posResults.set(
+        await this.offlinePos.search(this.posSearchForm.controls.q.value, {
+          ...(this.posSearchForm.controls.categoryId.value
+            ? { categoryId: this.posSearchForm.controls.categoryId.value }
+            : {}),
+          ...(this.posSearchForm.controls.brandId.value
+            ? { brandId: this.posSearchForm.controls.brandId.value }
+            : {}),
+        }),
+      );
       this.offlinePosActive.set(true);
     } catch (error) {
       this.posResults.set([]);
