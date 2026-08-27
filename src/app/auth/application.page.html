@@ -16,6 +16,7 @@
     }
     @if (canManageStock()) {
       <a routerLink="/app" fragment="stock-overview-title">Inventario</a>
+      <a routerLink="/app" fragment="transfers-title">Transferencias</a>
       <a routerLink="/app" fragment="movement-history-title">Movimientos</a>
     }
     @if (canManageSales()) {
@@ -785,6 +786,177 @@
 
     <section
       class="stock-overview movement-history"
+      aria-labelledby="transfers-title"
+      [hidden]="!canManageStock()"
+      [attr.aria-busy]="loadingTransfers() || savingTransfer() || transferActionId()"
+    >
+      <div class="overview-heading">
+        <div>
+          <p class="eyebrow">Entre bodegas</p>
+          <h2 id="transfers-title">Transferencias</h2>
+          <p>El despacho descuenta disponible del origen y registra tránsito en el destino.</p>
+        </div>
+        <strong>{{ transferList().length }} documento(s)</strong>
+      </div>
+
+      <form
+        class="movement-filters"
+        [formGroup]="transferForm"
+        (ngSubmit)="createTransfer()"
+        novalidate
+      >
+        <div class="field">
+          <label>Producto seleccionado</label>
+          <strong>{{ selectedProduct()?.name || 'Selecciona un producto del catálogo' }}</strong>
+          @if (selectedProduct(); as product) {
+            <small>{{ product.sku }}</small>
+          }
+        </div>
+        <div class="field">
+          <label for="transferSourceLocation">Ubicación de origen</label>
+          <select id="transferSourceLocation" formControlName="sourceLocationId">
+            @for (location of locations(); track location.id) {
+              <option [value]="location.id">{{ location.name }} · {{ location.code }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="transferDestinationWarehouse">Bodega destino</label>
+          <select
+            id="transferDestinationWarehouse"
+            formControlName="destinationWarehouseId"
+            (change)="transferDestinationChanged()"
+          >
+            @for (destination of transferDestinations(); track destination.warehouse.id) {
+              <option [value]="destination.warehouse.id">
+                {{ destination.branch.name }} · {{ destination.warehouse.name }}
+              </option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="transferDestinationLocation">Ubicación destino</label>
+          <select id="transferDestinationLocation" formControlName="destinationLocationId">
+            @for (location of transferDestinationLocations(); track location.id) {
+              <option [value]="location.id">{{ location.name }} · {{ location.code }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="transferQuantity">Cantidad</label>
+          <input
+            id="transferQuantity"
+            formControlName="quantity"
+            inputmode="decimal"
+            placeholder="0.000"
+          />
+        </div>
+        <div class="field">
+          <label for="transferReference">Referencia</label>
+          <input id="transferReference" formControlName="reference" maxlength="120" />
+        </div>
+        <div class="field">
+          <label for="transferReason">Motivo</label>
+          <input id="transferReason" formControlName="reason" maxlength="160" />
+        </div>
+        <button
+          class="primary"
+          type="submit"
+          [disabled]="
+            savingTransfer() ||
+            !selectedProduct() ||
+            locations().length === 0 ||
+            transferDestinations().length === 0
+          "
+        >
+          {{ savingTransfer() ? 'Creando…' : 'Crear borrador' }}
+        </button>
+      </form>
+
+      @if (transferError()) {
+        <div class="form-error" role="alert">{{ transferError() }}</div>
+      }
+      @if (transferSuccess()) {
+        <div class="success" role="status">{{ transferSuccess() }}</div>
+      }
+      @if (transferDestinations().length === 0) {
+        <div class="empty stock-empty">
+          <h3>Falta una bodega destino</h3>
+          <p>Crea otra sucursal o bodega activa para poder transferir inventario.</p>
+        </div>
+      } @else if (loadingTransfers()) {
+        <p class="catalog-state" role="status">Cargando transferencias…</p>
+      } @else if (transferList().length === 0) {
+        <div class="empty stock-empty">
+          <h3>Sin transferencias</h3>
+          <p>Selecciona un producto y crea el primer borrador.</p>
+        </div>
+      } @else {
+        <ol class="movement-list" aria-label="Transferencias de inventario">
+          @for (transfer of transferList(); track transfer.id) {
+            <li class="movement-row">
+              <span>
+                <strong>{{ transfer.reference }}</strong>
+                <small>{{ dateTime(transfer.createdAt) }}</small>
+              </span>
+              <span>
+                <strong>{{ transferStatusLabel(transfer.status) }}</strong>
+                <small>{{ transfer.createdBy.email }}</small>
+              </span>
+              <span>
+                <strong>{{ transfer.originWarehouse.name }}</strong>
+                <small>{{ transfer.originWarehouse.branch.name }}</small>
+              </span>
+              <span>
+                <strong>{{ transfer.destinationWarehouse.name }}</strong>
+                <small>{{ transfer.destinationWarehouse.branch.name }}</small>
+              </span>
+              <span>
+                @for (line of transfer.lines; track line.id) {
+                  <strong>{{ line.product.name }} · {{ line.quantity }}</strong>
+                  <small
+                    >{{ line.sourceLocation.code }} → {{ line.destinationLocation.code }}</small
+                  >
+                }
+              </span>
+              <span>
+                @if (transfer.status === 'DRAFT') {
+                  <button
+                    class="primary"
+                    type="button"
+                    (click)="dispatchTransfer(transfer)"
+                    [disabled]="transferActionId()"
+                  >
+                    Despachar
+                  </button>
+                  <button
+                    class="secondary"
+                    type="button"
+                    (click)="cancelTransfer(transfer)"
+                    [disabled]="transferActionId()"
+                  >
+                    Cancelar
+                  </button>
+                } @else {
+                  <small>
+                    {{
+                      transfer.dispatchedAt
+                        ? dateTime(transfer.dispatchedAt)
+                        : transfer.cancelledAt
+                          ? dateTime(transfer.cancelledAt)
+                          : ''
+                    }}
+                  </small>
+                }
+              </span>
+            </li>
+          }
+        </ol>
+      }
+    </section>
+
+    <section
+      class="stock-overview movement-history"
       aria-labelledby="movement-history-title"
       [hidden]="!canManageStock()"
       [attr.aria-busy]="loadingMovementHistory()"
@@ -819,6 +991,8 @@
             <option value="DAMAGE">Daño</option>
             <option value="ADJUSTMENT">Ajuste</option>
             <option value="STATE_TRANSITION">Cambio de estado</option>
+            <option value="TRANSFER_OUT">Transferencia despachada</option>
+            <option value="TRANSFER_IN">Transferencia en tránsito</option>
             <option value="SALE">Venta</option>
           </select>
         </div>

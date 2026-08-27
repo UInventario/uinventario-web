@@ -10,6 +10,7 @@ import { ApplicationPage } from './application.page';
 import { SessionApiService, SessionData } from './session-api.service';
 import { AuditApiService } from '../audit/audit-api.service';
 import { OrganizationApiService } from '../organization/organization-api.service';
+import { InventoryTransferApiService } from '../inventory/inventory-transfer-api.service';
 
 describe('ApplicationPage', () => {
   let fixture: ComponentFixture<ApplicationPage>;
@@ -44,6 +45,12 @@ describe('ApplicationPage', () => {
     createWarehouse: ReturnType<typeof vi.fn>;
     updateWarehouse: ReturnType<typeof vi.fn>;
     retireWarehouse: ReturnType<typeof vi.fn>;
+  };
+  let transfers: {
+    list: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+    dispatch: ReturnType<typeof vi.fn>;
+    cancel: ReturnType<typeof vi.fn>;
   };
   let sessions: {
     session: ReturnType<typeof signal<SessionData | null>>;
@@ -168,6 +175,12 @@ describe('ApplicationPage', () => {
       updateWarehouse: vi.fn(),
       retireWarehouse: vi.fn(),
     };
+    transfers = {
+      list: vi.fn().mockReturnValue(of({ data: [], meta: { apiVersion: '1' } })),
+      create: vi.fn(),
+      dispatch: vi.fn(),
+      cancel: vi.fn(),
+    };
     sessionState = signal<SessionData | null>({
       user: {
         id: 'user',
@@ -197,6 +210,7 @@ describe('ApplicationPage', () => {
         { provide: PosApiService, useValue: pos },
         { provide: AuditApiService, useValue: audit },
         { provide: OrganizationApiService, useValue: organization },
+        { provide: InventoryTransferApiService, useValue: transfers },
         { provide: SessionApiService, useValue: sessions },
       ],
     }).compileComponents();
@@ -818,6 +832,167 @@ describe('ApplicationPage', () => {
       (fixture.nativeElement.querySelector('#stateTo') as HTMLSelectElement).options,
     ).map(({ value }) => value);
     expect(targets).toEqual(['AVAILABLE']);
+  });
+
+  it('creates and dispatches a transfer to a different active warehouse', () => {
+    const product = {
+      id: 'product',
+      name: 'Café',
+      sku: 'CAFE-1',
+      barcode: null,
+      category: null,
+      brand: null,
+      cost: '1.20',
+      price: '2.50',
+      active: true,
+      version: 1,
+    };
+    const destinationBranch = {
+      id: 'branch-north',
+      name: 'Sucursal Norte',
+      timezone: 'America/Mexico_City',
+      active: true,
+      warehouses: [
+        {
+          id: 'warehouse-north',
+          name: 'Bodega Norte',
+          active: true,
+          locations: [{ id: 'location-north', name: 'Recepción', code: 'NORTE', active: true }],
+        },
+      ],
+    };
+    organization.list.mockReturnValue(
+      of({
+        data: [
+          {
+            id: 'branch',
+            name: 'Sucursal',
+            timezone: 'America/Mexico_City',
+            active: true,
+            warehouses: [
+              {
+                id: 'warehouse',
+                name: 'Bodega',
+                active: true,
+                locations: [{ id: 'location', name: 'General', code: 'GENERAL', active: true }],
+              },
+            ],
+          },
+          destinationBranch,
+        ],
+        meta: { apiVersion: '1' },
+      }),
+    );
+    products.list.mockReturnValue(
+      of({
+        data: [product],
+        meta: {
+          apiVersion: '1',
+          pagination: { page: 1, pageSize: 5, total: 1, totalPages: 1 },
+        },
+      }),
+    );
+    products.get.mockReturnValue(of({ data: product, meta: { apiVersion: '1' } }));
+    const draft = {
+      id: 'transfer',
+      status: 'DRAFT' as const,
+      reference: 'TR-001',
+      reason: 'Reabasto',
+      originWarehouse: {
+        id: 'warehouse',
+        name: 'Bodega',
+        branch: { id: 'branch', name: 'Sucursal' },
+      },
+      destinationWarehouse: {
+        id: 'warehouse-north',
+        name: 'Bodega Norte',
+        branch: { id: 'branch-north', name: 'Sucursal Norte' },
+      },
+      lines: [
+        {
+          id: 'line',
+          lineNumber: 1,
+          product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
+          sourceLocation: { id: 'location', name: 'General', code: 'GENERAL' },
+          destinationLocation: {
+            id: 'location-north',
+            name: 'Recepción',
+            code: 'NORTE',
+          },
+          quantity: '3.000',
+        },
+      ],
+      createdBy: { id: 'user', email: 'admin@example.com' },
+      dispatchedBy: null,
+      cancelledBy: null,
+      createdAt: new Date().toISOString(),
+      dispatchedAt: null,
+      cancelledAt: null,
+    };
+    transfers.create.mockReturnValue(
+      of({ data: draft, meta: { apiVersion: '1', idempotentReplay: false } }),
+    );
+    transfers.list.mockReturnValue(of({ data: [draft], meta: { apiVersion: '1' } }));
+    transfers.dispatch.mockReturnValue(
+      of({
+        data: {
+          ...draft,
+          status: 'DISPATCHED',
+          dispatchedBy: { id: 'user', email: 'admin@example.com' },
+          dispatchedAt: new Date().toISOString(),
+        },
+        meta: { apiVersion: '1', idempotentReplay: false },
+      }),
+    );
+
+    (fixture.componentInstance as unknown as { loadOrganization(): void }).loadOrganization();
+    (fixture.componentInstance as unknown as { search(): void }).search();
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelector('.product-list button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    const destinationOptions = Array.from(
+      fixture.nativeElement.querySelectorAll('#transferDestinationWarehouse option'),
+    ).map((option) => (option as HTMLOptionElement).value);
+    expect(destinationOptions).toEqual(['warehouse-north']);
+    fill('transferQuantity', '3');
+    fill('transferReference', 'TR-001');
+    fill('transferReason', 'Reabasto');
+    (
+      (fixture.nativeElement.querySelector('#transferQuantity') as HTMLInputElement).closest(
+        'form',
+      ) as HTMLFormElement
+    ).dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+
+    expect(transfers.create).toHaveBeenCalledWith(
+      {
+        destinationWarehouseId: 'warehouse-north',
+        reference: 'TR-001',
+        reason: 'Reabasto',
+        lines: [
+          {
+            productId: 'product',
+            sourceLocationId: 'location',
+            destinationLocationId: 'location-north',
+            quantity: '3',
+          },
+        ],
+      },
+      expect.stringMatching(/^web-transfer-/),
+    );
+    const dispatchButton = Array.from(fixture.nativeElement.querySelectorAll('button')).find(
+      (button) => (button as HTMLButtonElement).textContent?.trim() === 'Despachar',
+    ) as HTMLButtonElement | undefined;
+    expect(dispatchButton).toBeTruthy();
+    expect(fixture.nativeElement.textContent).toContain('Cancelar');
+    dispatchButton!.click();
+    fixture.detectChanges();
+    expect(transfers.dispatch).toHaveBeenCalledWith(
+      'transfer',
+      expect.stringMatching(/^web-transfer-dispatch-/),
+    );
+    expect(fixture.nativeElement.textContent).toContain('Transferencia TR-001 despachada.');
   });
 
   it('shows an error when the stock overview cannot be loaded', () => {
