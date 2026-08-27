@@ -96,6 +96,28 @@ button:disabled {
   gap: 0.75rem;
 }
 
+.form-row {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr 1fr;
+}
+
+.supplier-product-row details {
+  margin-top: 0.4rem;
+}
+
+.supplier-product-row ol {
+  gap: 0.2rem;
+  margin: 0.4rem 0;
+  padding-left: 1.2rem;
+}
+
+.supplier-product-row ol li {
+  border: 0;
+  display: list-item;
+  padding: 0.15rem 0;
+}
+
 fieldset {
   border: 1px solid #d8dde7;
   display: grid;
@@ -158,7 +180,8 @@ fieldset {
 
 @media (max-width: 760px) {
   .workspace,
-  fieldset {
+  fieldset,
+  .form-row {
     grid-template-columns: 1fr;
   }
 

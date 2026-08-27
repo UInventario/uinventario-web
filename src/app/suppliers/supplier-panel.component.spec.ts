@@ -1,6 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, Subject } from 'rxjs';
+import { ProductApiService, ProductData } from '../catalog/product-api.service';
 import { SupplierApiService, SupplierData } from './supplier-api.service';
+import { SupplierProductApiService, SupplierProductData } from './supplier-product-api.service';
 import { SupplierPanelComponent } from './supplier-panel.component';
 
 describe('SupplierPanelComponent', () => {
@@ -10,6 +12,12 @@ describe('SupplierPanelComponent', () => {
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
     deactivate: ReturnType<typeof vi.fn>;
+  };
+  let productApi: { list: ReturnType<typeof vi.fn> };
+  let supplierProductApi: {
+    list: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
   };
 
   const supplier: SupplierData = {
@@ -34,6 +42,45 @@ describe('SupplierPanelComponent', () => {
     createdAt: '2026-08-27T15:00:00.000Z',
     updatedAt: '2026-08-27T15:00:00.000Z',
   };
+  const product: ProductData = {
+    id: 'product',
+    name: 'Café molido',
+    sku: 'CAFE-500',
+    barcode: null,
+    category: null,
+    brand: null,
+    cost: '85.40',
+    price: '119.90',
+    active: true,
+    version: 1,
+  };
+  const supplierProduct: SupplierProductData = {
+    id: 'supplier-product',
+    supplier: { id: supplier.id, name: supplier.tradeName! },
+    product: {
+      id: product.id,
+      name: product.name,
+      sku: product.sku,
+      catalogCost: product.cost,
+      catalogPrice: product.price,
+    },
+    supplierCode: 'PROV-CAFE',
+    minimumQuantity: '12.000',
+    active: true,
+    version: 1,
+    prices: [
+      {
+        id: 'price-1',
+        currency: 'MXN',
+        unitCost: '80.00',
+        validFrom: '2026-08-01',
+        validTo: null,
+        createdAt: '2026-08-27T15:00:00.000Z',
+      },
+    ],
+    createdAt: '2026-08-27T15:00:00.000Z',
+    updatedAt: '2026-08-27T15:00:00.000Z',
+  };
 
   beforeEach(async () => {
     api = {
@@ -50,9 +97,37 @@ describe('SupplierPanelComponent', () => {
       update: vi.fn(),
       deactivate: vi.fn(),
     };
+    productApi = {
+      list: vi.fn().mockReturnValue(
+        of({
+          data: [product],
+          meta: {
+            apiVersion: '1',
+            pagination: { page: 1, pageSize: 100, total: 1, totalPages: 1 },
+          },
+        }),
+      ),
+    };
+    supplierProductApi = {
+      list: vi.fn().mockReturnValue(
+        of({
+          data: [supplierProduct],
+          meta: {
+            apiVersion: '1',
+            pagination: { page: 1, pageSize: 10, total: 1, totalPages: 1 },
+          },
+        }),
+      ),
+      create: vi.fn(),
+      update: vi.fn(),
+    };
     await TestBed.configureTestingModule({
       imports: [SupplierPanelComponent],
-      providers: [{ provide: SupplierApiService, useValue: api }],
+      providers: [
+        { provide: SupplierApiService, useValue: api },
+        { provide: ProductApiService, useValue: productApi },
+        { provide: SupplierProductApiService, useValue: supplierProductApi },
+      ],
     }).compileComponents();
     fixture = TestBed.createComponent(SupplierPanelComponent);
     fixture.detectChanges();
@@ -66,6 +141,7 @@ describe('SupplierPanelComponent', () => {
 
   it('renders, filters and creates a supplier with a contact', () => {
     expect(api.list).toHaveBeenCalledWith({ status: 'ACTIVE', page: 1, pageSize: 10 });
+    expect(api.list).toHaveBeenCalledWith({ status: 'ACTIVE', page: 1, pageSize: 100 });
     expect(fixture.nativeElement.textContent).toContain('Café Mayorista');
     expect(fixture.nativeElement.textContent).toContain('ana@proveedor.example');
 
@@ -113,7 +189,7 @@ describe('SupplierPanelComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Proveedor creado.');
-    expect(api.list).toHaveBeenCalledTimes(3);
+    expect(api.list).toHaveBeenLastCalledWith({ status: 'ACTIVE', page: 1, pageSize: 100 });
   });
 
   it('updates with optimistic version and deactivates without deleting history', () => {
@@ -151,6 +227,63 @@ describe('SupplierPanelComponent', () => {
     expect(api.deactivate).toHaveBeenCalledWith(supplier.id);
     expect(fixture.nativeElement.textContent).toContain(
       'Proveedor desactivado; su historial se conserva.',
+    );
+  });
+
+  it('creates a supplier product and appends a new price while showing history', () => {
+    expect(productApi.list).toHaveBeenCalledWith({ status: 'ACTIVE', page: 1, pageSize: 100 });
+    expect(fixture.nativeElement.textContent).toContain('PROV-CAFE');
+    expect(fixture.nativeElement.textContent).toContain('MXN 80.00');
+
+    const component = fixture.componentInstance as unknown as {
+      supplierProductForm: {
+        setValue(value: Record<string, string>): void;
+      };
+      submitSupplierProduct(): void;
+      editSupplierProduct(link: SupplierProductData): void;
+    };
+    component.supplierProductForm.setValue({
+      supplierId: supplier.id,
+      productId: product.id,
+      supplierCode: ' PROV-NUEVO ',
+      currency: 'usd',
+      unitCost: '77.50',
+      minimumQuantity: '24',
+      validFrom: '2026-09-01',
+      validTo: '',
+    });
+    supplierProductApi.create.mockReturnValue(
+      of({ data: supplierProduct, meta: { apiVersion: '1' } }),
+    );
+    component.submitSupplierProduct();
+    expect(supplierProductApi.create).toHaveBeenCalledWith({
+      supplierId: supplier.id,
+      productId: product.id,
+      supplierCode: 'PROV-NUEVO',
+      currency: 'USD',
+      unitCost: '77.50',
+      minimumQuantity: '24',
+      validFrom: '2026-09-01',
+    });
+
+    component.editSupplierProduct(supplierProduct);
+    component.supplierProductForm.setValue({
+      supplierId: supplier.id,
+      productId: product.id,
+      supplierCode: supplierProduct.supplierCode,
+      currency: 'MXN',
+      unitCost: '75.00',
+      minimumQuantity: '12',
+      validFrom: '2026-10-01',
+      validTo: '',
+    });
+    supplierProductApi.update.mockReturnValue(
+      of({ data: { ...supplierProduct, version: 2 }, meta: { apiVersion: '1' } }),
+    );
+    component.submitSupplierProduct();
+    expect(supplierProductApi.update).toHaveBeenCalledWith(
+      supplierProduct.id,
+      expect.objectContaining({ version: 1, unitCost: '75.00', validFrom: '2026-10-01' }),
     );
   });
 });

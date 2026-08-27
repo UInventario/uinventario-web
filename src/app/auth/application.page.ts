@@ -1466,6 +1466,8 @@ export class ApplicationPage implements OnInit {
         SUPPLIER_CREATED: 'Proveedor creado',
         SUPPLIER_UPDATED: 'Proveedor actualizado',
         SUPPLIER_DEACTIVATED: 'Proveedor desactivado',
+        SUPPLIER_PRODUCT_LINKED: 'Producto relacionado con proveedor',
+        SUPPLIER_PRICE_CHANGED: 'Precio de proveedor actualizado',
       }[action] ?? action
     );
   }
