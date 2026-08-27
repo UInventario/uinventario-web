@@ -19,6 +19,7 @@ describe('PurchaseOrderPanelComponent', () => {
     send: ReturnType<typeof vi.fn>;
     cancel: ReturnType<typeof vi.fn>;
     receive: ReturnType<typeof vi.fn>;
+    returnToSupplier: ReturnType<typeof vi.fn>;
   };
 
   const supplier: SupplierData = {
@@ -77,6 +78,7 @@ describe('PurchaseOrderPanelComponent', () => {
     cancellationReason: null,
     transitions: [],
     receipts: [],
+    returns: [],
     lines: [
       {
         id: 'line',
@@ -115,6 +117,7 @@ describe('PurchaseOrderPanelComponent', () => {
       send: vi.fn(),
       cancel: vi.fn(),
       receive: vi.fn(),
+      returnToSupplier: vi.fn(),
     };
     const suppliersApi = {
       list: vi.fn().mockReturnValue(
@@ -371,5 +374,106 @@ describe('PurchaseOrderPanelComponent', () => {
       },
       expect.stringMatching(/^web-purchase-receipt-/),
     );
+  });
+
+  it('returns products from a receipt and keeps the credit pending', () => {
+    const received: PurchaseOrderData = {
+      ...order,
+      status: 'RECEIVED',
+      version: 3,
+      receipts: [
+        {
+          id: 'receipt',
+          documentReference: 'REM-100',
+          location: { id: 'location', name: 'Ubicación General', code: 'MAIN' },
+          responsible: { id: 'user', email: 'admin@example.com' },
+          overageReason: null,
+          lines: [
+            {
+              id: 'receipt-line',
+              purchaseOrderLineId: 'line',
+              receivedQuantity: '2.500',
+              overageQuantity: '0.000',
+              unitCost: '80.00',
+              totalCost: '200.00',
+              previousCatalogCost: '85.40',
+              resultingCatalogCost: '80.00',
+              returnedQuantity: '0.000',
+              returnableQuantity: '2.500',
+            },
+          ],
+          createdAt: '2026-08-27T16:00:00.000Z',
+        },
+      ],
+      lines: [
+        {
+          ...order.lines[0],
+          receivedQuantity: '2.500',
+          remainingQuantity: '0.000',
+        },
+      ],
+    };
+    const component = fixture.componentInstance as unknown as {
+      requestReturn(value: PurchaseOrderData, receipt: PurchaseOrderData['receipts'][number]): void;
+      submitReturn(): void;
+    };
+    component.requestReturn(received, received.receipts[0]);
+    fixture.detectChanges();
+    change('purchaseReturnDocument', 'DEV-PROV-100');
+    change('purchaseReturnReason', 'Empaque dañado por proveedor');
+    change('purchaseReturnQuantity0', '3.000');
+    component.submitReturn();
+    fixture.detectChanges();
+    expect(ordersApi.returnToSupplier).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain(
+      'La cantidad a devolver supera el saldo recibido disponible.',
+    );
+
+    change('purchaseReturnQuantity0', '1.500');
+    ordersApi.returnToSupplier.mockReturnValue(
+      of({
+        data: {
+          ...received,
+          returns: [
+            {
+              id: 'return',
+              purchaseReceiptId: 'receipt',
+              documentReference: 'DEV-PROV-100',
+              reason: 'Empaque dañado por proveedor',
+              status: 'CREDIT_PENDING',
+              expectedCreditTotal: '120.00',
+              creditDocumentReference: null,
+              location: received.receipts[0].location,
+              responsible: received.receipts[0].responsible,
+              lines: [
+                {
+                  id: 'return-line',
+                  purchaseReceiptLineId: 'receipt-line',
+                  productId: 'product',
+                  returnedQuantity: '1.500',
+                  unitCost: '80.00',
+                  totalCost: '120.00',
+                },
+              ],
+              createdAt: '2026-08-27T17:00:00.000Z',
+            },
+          ],
+        },
+        meta: { apiVersion: '1' },
+      }),
+    );
+    component.submitReturn();
+    fixture.detectChanges();
+    expect(ordersApi.returnToSupplier).toHaveBeenCalledWith(
+      order.id,
+      {
+        purchaseReceiptId: 'receipt',
+        documentReference: 'DEV-PROV-100',
+        reason: 'Empaque dañado por proveedor',
+        lines: [{ purchaseReceiptLineId: 'receipt-line', returnedQuantity: '1.500' }],
+      },
+      expect.stringMatching(/^web-supplier-return-/),
+    );
+    expect(fixture.nativeElement.textContent).toContain('crédito del proveedor quedó pendiente');
   });
 });

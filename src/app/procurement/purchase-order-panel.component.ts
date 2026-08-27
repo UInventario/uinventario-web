@@ -12,7 +12,9 @@ import {
   PurchaseOrderApiService,
   PurchaseOrderData,
   PurchaseOrderInput,
+  PurchaseReceiptData,
   PurchaseReceiptInput,
+  PurchaseReturnInput,
 } from './purchase-order-api.service';
 
 const QUANTITY_PATTERN = /^(?:[1-9]\d*(?:\.\d{1,3})?|0\.(?:00[1-9]|0[1-9]\d?|[1-9]\d{0,2}))$/;
@@ -43,6 +45,11 @@ export class PurchaseOrderPanelComponent implements OnInit {
     signature: string;
     key: string;
   } | null = null;
+  private pendingReturn: {
+    orderId: string;
+    signature: string;
+    key: string;
+  } | null = null;
 
   readonly canApprove = input(false);
   readonly canManage = input(true);
@@ -59,6 +66,11 @@ export class PurchaseOrderPanelComponent implements OnInit {
   protected readonly cancelling = signal<PurchaseOrderData | null>(null);
   protected readonly receiving = signal<PurchaseOrderData | null>(null);
   protected readonly savingReceipt = signal(false);
+  protected readonly returning = signal<{
+    order: PurchaseOrderData;
+    receipt: PurchaseReceiptData;
+  } | null>(null);
+  protected readonly savingReturn = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly success = signal<string | null>(null);
   protected readonly page = signal(1);
@@ -76,6 +88,11 @@ export class PurchaseOrderPanelComponent implements OnInit {
     overageReason: ['', [Validators.maxLength(500)]],
     lines: this.formBuilder.array<ReturnType<PurchaseOrderPanelComponent['receiptLineGroup']>>([]),
   });
+  protected readonly returnForm = this.formBuilder.nonNullable.group({
+    documentReference: ['', [Validators.required, Validators.maxLength(160)]],
+    reason: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(500)]],
+    lines: this.formBuilder.array<ReturnType<PurchaseOrderPanelComponent['returnLineGroup']>>([]),
+  });
   protected readonly form = this.formBuilder.nonNullable.group({
     supplierId: ['', [Validators.required]],
     currency: ['MXN', [Validators.required, Validators.pattern(/^[A-Za-z]{3}$/)]],
@@ -91,6 +108,12 @@ export class PurchaseOrderPanelComponent implements OnInit {
     ReturnType<PurchaseOrderPanelComponent['receiptLineGroup']>
   > {
     return this.receiptForm.controls.lines;
+  }
+
+  protected get returnLines(): FormArray<
+    ReturnType<PurchaseOrderPanelComponent['returnLineGroup']>
+  > {
+    return this.returnForm.controls.lines;
   }
 
   ngOnInit(): void {
@@ -221,6 +244,95 @@ export class PurchaseOrderPanelComponent implements OnInit {
     this.receiptLines.clear();
   }
 
+  protected requestReturn(order: PurchaseOrderData, receipt: PurchaseReceiptData): void {
+    if (!this.canManage() || !receipt.lines.some((line) => Number(line.returnableQuantity) > 0)) {
+      return;
+    }
+    this.returning.set({ order, receipt });
+    this.returnForm.reset({ documentReference: '', reason: '' });
+    this.returnLines.clear();
+    for (const line of receipt.lines) {
+      this.returnLines.push(
+        this.returnLineGroup(
+          line.id,
+          Number(line.returnableQuantity) > 0 ? line.returnableQuantity : '0',
+        ),
+      );
+    }
+    this.error.set(null);
+    this.success.set(null);
+  }
+
+  protected dismissReturn(): void {
+    this.returning.set(null);
+    this.returnLines.clear();
+  }
+
+  protected submitReturn(): void {
+    const context = this.returning();
+    if (!context || this.returnForm.invalid || this.savingReturn()) {
+      this.returnForm.markAllAsTouched();
+      return;
+    }
+    const raw = this.returnForm.getRawValue();
+    const lines = raw.lines
+      .filter((line) => Number(line.returnedQuantity) > 0)
+      .map((line) => ({
+        purchaseReceiptLineId: line.purchaseReceiptLineId,
+        returnedQuantity: line.returnedQuantity.trim(),
+      }));
+    if (lines.length === 0) {
+      this.error.set('Captura al menos una cantidad a devolver.');
+      return;
+    }
+    const exceedsReceipt = lines.some((line) => {
+      const receiptLine = context.receipt.lines.find(({ id }) => id === line.purchaseReceiptLineId);
+      return Number(line.returnedQuantity) > Number(receiptLine?.returnableQuantity ?? 0);
+    });
+    if (exceedsReceipt) {
+      this.error.set('La cantidad a devolver supera el saldo recibido disponible.');
+      return;
+    }
+    const input: PurchaseReturnInput = {
+      purchaseReceiptId: context.receipt.id,
+      documentReference: raw.documentReference.trim(),
+      reason: raw.reason.trim(),
+      lines,
+    };
+    const signature = JSON.stringify(input);
+    const pending = this.pendingReturn;
+    const returnRequest =
+      pending && pending.orderId === context.order.id && pending.signature === signature
+        ? pending
+        : {
+            orderId: context.order.id,
+            signature,
+            key: `web-supplier-return-${globalThis.crypto.randomUUID()}`,
+          };
+    this.pendingReturn = returnRequest;
+    this.savingReturn.set(true);
+    this.error.set(null);
+    this.success.set(null);
+    this.ordersApi
+      .returnToSupplier(context.order.id, input, returnRequest.key)
+      .pipe(finalize(() => this.savingReturn.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.pendingReturn = null;
+          this.returning.set(null);
+          this.returnLines.clear();
+          this.success.set(
+            `Devolución registrada para ${data.folio}; el crédito del proveedor quedó pendiente.`,
+          );
+          this.load(1);
+        },
+        error: (error: HttpErrorResponse) => {
+          if (error.status > 0 && error.status < 500) this.pendingReturn = null;
+          this.error.set(this.message(error));
+        },
+      });
+  }
+
   protected submitReceipt(): void {
     const order = this.receiving();
     if (!order || this.receiptForm.invalid || this.savingReceipt()) {
@@ -314,6 +426,14 @@ export class PurchaseOrderPanelComponent implements OnInit {
 
   protected receiptLineSku(order: PurchaseOrderData, lineId: string): string {
     return order.lines.find(({ id }) => id === lineId)?.productSku ?? 'Producto';
+  }
+
+  protected canReturnReceipt(receipt: PurchaseReceiptData): boolean {
+    return receipt.lines.some((line) => Number(line.returnableQuantity) > 0);
+  }
+
+  protected purchaseReturnLineSku(order: PurchaseOrderData, productId: string): string {
+    return order.lines.find(({ productId: id }) => id === productId)?.productSku ?? 'Producto';
   }
 
   protected submit(): void {
@@ -472,6 +592,16 @@ export class PurchaseOrderPanelComponent implements OnInit {
       purchaseOrderLineId: [purchaseOrderLineId, [Validators.required]],
       receivedQuantity: [
         receivedQuantity,
+        [Validators.required, Validators.pattern(RECEIPT_QUANTITY_PATTERN)],
+      ],
+    });
+  }
+
+  private returnLineGroup(purchaseReceiptLineId: string, returnedQuantity: string) {
+    return this.formBuilder.nonNullable.group({
+      purchaseReceiptLineId: [purchaseReceiptLineId, [Validators.required]],
+      returnedQuantity: [
+        returnedQuantity,
         [Validators.required, Validators.pattern(RECEIPT_QUANTITY_PATTERN)],
       ],
     });

@@ -37,6 +37,7 @@ export interface PurchaseOrderData {
   cancellationReason: string | null;
   transitions: PurchaseOrderTransitionData[];
   receipts: PurchaseReceiptData[];
+  returns: PurchaseReturnData[];
   lines: PurchaseOrderLineData[];
   createdAt: string;
   updatedAt: string;
@@ -57,6 +58,29 @@ export interface PurchaseReceiptData {
     totalCost: string;
     previousCatalogCost: string;
     resultingCatalogCost: string;
+    returnedQuantity: string;
+    returnableQuantity: string;
+  }>;
+  createdAt: string;
+}
+
+export interface PurchaseReturnData {
+  id: string;
+  purchaseReceiptId: string;
+  documentReference: string;
+  reason: string;
+  status: 'CREDIT_PENDING' | 'CREDIT_RECEIVED';
+  expectedCreditTotal: string;
+  creditDocumentReference: string | null;
+  location: { id: string; name: string; code: string };
+  responsible: { id: string; email: string };
+  lines: Array<{
+    id: string;
+    purchaseReceiptLineId: string;
+    productId: string;
+    returnedQuantity: string;
+    unitCost: string;
+    totalCost: string;
   }>;
   createdAt: string;
 }
@@ -67,6 +91,13 @@ export interface PurchaseReceiptInput {
   documentReference: string;
   overageReason?: string;
   lines: Array<{ purchaseOrderLineId: string; receivedQuantity: string }>;
+}
+
+export interface PurchaseReturnInput {
+  purchaseReceiptId: string;
+  documentReference: string;
+  reason: string;
+  lines: Array<{ purchaseReceiptLineId: string; returnedQuantity: string }>;
 }
 
 export interface PurchaseOrderTransitionData {
@@ -148,6 +179,17 @@ export class PurchaseOrderApiService {
   receive(id: string, input: PurchaseReceiptInput, idempotencyKey: string) {
     return this.http.post<PurchaseOrderResponse>(
       `${this.config.apiBaseUrl()}/purchase-orders/${id}/receipts`,
+      input,
+      {
+        headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+        withCredentials: true,
+      },
+    );
+  }
+
+  returnToSupplier(id: string, input: PurchaseReturnInput, idempotencyKey: string) {
+    return this.http.post<PurchaseOrderResponse>(
+      `${this.config.apiBaseUrl()}/purchase-orders/${id}/returns`,
       input,
       {
         headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),

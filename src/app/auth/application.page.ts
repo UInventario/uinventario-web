@@ -976,6 +976,7 @@ export class ApplicationPage implements OnInit {
       TRANSFER_RECEIPT: 'Transferencia recibida',
       TRANSFER_DISCREPANCY: 'Diferencia de transferencia',
       PURCHASE_RECEIPT: 'Recepción de compra',
+      SUPPLIER_RETURN: 'Devolución a proveedor',
     }[type];
   }
 
@@ -987,6 +988,7 @@ export class ApplicationPage implements OnInit {
       TRANSFER: 'Transferencia',
       RECEIPT: 'Recepción',
       PURCHASE_RECEIPT: 'Recepción de compra',
+      SUPPLIER_RETURN: 'Devolución a proveedor',
     }[type];
   }
 
