@@ -28,6 +28,11 @@ import {
   SaleSummaryData,
 } from '../pos/pos-api.service';
 import { AuditApiService, AuditEventData } from '../audit/audit-api.service';
+import {
+  OrganizationApiService,
+  OrganizationBranchData,
+  OrganizationWarehouseData,
+} from '../organization/organization-api.service';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
@@ -35,6 +40,7 @@ const BARCODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{3,63}$/;
 const QUANTITY_PATTERN = /^-?(0|[1-9]\d{0,11})(\.\d{1,3})?$/;
 const POSITIVE_QUANTITY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,3})?$/;
 const CART_QUANTITY_PATTERN = /^(0|[1-9]\d{0,8})(\.\d{1,3})?$/;
+const LOCATION_CODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{1,39}$/;
 
 interface CartEntry {
   product: ProductData;
@@ -54,6 +60,7 @@ export class ApplicationPage implements OnInit {
   private readonly sessions = inject(SessionApiService);
   private readonly pos = inject(PosApiService);
   private readonly audit = inject(AuditApiService);
+  private readonly organization = inject(OrganizationApiService);
   private pendingMovement: { input: InventoryMovementInput; key: string } | null = null;
   private pendingStateTransition: {
     input: InventoryStateTransitionInput;
@@ -75,7 +82,9 @@ export class ApplicationPage implements OnInit {
     () => this.session()?.user.permissions.includes('STOCK_MANAGE') ?? false,
   );
   protected readonly canManageSales = computed(
-    () => this.session()?.user.permissions.includes('SALES_MANAGE') ?? false,
+    () =>
+      Boolean(this.session()?.context.cashRegister) &&
+      (this.session()?.user.permissions.includes('SALES_MANAGE') ?? false),
   );
   protected readonly canViewAudit = computed(
     () => this.session()?.user.roles.includes('ADMIN') ?? false,
@@ -106,12 +115,26 @@ export class ApplicationPage implements OnInit {
   protected readonly saving = signal(false);
   protected readonly savingStock = signal(false);
   protected readonly savingStateTransition = signal(false);
+  protected readonly savingOrganization = signal(false);
+  protected readonly switchingContext = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly catalogError = signal<string | null>(null);
   protected readonly stockError = signal<string | null>(null);
   protected readonly stockSuccess = signal<string | null>(null);
   protected readonly stateTransitionError = signal<string | null>(null);
   protected readonly stateTransitionSuccess = signal<string | null>(null);
+  protected readonly organizations = signal<OrganizationBranchData[]>([]);
+  protected readonly loadingOrganization = signal(true);
+  protected readonly organizationError = signal<string | null>(null);
+  protected readonly organizationSuccess = signal<string | null>(null);
+  protected readonly editingBranch = signal<OrganizationBranchData | null>(null);
+  protected readonly editingWarehouse = signal<
+    (OrganizationWarehouseData & { branchId: string }) | null
+  >(null);
+  protected readonly organizationRetirement = signal<{
+    type: 'BRANCH' | 'WAREHOUSE';
+    id: string;
+  } | null>(null);
   protected readonly stockList = signal<InventoryStockItem[]>([]);
   protected readonly stockListError = signal<string | null>(null);
   protected readonly loadingStockList = signal(true);
@@ -157,6 +180,8 @@ export class ApplicationPage implements OnInit {
     if (this.retiringProduct()) return 'Retirando producto del catálogo…';
     if (this.savingStock()) return 'Registrando movimiento de inventario…';
     if (this.savingStateTransition()) return 'Actualizando estado del inventario…';
+    if (this.savingOrganization()) return 'Guardando estructura operativa…';
+    if (this.switchingContext()) return 'Cambiando contexto operativo…';
     if (this.savingSale()) return 'Confirmando venta y actualizando inventario…';
     if (this.quotingCart()) return 'Validando precios y existencias…';
     return null;
@@ -209,8 +234,26 @@ export class ApplicationPage implements OnInit {
     reason: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
     reference: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
   });
+  protected readonly contextForm = this.formBuilder.nonNullable.group({
+    branchId: ['', [Validators.required]],
+    warehouseId: ['', [Validators.required]],
+  });
+  protected readonly branchForm = this.formBuilder.nonNullable.group({
+    name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
+    timezone: ['America/Mexico_City', [Validators.required, Validators.maxLength(64)]],
+    warehouseName: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
+    locationName: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
+    locationCode: ['', [Validators.required, Validators.pattern(LOCATION_CODE_PATTERN)]],
+  });
+  protected readonly warehouseForm = this.formBuilder.nonNullable.group({
+    branchId: ['', [Validators.required]],
+    name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
+    locationName: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
+    locationCode: ['', [Validators.required, Validators.pattern(LOCATION_CODE_PATTERN)]],
+  });
 
   ngOnInit(): void {
+    this.loadOrganization();
     if (this.canManageProducts()) {
       this.loadOptions();
       this.loadProducts(1);
@@ -320,6 +363,208 @@ export class ApplicationPage implements OnInit {
 
   protected logout(): void {
     this.sessions.logout().subscribe({ error: () => undefined });
+  }
+
+  protected activeBranches(): OrganizationBranchData[] {
+    return this.organizations().filter(({ active }) => active);
+  }
+
+  protected contextWarehouses(): OrganizationWarehouseData[] {
+    return (
+      this.organizations().find(({ id }) => id === this.contextForm.controls.branchId.value)
+        ?.warehouses ?? []
+    ).filter(({ active }) => active);
+  }
+
+  protected contextBranchChanged(): void {
+    const currentWarehouse = this.contextForm.controls.warehouseId.value;
+    const warehouses = this.contextWarehouses();
+    if (!warehouses.some(({ id }) => id === currentWarehouse)) {
+      this.contextForm.controls.warehouseId.setValue(warehouses[0]?.id ?? '');
+    }
+  }
+
+  protected changeContext(): void {
+    if (this.contextForm.invalid || this.switchingContext()) {
+      this.contextForm.markAllAsTouched();
+      return;
+    }
+    const { branchId, warehouseId } = this.contextForm.getRawValue();
+    if (
+      branchId === this.session()?.context.branch?.id &&
+      warehouseId === this.session()?.context.warehouse?.id
+    ) {
+      return;
+    }
+    this.switchingContext.set(true);
+    this.organizationError.set(null);
+    this.organizationSuccess.set(null);
+    this.sessions
+      .changeContext(branchId, warehouseId)
+      .pipe(finalize(() => this.switchingContext.set(false)))
+      .subscribe({
+        next: () => {
+          this.organizationSuccess.set('Contexto operativo actualizado.');
+          this.stockForm.controls.locationId.setValue('');
+          this.locations.set([]);
+          this.stockBalance.set(null);
+          this.cart.set([]);
+          this.cartQuote.set(null);
+          this.completedSale.set(null);
+          this.selectedSale.set(null);
+          this.salesHistory.set([]);
+          if (this.canManageStock()) {
+            this.loadLocations();
+            this.loadStockList(1);
+            this.loadMovementHistory(1);
+          }
+          if (this.canManageSales()) this.loadSales(1);
+        },
+        error: (error: HttpErrorResponse) =>
+          this.organizationError.set(
+            this.operationMessage(error, 'No fue posible cambiar el contexto operativo.'),
+          ),
+      });
+  }
+
+  protected submitBranch(): void {
+    if (this.branchForm.invalid || this.savingOrganization()) {
+      this.branchForm.markAllAsTouched();
+      return;
+    }
+    const value = this.branchForm.getRawValue();
+    const editing = this.editingBranch();
+    const operation = editing
+      ? this.organization.updateBranch(editing.id, {
+          name: value.name.trim(),
+          timezone: value.timezone.trim(),
+        })
+      : this.organization.createBranch({
+          name: value.name.trim(),
+          timezone: value.timezone.trim(),
+          warehouseName: value.warehouseName.trim(),
+          locationName: value.locationName.trim(),
+          locationCode: value.locationCode.trim(),
+        });
+    this.savingOrganization.set(true);
+    this.organizationError.set(null);
+    this.organizationSuccess.set(null);
+    operation.pipe(finalize(() => this.savingOrganization.set(false))).subscribe({
+      next: () => {
+        this.organizationSuccess.set(
+          editing ? 'Sucursal actualizada.' : 'Sucursal y bodega creadas.',
+        );
+        this.cancelBranchEditing();
+        this.loadOrganization();
+        this.loadAuditEvents();
+      },
+      error: (error: HttpErrorResponse) =>
+        this.organizationError.set(this.organizationMessageFor(error)),
+    });
+  }
+
+  protected editBranch(branch: OrganizationBranchData): void {
+    this.editingBranch.set(branch);
+    const warehouse = branch.warehouses[0];
+    const location = warehouse?.locations[0];
+    this.branchForm.reset({
+      name: branch.name,
+      timezone: branch.timezone,
+      warehouseName: warehouse?.name ?? 'Bodega',
+      locationName: location?.name ?? 'General',
+      locationCode: location?.code ?? 'GENERAL',
+    });
+  }
+
+  protected cancelBranchEditing(): void {
+    this.editingBranch.set(null);
+    this.branchForm.reset({
+      name: '',
+      timezone: 'America/Mexico_City',
+      warehouseName: '',
+      locationName: '',
+      locationCode: '',
+    });
+  }
+
+  protected submitWarehouse(): void {
+    if (this.warehouseForm.invalid || this.savingOrganization()) {
+      this.warehouseForm.markAllAsTouched();
+      return;
+    }
+    const value = this.warehouseForm.getRawValue();
+    const editing = this.editingWarehouse();
+    const operation = editing
+      ? this.organization.updateWarehouse(editing.id, { name: value.name.trim() })
+      : this.organization.createWarehouse(value.branchId, {
+          name: value.name.trim(),
+          locationName: value.locationName.trim(),
+          locationCode: value.locationCode.trim(),
+        });
+    this.savingOrganization.set(true);
+    this.organizationError.set(null);
+    this.organizationSuccess.set(null);
+    operation.pipe(finalize(() => this.savingOrganization.set(false))).subscribe({
+      next: () => {
+        this.organizationSuccess.set(editing ? 'Bodega actualizada.' : 'Bodega creada.');
+        this.cancelWarehouseEditing();
+        this.loadOrganization();
+        this.loadAuditEvents();
+      },
+      error: (error: HttpErrorResponse) =>
+        this.organizationError.set(this.organizationMessageFor(error)),
+    });
+  }
+
+  protected editWarehouse(branchId: string, warehouse: OrganizationWarehouseData): void {
+    this.editingWarehouse.set({ ...warehouse, branchId });
+    const location = warehouse.locations[0];
+    this.warehouseForm.reset({
+      branchId,
+      name: warehouse.name,
+      locationName: location?.name ?? 'General',
+      locationCode: location?.code ?? 'GENERAL',
+    });
+  }
+
+  protected cancelWarehouseEditing(): void {
+    this.editingWarehouse.set(null);
+    this.warehouseForm.reset({
+      branchId: this.activeBranches()[0]?.id ?? '',
+      name: '',
+      locationName: '',
+      locationCode: '',
+    });
+  }
+
+  protected requestOrganizationRetirement(type: 'BRANCH' | 'WAREHOUSE', id: string): void {
+    this.organizationRetirement.set({ type, id });
+    this.organizationError.set(null);
+  }
+
+  protected cancelOrganizationRetirement(): void {
+    this.organizationRetirement.set(null);
+  }
+
+  protected confirmOrganizationRetirement(): void {
+    const candidate = this.organizationRetirement();
+    if (!candidate || this.savingOrganization()) return;
+    this.savingOrganization.set(true);
+    this.organizationError.set(null);
+    const operation =
+      candidate.type === 'BRANCH'
+        ? this.organization.retireBranch(candidate.id)
+        : this.organization.retireWarehouse(candidate.id);
+    operation.pipe(finalize(() => this.savingOrganization.set(false))).subscribe({
+      next: () => {
+        this.organizationRetirement.set(null);
+        this.organizationSuccess.set('Estructura desactivada sin eliminar historial.');
+        this.loadOrganization();
+        this.loadAuditEvents();
+      },
+      error: (error: HttpErrorResponse) =>
+        this.organizationError.set(this.organizationMessageFor(error)),
+    });
   }
 
   protected search(): void {
@@ -610,6 +855,13 @@ export class ApplicationPage implements OnInit {
         PRODUCT_UPDATED: 'Producto actualizado',
         INVENTORY_MOVEMENT_CREATED: 'Movimiento registrado',
         INVENTORY_STATE_TRANSITION_CREATED: 'Estado de inventario actualizado',
+        SESSION_CONTEXT_CHANGED: 'Contexto operativo actualizado',
+        BRANCH_CREATED: 'Sucursal creada',
+        BRANCH_UPDATED: 'Sucursal actualizada',
+        BRANCH_RETIRED: 'Sucursal desactivada',
+        WAREHOUSE_CREATED: 'Bodega creada',
+        WAREHOUSE_UPDATED: 'Bodega actualizada',
+        WAREHOUSE_RETIRED: 'Bodega desactivada',
         SALE_COMPLETED: 'Venta completada',
       }[action] ?? action
     );
@@ -774,6 +1026,37 @@ export class ApplicationPage implements OnInit {
         error: (error: HttpErrorResponse) =>
           this.errorMessage.set(
             this.operationMessage(error, 'No fue posible cargar categorías y marcas.'),
+          ),
+      });
+  }
+
+  private loadOrganization(): void {
+    this.loadingOrganization.set(true);
+    this.organization
+      .list()
+      .pipe(finalize(() => this.loadingOrganization.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.organizations.set(data);
+          const currentBranchId = this.session()?.context.branch?.id;
+          const branch =
+            data.find(({ id, active }) => active && id === currentBranchId) ??
+            data.find(({ active }) => active);
+          const currentWarehouseId = this.session()?.context.warehouse?.id;
+          const warehouse =
+            branch?.warehouses.find(({ id, active }) => active && id === currentWarehouseId) ??
+            branch?.warehouses.find(({ active }) => active);
+          this.contextForm.setValue({
+            branchId: branch?.id ?? '',
+            warehouseId: warehouse?.id ?? '',
+          });
+          if (!this.warehouseForm.controls.branchId.value) {
+            this.warehouseForm.controls.branchId.setValue(branch?.id ?? '');
+          }
+        },
+        error: (error: HttpErrorResponse) =>
+          this.organizationError.set(
+            this.operationMessage(error, 'No fue posible cargar sucursales y bodegas.'),
           ),
       });
   }
@@ -1034,6 +1317,22 @@ export class ApplicationPage implements OnInit {
     if (error.status === 403) return this.permissionMessage();
     if (error.status === 0) return 'No pudimos conectar con el servicio. Intenta nuevamente.';
     return 'No fue posible actualizar el estado del inventario.';
+  }
+
+  private organizationMessageFor(error: HttpErrorResponse): string {
+    const code = (error.error as { code?: string } | null)?.code;
+    if (code === 'ORGANIZATION_NAME_CONFLICT') {
+      return 'Ya existe una sucursal o bodega con ese nombre.';
+    }
+    if (code === 'ORGANIZATION_IN_USE') {
+      return 'No puede desactivarse porque tiene stock, historial, ventas o una sesión activa.';
+    }
+    if (code === 'INITIAL_ORGANIZATION_TARGET') {
+      return 'La sucursal y bodega iniciales no pueden desactivarse.';
+    }
+    if (error.status === 403) return this.permissionMessage();
+    if (error.status === 0) return 'No pudimos conectar con el servicio. Intenta nuevamente.';
+    return 'No fue posible guardar la estructura operativa.';
   }
 
   private posMessageFor(error: HttpErrorResponse): string {

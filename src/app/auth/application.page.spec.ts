@@ -9,6 +9,7 @@ import { CashSaleData, PosApiService } from '../pos/pos-api.service';
 import { ApplicationPage } from './application.page';
 import { SessionApiService, SessionData } from './session-api.service';
 import { AuditApiService } from '../audit/audit-api.service';
+import { OrganizationApiService } from '../organization/organization-api.service';
 
 describe('ApplicationPage', () => {
   let fixture: ComponentFixture<ApplicationPage>;
@@ -35,6 +36,20 @@ describe('ApplicationPage', () => {
     getSale: ReturnType<typeof vi.fn>;
   };
   let audit: { list: ReturnType<typeof vi.fn> };
+  let organization: {
+    list: ReturnType<typeof vi.fn>;
+    createBranch: ReturnType<typeof vi.fn>;
+    updateBranch: ReturnType<typeof vi.fn>;
+    retireBranch: ReturnType<typeof vi.fn>;
+    createWarehouse: ReturnType<typeof vi.fn>;
+    updateWarehouse: ReturnType<typeof vi.fn>;
+    retireWarehouse: ReturnType<typeof vi.fn>;
+  };
+  let sessions: {
+    session: ReturnType<typeof signal<SessionData | null>>;
+    logout: ReturnType<typeof vi.fn>;
+    changeContext: ReturnType<typeof vi.fn>;
+  };
   let sessionState: ReturnType<typeof signal<SessionData | null>>;
 
   beforeEach(async () => {
@@ -124,6 +139,35 @@ describe('ApplicationPage', () => {
         }),
       ),
     };
+    organization = {
+      list: vi.fn().mockReturnValue(
+        of({
+          data: [
+            {
+              id: 'branch',
+              name: 'Sucursal',
+              timezone: 'America/Mexico_City',
+              active: true,
+              warehouses: [
+                {
+                  id: 'warehouse',
+                  name: 'Bodega',
+                  active: true,
+                  locations: [{ id: 'location', name: 'General', code: 'GENERAL', active: true }],
+                },
+              ],
+            },
+          ],
+          meta: { apiVersion: '1' },
+        }),
+      ),
+      createBranch: vi.fn(),
+      updateBranch: vi.fn(),
+      retireBranch: vi.fn(),
+      createWarehouse: vi.fn(),
+      updateWarehouse: vi.fn(),
+      retireWarehouse: vi.fn(),
+    };
     sessionState = signal<SessionData | null>({
       user: {
         id: 'user',
@@ -139,9 +183,10 @@ describe('ApplicationPage', () => {
       },
       nextStep: 'APPLICATION',
     });
-    const sessions = {
+    sessions = {
       session: sessionState,
       logout: vi.fn(),
+      changeContext: vi.fn(),
     };
     await TestBed.configureTestingModule({
       imports: [ApplicationPage],
@@ -151,6 +196,7 @@ describe('ApplicationPage', () => {
         { provide: InventoryApiService, useValue: inventory },
         { provide: PosApiService, useValue: pos },
         { provide: AuditApiService, useValue: audit },
+        { provide: OrganizationApiService, useValue: organization },
         { provide: SessionApiService, useValue: sessions },
       ],
     }).compileComponents();
@@ -165,7 +211,7 @@ describe('ApplicationPage', () => {
   }
 
   function submit(): void {
-    (fixture.nativeElement.querySelector('form') as HTMLFormElement).dispatchEvent(
+    (fixture.nativeElement.querySelector('.catalog-product-form') as HTMLFormElement).dispatchEvent(
       new Event('submit'),
     );
     fixture.detectChanges();
@@ -251,6 +297,97 @@ describe('ApplicationPage', () => {
 
     expect(products.get).toHaveBeenCalledWith('product');
     expect(fixture.nativeElement.textContent).toContain('Sin categoría');
+  });
+
+  it('creates a branch and switches inventory to its warehouse context', () => {
+    const secondBranch = {
+      id: 'branch-north',
+      name: 'Sucursal Norte',
+      timezone: 'America/Monterrey',
+      active: true,
+      warehouses: [
+        {
+          id: 'warehouse-north',
+          name: 'Bodega Norte',
+          active: true,
+          locations: [{ id: 'location-north', name: 'General Norte', code: 'NORTE', active: true }],
+        },
+      ],
+    };
+    const organizationResponse = {
+      data: [
+        {
+          id: 'branch',
+          name: 'Sucursal',
+          timezone: 'America/Mexico_City',
+          active: true,
+          warehouses: [
+            {
+              id: 'warehouse',
+              name: 'Bodega',
+              active: true,
+              locations: [{ id: 'location', name: 'General', code: 'GENERAL', active: true }],
+            },
+          ],
+        },
+        secondBranch,
+      ],
+      meta: { apiVersion: '1' },
+    };
+    organization.list.mockReturnValue(of(organizationResponse));
+    organization.createBranch.mockReturnValue(
+      of({ data: secondBranch, meta: { apiVersion: '1' } }),
+    );
+    (fixture.componentInstance as unknown as { loadOrganization(): void }).loadOrganization();
+    fixture.detectChanges();
+
+    fill('branchName', 'Sucursal Norte');
+    fill('branchWarehouseName', 'Bodega Norte');
+    fill('branchLocationName', 'General Norte');
+    fill('branchLocationCode', 'NORTE');
+    (
+      (fixture.nativeElement.querySelector('#branchName') as HTMLInputElement).closest(
+        'form',
+      ) as HTMLFormElement
+    ).dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+    expect(organization.createBranch).toHaveBeenCalledWith({
+      name: 'Sucursal Norte',
+      timezone: 'America/Mexico_City',
+      warehouseName: 'Bodega Norte',
+      locationName: 'General Norte',
+      locationCode: 'NORTE',
+    });
+
+    sessions.changeContext.mockImplementation(() => {
+      const data: SessionData = {
+        ...sessionState()!,
+        context: {
+          branch: { id: secondBranch.id, name: secondBranch.name },
+          warehouse: { id: secondBranch.warehouses[0].id, name: 'Bodega Norte' },
+          cashRegister: null,
+        },
+      };
+      sessionState.set(data);
+      return of({
+        data,
+        meta: { apiVersion: '1', sessionExpiresAt: new Date(Date.now() + 60_000).toISOString() },
+      });
+    });
+    const branchSelect = fixture.nativeElement.querySelector('#contextBranch') as HTMLSelectElement;
+    branchSelect.value = secondBranch.id;
+    branchSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges();
+    (
+      (fixture.nativeElement.querySelector('#contextBranch') as HTMLSelectElement).closest(
+        'form',
+      ) as HTMLFormElement
+    ).dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+
+    expect(sessions.changeContext).toHaveBeenCalledWith('branch-north', 'warehouse-north');
+    expect(sessionState()?.context.branch?.id).toBe('branch-north');
+    expect(fixture.nativeElement.textContent).toContain('Contexto operativo actualizado.');
   });
 
   it('filters inactive products explicitly and confirms their safe retirement', () => {
@@ -504,7 +641,9 @@ describe('ApplicationPage', () => {
       inventory.createMovement.mock.calls[0][1],
     );
     expect(fixture.nativeElement.textContent).toContain('Existencia 10.000');
-    expect(fixture.nativeElement.querySelector('.stock-table').textContent).toContain('CAFE-1');
+    expect(
+      fixture.nativeElement.querySelector('[aria-label="Existencias por producto"]').textContent,
+    ).toContain('CAFE-1');
   });
 
   it('requires evidence and sends a positive magnitude for an operational loss', () => {

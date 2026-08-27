@@ -9,6 +9,7 @@
   <nav aria-label="Módulos principales">
     @if (canManageTenant()) {
       <a routerLink="/onboarding">Empresa</a>
+      <a routerLink="/app" fragment="organization-title">Sucursales</a>
     }
     @if (canManageProducts()) {
       <a routerLink="/app" fragment="products-title">Productos</a>
@@ -25,6 +26,211 @@
       <a routerLink="/app" fragment="audit-title">Auditoría</a>
     }
   </nav>
+
+  <section
+    class="stock-overview"
+    aria-labelledby="organization-title"
+    [attr.aria-busy]="loadingOrganization() || savingOrganization() || switchingContext()"
+  >
+    <div class="overview-heading">
+      <div>
+        <p class="eyebrow">Contexto operativo</p>
+        <h2 id="organization-title">Sucursales y bodegas</h2>
+        <p>El inventario y las operaciones nuevas usan la selección activa.</p>
+      </div>
+      <strong>{{ activeBranches().length }} sucursal(es)</strong>
+    </div>
+
+    <form class="movement-filters" [formGroup]="contextForm" (ngSubmit)="changeContext()">
+      <div class="field">
+        <label for="contextBranch">Sucursal activa</label>
+        <select id="contextBranch" formControlName="branchId" (change)="contextBranchChanged()">
+          @for (branch of activeBranches(); track branch.id) {
+            <option [value]="branch.id">{{ branch.name }}</option>
+          }
+        </select>
+      </div>
+      <div class="field">
+        <label for="contextWarehouse">Bodega activa</label>
+        <select id="contextWarehouse" formControlName="warehouseId">
+          @for (warehouse of contextWarehouses(); track warehouse.id) {
+            <option [value]="warehouse.id">{{ warehouse.name }}</option>
+          }
+        </select>
+      </div>
+      <button class="secondary" type="submit" [disabled]="switchingContext()">
+        {{ switchingContext() ? 'Cambiando…' : 'Usar contexto' }}
+      </button>
+    </form>
+
+    @if (organizationError()) {
+      <div class="form-error" role="alert">{{ organizationError() }}</div>
+    }
+    @if (organizationSuccess()) {
+      <div class="success" role="status">{{ organizationSuccess() }}</div>
+    }
+
+    @if (canManageTenant()) {
+      <div class="workspace">
+        <form class="product-form" [formGroup]="branchForm" (ngSubmit)="submitBranch()">
+          <div class="form-heading">
+            <div>
+              <h3>{{ editingBranch() ? 'Editar sucursal' : 'Nueva sucursal' }}</h3>
+              <p>La nueva sucursal incluye una primera bodega y ubicación.</p>
+            </div>
+          </div>
+          <div class="fields">
+            <div class="field wide">
+              <label for="branchName">Nombre</label>
+              <input id="branchName" formControlName="name" maxlength="120" />
+            </div>
+            <div class="field wide">
+              <label for="branchTimezone">Zona horaria</label>
+              <input id="branchTimezone" formControlName="timezone" maxlength="64" />
+            </div>
+            @if (!editingBranch()) {
+              <div class="field wide">
+                <label for="branchWarehouseName">Bodega inicial</label>
+                <input id="branchWarehouseName" formControlName="warehouseName" maxlength="120" />
+              </div>
+              <div class="field">
+                <label for="branchLocationName">Ubicación</label>
+                <input id="branchLocationName" formControlName="locationName" maxlength="120" />
+              </div>
+              <div class="field">
+                <label for="branchLocationCode">Código</label>
+                <input id="branchLocationCode" formControlName="locationCode" maxlength="40" />
+              </div>
+            }
+          </div>
+          <div class="form-actions">
+            @if (editingBranch()) {
+              <button class="secondary" type="button" (click)="cancelBranchEditing()">
+                Cancelar
+              </button>
+            }
+            <button class="primary" type="submit" [disabled]="savingOrganization()">
+              {{ editingBranch() ? 'Guardar sucursal' : 'Crear sucursal' }}
+            </button>
+          </div>
+        </form>
+
+        <form class="product-form" [formGroup]="warehouseForm" (ngSubmit)="submitWarehouse()">
+          <div class="form-heading">
+            <div>
+              <h3>{{ editingWarehouse() ? 'Editar bodega' : 'Nueva bodega' }}</h3>
+              <p>Cada bodega inicia con una ubicación operativa.</p>
+            </div>
+          </div>
+          <div class="fields">
+            <div class="field wide">
+              <label for="warehouseBranch">Sucursal</label>
+              <select id="warehouseBranch" formControlName="branchId">
+                @for (branch of activeBranches(); track branch.id) {
+                  <option [value]="branch.id">{{ branch.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="field wide">
+              <label for="warehouseName">Nombre</label>
+              <input id="warehouseName" formControlName="name" maxlength="120" />
+            </div>
+            @if (!editingWarehouse()) {
+              <div class="field">
+                <label for="warehouseLocationName">Ubicación</label>
+                <input id="warehouseLocationName" formControlName="locationName" maxlength="120" />
+              </div>
+              <div class="field">
+                <label for="warehouseLocationCode">Código</label>
+                <input id="warehouseLocationCode" formControlName="locationCode" maxlength="40" />
+              </div>
+            }
+          </div>
+          <div class="form-actions">
+            @if (editingWarehouse()) {
+              <button class="secondary" type="button" (click)="cancelWarehouseEditing()">
+                Cancelar
+              </button>
+            }
+            <button class="primary" type="submit" [disabled]="savingOrganization()">
+              {{ editingWarehouse() ? 'Guardar bodega' : 'Crear bodega' }}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      @if (organizationRetirement()) {
+        <div class="success" role="alert">
+          <p>Se desactivará sólo si no tiene stock, historial, ventas ni sesiones activas.</p>
+          <div class="form-actions">
+            <button class="secondary" type="button" (click)="cancelOrganizationRetirement()">
+              Cancelar
+            </button>
+            <button class="primary" type="button" (click)="confirmOrganizationRetirement()">
+              Confirmar desactivación
+            </button>
+          </div>
+        </div>
+      }
+
+      <div class="stock-table" role="table" aria-label="Sucursales, bodegas y ubicaciones">
+        <div class="stock-row stock-header" role="row">
+          <span role="columnheader">Sucursal</span>
+          <span role="columnheader">Bodega</span>
+          <span role="columnheader">Ubicación</span>
+          <span role="columnheader">Acciones</span>
+        </div>
+        @for (branch of organizations(); track branch.id) {
+          @for (warehouse of branch.warehouses; track warehouse.id) {
+            <div class="stock-row" role="row">
+              <span role="cell">
+                <strong>{{ branch.name }}</strong>
+                <small>{{ branch.active ? branch.timezone : 'Inactiva' }}</small>
+              </span>
+              <span role="cell">
+                <strong>{{ warehouse.name }}</strong>
+                <small>{{ warehouse.active ? 'Activa' : 'Inactiva' }}</small>
+              </span>
+              <span role="cell">
+                @for (location of warehouse.locations; track location.id) {
+                  <strong>{{ location.name }}</strong
+                  ><small>{{ location.code }}</small>
+                }
+              </span>
+              <span role="cell">
+                @if (branch.active && warehouse.active) {
+                  <button class="secondary" type="button" (click)="editBranch(branch)">
+                    Editar sucursal
+                  </button>
+                  <button
+                    class="secondary"
+                    type="button"
+                    (click)="editWarehouse(branch.id, warehouse)"
+                  >
+                    Editar bodega
+                  </button>
+                  <button
+                    class="secondary"
+                    type="button"
+                    (click)="requestOrganizationRetirement('WAREHOUSE', warehouse.id)"
+                  >
+                    Desactivar bodega
+                  </button>
+                  <button
+                    class="secondary"
+                    type="button"
+                    (click)="requestOrganizationRetirement('BRANCH', branch.id)"
+                  >
+                    Desactivar sucursal
+                  </button>
+                }
+              </span>
+            </div>
+          }
+        }
+      </div>
+    }
+  </section>
 
   @if (hasNoCoreAccess()) {
     <section class="empty" role="status" aria-labelledby="no-access-title">
@@ -52,7 +258,12 @@
     </p>
 
     <div class="workspace" [hidden]="!canManageProducts()">
-      <form class="product-form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <form
+        class="product-form catalog-product-form"
+        [formGroup]="form"
+        (ngSubmit)="submit()"
+        novalidate
+      >
         <div class="form-heading">
           <div>
             <h2>{{ editingProduct() ? 'Editar producto' : 'Nuevo producto' }}</h2>
