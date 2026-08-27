@@ -1,0 +1,36 @@
+<section class="code-scanner" aria-labelledby="code-scanner-title">
+  <div>
+    <h3 id="code-scanner-title">Escanear producto</h3>
+    <p>Usa un lector tipo teclado, la cámara o captura el SKU/código manualmente.</p>
+  </div>
+  <form (ngSubmit)="submit()">
+    <label for="scan-code">Código</label>
+    <input
+      id="scan-code"
+      name="scan-code"
+      [(ngModel)]="code"
+      maxlength="64"
+      autocomplete="off"
+      required
+    />
+    <button type="submit" class="secondary" [disabled]="resolving()">
+      {{ resolving() ? 'Resolviendo…' : 'Agregar por código' }}
+    </button>
+    <button type="button" class="secondary" (click)="startCamera()" [disabled]="cameraActive()">
+      Usar cámara
+    </button>
+  </form>
+  <video
+    #camera
+    [hidden]="!cameraActive()"
+    muted
+    playsinline
+    aria-label="Vista de la cámara"
+  ></video>
+  @if (cameraActive()) {
+    <button type="button" class="secondary" (click)="stopCamera()">Cerrar cámara</button>
+  }
+  @if (error()) {
+    <p class="error" role="alert">{{ error() }}</p>
+  }
+</section>

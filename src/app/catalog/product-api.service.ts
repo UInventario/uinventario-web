@@ -112,6 +112,14 @@ export class ProductApiService {
     });
   }
 
+  resolveCode(code: string) {
+    const params = new HttpParams().set('code', code);
+    return this.http.get<ProductResponse>(`${this.config.apiBaseUrl()}/products/resolve-code`, {
+      params,
+      withCredentials: true,
+    });
+  }
+
   retire(id: string) {
     return this.http.delete<ProductRetirementResponse>(
       `${this.config.apiBaseUrl()}/products/${id}`,

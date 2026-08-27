@@ -61,6 +61,7 @@ import { OfflineBootstrapPanelComponent } from '../offline/offline-bootstrap-pan
 import { OfflinePosService } from '../offline/offline-pos.service';
 import { OfflineInventoryPanelComponent } from '../offline/offline-inventory-panel.component';
 import { CatalogClassificationPanelComponent } from '../catalog/catalog-classification-panel.component';
+import { ProductCodeScannerComponent } from '../catalog/product-code-scanner.component';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const POSITIVE_MONEY_PATTERN = /^(?:[1-9]\d{0,11}(?:\.\d{1,2})?|0\.(?:0[1-9]|[1-9]\d?))$/;
@@ -89,6 +90,7 @@ interface CartEntry {
     OfflineBootstrapPanelComponent,
     OfflineInventoryPanelComponent,
     CatalogClassificationPanelComponent,
+    ProductCodeScannerComponent,
   ],
   templateUrl: './application.page.html',
   styleUrl: './application.page.scss',

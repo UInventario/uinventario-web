@@ -1,0 +1,67 @@
+:host {
+  display: block;
+}
+
+.code-scanner {
+  display: grid;
+  gap: 0.6rem;
+  margin-bottom: 0.85rem;
+  padding: 0.75rem;
+  border: 1px solid #b8cee2;
+  border-radius: 0.6rem;
+  background: #f7fbff;
+}
+
+h3,
+p {
+  margin: 0.15rem 0;
+}
+
+form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+input,
+button {
+  min-height: 2.5rem;
+  border-radius: 0.5rem;
+  font: inherit;
+}
+
+input {
+  min-width: 12rem;
+  flex: 1;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #9fb8ce;
+}
+
+button {
+  padding: 0.45rem 0.75rem;
+  border: 0;
+  background: #dcebf7;
+  color: #0b5cab;
+  font-weight: 700;
+}
+
+video {
+  width: min(100%, 32rem);
+  aspect-ratio: 4 / 3;
+  border-radius: 0.5rem;
+  background: #0f172a;
+  object-fit: cover;
+}
+
+.error {
+  color: #a4262c;
+  font-weight: 700;
+}
