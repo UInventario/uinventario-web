@@ -38,16 +38,33 @@ describe('OfflinePosService', () => {
     store = TestBed.inject(OfflineStoreService);
     service = TestBed.inject(OfflinePosService);
     const activeScope = { ...scope, deviceId: await store.deviceId() };
+    const generatedAt = new Date().toISOString();
     const data: OfflineBootstrapData = {
       protocolVersion: '1.0',
-      generatedAt: '2026-08-27T20:00:00.000Z',
+      generatedAt,
+      sessionExpiresAt: new Date(Date.now() + 8 * 60 * 60_000).toISOString(),
+      freshnessPolicy: {
+        version: 1,
+        maxClockSkewSeconds: 300,
+        catalogTtlSeconds: 86400,
+        permissionsTtlSeconds: 3600,
+        actionTtlSeconds: {
+          CASH_SALE: 900,
+          INVENTORY_COUNT: 14400,
+          INVENTORY_MOVEMENT: 3600,
+        },
+      },
       scope: activeScope,
+      identity: {
+        tenant: { id: 'tenant-1', name: 'Tenant' },
+        user: { id: 'user-1', roles: ['ADMIN'], permissions: ['SALES_MANAGE'] },
+      },
       posPolicy: {
         kind: 'POS_POLICY',
         id: 'shift-1',
         tenantId: 'tenant-1',
         version: 1,
-        updatedAt: '2026-08-27T20:00:00.000Z',
+        updatedAt: generatedAt,
         branchId: 'branch-1',
         warehouseId: 'warehouse-1',
         cashRegisterId: 'cash-1',

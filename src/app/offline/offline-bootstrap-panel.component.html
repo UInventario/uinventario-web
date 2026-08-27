@@ -41,6 +41,39 @@
       {{ prepared.entities }} registros autorizados.
     </p>
   }
+  <div class="connection-state" role="status">
+    <strong>{{ onlineState() ? 'En línea' : 'Sin conexión' }}</strong>
+    @if (freshness(); as state) {
+      <span>
+        @switch (state.condition) {
+          @case ('FRESH') {
+            Datos vigentes
+          }
+          @case ('PERMISSIONS_STALE') {
+            Permisos antiguos: operaciones bloqueadas
+          }
+          @case ('CATALOG_STALE') {
+            Catálogo antiguo: actualización obligatoria
+          }
+          @case ('SESSION_EXPIRED') {
+            Sesión vencida: inicia sesión en línea
+          }
+          @case ('CLOCK_INVALID') {
+            Reloj inválido: operaciones bloqueadas
+          }
+          @case ('NOT_PREPARED') {
+            Datos offline no preparados
+          }
+        }
+      </span>
+      @if (sensitiveBlocked(state)) {
+        <span>Acciones sensibles bloqueadas hasta sincronizar</span>
+      }
+    }
+    @if (pendingCommands()) {
+      <span>{{ pendingCommands() }} sincronización(es) pendiente(s)</span>
+    }
+  </div>
   @if (rejectedCommands()) {
     <p class="error" role="alert">
       {{ rejectedCommands() }} operación(es) offline no se aplicaron y requieren conciliación.

@@ -26,7 +26,7 @@ interface OfflineAvailability extends OfflineBootstrapEntity {
 
 export class OfflinePosError extends Error {
   constructor(
-    readonly code: 'OFFLINE_POS_NOT_PREPARED' | 'INSUFFICIENT_OFFLINE_STOCK',
+    readonly code: 'OFFLINE_POS_NOT_PREPARED' | 'INSUFFICIENT_OFFLINE_STOCK' | 'OFFLINE_DATA_STALE',
     message: string,
   ) {
     super(message);
@@ -39,7 +39,15 @@ export class OfflinePosService {
   private readonly sessions = inject(SessionApiService);
 
   async search(query: string): Promise<ProductData[]> {
-    const products = await this.store.entities<OfflineProduct>(await this.scope(), 'PRODUCT');
+    const scope = await this.scope();
+    const freshness = await this.store.freshness(scope);
+    if (!freshness.catalogReadable) {
+      throw new OfflinePosError(
+        'OFFLINE_DATA_STALE',
+        'El catálogo offline venció. Conéctate para actualizarlo.',
+      );
+    }
+    const products = await this.store.entities<OfflineProduct>(scope, 'PRODUCT');
     const value = query.trim().toLocaleLowerCase();
     return products
       .filter(
@@ -66,6 +74,7 @@ export class OfflinePosService {
 
   async quote(lines: Array<{ productId: string; quantity: string }>): Promise<PosCartQuote> {
     const scope = await this.scope();
+    await this.store.assertAction(scope, 'CASH_SALE');
     const [policies, products, locations, availability, outbox] = await Promise.all([
       this.store.entities<OfflinePosPolicyData>(scope, 'POS_POLICY'),
       this.store.entities<OfflineProduct>(scope, 'PRODUCT'),
@@ -163,12 +172,14 @@ export class OfflinePosService {
     },
     idempotencyKey: string,
   ) {
+    const scope = await this.scope();
+    await this.store.assertAction(scope, 'CASH_SALE');
     const received = this.moneyCents(input.cashReceived);
     if (received < this.moneyCents(quote.totals.total)) {
       throw new Error('El efectivo recibido no cubre el total de la venta.');
     }
     return this.store.queue(
-      await this.scope(),
+      scope,
       'CASH_SALE',
       {
         ...input,
