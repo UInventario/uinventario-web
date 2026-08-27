@@ -1,0 +1,41 @@
+<main class="shell">
+  <section class="hero" aria-labelledby="app-title">
+    <div class="brand" aria-hidden="true">UI</div>
+
+    <p class="eyebrow">Operación comercial</p>
+    <h1 id="app-title">UInventario</h1>
+    <p class="summary">
+      Inventario y punto de venta en un solo lugar. El recorrido operativo se habilitará por
+      incrementos verificables.
+    </p>
+
+    <div class="status-card" aria-live="polite">
+      <div>
+        <span class="status-label">Estado de la API</span>
+        <strong [class]="'status status--' + apiStatus()">
+          @switch (apiStatus()) {
+            @case ('online') {
+              Disponible
+            }
+            @case ('offline') {
+              No disponible
+            }
+            @default {
+              Verificando…
+            }
+          }
+        </strong>
+      </div>
+
+      <button type="button" (click)="checkApi()" [disabled]="apiStatus() === 'checking'">
+        Volver a comprobar
+      </button>
+    </div>
+
+    <p class="endpoint">
+      API configurada: <code>{{ apiBaseUrl() }}</code>
+    </p>
+  </section>
+</main>
+
+<router-outlet />
