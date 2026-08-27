@@ -10,6 +10,8 @@ export interface AuditEventData {
   correlationId: string;
   createdAt: string;
   actor: { id: string; email: string };
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
 }
 
 interface AuditEventsResponse {

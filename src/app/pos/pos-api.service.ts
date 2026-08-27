@@ -78,7 +78,7 @@ export interface CashRegisterClosureData {
 export interface CashSaleData {
   id: string;
   receiptNumber: string;
-  status: 'COMPLETED';
+  status: 'COMPLETED' | 'VOIDED';
   context: PosCartQuote['context'];
   userId: string;
   currency: string;
@@ -87,11 +87,17 @@ export interface CashSaleData {
   totals: PosCartQuote['totals'];
   payment: {
     method: 'CASH';
+    status: 'COMPLETED' | 'REVERSED';
     amountReceived: string;
     amountApplied: string;
     change: string;
   };
   createdAt: string;
+  void: {
+    reason: string;
+    user: { id: string; email: string };
+    voidedAt: string;
+  } | null;
 }
 
 interface CashSaleResponse {
@@ -102,7 +108,7 @@ interface CashSaleResponse {
 export interface SaleSummaryData {
   id: string;
   receiptNumber: string;
-  status: 'COMPLETED';
+  status: 'COMPLETED' | 'VOIDED';
   user: { id: string; email: string };
   cashRegister: { id: string; name: string; code: string };
   currency: string;
@@ -115,6 +121,7 @@ export interface SaleDetailData extends Omit<CashSaleData, 'userId'> {
   user: { id: string; email: string };
   movements: Array<{
     id: string;
+    type: 'SALE' | 'SALE_VOID';
     saleLineId: string;
     product: { id: string; name: string; sku: string };
     location: { id: string; name: string; code: string };
@@ -279,5 +286,19 @@ export class PosApiService {
     }>(`${this.config.apiBaseUrl()}/pos/sales/${id}`, {
       withCredentials: true,
     });
+  }
+
+  voidSale(id: string, reason: string, idempotencyKey: string) {
+    return this.http.post<{
+      data: SaleDetailData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(
+      `${this.config.apiBaseUrl()}/pos/sales/${id}/void`,
+      { reason },
+      {
+        headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+        withCredentials: true,
+      },
+    );
   }
 }

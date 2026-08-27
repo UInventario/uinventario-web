@@ -12,7 +12,18 @@ export const INVENTORY_PERMISSIONS = [
 
 export type InventoryPermission = (typeof INVENTORY_PERMISSIONS)[number];
 export type AppPermission =
-  'TENANT_MANAGE' | 'PRODUCTS_MANAGE' | 'SALES_MANAGE' | 'ACCESS_MANAGE' | InventoryPermission;
+  | 'TENANT_MANAGE'
+  | 'PRODUCTS_MANAGE'
+  | 'SALES_MANAGE'
+  | 'SALES_VOID'
+  | 'ACCESS_MANAGE'
+  | InventoryPermission;
+
+export const OPERATIONAL_PERMISSIONS = [
+  ...INVENTORY_PERMISSIONS,
+  'SALES_MANAGE',
+  'SALES_VOID',
+] as const satisfies readonly AppPermission[];
 
 export interface AccessRoleData {
   id: string;
@@ -47,7 +58,7 @@ export class AccessApiService {
     );
   }
 
-  createRole(name: string, permissions: InventoryPermission[]) {
+  createRole(name: string, permissions: AppPermission[]) {
     return this.http.post<ApiResponse<AccessRoleData>>(
       `${this.config.apiBaseUrl()}/access/roles`,
       { name, permissions },
