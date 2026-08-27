@@ -125,6 +125,75 @@
       }
     </div>
   }
+  @if (canManageDevices()) {
+    <section class="device-health" aria-labelledby="offline-device-health-title">
+      <div class="device-health-heading">
+        <div>
+          <p class="eyebrow">Administración</p>
+          <h3 id="offline-device-health-title">Dispositivos y salud de sincronización</h3>
+        </div>
+        <button
+          type="button"
+          class="secondary"
+          (click)="refreshDevices()"
+          [disabled]="devicesLoading()"
+        >
+          {{ devicesLoading() ? 'Actualizando…' : 'Actualizar salud' }}
+        </button>
+      </div>
+      @if (devices().length) {
+        <div class="device-list">
+          @for (device of devices(); track device.deviceId) {
+            <article [class.revoked]="device.health === 'REVOKED'">
+              <div class="device-summary">
+                <strong>{{ device.user.email }}</strong>
+                <span>{{ device.deviceId }}</span>
+                <span>{{ deviceHealthLabel(device) }} · {{ deviceLag(device) }}</span>
+              </div>
+              <dl>
+                <div>
+                  <dt>Último sync</dt>
+                  <dd>{{ device.lastSyncAt ? (device.lastSyncAt | date: 'short') : 'Nunca' }}</dd>
+                </div>
+                <div>
+                  <dt>Cursor</dt>
+                  <dd>{{ device.cursorFingerprint ?? 'Sin cursor' }}</dd>
+                </div>
+                <div>
+                  <dt>Secuencia</dt>
+                  <dd>{{ device.lastSequence }}</dd>
+                </div>
+                <div>
+                  <dt>Pendientes / errores</dt>
+                  <dd>{{ device.metrics.pending }} / {{ device.metrics.errors }}</dd>
+                </div>
+                <div>
+                  <dt>Conflictos / reintentos</dt>
+                  <dd>{{ device.metrics.conflicts }} / {{ device.metrics.retries }}</dd>
+                </div>
+                <div>
+                  <dt>Correlación</dt>
+                  <dd>{{ device.correlationId ?? 'Sin actividad' }}</dd>
+                </div>
+              </dl>
+              @if (device.health !== 'REVOKED') {
+                <button
+                  type="button"
+                  class="danger"
+                  (click)="revokeDevice(device.deviceId)"
+                  [disabled]="revokingDeviceId() === device.deviceId"
+                >
+                  {{ revokingDeviceId() === device.deviceId ? 'Revocando…' : 'Revocar' }}
+                </button>
+              }
+            </article>
+          }
+        </div>
+      } @else if (!devicesLoading()) {
+        <p>No hay dispositivos offline registrados en esta empresa.</p>
+      }
+    </section>
+  }
   @if (error()) {
     <p class="error" role="alert">{{ error() }}</p>
   }
