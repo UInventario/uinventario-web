@@ -1,0 +1,24 @@
+<section class="offline-bootstrap" aria-labelledby="offline-bootstrap-title">
+  <div>
+    <p class="eyebrow">Preparación offline</p>
+    <h2 id="offline-bootstrap-title">Descargar datos autorizados</h2>
+    <p>
+      Comprueba y descarga por páginas tu estructura, permisos, catálogo compacto y existencias. El
+      almacenamiento local se habilitará en el siguiente incremento.
+    </p>
+  </div>
+  <button type="button" (click)="prepare()" [disabled]="preparing()">
+    {{ preparing() ? 'Descargando…' : 'Preparar descarga' }}
+  </button>
+  @if (preparing()) {
+    <p role="status">{{ downloaded() }} registros descargados…</p>
+  }
+  @if (result(); as prepared) {
+    <p class="success" role="status">
+      Bootstrap completo: {{ prepared.entities }} registros autorizados.
+    </p>
+  }
+  @if (error()) {
+    <p class="error" role="alert">{{ error() }}</p>
+  }
+</section>
