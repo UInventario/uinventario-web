@@ -13,7 +13,10 @@ La aplicación queda disponible en `http://localhost:4200`.
 
 El flujo inicial se encuentra en `/registro`: valida los datos, crea la cuenta mediante la API y continúa a `/login`.
 
-La URL de la API se carga en tiempo de ejecución desde `public/config.json`. Para cada ambiente, el pipeline debe sustituir ese archivo sin recompilar secretos ni guardarlos en el repositorio.
+El ambiente y la URL de la API se cargan en tiempo de ejecución desde
+`public/config.json`. Para cada ambiente, el pipeline debe sustituir ese archivo sin
+recompilar: `environment` es `local`, `dev` o `prod`, y `apiBaseUrl` debe ser HTTPS
+fuera de local. Este archivo es público y nunca puede contener secretos.
 
 ## Gates
 
