@@ -93,10 +93,10 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await expect(stockOverview.getByText('CAFE-500')).toBeVisible();
   await expect(stockOverview.getByText('10.500').first()).toBeVisible();
   await page.getByLabel('Filtrar producto por nombre, SKU o código').fill('sin-stock');
-  await page.getByRole('button', { name: 'Filtrar' }).click();
+  await page.getByRole('button', { name: 'Filtrar', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Sin existencias para mostrar' })).toBeVisible();
   await page.getByLabel('Filtrar producto por nombre, SKU o código').fill('cafe-500');
-  await page.getByRole('button', { name: 'Filtrar' }).click();
+  await page.getByRole('button', { name: 'Filtrar', exact: true }).click();
   await expect(stockOverview.getByText('CAFE-500')).toBeVisible();
   const pos = page.locator('.pos-workspace');
   await pos.getByLabel('Buscar producto para venta por nombre, SKU o código').fill('7501234567890');
@@ -119,6 +119,21 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await expect(pos.getByText(/Venta V-[A-F0-9]{12} completada/)).toBeVisible();
   await expect(pos.getByText(/Cambio MXN\s+10\.20/)).toBeVisible();
   await expect(stockOverview.getByText('8.500').first()).toBeVisible();
+  const salesHistory = page.locator('.sales-workspace');
+  await expect(salesHistory.getByRole('heading', { name: 'Historial de ventas' })).toBeVisible();
+  const saleHistoryRow = salesHistory.getByRole('button', { name: /Abrir venta V-/ });
+  await expect(saleHistoryRow).toBeVisible();
+  await saleHistoryRow.click();
+  await expect(salesHistory.getByText('Movimientos de inventario')).toBeVisible();
+  await expect(salesHistory.getByText('-2.000 → 8.500')).toBeVisible();
+  await salesHistory.getByLabel('Desde').fill('2099-01-01');
+  await salesHistory.getByRole('button', { name: 'Filtrar ventas' }).click();
+  await expect(
+    salesHistory.getByRole('heading', { name: 'Sin ventas para mostrar' }),
+  ).toBeVisible();
+  await salesHistory.getByLabel('Desde').fill('');
+  await salesHistory.getByRole('button', { name: 'Filtrar ventas' }).click();
+  await expect(salesHistory.getByRole('button', { name: /Abrir venta V-/ })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('pos-cart.png'), fullPage: true });
   await page.screenshot({
     path: testInfo.outputPath('product-created.png'),

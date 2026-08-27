@@ -10,7 +10,13 @@ import {
   InventoryStockItem,
 } from '../inventory/inventory-api.service';
 import { SessionApiService } from './session-api.service';
-import { CashSaleData, PosApiService, PosCartQuote } from '../pos/pos-api.service';
+import {
+  CashSaleData,
+  PosApiService,
+  PosCartQuote,
+  SaleDetailData,
+  SaleSummaryData,
+} from '../pos/pos-api.service';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
@@ -76,6 +82,14 @@ export class ApplicationPage implements OnInit {
   protected readonly quotingCart = signal(false);
   protected readonly savingSale = signal(false);
   protected readonly posError = signal<string | null>(null);
+  protected readonly salesHistory = signal<SaleSummaryData[]>([]);
+  protected readonly selectedSale = signal<SaleDetailData | null>(null);
+  protected readonly loadingSales = signal(true);
+  protected readonly loadingSaleDetail = signal(false);
+  protected readonly salesError = signal<string | null>(null);
+  protected readonly salesPage = signal(1);
+  protected readonly salesTotalPages = signal(0);
+  protected readonly salesTotal = signal(0);
   protected readonly page = signal(1);
   protected readonly totalPages = signal(0);
   protected readonly totalProducts = signal(0);
@@ -91,6 +105,12 @@ export class ApplicationPage implements OnInit {
   });
   protected readonly cashForm = this.formBuilder.nonNullable.group({
     cashReceived: ['', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
+  });
+  protected readonly salesFilterForm = this.formBuilder.nonNullable.group({
+    dateFrom: [''],
+    dateTo: [''],
+    cashRegisterId: [''],
+    userId: [''],
   });
   protected readonly form = this.formBuilder.nonNullable.group({
     name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
@@ -114,6 +134,7 @@ export class ApplicationPage implements OnInit {
     this.loadLocations();
     this.loadProducts(1);
     this.loadStockList(1);
+    this.loadSales(1);
   }
 
   protected submit(): void {
@@ -287,6 +308,7 @@ export class ApplicationPage implements OnInit {
           this.cartQuote.set(null);
           this.cashForm.reset({ cashReceived: '' });
           this.loadStockList(this.stockPage());
+          this.loadSales(1);
           const selected = this.selectedProduct();
           if (selected) this.loadBalance(selected.id);
         },
@@ -311,6 +333,39 @@ export class ApplicationPage implements OnInit {
         },
         error: () => this.catalogError.set('No fue posible consultar el producto.'),
       });
+  }
+
+  protected filterSales(): void {
+    this.loadSales(1);
+  }
+
+  protected previousSalesPage(): void {
+    if (this.salesPage() > 1) this.loadSales(this.salesPage() - 1);
+  }
+
+  protected nextSalesPage(): void {
+    if (this.salesPage() < this.salesTotalPages()) {
+      this.loadSales(this.salesPage() + 1);
+    }
+  }
+
+  protected selectSale(id: string): void {
+    this.loadingSaleDetail.set(true);
+    this.salesError.set(null);
+    this.pos
+      .getSale(id)
+      .pipe(finalize(() => this.loadingSaleDetail.set(false)))
+      .subscribe({
+        next: ({ data }) => this.selectedSale.set(data),
+        error: () => {
+          this.selectedSale.set(null);
+          this.salesError.set('No fue posible consultar el detalle de la venta.');
+        },
+      });
+  }
+
+  protected dateTime(value: string): string {
+    return new Date(value).toLocaleString('es-MX');
   }
 
   protected locationChanged(): void {
@@ -460,6 +515,37 @@ export class ApplicationPage implements OnInit {
           this.stockTotal.set(meta.pagination.total);
         },
         error: () => this.stockListError.set('No fue posible cargar las existencias.'),
+      });
+  }
+
+  private loadSales(page: number): void {
+    this.loadingSales.set(true);
+    this.salesError.set(null);
+    const value = this.salesFilterForm.getRawValue();
+    this.pos
+      .listSales({
+        ...(value.dateFrom ? { dateFrom: value.dateFrom } : {}),
+        ...(value.dateTo ? { dateTo: value.dateTo } : {}),
+        ...(value.cashRegisterId ? { cashRegisterId: value.cashRegisterId } : {}),
+        ...(value.userId ? { userId: value.userId } : {}),
+        page,
+        pageSize: 10,
+      })
+      .pipe(finalize(() => this.loadingSales.set(false)))
+      .subscribe({
+        next: ({ data, meta }) => {
+          this.salesHistory.set(data);
+          this.salesPage.set(meta.pagination.page);
+          this.salesTotalPages.set(meta.pagination.totalPages);
+          this.salesTotal.set(meta.pagination.total);
+          if (data[0] && !this.selectedSale()) this.selectSale(data[0].id);
+          if (data.length === 0) this.selectedSale.set(null);
+        },
+        error: () => {
+          this.salesHistory.set([]);
+          this.selectedSale.set(null);
+          this.salesError.set('No fue posible cargar el historial de ventas.');
+        },
       });
   }
 

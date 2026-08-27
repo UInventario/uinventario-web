@@ -25,6 +25,8 @@ describe('ApplicationPage', () => {
   let pos: {
     quote: ReturnType<typeof vi.fn>;
     createCashSale: ReturnType<typeof vi.fn>;
+    listSales: ReturnType<typeof vi.fn>;
+    getSale: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(async () => {
@@ -76,7 +78,20 @@ describe('ApplicationPage', () => {
       ),
       createMovement: vi.fn(),
     };
-    pos = { quote: vi.fn(), createCashSale: vi.fn() };
+    pos = {
+      quote: vi.fn(),
+      createCashSale: vi.fn(),
+      listSales: vi.fn().mockReturnValue(
+        of({
+          data: [],
+          meta: {
+            apiVersion: '1',
+            pagination: { page: 1, pageSize: 10, total: 0, totalPages: 0 },
+          },
+        }),
+      ),
+      getSale: vi.fn(),
+    };
     const sessions = {
       session: signal({
         user: { id: 'user', email: 'admin@example.com', roles: ['ADMIN'], permissions: [] },
@@ -422,5 +437,6 @@ describe('ApplicationPage', () => {
     expect(fixture.nativeElement.textContent).toContain('Venta V-123456789012 completada');
     expect(fixture.nativeElement.textContent).toContain('Cambio MXN 10.20');
     expect(inventory.listStock).toHaveBeenCalledTimes(2);
+    expect(pos.listSales).toHaveBeenCalledTimes(2);
   });
 });
