@@ -4,6 +4,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { of, throwError } from 'rxjs';
 import { ProductApiService } from '../catalog/product-api.service';
 import { InventoryApiService } from '../inventory/inventory-api.service';
+import { PosApiService } from '../pos/pos-api.service';
 import { ApplicationPage } from './application.page';
 import { SessionApiService } from './session-api.service';
 
@@ -21,6 +22,7 @@ describe('ApplicationPage', () => {
     getBalance: ReturnType<typeof vi.fn>;
     createMovement: ReturnType<typeof vi.fn>;
   };
+  let pos: { quote: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
     products = {
@@ -71,6 +73,7 @@ describe('ApplicationPage', () => {
       ),
       createMovement: vi.fn(),
     };
+    pos = { quote: vi.fn() };
     const sessions = {
       session: signal({
         user: { id: 'user', email: 'admin@example.com', roles: ['ADMIN'], permissions: [] },
@@ -89,6 +92,7 @@ describe('ApplicationPage', () => {
       providers: [
         { provide: ProductApiService, useValue: products },
         { provide: InventoryApiService, useValue: inventory },
+        { provide: PosApiService, useValue: pos },
         { provide: SessionApiService, useValue: sessions },
       ],
     }).compileComponents();
@@ -288,5 +292,76 @@ describe('ApplicationPage', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('No fue posible cargar las existencias.');
+  });
+
+  it('adds a searched product and renders only server-calculated cart totals', () => {
+    const product = {
+      id: 'product',
+      name: 'Café',
+      sku: 'CAFE-1',
+      barcode: '7501',
+      category: null,
+      brand: null,
+      cost: '1.20',
+      price: '119.90',
+      active: true,
+    };
+    products.list.mockReturnValue(
+      of({
+        data: [product],
+        meta: {
+          apiVersion: '1',
+          pagination: { page: 1, pageSize: 5, total: 1, totalPages: 1 },
+        },
+      }),
+    );
+    pos.quote.mockImplementation((lines: Array<{ quantity: string }>) => {
+      const doubled = lines[0].quantity === '2';
+      return of({
+        data: {
+          context: {
+            branch: { id: 'branch', name: 'Sucursal' },
+            warehouse: { id: 'warehouse', name: 'Bodega' },
+            cashRegister: { id: 'register', name: 'Caja', code: 'MAIN' },
+          },
+          currency: 'MXN',
+          taxRate: '0.1600',
+          lines: [
+            {
+              product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
+              quantity: doubled ? '2.000' : '1.000',
+              availableQuantity: '5.000',
+              unitPrice: '119.90',
+              subtotal: doubled ? '206.72' : '103.36',
+              tax: doubled ? '33.08' : '16.54',
+              total: doubled ? '239.80' : '119.90',
+            },
+          ],
+          totals: {
+            subtotal: doubled ? '206.72' : '103.36',
+            tax: doubled ? '33.08' : '16.54',
+            total: doubled ? '239.80' : '119.90',
+          },
+        },
+        meta: { apiVersion: '1', recalculatedAt: new Date().toISOString() },
+      });
+    });
+    fill('posSearch', 'cafe-1');
+    (fixture.componentInstance as unknown as { searchPos(): void }).searchPos();
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelector('.pos-results button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(pos.quote).toHaveBeenLastCalledWith([{ productId: 'product', quantity: '1' }]);
+    expect(fixture.nativeElement.querySelector('.cart-panel').textContent).toContain('MXN 119.90');
+
+    const quantity = fixture.nativeElement.querySelector(
+      '[aria-label="Cantidad de Café"]',
+    ) as HTMLInputElement;
+    quantity.value = '2';
+    quantity.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges();
+    expect(pos.quote).toHaveBeenLastCalledWith([{ productId: 'product', quantity: '2' }]);
+    expect(fixture.nativeElement.querySelector('.cart-panel').textContent).toContain('MXN 239.80');
   });
 });
