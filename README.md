@@ -23,6 +23,8 @@ La Web renueva la sesión poco antes de expirar, sincroniza rotación/logout ent
 pestañas y vuelve a `/login` cuando la sesión termina.
 El primer paso de onboarding permite configurar y reanudar la empresa mínima antes
 de crear la sucursal inicial.
+El segundo crea en una sola operación la sucursal, bodega y ubicación general, y
+mantiene ese contexto activo en la sesión.
 
 ```bash
 npm run typecheck

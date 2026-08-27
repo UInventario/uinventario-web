@@ -7,23 +7,43 @@
       </button>
     </header>
 
-    <p class="eyebrow">Paso 1 de 2 · Empresa</p>
+    <p class="eyebrow">
+      {{
+        progress()?.currentStep === 'COMPANY' ? 'Paso 1 de 3 · Empresa' : 'Paso 2 de 3 · Sucursal'
+      }}
+    </p>
     <h1 id="onboarding-title">Prepara {{ session()?.tenant?.name }}</h1>
     <p class="intro">
-      Sólo necesitamos la información mínima para comenzar a operar como
+      Configuración mínima para comenzar a operar como
       <strong>{{ session()?.user?.email }}</strong
       >.
     </p>
 
-    @if (progress()?.currentStep === 'BRANCH') {
+    @if (initialLocation()) {
       <div class="success" role="status">
-        Empresa configurada. El siguiente paso es crear la sucursal inicial.
+        Sucursal y bodega listas. El siguiente paso es crear la caja inicial.
       </div>
+      <dl>
+        <div>
+          <dt>Sucursal</dt>
+          <dd>{{ initialLocation()?.branch?.name }}</dd>
+        </div>
+        <div>
+          <dt>Bodega</dt>
+          <dd>{{ initialLocation()?.warehouse?.name }}</dd>
+        </div>
+        <div>
+          <dt>Ubicación</dt>
+          <dd>{{ initialLocation()?.location?.name }}</dd>
+        </div>
+      </dl>
+    } @else if (progress()?.currentStep === 'BRANCH') {
+      <div class="success" role="status">Empresa configurada. Crea la sucursal inicial.</div>
     }
 
     @if (loading()) {
       <p role="status">Cargando configuración…</p>
-    } @else {
+    } @else if (progress()?.currentStep === 'COMPANY') {
       <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
         <label for="legalName">Nombre legal</label>
         <input
@@ -53,14 +73,32 @@
           <p class="field-error">Selecciona el país de operación.</p>
         }
 
-        @if (errorMessage()) {
-          <div class="form-error" role="alert">{{ errorMessage() }}</div>
-        }
-
         <button class="primary" type="submit" [disabled]="saving()">
           {{ saving() ? 'Guardando…' : 'Guardar y continuar' }}
         </button>
       </form>
+    } @else if (!initialLocation()) {
+      <form [formGroup]="locationForm" (ngSubmit)="submitInitialLocation()" novalidate>
+        <label for="branchName">Nombre de la sucursal</label>
+        <input id="branchName" formControlName="branchName" maxlength="120" />
+
+        <label for="timezone">Zona horaria</label>
+        <input id="timezone" formControlName="timezone" maxlength="64" />
+
+        <label for="warehouseName">Nombre de la bodega</label>
+        <input id="warehouseName" formControlName="warehouseName" maxlength="120" />
+
+        <label for="locationName">Ubicación inicial</label>
+        <input id="locationName" formControlName="locationName" maxlength="120" />
+
+        <button class="primary" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Creando…' : 'Crear sucursal y bodega' }}
+        </button>
+      </form>
+    }
+
+    @if (errorMessage()) {
+      <div class="form-error" role="alert">{{ errorMessage() }}</div>
     }
   </section>
 </main>

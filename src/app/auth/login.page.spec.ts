@@ -18,6 +18,7 @@ describe('LoginPage', () => {
     data: {
       user: { id: 'user-id', email: 'admin@example.com', roles: ['ADMIN'] },
       tenant: { id: 'tenant-id', name: 'Tienda Central' },
+      context: { branch: null, warehouse: null },
       nextStep: 'ONBOARDING',
     },
     meta: {

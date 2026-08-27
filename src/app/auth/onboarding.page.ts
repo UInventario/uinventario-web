@@ -2,7 +2,11 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs';
-import { CompanyOnboardingData, OnboardingApiService } from './onboarding-api.service';
+import {
+  CompanyOnboardingData,
+  InitialLocationData,
+  OnboardingApiService,
+} from './onboarding-api.service';
 import { SessionApiService } from './session-api.service';
 
 const ISO_COUNTRY_CODES = `
@@ -43,21 +47,32 @@ export class OnboardingPage implements OnInit {
   protected readonly closingSession = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly progress = signal<CompanyOnboardingData['progress'] | null>(null);
+  protected readonly initialLocation = signal<InitialLocationData | null>(null);
   protected readonly countries = buildCountryOptions();
   protected readonly form = this.formBuilder.nonNullable.group({
     legalName: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
     tradeName: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
     countryCode: ['', [Validators.required, Validators.pattern(/^[A-Z]{2}$/)]],
   });
+  protected readonly locationForm = this.formBuilder.nonNullable.group({
+    branchName: ['Sucursal Principal', [Validators.required, Validators.minLength(2)]],
+    timezone: [Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', Validators.required],
+    warehouseName: ['Bodega Principal', [Validators.required, Validators.minLength(2)]],
+    locationName: ['Ubicación general', [Validators.required, Validators.minLength(2)]],
+  });
 
   ngOnInit(): void {
-    this.onboarding
-      .getCompany()
-      .pipe(finalize(() => this.loading.set(false)))
-      .subscribe({
-        next: ({ data }) => this.applyCompany(data),
-        error: () => this.errorMessage.set('No fue posible cargar el progreso del onboarding.'),
-      });
+    this.onboarding.getCompany().subscribe({
+      next: ({ data }) => {
+        this.applyCompany(data);
+        if (data.progress.currentStep === 'BRANCH') this.loadInitialLocation();
+        else this.loading.set(false);
+      },
+      error: () => {
+        this.loading.set(false);
+        this.errorMessage.set('No fue posible cargar el progreso del onboarding.');
+      },
+    });
   }
 
   protected submit(): void {
@@ -72,13 +87,35 @@ export class OnboardingPage implements OnInit {
       .configureCompany(this.form.getRawValue())
       .pipe(finalize(() => this.saving.set(false)))
       .subscribe({
-        next: ({ data }) => this.applyCompany(data),
+        next: ({ data }) => {
+          this.applyCompany(data);
+          this.loadInitialLocation();
+        },
         error: (error: HttpErrorResponse) =>
           this.errorMessage.set(
             error.status === 0
               ? 'No pudimos conectar con el servicio. Intenta nuevamente.'
               : 'No fue posible guardar la empresa con esos datos.',
           ),
+      });
+  }
+
+  protected submitInitialLocation(): void {
+    if (this.locationForm.invalid || this.saving()) {
+      this.locationForm.markAllAsTouched();
+      return;
+    }
+    this.saving.set(true);
+    this.errorMessage.set(null);
+    this.onboarding
+      .configureInitialLocation(this.locationForm.getRawValue())
+      .pipe(finalize(() => this.saving.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.initialLocation.set(data);
+          this.sessions.loadCurrent().subscribe({ error: () => undefined });
+        },
+        error: () => this.errorMessage.set('No fue posible crear la sucursal inicial.'),
       });
   }
 
@@ -98,5 +135,26 @@ export class OnboardingPage implements OnInit {
       countryCode: data.company.countryCode ?? '',
     });
     this.progress.set(data.progress);
+  }
+
+  private loadInitialLocation(): void {
+    this.loading.set(true);
+    this.onboarding
+      .getInitialLocation()
+      .pipe(finalize(() => this.loading.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.initialLocation.set(data);
+          if (data) {
+            this.locationForm.setValue({
+              branchName: data.branch.name,
+              timezone: data.branch.timezone,
+              warehouseName: data.warehouse.name,
+              locationName: data.location.name,
+            });
+          }
+        },
+        error: () => this.errorMessage.set('No fue posible cargar la sucursal inicial.'),
+      });
   }
 }

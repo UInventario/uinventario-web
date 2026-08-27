@@ -33,15 +33,24 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await expect(page.getByLabel('Nombre comercial')).toHaveValue('Tienda Login');
   await page.getByLabel('País').selectOption('MX');
   await page.getByRole('button', { name: 'Guardar y continuar' }).click();
+  await expect(page.getByText('Empresa configurada. Crea la sucursal inicial.')).toBeVisible();
+
+  await expect(page.getByLabel('Nombre de la sucursal')).toHaveValue('Sucursal Principal');
+  await page.getByLabel('Zona horaria').fill('America/Mexico_City');
+  await page.getByRole('button', { name: 'Crear sucursal y bodega' }).click();
   await expect(
-    page.getByText('Empresa configurada. El siguiente paso es crear la sucursal inicial.'),
+    page.getByText('Sucursal y bodega listas. El siguiente paso es crear la caja inicial.'),
   ).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath('company-configured.png'), fullPage: true });
+  await page.screenshot({
+    path: testInfo.outputPath('initial-location-configured.png'),
+    fullPage: true,
+  });
 
   await page.reload();
   await expect(page).toHaveURL(/\/onboarding$/);
-  await expect(page.getByLabel('Nombre legal')).toHaveValue('Tienda Login, S.A. de C.V.');
-  await expect(page.getByLabel('País')).toHaveValue('MX');
+  await expect(page.getByText('Sucursal Principal')).toBeVisible();
+  await expect(page.getByText('Bodega Principal')).toBeVisible();
+  await expect(page.getByText('Ubicación general')).toBeVisible();
 
   const refresh = await page.request.post('http://localhost:3000/api/v1/auth/sessions/refresh');
   expect(refresh.status()).toBe(200);
