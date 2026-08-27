@@ -8,6 +8,7 @@ import { InventoryApiService } from '../inventory/inventory-api.service';
 import { CashSaleData, PosApiService } from '../pos/pos-api.service';
 import { ApplicationPage } from './application.page';
 import { SessionApiService } from './session-api.service';
+import { AuditApiService } from '../audit/audit-api.service';
 
 describe('ApplicationPage', () => {
   let fixture: ComponentFixture<ApplicationPage>;
@@ -31,6 +32,7 @@ describe('ApplicationPage', () => {
     listSales: ReturnType<typeof vi.fn>;
     getSale: ReturnType<typeof vi.fn>;
   };
+  let audit: { list: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
     products = {
@@ -106,6 +108,17 @@ describe('ApplicationPage', () => {
       ),
       getSale: vi.fn(),
     };
+    audit = {
+      list: vi.fn().mockReturnValue(
+        of({
+          data: [],
+          meta: {
+            apiVersion: '1',
+            pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 },
+          },
+        }),
+      ),
+    };
     const sessions = {
       session: signal({
         user: { id: 'user', email: 'admin@example.com', roles: ['ADMIN'], permissions: [] },
@@ -126,6 +139,7 @@ describe('ApplicationPage', () => {
         { provide: ProductApiService, useValue: products },
         { provide: InventoryApiService, useValue: inventory },
         { provide: PosApiService, useValue: pos },
+        { provide: AuditApiService, useValue: audit },
         { provide: SessionApiService, useValue: sessions },
       ],
     }).compileComponents();

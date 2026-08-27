@@ -13,6 +13,7 @@
     <a routerLink="/app" fragment="movement-history-title">Movimientos</a>
     <a routerLink="/app" fragment="pos-title">Punto de venta</a>
     <a routerLink="/app" fragment="sales-title">Historial</a>
+    <a routerLink="/app" fragment="audit-title">Auditoría</a>
   </nav>
 
   @if (pendingOperation(); as operation) {
@@ -814,6 +815,53 @@
           }
         </article>
       </div>
+    }
+  </section>
+
+  <section
+    class="stock-overview audit-log"
+    aria-labelledby="audit-title"
+    [attr.aria-busy]="loadingAudit()"
+  >
+    <div class="overview-heading">
+      <div>
+        <p class="eyebrow">Administración</p>
+        <h2 id="audit-title">Auditoría Core</h2>
+        <p>Registro de sólo lectura del tenant activo.</p>
+      </div>
+      <strong>{{ auditEvents().length }} evento(s)</strong>
+    </div>
+    @if (auditError()) {
+      <div class="form-error" role="alert">{{ auditError() }}</div>
+    } @else if (loadingAudit()) {
+      <p class="catalog-state" role="status">Cargando auditoría…</p>
+    } @else if (auditEvents().length === 0) {
+      <div class="empty stock-empty">
+        <h3>Sin eventos para mostrar</h3>
+        <p>Las operaciones críticas aparecerán aquí.</p>
+      </div>
+    } @else {
+      <ol class="movement-list" aria-label="Eventos de auditoría">
+        @for (event of auditEvents(); track event.id) {
+          <li class="movement-row">
+            <span>
+              <strong>{{ auditActionLabel(event.action) }}</strong>
+              <small>{{ dateTime(event.createdAt) }}</small>
+            </span>
+            <span
+              ><strong>{{ event.actor.email }}</strong
+              ><small>Actor</small></span
+            >
+            <span
+              ><strong>{{ event.entityType }}</strong
+              ><small>{{ event.entityId }}</small></span
+            >
+            <span
+              ><strong>Correlación</strong><small>{{ event.correlationId }}</small></span
+            >
+          </li>
+        }
+      </ol>
     }
   </section>
 </main>
