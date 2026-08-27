@@ -2,7 +2,8 @@ import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { RuntimeConfigService } from '../core/runtime-config.service';
 
-export type InventoryMovementType = 'INITIAL' | 'ENTRY' | 'ADJUSTMENT' | 'SALE';
+export type InventoryMovementType =
+  'INITIAL' | 'ENTRY' | 'EXIT' | 'RETURN' | 'LOSS' | 'DAMAGE' | 'ADJUSTMENT' | 'SALE';
 
 export interface InventoryLocationData {
   id: string;
