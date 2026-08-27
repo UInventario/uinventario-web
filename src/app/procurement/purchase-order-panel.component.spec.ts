@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, Subject } from 'rxjs';
+import { InventoryApiService } from '../inventory/inventory-api.service';
 import { SupplierApiService, SupplierData } from '../suppliers/supplier-api.service';
 import {
   SupplierProductApiService,
@@ -17,6 +18,7 @@ describe('PurchaseOrderPanelComponent', () => {
     approve: ReturnType<typeof vi.fn>;
     send: ReturnType<typeof vi.fn>;
     cancel: ReturnType<typeof vi.fn>;
+    receive: ReturnType<typeof vi.fn>;
   };
 
   const supplier: SupplierData = {
@@ -74,6 +76,7 @@ describe('PurchaseOrderPanelComponent', () => {
     cancelledAt: null,
     cancellationReason: null,
     transitions: [],
+    receipts: [],
     lines: [
       {
         id: 'line',
@@ -83,6 +86,9 @@ describe('PurchaseOrderPanelComponent', () => {
         productSku: supplierProduct.product.sku,
         supplierCode: supplierProduct.supplierCode,
         quantity: '2.500',
+        receivedQuantity: '0.000',
+        remainingQuantity: '2.500',
+        overageQuantity: '0.000',
         unitCost: '80.00',
         subtotal: '200.00',
         notes: 'Empaque sellado',
@@ -108,6 +114,7 @@ describe('PurchaseOrderPanelComponent', () => {
       approve: vi.fn(),
       send: vi.fn(),
       cancel: vi.fn(),
+      receive: vi.fn(),
     };
     const suppliersApi = {
       list: vi.fn().mockReturnValue(
@@ -137,6 +144,17 @@ describe('PurchaseOrderPanelComponent', () => {
         { provide: PurchaseOrderApiService, useValue: ordersApi },
         { provide: SupplierApiService, useValue: suppliersApi },
         { provide: SupplierProductApiService, useValue: supplierProductsApi },
+        {
+          provide: InventoryApiService,
+          useValue: {
+            listLocations: vi.fn().mockReturnValue(
+              of({
+                data: [{ id: 'location', name: 'Ubicación General', code: 'MAIN' }],
+                meta: { apiVersion: '1' },
+              }),
+            ),
+          },
+        },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(PurchaseOrderPanelComponent);
@@ -290,5 +308,68 @@ describe('PurchaseOrderPanelComponent', () => {
     expect(fixture.nativeElement.querySelector('.editor')).toBeNull();
     expect(fixture.nativeElement.textContent).toContain('Aprobar');
     expect(fixture.nativeElement.textContent).not.toContain('Editar');
+  });
+
+  it('registers a receipt and requires permission plus a reason for overage', () => {
+    const approved = {
+      ...order,
+      status: 'APPROVED' as const,
+      version: 2,
+      approvedAt: '2026-08-27T16:00:00.000Z',
+    };
+    const component = fixture.componentInstance as unknown as {
+      requestReceipt(value: PurchaseOrderData): void;
+      submitReceipt(): void;
+    };
+    component.requestReceipt(approved);
+    fixture.detectChanges();
+    change('purchaseReceiptDocument', 'REM-100');
+    change('purchaseReceiptQuantity0', '3.000');
+    component.submitReceipt();
+    fixture.detectChanges();
+    expect(ordersApi.receive).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain(
+      'No tienes permiso para recibir cantidades sobrantes.',
+    );
+
+    fixture.componentRef.setInput('canOverReceive', true);
+    component.submitReceipt();
+    fixture.detectChanges();
+    expect(ordersApi.receive).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain(
+      'Indica el motivo para recibir cantidades sobrantes.',
+    );
+
+    change('purchaseReceiptOverageReason', 'El proveedor envió media unidad adicional');
+    ordersApi.receive.mockReturnValue(
+      of({
+        data: {
+          ...approved,
+          status: 'RECEIVED',
+          version: 3,
+          lines: [
+            {
+              ...approved.lines[0],
+              receivedQuantity: '3.000',
+              remainingQuantity: '0.000',
+              overageQuantity: '0.500',
+            },
+          ],
+        },
+        meta: { apiVersion: '1' },
+      }),
+    );
+    component.submitReceipt();
+    expect(ordersApi.receive).toHaveBeenCalledWith(
+      order.id,
+      {
+        version: 2,
+        locationId: 'location',
+        documentReference: 'REM-100',
+        overageReason: 'El proveedor envió media unidad adicional',
+        lines: [{ purchaseOrderLineId: 'line', receivedQuantity: '3.000' }],
+      },
+      expect.stringMatching(/^web-purchase-receipt-/),
+    );
   });
 });

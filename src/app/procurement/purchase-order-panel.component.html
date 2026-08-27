@@ -41,6 +41,66 @@
       </div>
     </form>
   }
+  @if (receiving(); as order) {
+    <form class="receipt-form" [formGroup]="receiptForm" (ngSubmit)="submitReceipt()">
+      <div>
+        <strong>Recibir {{ order.folio }}</strong>
+        <span>Registra sólo lo confirmado físicamente en esta entrega.</span>
+      </div>
+      <div class="form-row">
+        <label>
+          Ubicación de recepción
+          <select id="purchaseReceiptLocation" formControlName="locationId">
+            <option value="">Selecciona una ubicación</option>
+            @for (location of locations(); track location.id) {
+              <option [value]="location.id">{{ location.code }} · {{ location.name }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          Documento / remisión
+          <input id="purchaseReceiptDocument" formControlName="documentReference" maxlength="160" />
+        </label>
+      </div>
+      <div class="receipt-lines" formArrayName="lines">
+        @for (lineForm of receiptLines.controls; track lineForm; let index = $index) {
+          <label [formGroupName]="index">
+            <span>
+              {{ order.lines[index].productSku }} · {{ order.lines[index].productName }}
+              <small>
+                Ordenado {{ order.lines[index].quantity }} · Acumulado
+                {{ order.lines[index].receivedQuantity }} · Pendiente
+                {{ order.lines[index].remainingQuantity }}
+              </small>
+            </span>
+            Cantidad de esta recepción
+            <input
+              [id]="'purchaseReceiptQuantity' + index"
+              inputmode="decimal"
+              formControlName="receivedQuantity"
+            />
+          </label>
+        }
+      </div>
+      <label>
+        Motivo de sobrante (obligatorio si excede lo pendiente)
+        <textarea
+          id="purchaseReceiptOverageReason"
+          formControlName="overageReason"
+          maxlength="500"
+        ></textarea>
+      </label>
+      @if (!canOverReceive()) {
+        <small class="hint">Tu rol sólo puede recibir hasta la cantidad pendiente.</small>
+      }
+      <div class="actions">
+        <button type="button" class="secondary" (click)="dismissReceipt()">Volver</button>
+        <button id="savePurchaseReceipt" type="submit" [disabled]="savingReceipt()">
+          {{ savingReceipt() ? 'Registrando…' : 'Confirmar recepción' }}
+        </button>
+      </div>
+    </form>
+  }
 
   <div class="workspace">
     @if (canManage()) {
@@ -168,6 +228,12 @@
                     {{ line.productSku }} · {{ line.quantity }} × {{ line.unitCost }} =
                     {{ line.subtotal }}
                   </small>
+                  <small>
+                    Recibido {{ line.receivedQuantity }} · Pendiente {{ line.remainingQuantity }}
+                    @if (line.overageQuantity !== '0.000') {
+                      · Sobrante {{ line.overageQuantity }}
+                    }
+                  </small>
                 }
                 @if (order.notes) {
                   <small>{{ order.notes }}</small>
@@ -189,6 +255,22 @@
                                 ? ' a ' + transition.delivery.recipient
                                 : ' sin correo configurado'
                             }}
+                          }
+                        </li>
+                      }
+                    </ol>
+                  </details>
+                }
+                @if (order.receipts.length > 0) {
+                  <details>
+                    <summary>Recepciones ({{ order.receipts.length }})</summary>
+                    <ol>
+                      @for (receipt of order.receipts; track receipt.id) {
+                        <li>
+                          {{ receipt.documentReference }} · {{ receipt.location.code }} ·
+                          {{ receipt.responsible.email }}
+                          @if (receipt.overageReason) {
+                            · Sobrante: {{ receipt.overageReason }}
                           }
                         </li>
                       }
@@ -218,6 +300,19 @@
                     [disabled]="transitioningId() === order.id"
                   >
                     Enviar
+                  </button>
+                }
+                @if (
+                  canManage() &&
+                  ['APPROVED', 'SENT', 'PARTIALLY_RECEIVED', 'RECEIVED'].includes(order.status)
+                ) {
+                  <button
+                    type="button"
+                    class="secondary"
+                    (click)="requestReceipt(order)"
+                    [disabled]="savingReceipt()"
+                  >
+                    Recibir
                   </button>
                 }
                 @if (canApprove() && ['DRAFT', 'APPROVED', 'SENT'].includes(order.status)) {

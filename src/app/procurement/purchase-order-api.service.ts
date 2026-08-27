@@ -13,6 +13,9 @@ export interface PurchaseOrderLineData {
   productSku: string;
   supplierCode: string;
   quantity: string;
+  receivedQuantity: string;
+  remainingQuantity: string;
+  overageQuantity: string;
   unitCost: string;
   subtotal: string;
   notes: string | null;
@@ -33,9 +36,33 @@ export interface PurchaseOrderData {
   cancelledAt: string | null;
   cancellationReason: string | null;
   transitions: PurchaseOrderTransitionData[];
+  receipts: PurchaseReceiptData[];
   lines: PurchaseOrderLineData[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PurchaseReceiptData {
+  id: string;
+  documentReference: string;
+  location: { id: string; name: string; code: string };
+  responsible: { id: string; email: string };
+  overageReason: string | null;
+  lines: Array<{
+    id: string;
+    purchaseOrderLineId: string;
+    receivedQuantity: string;
+    overageQuantity: string;
+  }>;
+  createdAt: string;
+}
+
+export interface PurchaseReceiptInput {
+  version: number;
+  locationId: string;
+  documentReference: string;
+  overageReason?: string;
+  lines: Array<{ purchaseOrderLineId: string; receivedQuantity: string }>;
 }
 
 export interface PurchaseOrderTransitionData {
@@ -112,6 +139,17 @@ export class PurchaseOrderApiService {
 
   cancel(id: string, input: { version: number; reason: string }, idempotencyKey: string) {
     return this.transition(id, 'cancel', input, idempotencyKey);
+  }
+
+  receive(id: string, input: PurchaseReceiptInput, idempotencyKey: string) {
+    return this.http.post<PurchaseOrderResponse>(
+      `${this.config.apiBaseUrl()}/purchase-orders/${id}/receipts`,
+      input,
+      {
+        headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+        withCredentials: true,
+      },
+    );
   }
 
   private transition(

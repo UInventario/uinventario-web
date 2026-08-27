@@ -142,6 +142,9 @@ export class ApplicationPage implements OnInit {
   protected readonly canApprovePurchaseOrders = computed(
     () => this.session()?.user.permissions.includes('PURCHASE_ORDERS_APPROVE') ?? false,
   );
+  protected readonly canOverReceivePurchaseOrders = computed(
+    () => this.session()?.user.permissions.includes('PURCHASE_RECEIPTS_OVERAGE') ?? false,
+  );
   protected readonly canAccessPurchaseOrders = computed(
     () => this.canManagePurchaseOrders() || this.canApprovePurchaseOrders(),
   );
@@ -1877,6 +1880,7 @@ export class ApplicationPage implements OnInit {
       SUPPLIERS_MANAGE: 'Administrar proveedores',
       PURCHASE_ORDERS_MANAGE: 'Crear y editar órdenes de compra',
       PURCHASE_ORDERS_APPROVE: 'Aprobar y cancelar órdenes de compra',
+      PURCHASE_RECEIPTS_OVERAGE: 'Recibir sobrantes de órdenes de compra',
       INVENTORY_VIEW: 'Consultar inventario e historial',
       INVENTORY_ADJUST: 'Registrar entradas, salidas y ajustes',
       INVENTORY_TRANSFER: 'Crear y recibir transferencias',
