@@ -10,7 +10,7 @@ import {
   InventoryStockItem,
 } from '../inventory/inventory-api.service';
 import { SessionApiService } from './session-api.service';
-import { PosApiService, PosCartQuote } from '../pos/pos-api.service';
+import { CashSaleData, PosApiService, PosCartQuote } from '../pos/pos-api.service';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
@@ -36,6 +36,10 @@ export class ApplicationPage implements OnInit {
   private readonly sessions = inject(SessionApiService);
   private readonly pos = inject(PosApiService);
   private pendingMovement: { input: InventoryMovementInput; key: string } | null = null;
+  private pendingSale: {
+    input: { lines: Array<{ productId: string; quantity: string }>; cashReceived: string };
+    key: string;
+  } | null = null;
 
   protected readonly session = this.sessions.session;
   protected readonly categories = signal<Array<{ id: string; name: string }>>([]);
@@ -67,8 +71,10 @@ export class ApplicationPage implements OnInit {
   protected readonly posResults = signal<ProductData[]>([]);
   protected readonly cart = signal<CartEntry[]>([]);
   protected readonly cartQuote = signal<PosCartQuote | null>(null);
+  protected readonly completedSale = signal<CashSaleData | null>(null);
   protected readonly searchingPos = signal(false);
   protected readonly quotingCart = signal(false);
+  protected readonly savingSale = signal(false);
   protected readonly posError = signal<string | null>(null);
   protected readonly page = signal(1);
   protected readonly totalPages = signal(0);
@@ -82,6 +88,9 @@ export class ApplicationPage implements OnInit {
   });
   protected readonly posSearchForm = this.formBuilder.nonNullable.group({
     q: ['', [Validators.required, Validators.maxLength(80)]],
+  });
+  protected readonly cashForm = this.formBuilder.nonNullable.group({
+    cashReceived: ['', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
   });
   protected readonly form = this.formBuilder.nonNullable.group({
     name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
@@ -199,6 +208,7 @@ export class ApplicationPage implements OnInit {
       return;
     }
     const existing = this.cart().find((entry) => entry.product.id === product.id);
+    this.resetCompletedSale();
     this.cart.set(
       existing
         ? this.cart().map((entry) =>
@@ -217,6 +227,7 @@ export class ApplicationPage implements OnInit {
       this.posError.set('La cantidad del carrito debe ser mayor que cero.');
       return;
     }
+    this.resetCompletedSale();
     this.cart.set(
       this.cart().map((entry) =>
         entry.product.id === productId ? { ...entry, quantity: normalized } : entry,
@@ -226,6 +237,7 @@ export class ApplicationPage implements OnInit {
   }
 
   protected removeFromCart(productId: string): void {
+    this.resetCompletedSale();
     this.cart.set(this.cart().filter((entry) => entry.product.id !== productId));
     if (this.cart().length === 0) {
       this.cartQuote.set(null);
@@ -241,6 +253,45 @@ export class ApplicationPage implements OnInit {
 
   protected taxPercent(rate: string): string {
     return `${Number(rate) * 100}%`;
+  }
+
+  protected completeCashSale(): void {
+    const quote = this.cartQuote();
+    if (!quote || this.cashForm.invalid || this.savingSale()) {
+      this.cashForm.markAllAsTouched();
+      return;
+    }
+    const input = {
+      lines: this.cart().map((entry) => ({
+        productId: entry.product.id,
+        quantity: entry.quantity,
+      })),
+      cashReceived: this.cashForm.controls.cashReceived.value.trim(),
+    };
+    const pending = this.pendingSale;
+    const idempotencyKey =
+      pending && JSON.stringify(pending.input) === JSON.stringify(input)
+        ? pending.key
+        : `web-sale-${globalThis.crypto.randomUUID()}`;
+    this.pendingSale = { input, key: idempotencyKey };
+    this.savingSale.set(true);
+    this.posError.set(null);
+    this.pos
+      .createCashSale(input, idempotencyKey)
+      .pipe(finalize(() => this.savingSale.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.pendingSale = null;
+          this.completedSale.set(data);
+          this.cart.set([]);
+          this.cartQuote.set(null);
+          this.cashForm.reset({ cashReceived: '' });
+        },
+        error: (error: HttpErrorResponse) => {
+          if (error.status > 0 && error.status < 500) this.pendingSale = null;
+          this.posError.set(this.posMessageFor(error));
+        },
+      });
   }
 
   protected selectProduct(id: string): void {
@@ -422,7 +473,10 @@ export class ApplicationPage implements OnInit {
       )
       .pipe(finalize(() => this.quotingCart.set(false)))
       .subscribe({
-        next: ({ data }) => this.cartQuote.set(data),
+        next: ({ data }) => {
+          this.cartQuote.set(data);
+          this.cashForm.controls.cashReceived.setValue(data.totals.total);
+        },
         error: (error: HttpErrorResponse) => {
           this.cartQuote.set(null);
           this.posError.set(this.posMessageFor(error));
@@ -470,7 +524,18 @@ export class ApplicationPage implements OnInit {
     if (code === 'INSUFFICIENT_STOCK') return 'No hay existencia suficiente para esa cantidad.';
     if (code === 'PRODUCT_NOT_AVAILABLE') return 'Uno de los productos ya no está disponible.';
     if (code === 'PRODUCT_NOT_FOUND') return 'Uno de los productos ya no existe.';
+    if (code === 'INSUFFICIENT_CASH_RECEIVED') {
+      return 'El efectivo recibido no cubre el total de la venta.';
+    }
+    if (code === 'IDEMPOTENCY_KEY_REUSED') {
+      return 'La venta cambió durante el reintento. Revisa el carrito e intenta nuevamente.';
+    }
     if (error.status === 0) return 'No pudimos conectar con el servicio. Intenta nuevamente.';
-    return 'No fue posible validar el carrito.';
+    return 'No fue posible completar la venta.';
+  }
+
+  private resetCompletedSale(): void {
+    this.completedSale.set(null);
+    this.pendingSale = null;
   }
 }

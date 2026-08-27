@@ -114,6 +114,10 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await saleQuantity.blur();
   await expect(pos.getByText('MXN 239.80')).toBeVisible();
   await expect(pos.getByText('MXN 33.08')).toBeVisible();
+  await pos.getByLabel('Efectivo recibido').fill('250.00');
+  await pos.getByRole('button', { name: 'Cobrar en efectivo' }).click();
+  await expect(pos.getByText(/Venta V-[A-F0-9]{12} completada/)).toBeVisible();
+  await expect(pos.getByText(/Cambio MXN\s+10\.20/)).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('pos-cart.png'), fullPage: true });
   await page.screenshot({
     path: testInfo.outputPath('product-created.png'),
