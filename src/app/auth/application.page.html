@@ -5,7 +5,10 @@
     </div>
     <button class="secondary" type="button" (click)="logout()">Cerrar sesión</button>
   </header>
-  <nav aria-label="Módulos principales"><a aria-current="page">Productos</a></nav>
+  <nav aria-label="Módulos principales">
+    <a href="#products-title">Productos</a>
+    <a href="#pos-title">Punto de venta</a>
+  </nav>
 
   <section aria-labelledby="products-title">
     <p class="eyebrow">Catálogo</p>
@@ -359,5 +362,119 @@
         }
       }
     </section>
+  </section>
+
+  <section class="pos-workspace" aria-labelledby="pos-title">
+    <p class="eyebrow">Caja</p>
+    <h1 id="pos-title">Punto de venta</h1>
+    <p class="context">
+      {{ session()?.context?.branch?.name }} · {{ session()?.context?.warehouse?.name }} ·
+      {{ session()?.context?.cashRegister?.name }}
+    </p>
+
+    <div class="pos-grid">
+      <div class="pos-search-panel">
+        <h2>Agregar productos</h2>
+        <form class="search" [formGroup]="posSearchForm" (ngSubmit)="searchPos()">
+          <label for="posSearch">Buscar producto para venta por nombre, SKU o código</label>
+          <div>
+            <input id="posSearch" formControlName="q" maxlength="80" autocomplete="off" />
+            <button class="secondary" type="submit" [disabled]="searchingPos()">
+              {{ searchingPos() ? 'Buscando…' : 'Buscar' }}
+            </button>
+          </div>
+        </form>
+        @if (posResults().length === 0) {
+          <div class="empty pos-empty">
+            <h3>Busca el primer producto</h3>
+            <p>Usa nombre, SKU o lector de código de barras.</p>
+          </div>
+        } @else {
+          <ul class="pos-results">
+            @for (product of posResults(); track product.id) {
+              <li>
+                <div>
+                  <strong>{{ product.name }}</strong
+                  ><small>{{ product.sku }} · {{ product.price }}</small>
+                </div>
+                <button
+                  class="secondary"
+                  type="button"
+                  (click)="addToCart(product)"
+                  [disabled]="!product.active"
+                >
+                  {{ product.active ? 'Agregar' : 'Inactivo' }}
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+
+      <div class="cart-panel" aria-live="polite">
+        <div class="cart-heading">
+          <div>
+            <p class="eyebrow">Venta actual</p>
+            <h2>Carrito</h2>
+          </div>
+          <strong>{{ cart().length }} línea(s)</strong>
+        </div>
+        @if (posError()) {
+          <div class="form-error" role="alert">{{ posError() }}</div>
+        }
+        @if (cart().length === 0) {
+          <div class="empty pos-empty">
+            <h3>Carrito vacío</h3>
+            <p>Agrega un producto para calcular la venta.</p>
+          </div>
+        } @else {
+          <ul class="cart-lines">
+            @for (entry of cart(); track entry.product.id) {
+              <li>
+                <div class="cart-product">
+                  <strong>{{ entry.product.name }}</strong
+                  ><small>{{ entry.product.sku }}</small>
+                </div>
+                <label>
+                  Cantidad
+                  <input
+                    [attr.aria-label]="'Cantidad de ' + entry.product.name"
+                    [value]="entry.quantity"
+                    inputmode="decimal"
+                    (change)="updateCartQuantity(entry.product.id, $any($event.target).value)"
+                  />
+                </label>
+                <div class="line-total">
+                  <small>Total validado</small
+                  ><strong>{{ quotedLine(entry.product.id)?.total || '—' }}</strong>
+                </div>
+                <button class="remove" type="button" (click)="removeFromCart(entry.product.id)">
+                  Quitar
+                </button>
+              </li>
+            }
+          </ul>
+          @if (quotingCart()) {
+            <p class="catalog-state" role="status">Validando precios y existencia…</p>
+          } @else if (cartQuote(); as quote) {
+            <dl class="cart-totals">
+              <div>
+                <dt>Subtotal</dt>
+                <dd>{{ quote.currency }} {{ quote.totals.subtotal }}</dd>
+              </div>
+              <div>
+                <dt>Impuesto incluido ({{ taxPercent(quote.taxRate) }})</dt>
+                <dd>{{ quote.currency }} {{ quote.totals.tax }}</dd>
+              </div>
+              <div class="grand-total">
+                <dt>Total</dt>
+                <dd>{{ quote.currency }} {{ quote.totals.total }}</dd>
+              </div>
+            </dl>
+            <div class="success cart-ready" role="status">Carrito validado y listo para cobrar</div>
+          }
+        }
+      </div>
+    </div>
   </section>
 </main>

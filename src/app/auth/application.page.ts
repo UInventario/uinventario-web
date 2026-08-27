@@ -10,11 +10,18 @@ import {
   InventoryStockItem,
 } from '../inventory/inventory-api.service';
 import { SessionApiService } from './session-api.service';
+import { PosApiService, PosCartQuote } from '../pos/pos-api.service';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
 const BARCODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{3,63}$/;
 const QUANTITY_PATTERN = /^-?(0|[1-9]\d{0,11})(\.\d{1,3})?$/;
+const CART_QUANTITY_PATTERN = /^(0|[1-9]\d{0,8})(\.\d{1,3})?$/;
+
+interface CartEntry {
+  product: ProductData;
+  quantity: string;
+}
 
 @Component({
   selector: 'app-application-page',
@@ -27,6 +34,7 @@ export class ApplicationPage implements OnInit {
   private readonly products = inject(ProductApiService);
   private readonly inventory = inject(InventoryApiService);
   private readonly sessions = inject(SessionApiService);
+  private readonly pos = inject(PosApiService);
   private pendingMovement: { input: InventoryMovementInput; key: string } | null = null;
 
   protected readonly session = this.sessions.session;
@@ -56,6 +64,12 @@ export class ApplicationPage implements OnInit {
     branch: { id: string; name: string };
     warehouse: { id: string; name: string };
   } | null>(null);
+  protected readonly posResults = signal<ProductData[]>([]);
+  protected readonly cart = signal<CartEntry[]>([]);
+  protected readonly cartQuote = signal<PosCartQuote | null>(null);
+  protected readonly searchingPos = signal(false);
+  protected readonly quotingCart = signal(false);
+  protected readonly posError = signal<string | null>(null);
   protected readonly page = signal(1);
   protected readonly totalPages = signal(0);
   protected readonly totalProducts = signal(0);
@@ -65,6 +79,9 @@ export class ApplicationPage implements OnInit {
   });
   protected readonly stockSearchForm = this.formBuilder.nonNullable.group({
     q: ['', [Validators.maxLength(80)]],
+  });
+  protected readonly posSearchForm = this.formBuilder.nonNullable.group({
+    q: ['', [Validators.required, Validators.maxLength(80)]],
   });
   protected readonly form = this.formBuilder.nonNullable.group({
     name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
@@ -158,6 +175,72 @@ export class ApplicationPage implements OnInit {
     if (this.stockPage() < this.stockTotalPages()) {
       this.loadStockList(this.stockPage() + 1);
     }
+  }
+
+  protected searchPos(): void {
+    if (this.posSearchForm.invalid || this.searchingPos()) {
+      this.posSearchForm.markAllAsTouched();
+      return;
+    }
+    this.searchingPos.set(true);
+    this.posError.set(null);
+    this.products
+      .list({ q: this.posSearchForm.controls.q.value.trim(), page: 1, pageSize: 5 })
+      .pipe(finalize(() => this.searchingPos.set(false)))
+      .subscribe({
+        next: ({ data }) => this.posResults.set(data),
+        error: () => this.posError.set('No fue posible buscar productos para la venta.'),
+      });
+  }
+
+  protected addToCart(product: ProductData): void {
+    if (!product.active) {
+      this.posError.set('El producto está inactivo y no puede venderse.');
+      return;
+    }
+    const existing = this.cart().find((entry) => entry.product.id === product.id);
+    this.cart.set(
+      existing
+        ? this.cart().map((entry) =>
+            entry.product.id === product.id
+              ? { ...entry, quantity: String(Number(entry.quantity) + 1) }
+              : entry,
+          )
+        : [...this.cart(), { product, quantity: '1' }],
+    );
+    this.quoteCart();
+  }
+
+  protected updateCartQuantity(productId: string, quantity: string): void {
+    const normalized = quantity.trim();
+    if (!CART_QUANTITY_PATTERN.test(normalized) || Number(normalized) <= 0) {
+      this.posError.set('La cantidad del carrito debe ser mayor que cero.');
+      return;
+    }
+    this.cart.set(
+      this.cart().map((entry) =>
+        entry.product.id === productId ? { ...entry, quantity: normalized } : entry,
+      ),
+    );
+    this.quoteCart();
+  }
+
+  protected removeFromCart(productId: string): void {
+    this.cart.set(this.cart().filter((entry) => entry.product.id !== productId));
+    if (this.cart().length === 0) {
+      this.cartQuote.set(null);
+      this.posError.set(null);
+      return;
+    }
+    this.quoteCart();
+  }
+
+  protected quotedLine(productId: string) {
+    return this.cartQuote()?.lines.find((line) => line.product.id === productId) ?? null;
+  }
+
+  protected taxPercent(rate: string): string {
+    return `${Number(rate) * 100}%`;
   }
 
   protected selectProduct(id: string): void {
@@ -326,6 +409,27 @@ export class ApplicationPage implements OnInit {
       });
   }
 
+  private quoteCart(): void {
+    if (this.cart().length === 0) return;
+    this.quotingCart.set(true);
+    this.posError.set(null);
+    this.pos
+      .quote(
+        this.cart().map((entry) => ({
+          productId: entry.product.id,
+          quantity: entry.quantity,
+        })),
+      )
+      .pipe(finalize(() => this.quotingCart.set(false)))
+      .subscribe({
+        next: ({ data }) => this.cartQuote.set(data),
+        error: (error: HttpErrorResponse) => {
+          this.cartQuote.set(null);
+          this.posError.set(this.posMessageFor(error));
+        },
+      });
+  }
+
   private toInput(): ProductInput {
     const value = this.form.getRawValue();
     return {
@@ -359,5 +463,14 @@ export class ApplicationPage implements OnInit {
     }
     if (error.status === 0) return 'No pudimos conectar con el servicio. Intenta nuevamente.';
     return 'No fue posible registrar el movimiento.';
+  }
+
+  private posMessageFor(error: HttpErrorResponse): string {
+    const code = (error.error as { code?: string } | null)?.code;
+    if (code === 'INSUFFICIENT_STOCK') return 'No hay existencia suficiente para esa cantidad.';
+    if (code === 'PRODUCT_NOT_AVAILABLE') return 'Uno de los productos ya no está disponible.';
+    if (code === 'PRODUCT_NOT_FOUND') return 'Uno de los productos ya no existe.';
+    if (error.status === 0) return 'No pudimos conectar con el servicio. Intenta nuevamente.';
+    return 'No fue posible validar el carrito.';
   }
 }

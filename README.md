@@ -35,6 +35,8 @@ Desde el detalle se registra stock inicial, entradas y ajustes por ubicación; l
 existencia mostrada proviene del saldo persistido y cada envío usa idempotencia.
 La vista de existencias agrega los saldos reales por la sucursal y bodega activas,
 con búsqueda de producto y estados claros de carga, vacío y error.
+El punto de venta busca productos y mantiene un carrito cuya existencia, precios,
+impuesto incluido y totales son recalculados por la API en el contexto de caja activo.
 
 ```bash
 npm run typecheck

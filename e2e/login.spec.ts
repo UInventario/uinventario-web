@@ -57,9 +57,9 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await page.getByRole('button', { name: 'Crear caja y comenzar' }).click();
   await expect(page).toHaveURL(/\/app$/);
   await expect(page.getByRole('heading', { name: 'Productos', exact: true })).toBeVisible();
-  await expect(
-    page.getByText('Sucursal Principal · Bodega Principal · Caja Principal'),
-  ).toBeVisible();
+  await expect(page.locator('.context').first()).toContainText(
+    'Sucursal Principal · Bodega Principal · Caja Principal',
+  );
   await page.screenshot({
     path: testInfo.outputPath('operational-context.png'),
     fullPage: true,
@@ -98,6 +98,23 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await page.getByLabel('Filtrar producto por nombre, SKU o código').fill('cafe-500');
   await page.getByRole('button', { name: 'Filtrar' }).click();
   await expect(stockOverview.getByText('CAFE-500')).toBeVisible();
+  const pos = page.locator('.pos-workspace');
+  await pos.getByLabel('Buscar producto para venta por nombre, SKU o código').fill('7501234567890');
+  await pos.getByRole('button', { name: 'Buscar' }).click();
+  await pos.getByRole('button', { name: 'Agregar' }).click();
+  await expect(pos.getByText('Carrito validado y listo para cobrar')).toBeVisible();
+  await expect(pos.getByText('MXN 119.90')).toBeVisible();
+  const saleQuantity = pos.getByLabel('Cantidad de Café molido 500 g');
+  await saleQuantity.fill('20');
+  await saleQuantity.blur();
+  await expect(pos.getByRole('alert')).toHaveText(
+    'No hay existencia suficiente para esa cantidad.',
+  );
+  await saleQuantity.fill('2');
+  await saleQuantity.blur();
+  await expect(pos.getByText('MXN 239.80')).toBeVisible();
+  await expect(pos.getByText('MXN 33.08')).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('pos-cart.png'), fullPage: true });
   await page.screenshot({
     path: testInfo.outputPath('product-created.png'),
     fullPage: true,
@@ -114,23 +131,24 @@ test('logs in, reaches onboarding and restores the session after reload', async 
     });
     expect(response.status()).toBe(201);
   }
-  await page.getByRole('button', { name: 'Buscar' }).click();
+  const catalog = page.locator('aside');
+  await catalog.getByRole('button', { name: 'Buscar' }).click();
   await expect(page.getByText('6 producto(s)')).toBeVisible();
   await expect(page.getByText('Página 1 de 2')).toBeVisible();
   await page.getByRole('button', { name: 'Siguiente' }).click();
   await expect(page.getByText('Página 2 de 2')).toBeVisible();
 
   await page.getByLabel('Buscar por nombre, SKU o código').fill(' cafe-500 ');
-  await page.getByRole('button', { name: 'Buscar' }).click();
+  await catalog.getByRole('button', { name: 'Buscar' }).click();
   await expect(page.getByText('1 producto(s)')).toBeVisible();
   await page.getByRole('button', { name: /Café molido 500 g/ }).click();
   await expect(page.getByText('7501234567890')).toBeVisible();
   await expect(page.locator('.balance').getByText('10.500')).toBeVisible();
   await page.getByLabel('Buscar por nombre, SKU o código').fill('inexistente');
-  await page.getByRole('button', { name: 'Buscar' }).click();
+  await catalog.getByRole('button', { name: 'Buscar' }).click();
   await expect(page.getByRole('heading', { name: 'Sin resultados' })).toBeVisible();
   await page.getByLabel('Buscar por nombre, SKU o código').fill('');
-  await page.getByRole('button', { name: 'Buscar' }).click();
+  await catalog.getByRole('button', { name: 'Buscar' }).click();
 
   await page.getByLabel('Nombre', { exact: true }).fill('Producto duplicado');
   await page.getByLabel('SKU', { exact: true }).fill('cafe-500');
@@ -142,18 +160,18 @@ test('logs in, reaches onboarding and restores the session after reload', async 
 
   await page.reload();
   await expect(page).toHaveURL(/\/app$/);
-  await expect(page.locator('.context')).toContainText(
+  await expect(page.locator('.context').first()).toContainText(
     'Sucursal Principal · Bodega Principal · Caja Principal',
   );
 
   const refresh = await page.request.post('http://localhost:3000/api/v1/auth/sessions/refresh');
   expect(refresh.status()).toBe(200);
   await page.reload();
-  await expect(page.locator('.context')).toContainText('Caja Principal');
+  await expect(page.locator('.context').first()).toContainText('Caja Principal');
 
   const secondTab = await context.newPage();
   await secondTab.goto('/app');
-  await expect(secondTab.locator('.context')).toContainText('Caja Principal');
+  await expect(secondTab.locator('.context').first()).toContainText('Caja Principal');
 
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
   await expect(page).toHaveURL(/\/login$/);
