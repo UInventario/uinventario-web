@@ -27,6 +27,17 @@ interface PosCartQuoteResponse {
   meta: { apiVersion: '1'; recalculatedAt: string };
 }
 
+export interface CashRegisterShiftData {
+  id: string;
+  status: 'OPEN';
+  branch: { id: string; name: string };
+  cashRegister: { id: string; name: string; code: string };
+  openedBy: { id: string; email: string };
+  openingAmount: string;
+  currency: string;
+  openedAt: string;
+}
+
 export interface CashSaleData {
   id: string;
   receiptNumber: string;
@@ -81,6 +92,29 @@ export interface SaleDetailData extends Omit<CashSaleData, 'userId'> {
 export class PosApiService {
   private readonly http = inject(HttpClient);
   private readonly config = inject(RuntimeConfigService);
+
+  getCurrentShift() {
+    return this.http.get<{
+      data: CashRegisterShiftData | null;
+      meta: { apiVersion: '1' };
+    }>(`${this.config.apiBaseUrl()}/pos/register-shifts/current`, {
+      withCredentials: true,
+    });
+  }
+
+  openShift(openingAmount: string, idempotencyKey: string) {
+    return this.http.post<{
+      data: CashRegisterShiftData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(
+      `${this.config.apiBaseUrl()}/pos/register-shifts`,
+      { openingAmount },
+      {
+        headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+        withCredentials: true,
+      },
+    );
+  }
 
   quote(lines: Array<{ productId: string; quantity: string }>) {
     return this.http.post<PosCartQuoteResponse>(

@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -21,6 +22,7 @@ import {
 } from '../inventory/inventory-api.service';
 import { SessionApiService } from './session-api.service';
 import {
+  CashRegisterShiftData,
   CashSaleData,
   PosApiService,
   PosCartQuote,
@@ -65,7 +67,7 @@ interface CartEntry {
 
 @Component({
   selector: 'app-application-page',
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [DatePipe, ReactiveFormsModule, RouterLink],
   templateUrl: './application.page.html',
   styleUrl: './application.page.scss',
 })
@@ -96,6 +98,7 @@ export class ApplicationPage implements OnInit {
     input: { lines: Array<{ productId: string; quantity: string }>; cashReceived: string };
     key: string;
   } | null = null;
+  private pendingShiftOpening: { openingAmount: string; key: string } | null = null;
 
   protected readonly session = this.sessions.session;
   protected readonly canManageTenant = computed(
@@ -210,6 +213,11 @@ export class ApplicationPage implements OnInit {
     warehouse: { id: string; name: string };
   } | null>(null);
   protected readonly posResults = signal<ProductData[]>([]);
+  protected readonly currentCashRegisterShift = signal<CashRegisterShiftData | null>(null);
+  protected readonly loadingCashRegisterShift = signal(true);
+  protected readonly openingCashRegisterShift = signal(false);
+  protected readonly cashRegisterShiftError = signal<string | null>(null);
+  protected readonly cashRegisterShiftSuccess = signal<string | null>(null);
   protected readonly cart = signal<CartEntry[]>([]);
   protected readonly cartQuote = signal<PosCartQuote | null>(null);
   protected readonly completedSale = signal<CashSaleData | null>(null);
@@ -242,6 +250,7 @@ export class ApplicationPage implements OnInit {
     if (this.transferActionId()) return 'Actualizando transferencia…';
     if (this.savingAccess()) return 'Guardando acceso operativo…';
     if (this.switchingContext()) return 'Cambiando contexto operativo…';
+    if (this.openingCashRegisterShift()) return 'Abriendo caja…';
     if (this.savingSale()) return 'Confirmando venta y actualizando inventario…';
     if (this.quotingCart()) return 'Validando precios y existencias…';
     return null;
@@ -267,6 +276,9 @@ export class ApplicationPage implements OnInit {
   });
   protected readonly cashForm = this.formBuilder.nonNullable.group({
     cashReceived: ['', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
+  });
+  protected readonly cashRegisterShiftForm = this.formBuilder.nonNullable.group({
+    openingAmount: ['0.00', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
   });
   protected readonly salesFilterForm = this.formBuilder.nonNullable.group({
     dateFrom: [''],
@@ -357,7 +369,10 @@ export class ApplicationPage implements OnInit {
       this.loadMovementHistory(1);
       this.loadTransfers();
     }
-    if (this.canManageSales()) this.loadSales(1);
+    if (this.canManageSales()) {
+      this.loadCurrentCashRegisterShift();
+      this.loadSales(1);
+    }
     if (this.canViewAudit()) this.loadAuditEvents();
     if (this.canManageAccess()) this.loadAccess();
   }
@@ -535,6 +550,10 @@ export class ApplicationPage implements OnInit {
           this.cart.set([]);
           this.cartQuote.set(null);
           this.completedSale.set(null);
+          this.currentCashRegisterShift.set(null);
+          this.pendingShiftOpening = null;
+          this.cashRegisterShiftError.set(null);
+          this.cashRegisterShiftSuccess.set(null);
           this.selectedSale.set(null);
           this.salesHistory.set([]);
           if (this.canManageStock()) {
@@ -544,7 +563,10 @@ export class ApplicationPage implements OnInit {
             this.loadTransfers();
             this.syncTransferTargets();
           }
-          if (this.canManageSales()) this.loadSales(1);
+          if (this.canManageSales()) {
+            this.loadCurrentCashRegisterShift();
+            this.loadSales(1);
+          }
         },
         error: (error: HttpErrorResponse) =>
           this.organizationError.set(
@@ -819,7 +841,39 @@ export class ApplicationPage implements OnInit {
     reference.updateValueAndValidity();
   }
 
+  protected openCashRegisterShift(): void {
+    if (this.cashRegisterShiftForm.invalid || this.openingCashRegisterShift()) {
+      this.cashRegisterShiftForm.markAllAsTouched();
+      return;
+    }
+    const openingAmount = this.cashRegisterShiftForm.controls.openingAmount.value.trim();
+    const pending = this.pendingShiftOpening;
+    const idempotencyKey =
+      pending?.openingAmount === openingAmount
+        ? pending.key
+        : `web-shift-${globalThis.crypto.randomUUID()}`;
+    this.pendingShiftOpening = { openingAmount, key: idempotencyKey };
+    this.openingCashRegisterShift.set(true);
+    this.cashRegisterShiftError.set(null);
+    this.cashRegisterShiftSuccess.set(null);
+    this.pos
+      .openShift(openingAmount, idempotencyKey)
+      .pipe(finalize(() => this.openingCashRegisterShift.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.pendingShiftOpening = null;
+          this.currentCashRegisterShift.set(data);
+          this.cashRegisterShiftSuccess.set('Caja abierta y lista para vender.');
+        },
+        error: (error: HttpErrorResponse) => {
+          if (error.status > 0 && error.status < 500) this.pendingShiftOpening = null;
+          this.cashRegisterShiftError.set(this.cashRegisterShiftMessageFor(error));
+        },
+      });
+  }
+
   protected searchPos(): void {
+    if (!this.assertOpenCashRegisterShift()) return;
     if (this.posSearchForm.invalid || this.searchingPos()) {
       this.posSearchForm.markAllAsTouched();
       return;
@@ -839,6 +893,7 @@ export class ApplicationPage implements OnInit {
   }
 
   protected addToCart(product: ProductData): void {
+    if (!this.assertOpenCashRegisterShift()) return;
     if (!product.active) {
       this.posError.set('El producto está inactivo y no puede venderse.');
       return;
@@ -892,6 +947,7 @@ export class ApplicationPage implements OnInit {
   }
 
   protected completeCashSale(): void {
+    if (!this.assertOpenCashRegisterShift()) return;
     const quote = this.cartQuote();
     if (!quote || this.cashForm.invalid || this.savingSale()) {
       this.cashForm.markAllAsTouched();
@@ -1739,6 +1795,21 @@ export class ApplicationPage implements OnInit {
       });
   }
 
+  private loadCurrentCashRegisterShift(): void {
+    this.loadingCashRegisterShift.set(true);
+    this.cashRegisterShiftError.set(null);
+    this.pos
+      .getCurrentShift()
+      .pipe(finalize(() => this.loadingCashRegisterShift.set(false)))
+      .subscribe({
+        next: ({ data }) => this.currentCashRegisterShift.set(data),
+        error: (error: HttpErrorResponse) => {
+          this.currentCashRegisterShift.set(null);
+          this.cashRegisterShiftError.set(this.cashRegisterShiftMessageFor(error));
+        },
+      });
+  }
+
   private loadAuditEvents(): void {
     this.loadingAudit.set(true);
     this.auditError.set(null);
@@ -1755,6 +1826,7 @@ export class ApplicationPage implements OnInit {
   }
 
   private quoteCart(): void {
+    if (!this.assertOpenCashRegisterShift()) return;
     if (this.cart().length === 0) return;
     this.quotingCart.set(true);
     this.posError.set(null);
@@ -1901,12 +1973,33 @@ export class ApplicationPage implements OnInit {
     if (code === 'INSUFFICIENT_CASH_RECEIVED') {
       return 'El efectivo recibido no cubre el total de la venta.';
     }
+    if (code === 'CASH_REGISTER_SHIFT_REQUIRED') {
+      this.currentCashRegisterShift.set(null);
+      return 'Abre la caja antes de operar el punto de venta.';
+    }
     if (code === 'IDEMPOTENCY_KEY_REUSED') {
       return 'La venta cambió durante el reintento. Revisa el carrito e intenta nuevamente.';
     }
     if (error.status === 403) return this.permissionMessage();
     if (error.status === 0) return 'No pudimos conectar con el servicio. Intenta nuevamente.';
     return 'No fue posible completar la venta.';
+  }
+
+  private cashRegisterShiftMessageFor(error: HttpErrorResponse): string {
+    const code = (error.error as { code?: string } | null)?.code;
+    if (code === 'CASH_REGISTER_ALREADY_OPEN') {
+      return 'Esta caja o tu usuario ya tienen un turno abierto. Actualiza el contexto.';
+    }
+    if (code === 'IDEMPOTENCY_KEY_REUSED') {
+      return 'El fondo de apertura cambió durante el reintento. Intenta nuevamente.';
+    }
+    return this.operationMessage(error, 'No fue posible abrir la caja.');
+  }
+
+  private assertOpenCashRegisterShift(): boolean {
+    if (this.currentCashRegisterShift()) return true;
+    this.posError.set('Abre la caja antes de operar el punto de venta.');
+    return false;
   }
 
   private operationMessage(error: HttpErrorResponse, fallback: string): string {

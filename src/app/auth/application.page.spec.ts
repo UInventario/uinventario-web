@@ -32,6 +32,8 @@ describe('ApplicationPage', () => {
     createStateTransition: ReturnType<typeof vi.fn>;
   };
   let pos: {
+    getCurrentShift: ReturnType<typeof vi.fn>;
+    openShift: ReturnType<typeof vi.fn>;
     quote: ReturnType<typeof vi.fn>;
     createCashSale: ReturnType<typeof vi.fn>;
     listSales: ReturnType<typeof vi.fn>;
@@ -132,6 +134,22 @@ describe('ApplicationPage', () => {
       createStateTransition: vi.fn(),
     };
     pos = {
+      getCurrentShift: vi.fn().mockReturnValue(
+        of({
+          data: {
+            id: 'shift',
+            status: 'OPEN',
+            branch: { id: 'branch', name: 'Sucursal' },
+            cashRegister: { id: 'register', name: 'Caja', code: 'MAIN' },
+            openedBy: { id: 'user', email: 'admin@example.com' },
+            openingAmount: '100.00',
+            currency: 'MXN',
+            openedAt: '2026-08-27T14:00:00.000Z',
+          },
+          meta: { apiVersion: '1' },
+        }),
+      ),
+      openShift: vi.fn(),
       quote: vi.fn(),
       createCashSale: vi.fn(),
       listSales: vi.fn().mockReturnValue(
@@ -1405,5 +1423,58 @@ describe('ApplicationPage', () => {
     expect(fixture.nativeElement.textContent).toContain('Cambio MXN 10.20');
     expect(inventory.listStock).toHaveBeenCalledTimes(2);
     expect(pos.listSales).toHaveBeenCalledTimes(2);
+  });
+
+  it('requires and opens the active cash register before exposing POS operations', () => {
+    fixture.destroy();
+    pos.getCurrentShift.mockReturnValue(of({ data: null, meta: { apiVersion: '1' } }));
+    fixture = TestBed.createComponent(ApplicationPage);
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement.querySelector('.pos-grid') as HTMLElement).hidden).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Abrir caja');
+
+    const response = new Subject<{
+      data: {
+        id: string;
+        status: 'OPEN';
+        branch: { id: string; name: string };
+        cashRegister: { id: string; name: string; code: string };
+        openedBy: { id: string; email: string };
+        openingAmount: string;
+        currency: string;
+        openedAt: string;
+      };
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>();
+    pos.openShift.mockReturnValue(response);
+    fill('openingAmount', '250.00');
+    (fixture.nativeElement.querySelector('.cash-shift-opening') as HTMLFormElement).dispatchEvent(
+      new Event('submit'),
+    );
+    (
+      fixture.componentInstance as unknown as { openCashRegisterShift(): void }
+    ).openCashRegisterShift();
+
+    expect(pos.openShift).toHaveBeenCalledTimes(1);
+    expect(pos.openShift).toHaveBeenCalledWith('250.00', expect.stringMatching(/^web-shift-/));
+    response.next({
+      data: {
+        id: 'shift-new',
+        status: 'OPEN',
+        branch: { id: 'branch', name: 'Sucursal' },
+        cashRegister: { id: 'register', name: 'Caja', code: 'MAIN' },
+        openedBy: { id: 'user', email: 'admin@example.com' },
+        openingAmount: '250.00',
+        currency: 'MXN',
+        openedAt: '2026-08-27T14:00:00.000Z',
+      },
+      meta: { apiVersion: '1', idempotentReplay: false },
+    });
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement.querySelector('.pos-grid') as HTMLElement).hidden).toBe(false);
+    expect(fixture.nativeElement.textContent).toContain('Caja abierta y lista para vender.');
+    expect(fixture.nativeElement.textContent).toContain('MXN 250.00');
   });
 });
