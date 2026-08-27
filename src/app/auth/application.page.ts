@@ -6,6 +6,7 @@ import { SessionApiService } from './session-api.service';
   template: `<main>
     <h1>{{ session()?.tenant?.name }}</h1>
     <p>Sesión activa.</p>
+    <button type="button" (click)="logout()">Cerrar sesión</button>
   </main>`,
   styles: `
     main {
@@ -16,4 +17,8 @@ import { SessionApiService } from './session-api.service';
 export class ApplicationPage {
   private readonly sessions = inject(SessionApiService);
   protected readonly session = this.sessions.session;
+
+  protected logout(): void {
+    this.sessions.logout().subscribe({ error: () => undefined });
+  }
 }

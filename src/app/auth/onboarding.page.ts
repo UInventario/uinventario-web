@@ -1,4 +1,5 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
+import { finalize } from 'rxjs';
 import { SessionApiService } from './session-api.service';
 
 @Component({
@@ -13,6 +14,9 @@ import { SessionApiService } from './session-api.service';
           Ingresaste como <strong>{{ session()?.user?.email }}</strong
           >. Tu cuenta está lista y la configuración inicial continúa aquí.
         </p>
+        <button type="button" (click)="logout()" [disabled]="closingSession()">
+          {{ closingSession() ? 'Cerrando…' : 'Cerrar sesión' }}
+        </button>
       </section>
     </main>
   `,
@@ -66,9 +70,35 @@ import { SessionApiService } from './session-api.service';
     strong {
       color: #263d52;
     }
+    button {
+      min-height: 2.8rem;
+      margin-top: 1rem;
+      padding: 0.65rem 1rem;
+      border: 0;
+      border-radius: 0.65rem;
+      background: #0b5cab;
+      color: white;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 700;
+    }
+    button:disabled {
+      cursor: wait;
+      opacity: 0.62;
+    }
   `,
 })
 export class OnboardingPage {
   private readonly sessions = inject(SessionApiService);
   protected readonly session = this.sessions.session;
+  protected readonly closingSession = signal(false);
+
+  protected logout(): void {
+    if (this.closingSession()) return;
+    this.closingSession.set(true);
+    this.sessions
+      .logout()
+      .pipe(finalize(() => this.closingSession.set(false)))
+      .subscribe({ error: () => undefined });
+  }
 }
