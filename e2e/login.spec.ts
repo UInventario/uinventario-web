@@ -57,7 +57,9 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await page.getByRole('button', { name: 'Crear caja y comenzar' }).click();
   await expect(page).toHaveURL(/\/app$/);
   await expect(page.getByRole('heading', { name: 'Productos', exact: true })).toBeVisible();
-  await expect(page.getByText('Sucursal Principal · Bodega Principal · Caja Principal')).toBeVisible();
+  await expect(
+    page.getByText('Sucursal Principal · Bodega Principal · Caja Principal'),
+  ).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath('operational-context.png'),
     fullPage: true,
@@ -71,12 +73,21 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await page.getByLabel('Costo').fill('-1');
   await page.getByLabel('Precio de venta').fill('119.90');
   await page.getByRole('button', { name: 'Crear producto' }).click();
-  await expect(page.getByText('Escribe un costo no negativo, con máximo 2 decimales.')).toBeVisible();
+  await expect(
+    page.getByText('Escribe un costo no negativo, con máximo 2 decimales.'),
+  ).toBeVisible();
   await page.getByLabel('Costo').fill('85.40');
   await page.getByRole('button', { name: 'Crear producto' }).click();
   await expect(page.getByText('Producto creado')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Café molido 500 g' })).toBeVisible();
   await expect(page.locator('.detail').getByText('119.90')).toBeVisible();
+  await expect(page.locator('.balance').getByText('0.000')).toBeVisible();
+  await page.getByLabel('Cantidad').fill('10.5');
+  await page.getByLabel('Motivo').fill('Conteo inicial');
+  await page.getByLabel('Referencia').fill('CONTEO-001');
+  await page.getByRole('button', { name: 'Registrar movimiento' }).click();
+  await expect(page.getByRole('status')).toContainText('Existencia 10.500');
+  await expect(page.locator('.balance').getByText('10.500')).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath('product-created.png'),
     fullPage: true,
@@ -104,6 +115,7 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await expect(page.getByText('1 producto(s)')).toBeVisible();
   await page.getByRole('button', { name: /Café molido 500 g/ }).click();
   await expect(page.getByText('7501234567890')).toBeVisible();
+  await expect(page.locator('.balance').getByText('10.500')).toBeVisible();
   await page.getByLabel('Buscar por nombre, SKU o código').fill('inexistente');
   await page.getByRole('button', { name: 'Buscar' }).click();
   await expect(page.getByRole('heading', { name: 'Sin resultados' })).toBeVisible();

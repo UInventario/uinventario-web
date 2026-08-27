@@ -1,7 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
-import { of } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
+import { of, throwError } from 'rxjs';
 import { ProductApiService } from '../catalog/product-api.service';
+import { InventoryApiService } from '../inventory/inventory-api.service';
 import { ApplicationPage } from './application.page';
 import { SessionApiService } from './session-api.service';
 
@@ -13,12 +15,17 @@ describe('ApplicationPage', () => {
     list: ReturnType<typeof vi.fn>;
     get: ReturnType<typeof vi.fn>;
   };
+  let inventory: {
+    listLocations: ReturnType<typeof vi.fn>;
+    getBalance: ReturnType<typeof vi.fn>;
+    createMovement: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(async () => {
     products = {
-      getOptions: vi.fn().mockReturnValue(
-        of({ data: { categories: [], brands: [] }, meta: { apiVersion: '1' } }),
-      ),
+      getOptions: vi
+        .fn()
+        .mockReturnValue(of({ data: { categories: [], brands: [] }, meta: { apiVersion: '1' } })),
       create: vi.fn(),
       list: vi.fn().mockReturnValue(
         of({
@@ -30,6 +37,25 @@ describe('ApplicationPage', () => {
         }),
       ),
       get: vi.fn(),
+    };
+    inventory = {
+      listLocations: vi.fn().mockReturnValue(
+        of({
+          data: [{ id: 'location', name: 'General', code: 'GENERAL' }],
+          meta: { apiVersion: '1' },
+        }),
+      ),
+      getBalance: vi.fn().mockReturnValue(
+        of({
+          data: {
+            product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
+            location: { id: 'location', name: 'General', code: 'GENERAL' },
+            quantity: '0.000',
+          },
+          meta: { apiVersion: '1' },
+        }),
+      ),
+      createMovement: vi.fn(),
     };
     const sessions = {
       session: signal({
@@ -48,6 +74,7 @@ describe('ApplicationPage', () => {
       imports: [ApplicationPage],
       providers: [
         { provide: ProductApiService, useValue: products },
+        { provide: InventoryApiService, useValue: inventory },
         { provide: SessionApiService, useValue: sessions },
       ],
     }).compileComponents();
@@ -148,5 +175,75 @@ describe('ApplicationPage', () => {
 
     expect(products.get).toHaveBeenCalledWith('product');
     expect(fixture.nativeElement.textContent).toContain('Sin categoría');
+  });
+
+  it('registers initial stock and shows the persisted balance', () => {
+    const product = {
+      id: 'product',
+      name: 'Café',
+      sku: 'CAFE-1',
+      barcode: null,
+      category: null,
+      brand: null,
+      cost: '1.20',
+      price: '2.50',
+      active: true,
+    };
+    products.list.mockReturnValue(
+      of({
+        data: [product],
+        meta: {
+          apiVersion: '1',
+          pagination: { page: 1, pageSize: 5, total: 1, totalPages: 1 },
+        },
+      }),
+    );
+    products.get.mockReturnValue(of({ data: product, meta: { apiVersion: '1' } }));
+    inventory.createMovement
+      .mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 0 })))
+      .mockReturnValueOnce(
+        of({
+          data: {
+            id: 'movement',
+            product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
+            location: { id: 'location', name: 'General', code: 'GENERAL' },
+            type: 'INITIAL',
+            quantityChange: '10.000',
+            quantity: '10.000',
+            reason: 'Conteo inicial',
+            reference: null,
+            createdAt: new Date().toISOString(),
+          },
+          meta: { apiVersion: '1', idempotentReplay: false },
+        }),
+      );
+    (fixture.componentInstance as unknown as { search(): void }).search();
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelector('.product-list button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    fill('stockQuantity', '10');
+    fill('stockReason', 'Conteo inicial');
+    (fixture.nativeElement.querySelector('.stock-card form') as HTMLFormElement).dispatchEvent(
+      new Event('submit'),
+    );
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('No pudimos conectar');
+    (fixture.componentInstance as unknown as { recordMovement(): void }).recordMovement();
+    fixture.detectChanges();
+
+    expect(inventory.createMovement).toHaveBeenCalledWith(
+      {
+        productId: 'product',
+        locationId: 'location',
+        type: 'INITIAL',
+        quantity: '10',
+        reason: 'Conteo inicial',
+      },
+      expect.stringMatching(/^web-/),
+    );
+    expect(inventory.createMovement.mock.calls[1][1]).toBe(
+      inventory.createMovement.mock.calls[0][1],
+    );
+    expect(fixture.nativeElement.textContent).toContain('Existencia 10.000');
   });
 });
