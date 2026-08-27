@@ -1250,6 +1250,110 @@
       </form>
     }
 
+    @if (currentCashRegisterShift(); as shift) {
+      <div
+        class="pos-search-panel cash-movements"
+        [attr.aria-busy]="loadingCashMovements() || savingCashMovement()"
+      >
+        <div class="cart-heading">
+          <div>
+            <p class="eyebrow">Efectivo del turno</p>
+            <h3>Ingresos y egresos</h3>
+          </div>
+          <strong>
+            Saldo esperado {{ shift.currency }} {{ expectedCash() || shift.openingAmount }}
+          </strong>
+        </div>
+
+        @if (cashMovementError()) {
+          <div class="form-error" role="alert">{{ cashMovementError() }}</div>
+        }
+        @if (cashMovementSuccess()) {
+          <div class="success" role="status">{{ cashMovementSuccess() }}</div>
+        }
+
+        <form class="cash-payment" [formGroup]="cashMovementForm" (ngSubmit)="submitCashMovement()">
+          <label for="cashMovementType">Tipo</label>
+          <select id="cashMovementType" formControlName="type">
+            <option value="INCOME">Ingreso</option>
+            <option value="WITHDRAWAL">Egreso</option>
+          </select>
+          <label for="cashMovementAmount">Monto</label>
+          <input
+            id="cashMovementAmount"
+            formControlName="amount"
+            inputmode="decimal"
+            autocomplete="off"
+          />
+          <label for="cashMovementReason">Motivo</label>
+          <input id="cashMovementReason" formControlName="reason" maxlength="160" />
+          @if (cashMovementForm.touched && cashMovementForm.invalid) {
+            <small class="field-error">Indica un monto mayor que cero y un motivo.</small>
+          }
+          <button type="submit" [disabled]="savingCashMovement()">
+            {{ savingCashMovement() ? 'Confirmando…' : 'Confirmar movimiento' }}
+          </button>
+        </form>
+
+        @if (movementToReverse(); as movement) {
+          <form
+            class="cash-payment"
+            [formGroup]="cashMovementReversalForm"
+            (ngSubmit)="reverseCashMovement()"
+          >
+            <h3>Reversar {{ cashMovementLabel(movement).toLowerCase() }}</h3>
+            <p>{{ movement.reason }} · {{ shift.currency }} {{ movement.amount }}</p>
+            <label for="cashMovementReversalReason">Motivo de la reversa</label>
+            <input id="cashMovementReversalReason" formControlName="reason" maxlength="160" />
+            <button type="submit" [disabled]="reversingCashMovementId() !== null">
+              {{ reversingCashMovementId() ? 'Reversando…' : 'Confirmar reversa' }}
+            </button>
+            <button class="secondary" type="button" (click)="cancelCashMovementReversal()">
+              Cancelar
+            </button>
+          </form>
+        }
+
+        @if (loadingCashMovements()) {
+          <p class="catalog-state" role="status">Cargando movimientos de caja…</p>
+        } @else if (cashRegisterMovements().length === 0) {
+          <div class="empty pos-empty">
+            <h3>Sin movimientos adicionales</h3>
+            <p>Las ventas en efectivo ya forman parte del saldo esperado.</p>
+          </div>
+        } @else {
+          <ul class="pos-results">
+            @for (movement of cashRegisterMovements(); track movement.id) {
+              <li>
+                <div>
+                  <strong
+                    >{{ cashMovementLabel(movement) }} · {{ shift.currency }}
+                    {{ movement.amount }}</strong
+                  >
+                  <small>
+                    {{ movement.reason }} · {{ movement.responsible.email }} ·
+                    {{ movement.createdAt | date: 'short' }}
+                    @if (movement.reversed) {
+                      · Reversado
+                    }
+                  </small>
+                </div>
+                @if (movement.type !== 'REVERSAL' && !movement.reversed) {
+                  <button
+                    class="secondary"
+                    type="button"
+                    (click)="startCashMovementReversal(movement)"
+                  >
+                    Reversar
+                  </button>
+                }
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    }
+
     <div class="pos-grid" [hidden]="!currentCashRegisterShift()">
       <div class="pos-search-panel">
         <h2>Agregar productos</h2>
