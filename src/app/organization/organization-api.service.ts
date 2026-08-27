@@ -22,6 +22,7 @@ export interface OrganizationBranchData {
   timezone: string;
   active: boolean;
   warehouses: OrganizationWarehouseData[];
+  cashRegisters?: Array<{ id: string; name: string; code: string }>;
 }
 
 export interface BranchInput {
@@ -50,6 +51,11 @@ interface BranchResponse {
 
 interface WarehouseResponse {
   data: OrganizationWarehouseData & { branchId: string };
+  meta: { apiVersion: '1' };
+}
+
+interface CashRegisterResponse {
+  data: { id: string; name: string; code: string; branchId: string };
   meta: { apiVersion: '1' };
 }
 
@@ -96,6 +102,14 @@ export class OrganizationApiService {
   createWarehouse(branchId: string, input: WarehouseInput) {
     return this.http.post<WarehouseResponse>(
       `${this.config.apiBaseUrl()}/organization/branches/${branchId}/warehouses`,
+      input,
+      { withCredentials: true },
+    );
+  }
+
+  createCashRegister(branchId: string, input: { name: string; code: string }) {
+    return this.http.post<CashRegisterResponse>(
+      `${this.config.apiBaseUrl()}/organization/branches/${branchId}/cash-registers`,
       input,
       { withCredentials: true },
     );

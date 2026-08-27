@@ -16,6 +16,11 @@ export type AppPermission =
   | 'PRODUCTS_MANAGE'
   | 'SALES_MANAGE'
   | 'SALES_VOID'
+  | 'SALES_DISCOUNT'
+  | 'SALE_REPRINT'
+  | 'CASH_REGISTER_OPEN'
+  | 'CASH_REGISTER_CLOSE'
+  | 'CASH_REGISTER_MOVE'
   | 'ACCESS_MANAGE'
   | InventoryPermission;
 
@@ -23,6 +28,11 @@ export const OPERATIONAL_PERMISSIONS = [
   ...INVENTORY_PERMISSIONS,
   'SALES_MANAGE',
   'SALES_VOID',
+  'SALES_DISCOUNT',
+  'SALE_REPRINT',
+  'CASH_REGISTER_OPEN',
+  'CASH_REGISTER_CLOSE',
+  'CASH_REGISTER_MOVE',
 ] as const satisfies readonly AppPermission[];
 
 export interface AccessRoleData {
@@ -36,6 +46,7 @@ export interface AccessUserData {
   email: string;
   roles: AccessRoleData[];
   branches: Array<{ id: string; name: string }>;
+  cashRegisters?: Array<{ id: string; name: string; code: string; branchId: string }>;
   manageable: boolean;
 }
 
@@ -75,18 +86,24 @@ export class AccessApiService {
     );
   }
 
-  createUser(email: string, password: string, roleIds: string[], branchIds: string[]) {
+  createUser(
+    email: string,
+    password: string,
+    roleIds: string[],
+    branchIds: string[],
+    cashRegisterIds: string[],
+  ) {
     return this.http.post<ApiResponse<AccessUserData>>(
       `${this.config.apiBaseUrl()}/access/users`,
-      { email, password, roleIds, branchIds },
+      { email, password, roleIds, branchIds, cashRegisterIds },
       { withCredentials: true },
     );
   }
 
-  updateUser(userId: string, roleIds: string[], branchIds: string[]) {
+  updateUser(userId: string, roleIds: string[], branchIds: string[], cashRegisterIds: string[]) {
     return this.http.patch<ApiResponse<AccessUserData>>(
       `${this.config.apiBaseUrl()}/access/users/${userId}`,
-      { roleIds, branchIds },
+      { roleIds, branchIds, cashRegisterIds },
       { withCredentials: true },
     );
   }
