@@ -268,6 +268,12 @@ describe('OfflineBootstrapPanelComponent', () => {
             code: 'INVENTORY_COUNT_CONFLICT',
             message: 'El saldo cambió.',
           },
+          conflict: {
+            domain: 'STOCK',
+            strategy: 'REVIEW',
+            currentState: { quantity: '7.000' },
+            userAction: 'Sincroniza existencias y captura un conteo nuevo.',
+          },
         },
       },
     ]);
@@ -287,7 +293,9 @@ describe('OfflineBootstrapPanelComponent', () => {
     expect(fixture.nativeElement.querySelector('button.danger')).toBeNull();
     review.click();
     fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain('el saldo anterior no se sobrescribió');
+    expect(fixture.nativeElement.textContent).toContain(
+      'Sincroniza existencias y captura un conteo nuevo. Saldo actual: 7.000.',
+    );
   });
 
   it('distinguishes offline, synchronizing and transport-error states accessibly', () => {

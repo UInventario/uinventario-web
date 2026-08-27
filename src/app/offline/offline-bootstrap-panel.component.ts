@@ -259,7 +259,18 @@ export class OfflineBootstrapPanelComponent implements OnInit, OnDestroy {
 
   protected commandGuidance(command: OfflineOutboxCommand): string {
     if (command.retryable) return 'Puedes reintentar conservando la misma clave idempotente.';
-    const code = (command.lastError as { details?: { code?: string } } | null)?.details?.code;
+    const error = command.lastError as {
+      details?: { code?: string };
+      conflict?: {
+        userAction?: string;
+        currentState?: { quantity?: string | null };
+      };
+    } | null;
+    if (error?.conflict?.userAction) {
+      const quantity = error.conflict.currentState?.quantity;
+      return `${error.conflict.userAction}${quantity ? ` Saldo actual: ${quantity}.` : ''}`;
+    }
+    const code = error?.details?.code;
     if (code === 'INVENTORY_COUNT_CONFLICT') {
       return 'Sincroniza existencias y captura un conteo nuevo; el saldo anterior no se sobrescribió.';
     }
