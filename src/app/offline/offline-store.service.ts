@@ -3,10 +3,11 @@ import {
   OfflineBootstrapData,
   OfflineBootstrapEntity,
   OfflineChange,
+  OfflineFreshnessPolicyData,
 } from './offline-bootstrap-api.service';
 
 const DATABASE_NAME = 'uinventario-offline';
-export const OFFLINE_SCHEMA_VERSION = 2;
+export const OFFLINE_SCHEMA_VERSION = 3;
 
 interface MetaRecord {
   key: string;
@@ -24,6 +25,10 @@ interface ScopeRecord {
   initialSyncCursor: string;
   generatedAt: string;
   storedAt: string;
+  sessionExpiresAt?: string;
+  freshnessPolicy?: OfflineFreshnessPolicyData;
+  roles?: string[];
+  permissions?: string[];
 }
 
 interface EntityRecord {
@@ -45,6 +50,30 @@ export interface OfflineStoredSummary {
   generatedAt: string;
   storedAt: string;
   cursor: string;
+}
+
+export type OfflineFreshnessCondition =
+  | 'FRESH'
+  | 'CATALOG_STALE'
+  | 'PERMISSIONS_STALE'
+  | 'SESSION_EXPIRED'
+  | 'CLOCK_INVALID'
+  | 'NOT_PREPARED';
+
+export interface OfflineFreshnessState {
+  condition: OfflineFreshnessCondition;
+  ageSeconds: number;
+  catalogReadable: boolean;
+  allowedActions: Record<OfflineOutboxCommand['kind'], boolean>;
+}
+
+export class OfflinePolicyError extends Error {
+  constructor(
+    readonly code: OfflineFreshnessCondition,
+    message: string,
+  ) {
+    super(message);
+  }
 }
 
 export interface OfflineOutboxCommand {
@@ -135,6 +164,10 @@ export class OfflineStoreService {
         initialSyncCursor: bootstrap.page.initialSyncCursor,
         generatedAt: bootstrap.generatedAt,
         storedAt: new Date().toISOString(),
+        sessionExpiresAt: bootstrap.sessionExpiresAt,
+        freshnessPolicy: bootstrap.freshnessPolicy,
+        roles: bootstrap.identity.user.roles,
+        permissions: bootstrap.identity.user.permissions,
       } satisfies ScopeRecord);
     };
     await this.safeTransaction(transaction);
@@ -166,6 +199,13 @@ export class OfflineStoreService {
     scope: OfflineScopeIdentity,
     changes: OfflineChange[],
     nextCursor: string,
+    authorization?: {
+      generatedAt: string;
+      sessionExpiresAt: string;
+      freshnessPolicy: OfflineFreshnessPolicyData;
+      roles: string[];
+      permissions: string[];
+    },
   ): Promise<void> {
     const database = await this.open();
     const key = this.scopeKey(scope);
@@ -190,8 +230,12 @@ export class OfflineStoreService {
       scopes.put({
         ...stored,
         initialSyncCursor: nextCursor,
-        generatedAt: new Date().toISOString(),
+        generatedAt: authorization?.generatedAt ?? stored.generatedAt,
         storedAt: new Date().toISOString(),
+        sessionExpiresAt: authorization?.sessionExpiresAt ?? stored.sessionExpiresAt,
+        freshnessPolicy: authorization?.freshnessPolicy ?? stored.freshnessPolicy,
+        roles: authorization?.roles ?? stored.roles,
+        permissions: authorization?.permissions ?? stored.permissions,
       } satisfies ScopeRecord);
     };
     await this.safeTransaction(transaction);
@@ -283,6 +327,73 @@ export class OfflineStoreService {
         .getAll(IDBKeyRange.only(this.scopeKey(scope))),
     );
     return commands.sort((left, right) => left.sequence - right.sequence);
+  }
+
+  async freshness(scope: OfflineScopeIdentity, now = Date.now()): Promise<OfflineFreshnessState> {
+    const database = await this.open();
+    const stored = await this.request<ScopeRecord | undefined>(
+      database.transaction('scopes').objectStore('scopes').get(this.scopeKey(scope)),
+    );
+    const blocked = (condition: OfflineFreshnessCondition, ageSeconds = 0) => ({
+      condition,
+      ageSeconds,
+      catalogReadable: false,
+      allowedActions: {
+        CASH_SALE: false,
+        INVENTORY_COUNT: false,
+        INVENTORY_MOVEMENT: false,
+      },
+    });
+    if (!stored?.freshnessPolicy || !stored.sessionExpiresAt) return blocked('NOT_PREPARED');
+    const policy = stored.freshnessPolicy;
+    const generatedAt = new Date(stored.generatedAt).getTime();
+    const storedAt = new Date(stored.storedAt).getTime();
+    const elapsed = now - storedAt;
+    const initialSkew = storedAt - generatedAt;
+    if (
+      !Number.isFinite(elapsed) ||
+      !Number.isFinite(initialSkew) ||
+      Math.abs(initialSkew) > policy.maxClockSkewSeconds * 1000 ||
+      elapsed < -policy.maxClockSkewSeconds * 1000
+    ) {
+      return blocked('CLOCK_INVALID');
+    }
+    const ageSeconds = Math.max(0, Math.floor(elapsed / 1000));
+    const sessionLifetimeSeconds = Math.floor(
+      (new Date(stored.sessionExpiresAt).getTime() - generatedAt) / 1000,
+    );
+    if (!Number.isFinite(sessionLifetimeSeconds) || ageSeconds >= sessionLifetimeSeconds) {
+      return blocked('SESSION_EXPIRED', ageSeconds);
+    }
+    const catalogReadable = ageSeconds <= policy.catalogTtlSeconds;
+    const permissionsFresh = ageSeconds <= policy.permissionsTtlSeconds;
+    const allowedActions = {
+      CASH_SALE: permissionsFresh && ageSeconds <= policy.actionTtlSeconds.CASH_SALE,
+      INVENTORY_COUNT: permissionsFresh && ageSeconds <= policy.actionTtlSeconds.INVENTORY_COUNT,
+      INVENTORY_MOVEMENT:
+        permissionsFresh && ageSeconds <= policy.actionTtlSeconds.INVENTORY_MOVEMENT,
+    };
+    const condition: OfflineFreshnessCondition = !catalogReadable
+      ? 'CATALOG_STALE'
+      : !permissionsFresh
+        ? 'PERMISSIONS_STALE'
+        : 'FRESH';
+    return { condition, ageSeconds, catalogReadable, allowedActions };
+  }
+
+  async assertAction(
+    scope: OfflineScopeIdentity,
+    kind: OfflineOutboxCommand['kind'],
+    now = Date.now(),
+  ): Promise<void> {
+    const freshness = await this.freshness(scope, now);
+    if (freshness.allowedActions[kind]) return;
+    throw new OfflinePolicyError(
+      freshness.condition,
+      freshness.condition === 'FRESH'
+        ? 'La vigencia de esta acción offline terminó. Conéctate para sincronizar.'
+        : this.policyMessage(freshness.condition),
+    );
   }
 
   async entities<T extends OfflineBootstrapEntity>(scope: OfflineScopeIdentity, kind: string) {
@@ -520,6 +631,19 @@ export class OfflineStoreService {
       if (this.containsCredential(child, visited)) return true;
     }
     return false;
+  }
+
+  private policyMessage(condition: OfflineFreshnessCondition): string {
+    return (
+      {
+        FRESH: '',
+        CATALOG_STALE: 'El catálogo offline venció. Conéctate para actualizarlo.',
+        PERMISSIONS_STALE: 'Los permisos offline vencieron. Conéctate antes de operar.',
+        SESSION_EXPIRED: 'La sesión offline venció. Conéctate e inicia sesión nuevamente.',
+        CLOCK_INVALID: 'El reloj del dispositivo no permite validar la vigencia offline.',
+        NOT_PREPARED: 'Prepara los datos offline antes de operar sin conexión.',
+      } satisfies Record<OfflineFreshnessCondition, string>
+    )[condition];
   }
 
   private serializableError(error: unknown): unknown {

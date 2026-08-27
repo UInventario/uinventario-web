@@ -9,6 +9,8 @@ describe('OfflineInventoryPanelComponent', () => {
     deviceId: vi.fn().mockResolvedValue('10000000-0000-4000-8000-000000000001'),
     entities: vi.fn(),
     queue: vi.fn(),
+    freshness: vi.fn(),
+    assertAction: vi.fn(),
   };
   const session = {
     tenant: { id: 'tenant-1' },
@@ -53,6 +55,12 @@ describe('OfflineInventoryPanelComponent', () => {
       ]);
     });
     store.queue.mockReset().mockResolvedValue({ sequence: 1 });
+    store.freshness.mockReset().mockResolvedValue({
+      condition: 'FRESH',
+      catalogReadable: true,
+      allowedActions: { INVENTORY_COUNT: true, INVENTORY_MOVEMENT: true, CASH_SALE: true },
+    });
+    store.assertAction.mockReset().mockResolvedValue(undefined);
     await TestBed.configureTestingModule({
       imports: [OfflineInventoryPanelComponent],
       providers: [

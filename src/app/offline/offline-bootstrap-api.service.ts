@@ -10,6 +10,18 @@ export interface OfflineBootstrapEntity {
   updatedAt: string;
 }
 
+export interface OfflineFreshnessPolicyData {
+  version: 1;
+  maxClockSkewSeconds: number;
+  catalogTtlSeconds: number;
+  permissionsTtlSeconds: number;
+  actionTtlSeconds: {
+    CASH_SALE: number;
+    INVENTORY_COUNT: number;
+    INVENTORY_MOVEMENT: number;
+  };
+}
+
 export interface OfflinePosPolicyData extends OfflineBootstrapEntity {
   kind: 'POS_POLICY';
   branchId: string;
@@ -26,6 +38,8 @@ export interface OfflinePosPolicyData extends OfflineBootstrapEntity {
 export interface OfflineBootstrapData {
   protocolVersion: '1.0';
   generatedAt: string;
+  sessionExpiresAt: string;
+  freshnessPolicy: OfflineFreshnessPolicyData;
   scope: {
     tenantId: string;
     userId: string;
@@ -34,6 +48,10 @@ export interface OfflineBootstrapData {
     cashRegisterId: string | null;
   };
   posPolicy?: OfflinePosPolicyData | null;
+  identity: {
+    tenant: { id: string; name: string };
+    user: { id: string; roles: string[]; permissions: string[] };
+  };
   page: {
     initialSyncCursor: string;
     cursor: string;
@@ -52,7 +70,13 @@ export interface OfflineChange {
 
 export interface OfflineChangesData {
   protocolVersion: '1.0';
+  generatedAt: string;
+  sessionExpiresAt: string;
+  freshnessPolicy: OfflineFreshnessPolicyData;
   scope: OfflineBootstrapData['scope'];
+  identity: {
+    user: { id: string; roles: string[]; permissions: string[] };
+  };
   cursor: string;
   nextCursor: string;
   hasMore: boolean;

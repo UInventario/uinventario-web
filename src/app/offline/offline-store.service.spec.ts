@@ -19,7 +19,7 @@ describe('OfflineStoreService', () => {
   });
 
   it('persists a versioned bootstrap across service instances and clears it on logout', async () => {
-    expect(OFFLINE_SCHEMA_VERSION).toBe(2);
+    expect(OFFLINE_SCHEMA_VERSION).toBe(3);
     const store = new OfflineStoreService();
     const deviceId = await store.deviceId();
     const bootstrap = response(firstScope);
@@ -219,11 +219,51 @@ describe('OfflineStoreService', () => {
     expect((await store.queue(firstScope, 'INVENTORY_MOVEMENT', {})).sequence).toBe(1);
   });
 
+  it('blocks stale sensitive actions, detects an invalid clock and recovers after online sync', async () => {
+    const store = new OfflineStoreService();
+    const bootstrap = response(firstScope);
+    await store.replaceBootstrap(bootstrap, bootstrap.page.entities);
+    const storedAt = new Date().getTime();
+
+    const cashStale = await store.freshness(firstScope, storedAt + 901_000);
+    expect(cashStale.allowedActions).toMatchObject({
+      CASH_SALE: false,
+      INVENTORY_COUNT: true,
+      INVENTORY_MOVEMENT: true,
+    });
+    await expect(store.assertAction(firstScope, 'CASH_SALE', storedAt + 901_000)).rejects.toThrow(
+      'Conéctate',
+    );
+    await expect(store.freshness(firstScope, storedAt - 301_000)).resolves.toMatchObject({
+      condition: 'CLOCK_INVALID',
+    });
+
+    const refreshedAt = new Date().toISOString();
+    await store.applyChanges(firstScope, [], 'refreshed-cursor', {
+      generatedAt: refreshedAt,
+      sessionExpiresAt: new Date(Date.now() + 8 * 60 * 60_000).toISOString(),
+      freshnessPolicy: policy(),
+      roles: ['ADMIN'],
+      permissions: ['INVENTORY_VIEW'],
+    });
+    await expect(store.freshness(firstScope)).resolves.toMatchObject({
+      condition: 'FRESH',
+      allowedActions: { CASH_SALE: true },
+    });
+  });
+
   function response(scope: typeof firstScope): OfflineBootstrapData {
+    const generatedAt = new Date().toISOString();
     return {
       protocolVersion: '1.0',
-      generatedAt: '2026-08-27T20:00:00.000Z',
+      generatedAt,
+      sessionExpiresAt: new Date(Date.now() + 8 * 60 * 60_000).toISOString(),
+      freshnessPolicy: policy(),
       scope,
+      identity: {
+        tenant: { id: scope.tenantId, name: 'Tenant' },
+        user: { id: scope.userId, roles: ['ADMIN'], permissions: ['INVENTORY_VIEW'] },
+      },
       page: {
         initialSyncCursor: 'signed-session-cursor',
         cursor: 'page-0',
@@ -245,6 +285,20 @@ describe('OfflineStoreService', () => {
             updatedAt: '2026-08-27T19:30:00.000Z',
           },
         ],
+      },
+    };
+  }
+
+  function policy() {
+    return {
+      version: 1 as const,
+      maxClockSkewSeconds: 300,
+      catalogTtlSeconds: 86400,
+      permissionsTtlSeconds: 3600,
+      actionTtlSeconds: {
+        CASH_SALE: 900,
+        INVENTORY_COUNT: 14400,
+        INVENTORY_MOVEMENT: 3600,
       },
     };
   }

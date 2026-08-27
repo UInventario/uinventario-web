@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { OfflineCommandApiService, OfflineCommandEnvelope } from './offline-command-api.service';
@@ -7,6 +8,7 @@ import {
   OfflineScopeIdentity,
   OfflineStoreService,
 } from './offline-store.service';
+import { SessionApiService } from '../auth/session-api.service';
 
 export interface OfflineFlushSummary {
   confirmed: number;
@@ -17,6 +19,7 @@ export interface OfflineFlushSummary {
 export class OfflineOutboxService {
   private readonly api = inject(OfflineCommandApiService);
   private readonly store = inject(OfflineStoreService);
+  private readonly sessions = inject(SessionApiService);
   private active: Promise<OfflineFlushSummary> | undefined;
 
   flush(scope: OfflineScopeIdentity): Promise<OfflineFlushSummary> {
@@ -48,6 +51,14 @@ export class OfflineOutboxService {
         this.addResults(summary, results);
         if (missing.length) return summary;
       } catch (error) {
+        if (
+          error instanceof HttpErrorResponse &&
+          (error.status === 401 ||
+            (error.status === 403 && error.error?.code === 'OFFLINE_DEVICE_REVOKED'))
+        ) {
+          this.sessions.invalidate();
+          throw error;
+        }
         await this.store.retry(commandIds, error);
         throw error;
       }

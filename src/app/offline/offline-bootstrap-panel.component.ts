@@ -1,9 +1,13 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, HostListener, inject, OnInit, signal } from '@angular/core';
+import { Component, HostListener, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { SessionApiService } from '../auth/session-api.service';
 import { OfflineBootstrapApiService, OfflineBootstrapData } from './offline-bootstrap-api.service';
-import { OfflineOutboxCommand, OfflineStoreService } from './offline-store.service';
+import {
+  OfflineFreshnessState,
+  OfflineOutboxCommand,
+  OfflineStoreService,
+} from './offline-store.service';
 import { OfflineOutboxService } from './offline-outbox.service';
 
 @Component({
@@ -11,7 +15,7 @@ import { OfflineOutboxService } from './offline-outbox.service';
   templateUrl: './offline-bootstrap-panel.component.html',
   styleUrl: './offline-bootstrap-panel.component.scss',
 })
-export class OfflineBootstrapPanelComponent implements OnInit {
+export class OfflineBootstrapPanelComponent implements OnInit, OnDestroy {
   private readonly api = inject(OfflineBootstrapApiService);
   private readonly store = inject(OfflineStoreService);
   private readonly outbox = inject(OfflineOutboxService);
@@ -23,6 +27,10 @@ export class OfflineBootstrapPanelComponent implements OnInit {
   protected readonly pendingCommands = signal(0);
   protected readonly rejectedCommands = signal(0);
   protected readonly commands = signal<OfflineOutboxCommand[]>([]);
+  protected readonly onlineState = signal(
+    typeof navigator === 'undefined' ? true : navigator.onLine,
+  );
+  protected readonly freshness = signal<OfflineFreshnessState | null>(null);
   protected readonly downloaded = signal(0);
   protected readonly result = signal<{
     entities: number;
@@ -30,15 +38,27 @@ export class OfflineBootstrapPanelComponent implements OnInit {
     restored: boolean;
   } | null>(null);
   protected readonly error = signal<string | null>(null);
+  private freshnessTimer: ReturnType<typeof setInterval> | undefined;
 
   ngOnInit(): void {
     void this.restore();
+    this.freshnessTimer = setInterval(() => void this.refreshCurrentFreshness(), 60_000);
+  }
+
+  ngOnDestroy(): void {
+    if (this.freshnessTimer !== undefined) clearInterval(this.freshnessTimer);
   }
 
   @HostListener('window:online')
   protected online(): void {
+    this.onlineState.set(true);
     if (!this.sessions.session()) return;
-    void this.sendPending();
+    void this.recoverOnline();
+  }
+
+  @HostListener('window:offline')
+  protected offline(): void {
+    this.onlineState.set(false);
   }
 
   protected async prepare(): Promise<void> {
@@ -73,12 +93,14 @@ export class OfflineBootstrapPanelComponent implements OnInit {
       if (!lastPage) throw new Error('El servidor no entregó un bootstrap válido.');
       await this.store.replaceBootstrap(lastPage, entities);
       await this.refreshOutbox(lastPage.scope);
+      await this.refreshFreshness(lastPage.scope);
       this.result.set({
         entities: this.downloaded(),
         generatedAt: lastPage.generatedAt,
         restored: false,
       });
     } catch (error) {
+      this.invalidateRevokedAccess(error);
       this.error.set(this.message(error));
     } finally {
       this.preparing.set(false);
@@ -124,7 +146,13 @@ export class OfflineBootstrapPanelComponent implements OnInit {
         if (JSON.stringify(data.scope) !== JSON.stringify(scope)) {
           throw new Error('El alcance cambió durante la sincronización.');
         }
-        await this.store.applyChanges(scope, data.changes, data.nextCursor);
+        await this.store.applyChanges(scope, data.changes, data.nextCursor, {
+          generatedAt: data.generatedAt,
+          sessionExpiresAt: data.sessionExpiresAt,
+          freshnessPolicy: data.freshnessPolicy,
+          roles: data.identity.user.roles,
+          permissions: data.identity.user.permissions,
+        });
         cursor = data.nextCursor;
         hasMore = data.hasMore;
       } while (hasMore);
@@ -136,10 +164,12 @@ export class OfflineBootstrapPanelComponent implements OnInit {
         restored: false,
       });
       this.error.set(null);
+      await this.refreshFreshness(scope);
     } catch (error) {
       if (error instanceof HttpErrorResponse && [400, 410].includes(error.status)) {
         await this.prepare();
       } else {
+        this.invalidateRevokedAccess(error);
         this.error.set(this.message(error));
       }
     } finally {
@@ -185,6 +215,7 @@ export class OfflineBootstrapPanelComponent implements OnInit {
         });
       }
       await this.refreshOutbox(scope);
+      await this.refreshFreshness(scope);
     } catch (error) {
       this.error.set(this.message(error));
     }
@@ -214,6 +245,46 @@ export class OfflineBootstrapPanelComponent implements OnInit {
     this.rejectedCommands.set(
       commands.filter(({ status, retryable }) => status === 'ERROR' && !retryable).length,
     );
+  }
+
+  protected sensitiveBlocked(state: OfflineFreshnessState): boolean {
+    return Object.values(state.allowedActions).some((allowed) => !allowed);
+  }
+
+  private async refreshFreshness(
+    scope: Awaited<ReturnType<typeof this.currentScope>>,
+  ): Promise<void> {
+    this.freshness.set(await this.store.freshness(scope));
+  }
+
+  private async recoverOnline(): Promise<void> {
+    try {
+      await firstValueFrom(this.sessions.loadCurrent());
+    } catch (error) {
+      this.error.set(this.message(error));
+      return;
+    }
+    await this.sendPending();
+    if (this.sessions.session()) await this.sync();
+  }
+
+  private async refreshCurrentFreshness(): Promise<void> {
+    if (!this.sessions.session()) return;
+    try {
+      await this.refreshFreshness(await this.currentScope());
+    } catch {
+      // The status will refresh after the next successful bootstrap or sync.
+    }
+  }
+
+  private invalidateRevokedAccess(error: unknown): void {
+    if (
+      error instanceof HttpErrorResponse &&
+      (error.status === 401 ||
+        (error.status === 403 && error.error?.code === 'OFFLINE_DEVICE_REVOKED'))
+    ) {
+      this.sessions.invalidate();
+    }
   }
 
   private message(error: unknown): string {

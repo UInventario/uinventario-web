@@ -87,8 +87,18 @@ export class OfflineInventoryPanelComponent implements OnInit {
           { value: 'DAMAGE', label: 'Daño' },
         );
       }
-      this.operations.set(operations);
       const scope = await this.scope();
+      const freshness = await this.store.freshness(scope);
+      if (!freshness.allowedActions.INVENTORY_COUNT) {
+        const countIndex = operations.findIndex(({ value }) => value === 'COUNT');
+        if (countIndex >= 0) operations.splice(countIndex, 1);
+      }
+      if (!freshness.allowedActions.INVENTORY_MOVEMENT) {
+        for (let index = operations.length - 1; index >= 0; index -= 1) {
+          if (operations[index].value !== 'COUNT') operations.splice(index, 1);
+        }
+      }
+      this.operations.set([...operations]);
       const [products, locations, availability] = await Promise.all([
         this.store.entities<OfflineProduct>(scope, 'PRODUCT'),
         this.store.entities<OfflineLocation>(scope, 'LOCATION'),
@@ -139,23 +149,27 @@ export class OfflineInventoryPanelComponent implements OnInit {
         reason: value.reason.trim(),
         reference: value.reference.trim(),
       };
-      const command =
-        value.operation === 'COUNT'
-          ? await this.store.queue(scope, 'INVENTORY_COUNT', {
-              ...common,
-              countedQuantity: value.quantity,
-              snapshotQuantity:
-                this.availability.find(
-                  ({ productId, locationId }) =>
-                    productId === value.productId && locationId === value.locationId,
-                )?.availableQuantity ?? '0.000',
-              capturedAt: new Date().toISOString(),
-            })
-          : await this.store.queue(scope, 'INVENTORY_MOVEMENT', {
-              ...common,
-              type: value.operation,
-              quantity: value.quantity,
-            });
+      let command;
+      if (value.operation === 'COUNT') {
+        await this.store.assertAction(scope, 'INVENTORY_COUNT');
+        command = await this.store.queue(scope, 'INVENTORY_COUNT', {
+          ...common,
+          countedQuantity: value.quantity,
+          snapshotQuantity:
+            this.availability.find(
+              ({ productId, locationId }) =>
+                productId === value.productId && locationId === value.locationId,
+            )?.availableQuantity ?? '0.000',
+          capturedAt: new Date().toISOString(),
+        });
+      } else {
+        await this.store.assertAction(scope, 'INVENTORY_MOVEMENT');
+        command = await this.store.queue(scope, 'INVENTORY_MOVEMENT', {
+          ...common,
+          type: value.operation,
+          quantity: value.quantity,
+        });
+      }
       this.success.set(`Operación #${command.sequence} guardada para sincronización.`);
       this.form.patchValue({ quantity: '', reason: '', reference: '' });
     } catch (error) {

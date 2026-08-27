@@ -1,9 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { IDBFactory, IDBKeyRange } from 'fake-indexeddb';
 import { of, throwError } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
 import { OfflineCommandApiService } from './offline-command-api.service';
 import { OfflineOutboxService } from './offline-outbox.service';
 import { OfflineStoreService } from './offline-store.service';
+import { SessionApiService } from '../auth/session-api.service';
 
 describe('OfflineOutboxService', () => {
   const scope = {
@@ -14,17 +16,20 @@ describe('OfflineOutboxService', () => {
     cashRegisterId: null,
   };
   const api = { send: vi.fn() };
+  const sessions = { invalidate: vi.fn() };
   let store: OfflineStoreService;
   let service: OfflineOutboxService;
 
   beforeEach(() => {
     Object.assign(globalThis, { indexedDB: new IDBFactory(), IDBKeyRange });
     api.send.mockReset();
+    sessions.invalidate.mockReset();
     TestBed.configureTestingModule({
       providers: [
         OfflineStoreService,
         OfflineOutboxService,
         { provide: OfflineCommandApiService, useValue: api },
+        { provide: SessionApiService, useValue: sessions },
       ],
     });
     store = TestBed.inject(OfflineStoreService);
@@ -104,5 +109,21 @@ describe('OfflineOutboxService', () => {
         retryable: true,
       }),
     ]);
+  });
+
+  it('invalidates local access when the server revokes the device', async () => {
+    await store.queue(scope, 'INVENTORY_MOVEMENT', { quantity: '2' });
+    api.send.mockReturnValue(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 403,
+            error: { code: 'OFFLINE_DEVICE_REVOKED' },
+          }),
+      ),
+    );
+
+    await expect(service.flush(scope)).rejects.toMatchObject({ status: 403 });
+    expect(sessions.invalidate).toHaveBeenCalledOnce();
   });
 });

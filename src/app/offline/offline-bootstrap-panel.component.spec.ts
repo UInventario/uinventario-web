@@ -18,6 +18,7 @@ describe('OfflineBootstrapPanelComponent', () => {
     outbox: vi.fn(),
     retryNow: vi.fn(),
     rejectPending: vi.fn(),
+    freshness: vi.fn(),
   };
   const outbox = { flush: vi.fn() };
   const scope = {
@@ -39,6 +40,16 @@ describe('OfflineBootstrapPanelComponent', () => {
     store.outbox.mockReset().mockResolvedValue([]);
     store.retryNow.mockReset().mockResolvedValue(undefined);
     store.rejectPending.mockReset().mockResolvedValue(undefined);
+    store.freshness.mockReset().mockResolvedValue({
+      condition: 'FRESH',
+      ageSeconds: 0,
+      catalogReadable: true,
+      allowedActions: {
+        CASH_SALE: true,
+        INVENTORY_COUNT: true,
+        INVENTORY_MOVEMENT: true,
+      },
+    });
     outbox.flush.mockReset().mockResolvedValue({ confirmed: 0, rejected: 0 });
     await TestBed.configureTestingModule({
       imports: [OfflineBootstrapPanelComponent],
@@ -161,10 +172,27 @@ describe('OfflineBootstrapPanelComponent', () => {
         cursor: 'cursor-2',
       });
     const changes = (api as typeof api & { changes: ReturnType<typeof vi.fn> }).changes;
+    const authorization = {
+      generatedAt: '2026-08-27T20:01:00.000Z',
+      sessionExpiresAt: '2026-08-28T20:01:00.000Z',
+      freshnessPolicy: {
+        version: 1,
+        maxClockSkewSeconds: 300,
+        catalogTtlSeconds: 86400,
+        permissionsTtlSeconds: 3600,
+        actionTtlSeconds: {
+          CASH_SALE: 900,
+          INVENTORY_COUNT: 14400,
+          INVENTORY_MOVEMENT: 3600,
+        },
+      },
+      identity: { user: { id: 'user-1', roles: [], permissions: [] } },
+    };
     changes
       .mockReturnValueOnce(
         of({
           data: {
+            ...authorization,
             scope,
             nextCursor: 'cursor-1',
             hasMore: true,
@@ -173,7 +201,15 @@ describe('OfflineBootstrapPanelComponent', () => {
         }),
       )
       .mockReturnValueOnce(
-        of({ data: { scope, nextCursor: 'cursor-2', hasMore: false, changes: [] } }),
+        of({
+          data: {
+            ...authorization,
+            scope,
+            nextCursor: 'cursor-2',
+            hasMore: false,
+            changes: [],
+          },
+        }),
       );
     const component = fixture.componentInstance as unknown as {
       sync(): Promise<void>;

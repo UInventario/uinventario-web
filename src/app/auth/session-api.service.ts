@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, finalize, tap, throwError } from 'rxjs';
@@ -64,7 +64,7 @@ export class SessionApiService {
       .pipe(
         tap((response) => this.acceptSession(response)),
         catchError((error: unknown) => {
-          this.clearLocalState();
+          if (this.isAuthorizationRejection(error)) this.clearLocalState();
           return throwError(() => error);
         }),
       );
@@ -103,6 +103,10 @@ export class SessionApiService {
       .pipe(finalize(() => this.closeLocalSession(true)));
   }
 
+  invalidate(): void {
+    this.closeLocalSession(true);
+  }
+
   private acceptSession(response: SessionResponse): void {
     this.session.set(response.data);
     void this.offlineStore
@@ -137,14 +141,26 @@ export class SessionApiService {
 
   private refreshInBackground(): void {
     this.refresh().subscribe({
-      error: () => setTimeout(() => this.reconcileSession(), 250),
+      error: (error: unknown) => {
+        if (this.isAuthorizationRejection(error)) {
+          this.closeLocalSession(false);
+        } else if (typeof navigator === 'undefined' || navigator.onLine) {
+          setTimeout(() => this.reconcileSession(), 250);
+        }
+      },
     });
   }
 
   private reconcileSession(): void {
     this.loadCurrent().subscribe({
-      error: () => this.closeLocalSession(false),
+      error: (error: unknown) => {
+        if (this.isAuthorizationRejection(error)) this.closeLocalSession(false);
+      },
     });
+  }
+
+  private isAuthorizationRejection(error: unknown): boolean {
+    return error instanceof HttpErrorResponse && [401, 403].includes(error.status);
   }
 
   private cancelRenewal(): void {

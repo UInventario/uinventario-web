@@ -63,6 +63,17 @@ button.danger {
   gap: 0.5rem;
 }
 
+.connection-state {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #334e68;
+}
+
 .command-review h3 {
   margin: 0.25rem 0;
 }
