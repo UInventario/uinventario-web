@@ -20,6 +20,7 @@ describe('ApplicationPage', () => {
   let inventory: {
     listLocations: ReturnType<typeof vi.fn>;
     listStock: ReturnType<typeof vi.fn>;
+    listMovements: ReturnType<typeof vi.fn>;
     getBalance: ReturnType<typeof vi.fn>;
     createMovement: ReturnType<typeof vi.fn>;
   };
@@ -64,6 +65,16 @@ describe('ApplicationPage', () => {
               branch: { id: 'branch', name: 'Sucursal' },
               warehouse: { id: 'warehouse', name: 'Bodega' },
             },
+            pagination: { page: 1, pageSize: 10, total: 0, totalPages: 0 },
+          },
+        }),
+      ),
+      listMovements: vi.fn().mockReturnValue(
+        of({
+          data: [],
+          meta: {
+            apiVersion: '1',
+            scope: { branch: { id: 'branch', name: 'Sucursal' } },
             pagination: { page: 1, pageSize: 10, total: 0, totalPages: 0 },
           },
         }),
@@ -267,6 +278,53 @@ describe('ApplicationPage', () => {
       version: 1,
     });
     expect(fixture.nativeElement.textContent).toContain('Producto actualizado');
+  });
+
+  it('filters the read-only inventory movement history', () => {
+    inventory.listMovements.mockReturnValue(
+      of({
+        data: [
+          {
+            id: 'movement',
+            type: 'SALE',
+            direction: 'OUT',
+            quantityChange: '-1.000',
+            resultingQuantity: '9.000',
+            reason: 'Venta V-1',
+            reference: 'V-1',
+            createdAt: '2026-08-27T10:00:00.000Z',
+            product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
+            location: {
+              id: 'location',
+              name: 'General',
+              code: 'GENERAL',
+              warehouse: { id: 'warehouse', name: 'Bodega' },
+            },
+            responsible: { id: 'user', email: 'admin@example.com' },
+          },
+        ],
+        meta: {
+          apiVersion: '1',
+          scope: { branch: { id: 'branch', name: 'Sucursal' } },
+          pagination: { page: 1, pageSize: 10, total: 1, totalPages: 1 },
+        },
+      }),
+    );
+    fill('movementProduct', ' café ');
+    const type = fixture.nativeElement.querySelector('#movementHistoryType') as HTMLSelectElement;
+    type.value = 'SALE';
+    type.dispatchEvent(new Event('change', { bubbles: true }));
+    (fixture.componentInstance as unknown as { filterMovements(): void }).filterMovements();
+    fixture.detectChanges();
+
+    expect(inventory.listMovements).toHaveBeenLastCalledWith({
+      q: 'café',
+      type: 'SALE',
+      page: 1,
+      pageSize: 10,
+    });
+    expect(fixture.nativeElement.textContent).toContain('Venta V-1');
+    expect(fixture.nativeElement.textContent).toContain('admin@example.com');
   });
 
   it('registers initial stock and shows the persisted balance', () => {

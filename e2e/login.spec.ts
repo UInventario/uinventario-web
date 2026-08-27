@@ -95,10 +95,17 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await page.getByRole('button', { name: 'Registrar movimiento' }).click();
   await expect(page.getByRole('status')).toContainText('Existencia 10.500');
   await expect(page.locator('.balance').getByText('10.500')).toBeVisible();
-  const stockOverview = page.locator('.stock-overview');
+  const stockOverview = page.locator('.stock-overview:not(.movement-history)');
   await expect(stockOverview.getByRole('heading', { name: 'Existencias reales' })).toBeVisible();
   await expect(stockOverview.getByText('CAFE-500')).toBeVisible();
   await expect(stockOverview.getByText('10.500').first()).toBeVisible();
+  const movementHistory = page.locator('.movement-history');
+  await expect(
+    movementHistory.getByRole('heading', { name: 'Historial de movimientos' }),
+  ).toBeVisible();
+  await expect(movementHistory.getByText('Conteo inicial')).toBeVisible();
+  await expect(movementHistory.getByText('Entrada 10.500')).toBeVisible();
+  await expect(movementHistory.getByText(email)).toBeVisible();
   await page.getByLabel('Filtrar producto por nombre, SKU o código').fill('sin-stock');
   await page.getByRole('button', { name: 'Filtrar', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Sin existencias para mostrar' })).toBeVisible();
@@ -126,6 +133,18 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await expect(pos.getByText(/Venta V-[A-F0-9]{12} completada/)).toBeVisible();
   await expect(pos.getByText(/Cambio MXN\s+10\.20/)).toBeVisible();
   await expect(stockOverview.getByText('8.500').first()).toBeVisible();
+  await movementHistory.getByLabel('Tipo').selectOption('SALE');
+  await movementHistory.getByRole('button', { name: 'Filtrar movimientos' }).click();
+  await expect(movementHistory.getByText('Salida -2.000')).toBeVisible();
+  await expect(movementHistory.getByText(/Venta V-/)).toBeVisible();
+  await movementHistory.getByLabel('Desde').fill('2099-01-01');
+  await movementHistory.getByRole('button', { name: 'Filtrar movimientos' }).click();
+  await expect(
+    movementHistory.getByRole('heading', { name: 'Sin movimientos para mostrar' }),
+  ).toBeVisible();
+  await movementHistory.getByLabel('Desde').fill('');
+  await movementHistory.getByLabel('Tipo').selectOption('');
+  await movementHistory.getByRole('button', { name: 'Filtrar movimientos' }).click();
   const salesHistory = page.locator('.sales-workspace');
   await expect(salesHistory.getByRole('heading', { name: 'Historial de ventas' })).toBeVisible();
   const saleHistoryRow = salesHistory.getByRole('button', { name: /Abrir venta V-/ });
