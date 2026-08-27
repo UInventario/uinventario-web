@@ -121,6 +121,7 @@ export interface StockListResponse {
   data: InventoryStockItem[];
   meta: {
     apiVersion: '1';
+    policy: { negativeStock: 'DENY' };
     scope: {
       branch: { id: string; name: string };
       warehouse: { id: string; name: string };

@@ -704,6 +704,11 @@
             {{ stockScope()?.branch?.name || session()?.context?.branch?.name }} ·
             {{ stockScope()?.warehouse?.name || session()?.context?.warehouse?.name }}
           </p>
+          <small>
+            Política:
+            {{ negativeStockPolicy() === 'DENY' ? 'stock negativo bloqueado' : '' }} para todas las
+            operaciones.
+          </small>
         </div>
         <strong>{{ stockTotal() }} producto(s)</strong>
       </div>

@@ -90,6 +90,7 @@ describe('ApplicationPage', () => {
           data: [],
           meta: {
             apiVersion: '1',
+            policy: { negativeStock: 'DENY' },
             scope: {
               branch: { id: 'branch', name: 'Sucursal' },
               warehouse: { id: 'warehouse', name: 'Bodega' },
@@ -619,6 +620,7 @@ describe('ApplicationPage', () => {
         ],
         meta: {
           apiVersion: '1',
+          policy: { negativeStock: 'DENY' },
           scope: {
             branch: { id: 'branch', name: 'Sucursal' },
             warehouse: { id: 'warehouse', name: 'Bodega' },
@@ -632,6 +634,7 @@ describe('ApplicationPage', () => {
     (fixture.nativeElement.querySelector('.product-list button') as HTMLButtonElement).click();
     fixture.detectChanges();
     fill('stockQuantity', '10');
+    expect(fixture.nativeElement.textContent).toContain('stock negativo bloqueado');
     fill('stockReason', 'Conteo inicial');
     (fixture.nativeElement.querySelector('.stock-card form') as HTMLFormElement).dispatchEvent(
       new Event('submit'),
