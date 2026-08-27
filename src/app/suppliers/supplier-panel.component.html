@@ -173,3 +173,169 @@
     </div>
   </div>
 </section>
+
+<section
+  class="supplier-panel supplier-products"
+  aria-labelledby="supplier-products-title"
+  [attr.aria-busy]="supplierProductLoading()"
+>
+  <div class="heading">
+    <div>
+      <p>Catálogo de compras</p>
+      <h2 id="supplier-products-title">Productos y precios de proveedor</h2>
+      <span>El costo del proveedor conserva su historial y no modifica el costo de catálogo.</span>
+    </div>
+    <strong>{{ supplierProductTotal() }} relación(es)</strong>
+  </div>
+
+  <form
+    class="filters"
+    [formGroup]="supplierProductSearchForm"
+    (ngSubmit)="filterSupplierProducts()"
+  >
+    <label>
+      Buscar relación
+      <input
+        id="supplierProductSearch"
+        formControlName="q"
+        placeholder="Proveedor, producto, SKU o código"
+      />
+    </label>
+    <button type="submit">Filtrar</button>
+  </form>
+
+  <div class="workspace">
+    <form class="editor" [formGroup]="supplierProductForm" (ngSubmit)="submitSupplierProduct()">
+      <h3>{{ editingSupplierProduct() ? 'Nuevo precio vigente' : 'Relacionar producto' }}</h3>
+      <label>
+        Proveedor
+        <select id="supplierProductSupplier" formControlName="supplierId">
+          <option value="">Selecciona un proveedor</option>
+          @for (supplier of supplierOptions(); track supplier.id) {
+            <option [value]="supplier.id">{{ supplier.tradeName || supplier.legalName }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        Producto
+        <select id="supplierProductProduct" formControlName="productId">
+          <option value="">Selecciona un producto</option>
+          @for (product of productOptions(); track product.id) {
+            <option [value]="product.id">{{ product.sku }} · {{ product.name }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        Código del proveedor
+        <input id="supplierProductCode" formControlName="supplierCode" maxlength="64" />
+      </label>
+      <div class="form-row">
+        <label>
+          Moneda
+          <input id="supplierProductCurrency" formControlName="currency" maxlength="3" />
+        </label>
+        <label>
+          Costo unitario
+          <input id="supplierProductCost" inputmode="decimal" formControlName="unitCost" />
+        </label>
+      </div>
+      <label>
+        Compra mínima (opcional)
+        <input id="supplierProductMinimum" inputmode="decimal" formControlName="minimumQuantity" />
+      </label>
+      <div class="form-row">
+        <label>
+          Vigente desde
+          <input id="supplierProductValidFrom" type="date" formControlName="validFrom" />
+        </label>
+        <label>
+          Vigente hasta (opcional)
+          <input id="supplierProductValidTo" type="date" formControlName="validTo" />
+        </label>
+      </div>
+      @if (editingSupplierProduct()) {
+        <small>La fecha inicial debe ser posterior a la del último precio registrado.</small>
+      }
+      <div class="actions">
+        @if (editingSupplierProduct()) {
+          <button type="button" class="secondary" (click)="cancelSupplierProductEditing()">
+            Cancelar
+          </button>
+        }
+        <button id="saveSupplierProduct" type="submit" [disabled]="supplierProductSaving()">
+          {{ supplierProductSaving() ? 'Guardando…' : 'Guardar relación y precio' }}
+        </button>
+      </div>
+    </form>
+
+    <div class="results">
+      @if (supplierProductLoading()) {
+        <p role="status">Cargando precios de proveedor…</p>
+      } @else if (supplierProducts().length === 0) {
+        <div class="empty">
+          <h3>Sin productos relacionados</h3>
+          <p>Registra el código y primer costo que ofrece un proveedor.</p>
+        </div>
+      } @else {
+        <ul aria-label="Productos y precios de proveedor">
+          @for (link of supplierProducts(); track link.id) {
+            <li class="supplier-product-row">
+              <div>
+                <strong>{{ link.supplier.name }} · {{ link.product.name }}</strong>
+                <span>{{ link.product.sku }} · Código {{ link.supplierCode }}</span>
+                <small>
+                  Actual: {{ link.prices[0].currency }} {{ link.prices[0].unitCost }} desde
+                  {{ link.prices[0].validFrom }}
+                </small>
+                <small>
+                  Catálogo: costo {{ link.product.catalogCost }} · precio
+                  {{ link.product.catalogPrice }}
+                </small>
+                @if (link.minimumQuantity) {
+                  <small>Compra mínima: {{ link.minimumQuantity }}</small>
+                }
+                <details>
+                  <summary>Historial ({{ link.prices.length }})</summary>
+                  <ol>
+                    @for (price of link.prices; track price.id) {
+                      <li>
+                        {{ price.currency }} {{ price.unitCost }} · {{ price.validFrom }} a
+                        {{ price.validTo || 'vigente' }}
+                      </li>
+                    }
+                  </ol>
+                </details>
+              </div>
+              <div class="row-actions">
+                <button type="button" class="secondary" (click)="editSupplierProduct(link)">
+                  Registrar nuevo precio
+                </button>
+              </div>
+            </li>
+          }
+        </ul>
+        @if (supplierProductTotalPages() > 1) {
+          <div class="pagination">
+            <button
+              type="button"
+              class="secondary"
+              (click)="previousSupplierProductPage()"
+              [disabled]="supplierProductPage() === 1"
+            >
+              Anterior
+            </button>
+            <span>Página {{ supplierProductPage() }} de {{ supplierProductTotalPages() }}</span>
+            <button
+              type="button"
+              class="secondary"
+              (click)="nextSupplierProductPage()"
+              [disabled]="supplierProductPage() === supplierProductTotalPages()"
+            >
+              Siguiente
+            </button>
+          </div>
+        }
+      }
+    </div>
+  </div>
+</section>
