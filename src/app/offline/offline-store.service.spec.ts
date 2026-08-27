@@ -71,6 +71,40 @@ describe('OfflineStoreService', () => {
     ).rejects.toMatchObject({ code: 'WRITE_FAILED' });
   });
 
+  it('advances the cursor atomically with upserts and tombstones', async () => {
+    const store = new OfflineStoreService();
+    const bootstrap = response(firstScope);
+    await store.replaceBootstrap(bootstrap, bootstrap.page.entities);
+    await store.applyChanges(
+      firstScope,
+      [
+        {
+          changeId: 'change-1',
+          operation: 'DELETE',
+          occurredAt: '2026-08-27T20:01:00.000Z',
+          entity: bootstrap.page.entities[0],
+        },
+        {
+          changeId: 'change-2',
+          operation: 'UPSERT',
+          occurredAt: '2026-08-27T20:02:00.000Z',
+          entity: {
+            kind: 'PRODUCT',
+            id: 'product-2',
+            tenantId: firstScope.tenantId,
+            version: 1,
+            updatedAt: '2026-08-27T20:02:00.000Z',
+          },
+        },
+      ],
+      'cursor-after-apply',
+    );
+
+    expect(await store.summary(firstScope)).toEqual(
+      expect.objectContaining({ entities: 2, cursor: 'cursor-after-apply' }),
+    );
+  });
+
   it('recovers an incomplete local schema by rebuilding it', async () => {
     await new Promise<void>((resolve, reject) => {
       const request = indexedDB.open('uinventario-offline', OFFLINE_SCHEMA_VERSION);

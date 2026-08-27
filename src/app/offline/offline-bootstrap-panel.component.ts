@@ -16,6 +16,7 @@ export class OfflineBootstrapPanelComponent implements OnInit {
   private readonly sessions = inject(SessionApiService);
 
   protected readonly preparing = signal(false);
+  protected readonly syncing = signal(false);
   protected readonly downloaded = signal(0);
   protected readonly result = signal<{
     entities: number;
@@ -68,6 +69,56 @@ export class OfflineBootstrapPanelComponent implements OnInit {
       this.error.set(this.message(error));
     } finally {
       this.preparing.set(false);
+    }
+  }
+
+  protected async sync(): Promise<void> {
+    if (this.syncing() || this.preparing()) return;
+    this.syncing.set(true);
+    this.error.set(null);
+    try {
+      const session = this.sessions.session();
+      if (!session) throw new Error('La sesión ya no está disponible.');
+      const deviceId = await this.store.deviceId();
+      const scope = {
+        tenantId: session.tenant.id,
+        userId: session.user.id,
+        deviceId,
+        branchId: session.context.branch?.id ?? null,
+        cashRegisterId: session.context.cashRegister?.id ?? null,
+      };
+      const summary = await this.store.summary(scope);
+      if (!summary) {
+        await this.prepare();
+        return;
+      }
+      let cursor = summary.cursor;
+      let hasMore: boolean;
+      do {
+        const { data } = await firstValueFrom(this.api.changes(deviceId, cursor));
+        if (JSON.stringify(data.scope) !== JSON.stringify(scope)) {
+          throw new Error('El alcance cambió durante la sincronización.');
+        }
+        await this.store.applyChanges(scope, data.changes, data.nextCursor);
+        cursor = data.nextCursor;
+        hasMore = data.hasMore;
+      } while (hasMore);
+      const updated = await this.store.summary(scope);
+      this.downloaded.set(updated?.entities ?? 0);
+      this.result.set({
+        entities: updated?.entities ?? 0,
+        generatedAt: updated?.generatedAt ?? new Date().toISOString(),
+        restored: false,
+      });
+      this.error.set(null);
+    } catch (error) {
+      if (error instanceof HttpErrorResponse && [400, 410].includes(error.status)) {
+        await this.prepare();
+      } else {
+        this.error.set(this.message(error));
+      }
+    } finally {
+      this.syncing.set(false);
     }
   }
 
