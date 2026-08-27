@@ -83,6 +83,16 @@ export class SessionApiService {
       );
   }
 
+  changeContext(branchId: string, warehouseId: string) {
+    return this.http
+      .patch<SessionResponse>(
+        `${this.config.apiBaseUrl()}/auth/sessions/current/context`,
+        { branchId, warehouseId },
+        { withCredentials: true },
+      )
+      .pipe(tap((response) => this.acceptSession(response)));
+  }
+
   logout() {
     return this.http
       .delete<void>(`${this.config.apiBaseUrl()}/auth/sessions/current`, {
