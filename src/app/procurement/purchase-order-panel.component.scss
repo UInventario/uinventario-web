@@ -47,13 +47,36 @@ h4 {
   grid-template-columns: minmax(24rem, 1fr) minmax(20rem, 0.9fr);
 }
 
-.cancel-form {
+.cancel-form,
+.receipt-form {
   background: #fff7f5;
   border: 1px solid #e3aaa6;
   display: grid;
   gap: 0.75rem;
   margin: 0.75rem 0;
   padding: 0.75rem;
+}
+
+.receipt-form {
+  background: #f4f8fd;
+  border-color: #9bb8dc;
+}
+
+.receipt-lines {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.receipt-lines label {
+  align-items: end;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: minmax(16rem, 1fr) minmax(10rem, 0.35fr);
+}
+
+.receipt-lines span,
+.receipt-lines small {
+  display: grid;
 }
 
 .editor,
@@ -198,6 +221,7 @@ fieldset {
 @media (max-width: 800px) {
   .workspace,
   .form-row,
+  .receipt-lines label,
   fieldset {
     grid-template-columns: 1fr;
   }

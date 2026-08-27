@@ -27,6 +27,7 @@ export type AppPermission =
   | 'SUPPLIERS_MANAGE'
   | 'PURCHASE_ORDERS_MANAGE'
   | 'PURCHASE_ORDERS_APPROVE'
+  | 'PURCHASE_RECEIPTS_OVERAGE'
   | InventoryPermission;
 
 export const OPERATIONAL_PERMISSIONS = [
@@ -43,6 +44,7 @@ export const OPERATIONAL_PERMISSIONS = [
   'SUPPLIERS_MANAGE',
   'PURCHASE_ORDERS_MANAGE',
   'PURCHASE_ORDERS_APPROVE',
+  'PURCHASE_RECEIPTS_OVERAGE',
 ] as const satisfies readonly AppPermission[];
 
 export interface AccessRoleData {
