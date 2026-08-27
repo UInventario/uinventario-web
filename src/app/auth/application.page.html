@@ -422,6 +422,15 @@
         @if (posError()) {
           <div class="form-error" role="alert">{{ posError() }}</div>
         }
+        @if (completedSale(); as sale) {
+          <div class="success sale-complete" role="status">
+            <strong>Venta {{ sale.receiptNumber }} completada</strong>
+            <span>
+              Total {{ sale.currency }} {{ sale.totals.total }} · Cambio {{ sale.currency }}
+              {{ sale.payment.change }}
+            </span>
+          </div>
+        }
         @if (cart().length === 0) {
           <div class="empty pos-empty">
             <h3>Carrito vacío</h3>
@@ -472,6 +481,23 @@
               </div>
             </dl>
             <div class="success cart-ready" role="status">Carrito validado y listo para cobrar</div>
+            <form class="cash-payment" [formGroup]="cashForm" (ngSubmit)="completeCashSale()">
+              <label for="cashReceived">Efectivo recibido</label>
+              <input
+                id="cashReceived"
+                formControlName="cashReceived"
+                inputmode="decimal"
+                autocomplete="off"
+              />
+              @if (
+                cashForm.controls.cashReceived.touched && cashForm.controls.cashReceived.invalid
+              ) {
+                <small class="field-error">Escribe un importe válido con máximo 2 decimales.</small>
+              }
+              <button type="submit" [disabled]="savingSale() || quotingCart()">
+                {{ savingSale() ? 'Registrando venta…' : 'Cobrar en efectivo' }}
+              </button>
+            </form>
           }
         }
       </div>

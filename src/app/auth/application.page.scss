@@ -548,6 +548,28 @@ dd {
   margin-top: 1rem;
 }
 
+.cash-payment {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1fr) auto;
+  align-items: end;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.cash-payment label {
+  margin: 0;
+}
+
+.cash-payment .field-error {
+  grid-column: 1 / -1;
+}
+
+.sale-complete {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 1rem;
+}
+
 @media (max-width: 48rem) {
   .workspace {
     grid-template-columns: 1fr;
@@ -559,6 +581,10 @@ dd {
 
   .cart-lines li {
     grid-template-columns: 1fr 6rem;
+  }
+
+  .cash-payment {
+    grid-template-columns: 1fr;
   }
 
   .line-total {

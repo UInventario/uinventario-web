@@ -1,10 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { ProductApiService } from '../catalog/product-api.service';
 import { InventoryApiService } from '../inventory/inventory-api.service';
-import { PosApiService } from '../pos/pos-api.service';
+import { CashSaleData, PosApiService } from '../pos/pos-api.service';
 import { ApplicationPage } from './application.page';
 import { SessionApiService } from './session-api.service';
 
@@ -22,7 +22,10 @@ describe('ApplicationPage', () => {
     getBalance: ReturnType<typeof vi.fn>;
     createMovement: ReturnType<typeof vi.fn>;
   };
-  let pos: { quote: ReturnType<typeof vi.fn> };
+  let pos: {
+    quote: ReturnType<typeof vi.fn>;
+    createCashSale: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(async () => {
     products = {
@@ -73,7 +76,7 @@ describe('ApplicationPage', () => {
       ),
       createMovement: vi.fn(),
     };
-    pos = { quote: vi.fn() };
+    pos = { quote: vi.fn(), createCashSale: vi.fn() };
     const sessions = {
       session: signal({
         user: { id: 'user', email: 'admin@example.com', roles: ['ADMIN'], permissions: [] },
@@ -294,7 +297,7 @@ describe('ApplicationPage', () => {
     expect(fixture.nativeElement.textContent).toContain('No fue posible cargar las existencias.');
   });
 
-  it('adds a searched product and renders only server-calculated cart totals', () => {
+  it('quotes a cart and prevents duplicate cash sale submission', () => {
     const product = {
       id: 'product',
       name: 'Café',
@@ -363,5 +366,60 @@ describe('ApplicationPage', () => {
     fixture.detectChanges();
     expect(pos.quote).toHaveBeenLastCalledWith([{ productId: 'product', quantity: '2' }]);
     expect(fixture.nativeElement.querySelector('.cart-panel').textContent).toContain('MXN 239.80');
+
+    const saleResponse = new Subject<{
+      data: CashSaleData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>();
+    pos.createCashSale.mockReturnValue(saleResponse);
+    fill('cashReceived', '250.00');
+    (fixture.componentInstance as unknown as { completeCashSale(): void }).completeCashSale();
+    (fixture.componentInstance as unknown as { completeCashSale(): void }).completeCashSale();
+
+    expect(pos.createCashSale).toHaveBeenCalledTimes(1);
+    expect(pos.createCashSale).toHaveBeenCalledWith(
+      {
+        lines: [{ productId: 'product', quantity: '2' }],
+        cashReceived: '250.00',
+      },
+      expect.stringMatching(/^web-sale-/),
+    );
+    saleResponse.next({
+      data: {
+        id: 'sale',
+        receiptNumber: 'V-123456789012',
+        status: 'COMPLETED',
+        context: {
+          branch: { id: 'branch', name: 'Sucursal' },
+          warehouse: { id: 'warehouse', name: 'Bodega' },
+          cashRegister: { id: 'register', name: 'Caja', code: 'MAIN' },
+        },
+        userId: 'user',
+        currency: 'MXN',
+        taxRate: '0.1600',
+        lines: [
+          {
+            product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
+            quantity: '2.000',
+            unitPrice: '119.90',
+            subtotal: '206.72',
+            tax: '33.08',
+            total: '239.80',
+          },
+        ],
+        totals: { subtotal: '206.72', tax: '33.08', total: '239.80' },
+        payment: {
+          method: 'CASH',
+          amountReceived: '250.00',
+          amountApplied: '239.80',
+          change: '10.20',
+        },
+        createdAt: new Date().toISOString(),
+      },
+      meta: { apiVersion: '1', idempotentReplay: false },
+    });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Venta V-123456789012 completada');
+    expect(fixture.nativeElement.textContent).toContain('Cambio MXN 10.20');
   });
 });
