@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { finalize } from 'rxjs';
+import { finalize, forkJoin } from 'rxjs';
 import {
   ProductApiService,
   ProductData,
@@ -41,6 +41,14 @@ import {
   InventoryTransferReceiptInput,
   InventoryTransferStatus,
 } from '../inventory/inventory-transfer-api.service';
+import {
+  AccessApiService,
+  AccessRoleData,
+  AccessUserData,
+  AppPermission,
+  INVENTORY_PERMISSIONS,
+  InventoryPermission,
+} from '../access/access-api.service';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
@@ -70,6 +78,7 @@ export class ApplicationPage implements OnInit {
   private readonly audit = inject(AuditApiService);
   private readonly organization = inject(OrganizationApiService);
   private readonly transfers = inject(InventoryTransferApiService);
+  private readonly access = inject(AccessApiService);
   private pendingMovement: { input: InventoryMovementInput; key: string } | null = null;
   private pendingStateTransition: {
     input: InventoryStateTransitionInput;
@@ -96,7 +105,19 @@ export class ApplicationPage implements OnInit {
     () => this.session()?.user.permissions.includes('PRODUCTS_MANAGE') ?? false,
   );
   protected readonly canManageStock = computed(
-    () => this.session()?.user.permissions.includes('STOCK_MANAGE') ?? false,
+    () => this.session()?.user.permissions.includes('INVENTORY_VIEW') ?? false,
+  );
+  protected readonly canAdjustInventory = computed(
+    () => this.session()?.user.permissions.includes('INVENTORY_ADJUST') ?? false,
+  );
+  protected readonly canTransferInventory = computed(
+    () => this.session()?.user.permissions.includes('INVENTORY_TRANSFER') ?? false,
+  );
+  protected readonly canApproveInventory = computed(
+    () => this.session()?.user.permissions.includes('INVENTORY_APPROVE') ?? false,
+  );
+  protected readonly canManageAccess = computed(
+    () => this.session()?.user.permissions.includes('ACCESS_MANAGE') ?? false,
   );
   protected readonly canManageSales = computed(
     () =>
@@ -112,8 +133,20 @@ export class ApplicationPage implements OnInit {
       !this.canManageProducts() &&
       !this.canManageStock() &&
       !this.canManageSales() &&
+      !this.canManageAccess() &&
       !this.canViewAudit(),
   );
+  protected readonly inventoryPermissions = INVENTORY_PERMISSIONS;
+  protected readonly accessRoles = signal<AccessRoleData[]>([]);
+  protected readonly accessUsers = signal<AccessUserData[]>([]);
+  protected readonly manageableAccessUsers = computed(() =>
+    this.accessUsers().filter(({ manageable }) => manageable),
+  );
+  protected readonly selectedRolePermissions = signal<InventoryPermission[]>(['INVENTORY_VIEW']);
+  protected readonly loadingAccess = signal(false);
+  protected readonly savingAccess = signal(false);
+  protected readonly accessError = signal<string | null>(null);
+  protected readonly accessSuccess = signal<string | null>(null);
   protected readonly categories = signal<Array<{ id: string; name: string }>>([]);
   protected readonly brands = signal<Array<{ id: string; name: string }>>([]);
   protected readonly createdProduct = signal<ProductData | null>(null);
@@ -207,6 +240,7 @@ export class ApplicationPage implements OnInit {
     if (this.savingOrganization()) return 'Guardando estructura operativa…';
     if (this.savingTransfer()) return 'Creando transferencia…';
     if (this.transferActionId()) return 'Actualizando transferencia…';
+    if (this.savingAccess()) return 'Guardando acceso operativo…';
     if (this.switchingContext()) return 'Cambiando contexto operativo…';
     if (this.savingSale()) return 'Confirmando venta y actualizando inventario…';
     if (this.quotingCart()) return 'Validando precios y existencias…';
@@ -288,13 +322,35 @@ export class ApplicationPage implements OnInit {
     locationName: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
     locationCode: ['', [Validators.required, Validators.pattern(LOCATION_CODE_PATTERN)]],
   });
+  protected readonly accessRoleForm = this.formBuilder.nonNullable.group({
+    name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(80)]],
+  });
+  protected readonly accessUserForm = this.formBuilder.nonNullable.group({
+    email: ['', [Validators.required, Validators.email, Validators.maxLength(254)]],
+    password: [
+      '',
+      [
+        Validators.required,
+        Validators.minLength(12),
+        Validators.maxLength(128),
+        Validators.pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).+$/),
+      ],
+    ],
+    roleId: ['', [Validators.required]],
+    branchId: ['', [Validators.required]],
+  });
+  protected readonly accessAssignmentForm = this.formBuilder.nonNullable.group({
+    userId: ['', [Validators.required]],
+    roleId: ['', [Validators.required]],
+    branchId: ['', [Validators.required]],
+  });
 
   ngOnInit(): void {
     this.loadOrganization();
     if (this.canManageProducts()) {
       this.loadOptions();
-      this.loadProducts(1);
     }
+    if (this.canManageProducts() || this.canManageStock()) this.loadProducts(1);
     if (this.canManageStock()) {
       this.loadLocations();
       this.loadStockList(1);
@@ -303,6 +359,7 @@ export class ApplicationPage implements OnInit {
     }
     if (this.canManageSales()) this.loadSales(1);
     if (this.canViewAudit()) this.loadAuditEvents();
+    if (this.canManageAccess()) this.loadAccess();
   }
 
   protected submit(): void {
@@ -959,6 +1016,9 @@ export class ApplicationPage implements OnInit {
         WAREHOUSE_UPDATED: 'Bodega actualizada',
         WAREHOUSE_RETIRED: 'Bodega desactivada',
         SALE_COMPLETED: 'Venta completada',
+        ACCESS_ROLE_CREATED: 'Rol operativo creado',
+        ACCESS_USER_CREATED: 'Usuario operativo creado',
+        ACCESS_USER_UPDATED: 'Acceso operativo actualizado',
       }[action] ?? action
     );
   }
@@ -969,6 +1029,7 @@ export class ApplicationPage implements OnInit {
   }
 
   protected recordMovement(): void {
+    if (!this.canAdjustInventory()) return;
     const product = this.selectedProduct();
     if (!product || this.stockForm.invalid || this.savingStock()) {
       this.stockForm.markAllAsTouched();
@@ -1041,6 +1102,7 @@ export class ApplicationPage implements OnInit {
   }
 
   protected changeStockState(): void {
+    if (!this.canAdjustInventory()) return;
     const product = this.selectedProduct();
     const locationId = this.stockForm.controls.locationId.value;
     if (
@@ -1110,6 +1172,7 @@ export class ApplicationPage implements OnInit {
   }
 
   protected createTransfer(): void {
+    if (!this.canTransferInventory()) return;
     const product = this.selectedProduct();
     const value = this.transferForm.getRawValue();
     if (
@@ -1166,7 +1229,7 @@ export class ApplicationPage implements OnInit {
   }
 
   protected dispatchTransfer(transfer: InventoryTransferData): void {
-    if (this.transferActionId()) return;
+    if (!this.canApproveInventory() || this.transferActionId()) return;
     const pending = this.pendingTransferDispatch;
     const key =
       pending?.id === transfer.id
@@ -1193,7 +1256,7 @@ export class ApplicationPage implements OnInit {
   }
 
   protected cancelTransfer(transfer: InventoryTransferData): void {
-    if (this.transferActionId()) return;
+    if (!this.canApproveInventory() || this.transferActionId()) return;
     this.transferActionId.set(transfer.id);
     this.transferError.set(null);
     this.transferSuccess.set(null);
@@ -1212,6 +1275,7 @@ export class ApplicationPage implements OnInit {
 
   protected canReceiveTransfer(transfer: InventoryTransferData): boolean {
     return (
+      this.canTransferInventory() &&
       ['DISPATCHED', 'PARTIALLY_RECEIVED'].includes(transfer.status) &&
       transfer.destinationWarehouse.id === this.session()?.context.warehouse?.id
     );
@@ -1224,7 +1288,7 @@ export class ApplicationPage implements OnInit {
     discrepancyValue: string,
     reasonValue: string,
   ): void {
-    if (this.transferActionId()) return;
+    if (!this.canTransferInventory() || this.transferActionId()) return;
     const received = receivedValue.trim();
     const discrepancy = discrepancyValue.trim();
     const reason = reasonValue.trim();
@@ -1287,6 +1351,150 @@ export class ApplicationPage implements OnInit {
       });
   }
 
+  protected permissionLabel(permission: AppPermission): string {
+    return {
+      TENANT_MANAGE: 'Administrar empresa y sucursales',
+      PRODUCTS_MANAGE: 'Administrar productos',
+      SALES_MANAGE: 'Operar ventas',
+      ACCESS_MANAGE: 'Administrar roles y usuarios',
+      INVENTORY_VIEW: 'Consultar inventario e historial',
+      INVENTORY_ADJUST: 'Registrar entradas, salidas y ajustes',
+      INVENTORY_TRANSFER: 'Crear y recibir transferencias',
+      INVENTORY_COUNT: 'Realizar conteos',
+      INVENTORY_APPROVE: 'Despachar, cancelar y aprobar operaciones',
+    }[permission];
+  }
+
+  protected toggleRolePermission(permission: InventoryPermission, checked: boolean): void {
+    const current = this.selectedRolePermissions();
+    this.selectedRolePermissions.set(
+      checked
+        ? Array.from(new Set([...current, permission]))
+        : current.filter((candidate) => candidate !== permission),
+    );
+  }
+
+  protected createAccessRole(): void {
+    if (
+      this.accessRoleForm.invalid ||
+      this.selectedRolePermissions().length === 0 ||
+      this.savingAccess()
+    ) {
+      this.accessRoleForm.markAllAsTouched();
+      if (this.selectedRolePermissions().length === 0) {
+        this.accessError.set('Selecciona al menos un permiso para el rol.');
+      }
+      return;
+    }
+    this.savingAccess.set(true);
+    this.accessError.set(null);
+    this.accessSuccess.set(null);
+    this.access
+      .createRole(this.accessRoleForm.controls.name.value.trim(), this.selectedRolePermissions())
+      .pipe(finalize(() => this.savingAccess.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.accessSuccess.set(`Rol ${data.name} creado.`);
+          this.accessRoleForm.reset({ name: '' });
+          this.selectedRolePermissions.set(['INVENTORY_VIEW']);
+          this.loadAccess();
+          this.loadAuditEvents();
+        },
+        error: (error: HttpErrorResponse) =>
+          this.accessError.set(this.operationMessage(error, 'No fue posible crear el rol.')),
+      });
+  }
+
+  protected createAccessUser(): void {
+    if (this.accessUserForm.invalid || this.savingAccess()) {
+      this.accessUserForm.markAllAsTouched();
+      return;
+    }
+    const value = this.accessUserForm.getRawValue();
+    this.savingAccess.set(true);
+    this.accessError.set(null);
+    this.accessSuccess.set(null);
+    this.access
+      .createUser(value.email.trim(), value.password, [value.roleId], [value.branchId])
+      .pipe(finalize(() => this.savingAccess.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.accessSuccess.set(`Acceso creado para ${data.email}.`);
+          this.accessUserForm.controls.email.setValue('');
+          this.accessUserForm.controls.password.setValue('');
+          this.loadAccess();
+          this.loadAuditEvents();
+        },
+        error: (error: HttpErrorResponse) =>
+          this.accessError.set(this.operationMessage(error, 'No fue posible crear el acceso.')),
+      });
+  }
+
+  protected assignmentUserChanged(): void {
+    const user = this.accessUsers().find(
+      ({ id }) => id === this.accessAssignmentForm.controls.userId.value,
+    );
+    this.accessAssignmentForm.controls.roleId.setValue(user?.roles[0]?.id ?? '');
+    this.accessAssignmentForm.controls.branchId.setValue(user?.branches[0]?.id ?? '');
+  }
+
+  protected updateAccessUser(): void {
+    if (this.accessAssignmentForm.invalid || this.savingAccess()) {
+      this.accessAssignmentForm.markAllAsTouched();
+      return;
+    }
+    const value = this.accessAssignmentForm.getRawValue();
+    this.savingAccess.set(true);
+    this.accessError.set(null);
+    this.accessSuccess.set(null);
+    this.access
+      .updateUser(value.userId, [value.roleId], [value.branchId])
+      .pipe(finalize(() => this.savingAccess.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.accessSuccess.set(
+            `Permisos de ${data.email} actualizados; sus sesiones se cerraron.`,
+          );
+          this.loadAccess();
+          this.loadAuditEvents();
+        },
+        error: (error: HttpErrorResponse) =>
+          this.accessError.set(
+            this.operationMessage(error, 'No fue posible actualizar el acceso.'),
+          ),
+      });
+  }
+
+  private loadAccess(): void {
+    this.loadingAccess.set(true);
+    this.accessError.set(null);
+    forkJoin({ roles: this.access.listRoles(), users: this.access.listUsers() })
+      .pipe(finalize(() => this.loadingAccess.set(false)))
+      .subscribe({
+        next: ({ roles, users }) => {
+          this.accessRoles.set(roles.data);
+          this.accessUsers.set(users.data);
+          const firstRoleId = roles.data[0]?.id ?? '';
+          const firstBranchId = this.activeBranches()[0]?.id ?? '';
+          if (!this.accessUserForm.controls.roleId.value) {
+            this.accessUserForm.controls.roleId.setValue(firstRoleId);
+          }
+          if (!this.accessUserForm.controls.branchId.value) {
+            this.accessUserForm.controls.branchId.setValue(firstBranchId);
+          }
+          const manageable = users.data.find(({ manageable }) => manageable);
+          if (!this.accessAssignmentForm.controls.userId.value && manageable) {
+            this.accessAssignmentForm.controls.userId.setValue(manageable.id);
+            this.assignmentUserChanged();
+          }
+        },
+        error: (error: HttpErrorResponse) =>
+          this.accessError.set(
+            this.operationMessage(error, 'No fue posible cargar roles y usuarios.'),
+          ),
+      });
+  }
+
   private loadOptions(): void {
     this.loadingOptions.set(true);
     this.products
@@ -1328,6 +1536,9 @@ export class ApplicationPage implements OnInit {
             this.warehouseForm.controls.branchId.setValue(branch?.id ?? '');
           }
           this.syncTransferTargets();
+          if (this.canManageAccess() && !this.accessUserForm.controls.branchId.value) {
+            this.accessUserForm.controls.branchId.setValue(branch?.id ?? '');
+          }
         },
         error: (error: HttpErrorResponse) =>
           this.organizationError.set(
