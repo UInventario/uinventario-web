@@ -16,6 +16,8 @@ describe('OfflineBootstrapPanelComponent', () => {
     replaceBootstrap: vi.fn(),
     applyChanges: vi.fn(),
     outbox: vi.fn(),
+    retryNow: vi.fn(),
+    rejectPending: vi.fn(),
   };
   const outbox = { flush: vi.fn() };
   const scope = {
@@ -35,6 +37,8 @@ describe('OfflineBootstrapPanelComponent', () => {
     store.replaceBootstrap.mockReset().mockResolvedValue(undefined);
     store.applyChanges.mockReset().mockResolvedValue(undefined);
     store.outbox.mockReset().mockResolvedValue([]);
+    store.retryNow.mockReset().mockResolvedValue(undefined);
+    store.rejectPending.mockReset().mockResolvedValue(undefined);
     outbox.flush.mockReset().mockResolvedValue({ confirmed: 0, rejected: 0 });
     await TestBed.configureTestingModule({
       imports: [OfflineBootstrapPanelComponent],

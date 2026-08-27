@@ -335,6 +335,40 @@ export class OfflineStoreService {
     }));
   }
 
+  async retryNow(scope: OfflineScopeIdentity, commandId: string): Promise<void> {
+    await this.updateScopedCommand(scope, commandId, (command) => {
+      if (command.status !== 'ERROR' || !command.retryable) return command;
+      return {
+        ...command,
+        status: 'PENDING',
+        nextAttemptAt: null,
+        lastError: null,
+      };
+    });
+  }
+
+  async rejectPending(scope: OfflineScopeIdentity, commandId: string): Promise<void> {
+    const database = await this.open();
+    const key = this.scopeKey(scope);
+    const transaction = database.transaction('outbox', 'readwrite');
+    const store = transaction.objectStore('outbox');
+    const request = store.index('scopeKey').getAll(IDBKeyRange.only(key));
+    request.onsuccess = () => {
+      const commands = (request.result as OfflineOutboxCommand[]).sort(
+        (left, right) => left.sequence - right.sequence,
+      );
+      const rejected = commands.find(({ commandId: id }) => id === commandId);
+      if (!rejected || rejected.status !== 'PENDING' || rejected.attempts !== 0) return;
+      store.delete(rejected.commandId);
+      for (const command of commands) {
+        if (command.sequence > rejected.sequence && command.attempts === 0) {
+          store.put({ ...command, sequence: command.sequence - 1 });
+        }
+      }
+    };
+    await this.safeTransaction(transaction);
+  }
+
   async clearAll(): Promise<void> {
     const database = await this.open();
     const transaction = database.transaction(['scopes', 'entities', 'outbox'], 'readwrite');
@@ -513,6 +547,17 @@ export class OfflineStoreService {
       };
     }
     await this.safeTransaction(transaction);
+  }
+
+  private async updateScopedCommand(
+    scope: OfflineScopeIdentity,
+    commandId: string,
+    update: (command: OfflineOutboxCommand) => OfflineOutboxCommand,
+  ): Promise<void> {
+    const key = this.scopeKey(scope);
+    await this.updateCommands([commandId], (command) =>
+      command.scopeKey === key ? update(command) : command,
+    );
   }
 
   private deleteDatabase(): Promise<void> {

@@ -53,6 +53,46 @@ button.secondary {
   color: #0b5cab;
 }
 
+button.danger {
+  background: #a4262c;
+}
+
+.command-review {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.command-review h3 {
+  margin: 0.25rem 0;
+}
+
+.command-review article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem;
+  border: 1px solid #b8cee2;
+  border-radius: 0.5rem;
+  background: #fff;
+}
+
+.command-review article div:first-child {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.command-review span {
+  color: #4b5563;
+  font-size: 0.85rem;
+}
+
+.command-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
 .success {
   color: #176b3a;
 }

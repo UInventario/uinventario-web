@@ -1,0 +1,65 @@
+<section class="offline-inventory" aria-labelledby="offline-inventory-title">
+  <div class="heading">
+    <div>
+      <p class="eyebrow">Inventario sin conexión</p>
+      <h2 id="offline-inventory-title">Capturar conteo o movimiento</h2>
+      <p>La evidencia y el saldo observado se validarán al sincronizar.</p>
+    </div>
+    <button type="button" class="secondary" (click)="load()" [disabled]="loading()">
+      Actualizar datos locales
+    </button>
+  </div>
+
+  @if (!loading() && operations().length && products().length && locations().length) {
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <label>
+        Operación
+        <select formControlName="operation">
+          @for (operation of operations(); track operation.value) {
+            <option [value]="operation.value">{{ operation.label }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        Producto
+        <select formControlName="productId">
+          @for (product of products(); track product.id) {
+            <option [value]="product.id">{{ product.sku }} · {{ product.name }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        Ubicación
+        <select formControlName="locationId">
+          @for (location of locations(); track location.id) {
+            <option [value]="location.id">{{ location.code }} · {{ location.name }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        {{ form.controls.operation.value === 'COUNT' ? 'Cantidad contada' : 'Cantidad' }}
+        <input formControlName="quantity" inputmode="decimal" placeholder="0.000" />
+      </label>
+      <label>
+        Motivo
+        <input formControlName="reason" maxlength="160" />
+      </label>
+      <label>
+        Referencia o evidencia
+        <input formControlName="reference" maxlength="120" />
+      </label>
+      <button type="submit" [disabled]="saving()">
+        {{ saving() ? 'Guardando…' : 'Guardar offline' }}
+      </button>
+    </form>
+  }
+  @if (loading()) {
+    <p role="status">Cargando inventario local…</p>
+  }
+  @if (success()) {
+    <p class="success" role="status">{{ success() }}</p>
+  }
+  @if (error()) {
+    <p class="error" role="alert">{{ error() }}</p>
+  }
+</section>

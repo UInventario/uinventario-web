@@ -38,6 +38,9 @@
   </nav>
 
   <app-offline-bootstrap-panel />
+  @if (canAdjustInventory() || canCountInventory()) {
+    <app-offline-inventory-panel />
+  }
 
   <section
     class="stock-overview"
