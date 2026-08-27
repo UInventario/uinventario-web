@@ -53,6 +53,10 @@ export interface PurchaseReceiptData {
     purchaseOrderLineId: string;
     receivedQuantity: string;
     overageQuantity: string;
+    unitCost: string;
+    totalCost: string;
+    previousCatalogCost: string;
+    resultingCatalogCost: string;
   }>;
   createdAt: string;
 }
