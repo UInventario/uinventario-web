@@ -51,6 +51,8 @@ export class ApplicationPage implements OnInit {
   protected readonly categories = signal<Array<{ id: string; name: string }>>([]);
   protected readonly brands = signal<Array<{ id: string; name: string }>>([]);
   protected readonly createdProduct = signal<ProductData | null>(null);
+  protected readonly editingProduct = signal<ProductData | null>(null);
+  protected readonly updatedProduct = signal(false);
   protected readonly productList = signal<ProductData[]>([]);
   protected readonly selectedProduct = signal<ProductData | null>(null);
   protected readonly locations = signal<Array<{ id: string; name: string; code: string }>>([]);
@@ -144,29 +146,46 @@ export class ApplicationPage implements OnInit {
     }
     this.saving.set(true);
     this.errorMessage.set(null);
-    this.products
-      .create(this.toInput())
-      .pipe(finalize(() => this.saving.set(false)))
-      .subscribe({
-        next: ({ data }) => {
-          this.createdProduct.set(data);
-          this.selectedProduct.set(data);
-          this.form.reset({
-            name: '',
-            sku: '',
-            barcode: '',
-            categoryName: data.category?.name ?? '',
-            brandName: data.brand?.name ?? '',
-            cost: '',
-            price: '',
-          });
-          this.loadOptions();
-          this.loadProducts(1);
-          this.loadBalance(data.id);
-          this.loadStockList(1);
-        },
-        error: (error: HttpErrorResponse) => this.errorMessage.set(this.messageFor(error)),
-      });
+    const editing = this.editingProduct();
+    const operation = editing
+      ? this.products.update(editing.id, { ...this.toInput(), version: editing.version })
+      : this.products.create(this.toInput());
+    operation.pipe(finalize(() => this.saving.set(false))).subscribe({
+      next: ({ data }) => {
+        this.createdProduct.set(editing ? null : data);
+        this.updatedProduct.set(Boolean(editing));
+        this.editingProduct.set(null);
+        this.selectedProduct.set(data);
+        this.resetProductForm(data);
+        this.loadOptions();
+        this.loadProducts(1);
+        this.loadBalance(data.id);
+        this.loadStockList(1);
+      },
+      error: (error: HttpErrorResponse) => this.errorMessage.set(this.messageFor(error)),
+    });
+  }
+
+  protected startEditing(product: ProductData): void {
+    this.createdProduct.set(null);
+    this.updatedProduct.set(false);
+    this.errorMessage.set(null);
+    this.editingProduct.set(product);
+    this.form.reset({
+      name: product.name,
+      sku: product.sku,
+      barcode: product.barcode ?? '',
+      categoryName: product.category?.name ?? '',
+      brandName: product.brand?.name ?? '',
+      cost: product.cost,
+      price: product.price,
+    });
+  }
+
+  protected cancelEditing(): void {
+    this.editingProduct.set(null);
+    this.errorMessage.set(null);
+    this.resetProductForm(this.selectedProduct());
   }
 
   protected logout(): void {
@@ -328,6 +347,8 @@ export class ApplicationPage implements OnInit {
       .subscribe({
         next: ({ data }) => {
           this.createdProduct.set(null);
+          this.updatedProduct.set(false);
+          this.editingProduct.set(null);
           this.selectedProduct.set(data);
           this.loadBalance(data.id);
         },
@@ -586,14 +607,29 @@ export class ApplicationPage implements OnInit {
     };
   }
 
+  private resetProductForm(product: ProductData | null): void {
+    this.form.reset({
+      name: '',
+      sku: '',
+      barcode: '',
+      categoryName: product?.category?.name ?? '',
+      brandName: product?.brand?.name ?? '',
+      cost: '',
+      price: '',
+    });
+  }
+
   private messageFor(error: HttpErrorResponse): string {
     const code = (error.error as { code?: string } | null)?.code;
     if (code === 'SKU_ALREADY_EXISTS') return 'Ya existe un producto con ese SKU.';
     if (code === 'BARCODE_ALREADY_EXISTS') {
       return 'Ya existe un producto con ese código de barras.';
     }
+    if (code === 'PRODUCT_VERSION_CONFLICT') {
+      return 'El producto cambió desde que lo abriste. Cancela y vuelve a abrirlo antes de guardar.';
+    }
     if (error.status === 0) return 'No pudimos conectar con el servicio. Intenta nuevamente.';
-    return 'No fue posible crear el producto con esos datos.';
+    return 'No fue posible guardar el producto con esos datos.';
   }
 
   private stockMessageFor(error: HttpErrorResponse): string {

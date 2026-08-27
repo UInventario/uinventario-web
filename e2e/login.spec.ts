@@ -81,6 +81,13 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await expect(page.getByText('Producto creado')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Café molido 500 g' })).toBeVisible();
   await expect(page.locator('.detail').getByText('119.90')).toBeVisible();
+  await page.getByRole('button', { name: 'Editar producto' }).click();
+  await expect(page.getByRole('heading', { name: 'Editar producto' })).toBeVisible();
+  await expect(page.getByLabel('Nombre', { exact: true })).toHaveValue('Café molido 500 g');
+  await page.getByLabel('Costo').fill('86.00');
+  await page.getByRole('button', { name: 'Guardar cambios' }).click();
+  await expect(page.getByText('Producto actualizado')).toBeVisible();
+  await expect(page.locator('.detail').getByText('86.00')).toBeVisible();
   await expect(page.locator('.balance').getByText('0.000')).toBeVisible();
   await page.getByLabel('Cantidad').fill('10.5');
   await page.getByLabel('Motivo').fill('Conteo inicial');
