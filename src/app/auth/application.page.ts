@@ -7,6 +7,7 @@ import {
   InventoryApiService,
   InventoryBalanceData,
   InventoryMovementInput,
+  InventoryStockItem,
 } from '../inventory/inventory-api.service';
 import { SessionApiService } from './session-api.service';
 
@@ -45,11 +46,24 @@ export class ApplicationPage implements OnInit {
   protected readonly catalogError = signal<string | null>(null);
   protected readonly stockError = signal<string | null>(null);
   protected readonly stockSuccess = signal<string | null>(null);
+  protected readonly stockList = signal<InventoryStockItem[]>([]);
+  protected readonly stockListError = signal<string | null>(null);
+  protected readonly loadingStockList = signal(true);
+  protected readonly stockPage = signal(1);
+  protected readonly stockTotalPages = signal(0);
+  protected readonly stockTotal = signal(0);
+  protected readonly stockScope = signal<{
+    branch: { id: string; name: string };
+    warehouse: { id: string; name: string };
+  } | null>(null);
   protected readonly page = signal(1);
   protected readonly totalPages = signal(0);
   protected readonly totalProducts = signal(0);
   protected readonly pageSize = 5;
   protected readonly searchForm = this.formBuilder.nonNullable.group({
+    q: ['', [Validators.maxLength(80)]],
+  });
+  protected readonly stockSearchForm = this.formBuilder.nonNullable.group({
     q: ['', [Validators.maxLength(80)]],
   });
   protected readonly form = this.formBuilder.nonNullable.group({
@@ -73,6 +87,7 @@ export class ApplicationPage implements OnInit {
     this.loadOptions();
     this.loadLocations();
     this.loadProducts(1);
+    this.loadStockList(1);
   }
 
   protected submit(): void {
@@ -101,6 +116,7 @@ export class ApplicationPage implements OnInit {
           this.loadOptions();
           this.loadProducts(1);
           this.loadBalance(data.id);
+          this.loadStockList(1);
         },
         error: (error: HttpErrorResponse) => this.errorMessage.set(this.messageFor(error)),
       });
@@ -124,6 +140,24 @@ export class ApplicationPage implements OnInit {
 
   protected nextPage(): void {
     if (this.page() < this.totalPages()) this.loadProducts(this.page() + 1);
+  }
+
+  protected searchStock(): void {
+    if (this.stockSearchForm.invalid) {
+      this.stockSearchForm.markAllAsTouched();
+      return;
+    }
+    this.loadStockList(1);
+  }
+
+  protected previousStockPage(): void {
+    if (this.stockPage() > 1) this.loadStockList(this.stockPage() - 1);
+  }
+
+  protected nextStockPage(): void {
+    if (this.stockPage() < this.stockTotalPages()) {
+      this.loadStockList(this.stockPage() + 1);
+    }
   }
 
   protected selectProduct(id: string): void {
@@ -199,6 +233,7 @@ export class ApplicationPage implements OnInit {
             reason: '',
             reference: '',
           });
+          this.loadStockList(this.stockPage());
         },
         error: (error: HttpErrorResponse) => {
           if (error.status > 0 && error.status < 500) this.pendingMovement = null;
@@ -262,6 +297,32 @@ export class ApplicationPage implements OnInit {
           this.totalProducts.set(meta.pagination.total);
         },
         error: () => this.catalogError.set('No fue posible cargar el catálogo.'),
+      });
+  }
+
+  private loadStockList(page: number): void {
+    this.loadingStockList.set(true);
+    this.stockListError.set(null);
+    const q = this.stockSearchForm.controls.q.value.trim();
+    const context = this.session()?.context;
+    this.inventory
+      .listStock({
+        ...(context?.branch?.id ? { branchId: context.branch.id } : {}),
+        ...(context?.warehouse?.id ? { warehouseId: context.warehouse.id } : {}),
+        ...(q ? { q } : {}),
+        page,
+        pageSize: 10,
+      })
+      .pipe(finalize(() => this.loadingStockList.set(false)))
+      .subscribe({
+        next: ({ data, meta }) => {
+          this.stockList.set(data);
+          this.stockScope.set(meta.scope);
+          this.stockPage.set(meta.pagination.page);
+          this.stockTotalPages.set(meta.pagination.totalPages);
+          this.stockTotal.set(meta.pagination.total);
+        },
+        error: () => this.stockListError.set('No fue posible cargar las existencias.'),
       });
   }
 

@@ -17,6 +17,7 @@ describe('ApplicationPage', () => {
   };
   let inventory: {
     listLocations: ReturnType<typeof vi.fn>;
+    listStock: ReturnType<typeof vi.fn>;
     getBalance: ReturnType<typeof vi.fn>;
     createMovement: ReturnType<typeof vi.fn>;
   };
@@ -43,6 +44,19 @@ describe('ApplicationPage', () => {
         of({
           data: [{ id: 'location', name: 'General', code: 'GENERAL' }],
           meta: { apiVersion: '1' },
+        }),
+      ),
+      listStock: vi.fn().mockReturnValue(
+        of({
+          data: [],
+          meta: {
+            apiVersion: '1',
+            scope: {
+              branch: { id: 'branch', name: 'Sucursal' },
+              warehouse: { id: 'warehouse', name: 'Bodega' },
+            },
+            pagination: { page: 1, pageSize: 10, total: 0, totalPages: 0 },
+          },
         }),
       ),
       getBalance: vi.fn().mockReturnValue(
@@ -217,6 +231,26 @@ describe('ApplicationPage', () => {
           meta: { apiVersion: '1', idempotentReplay: false },
         }),
       );
+    inventory.listStock.mockReturnValue(
+      of({
+        data: [
+          {
+            product: { id: 'product', name: 'Café', sku: 'CAFE-1', active: true },
+            availableQuantity: '10.000',
+            totalQuantity: '10.000',
+            states: [{ code: 'AVAILABLE', quantity: '10.000' }],
+          },
+        ],
+        meta: {
+          apiVersion: '1',
+          scope: {
+            branch: { id: 'branch', name: 'Sucursal' },
+            warehouse: { id: 'warehouse', name: 'Bodega' },
+          },
+          pagination: { page: 1, pageSize: 10, total: 1, totalPages: 1 },
+        },
+      }),
+    );
     (fixture.componentInstance as unknown as { search(): void }).search();
     fixture.detectChanges();
     (fixture.nativeElement.querySelector('.product-list button') as HTMLButtonElement).click();
@@ -245,5 +279,14 @@ describe('ApplicationPage', () => {
       inventory.createMovement.mock.calls[0][1],
     );
     expect(fixture.nativeElement.textContent).toContain('Existencia 10.000');
+    expect(fixture.nativeElement.querySelector('.stock-table').textContent).toContain('CAFE-1');
+  });
+
+  it('shows an error when the stock overview cannot be loaded', () => {
+    inventory.listStock.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 503 })));
+    (fixture.componentInstance as unknown as { searchStock(): void }).searchStock();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('No fue posible cargar las existencias.');
   });
 });

@@ -25,6 +25,13 @@ export interface InventoryMovementInput {
   reference?: string;
 }
 
+export interface InventoryStockItem {
+  product: { id: string; name: string; sku: string; active: boolean };
+  availableQuantity: string;
+  totalQuantity: string;
+  states: Array<{ code: 'AVAILABLE'; quantity: string }>;
+}
+
 interface LocationsResponse {
   data: InventoryLocationData[];
   meta: { apiVersion: '1' };
@@ -47,6 +54,18 @@ interface MovementResponse {
   meta: { apiVersion: '1'; idempotentReplay: boolean };
 }
 
+export interface StockListResponse {
+  data: InventoryStockItem[];
+  meta: {
+    apiVersion: '1';
+    scope: {
+      branch: { id: string; name: string };
+      warehouse: { id: string; name: string };
+    };
+    pagination: { page: number; pageSize: number; total: number; totalPages: number };
+  };
+}
+
 @Injectable({ providedIn: 'root' })
 export class InventoryApiService {
   private readonly http = inject(HttpClient);
@@ -54,6 +73,25 @@ export class InventoryApiService {
 
   listLocations() {
     return this.http.get<LocationsResponse>(`${this.config.apiBaseUrl()}/inventory/locations`, {
+      withCredentials: true,
+    });
+  }
+
+  listStock(query: {
+    branchId?: string;
+    warehouseId?: string;
+    productId?: string;
+    q?: string;
+    page: number;
+    pageSize: number;
+  }) {
+    let params = new HttpParams().set('page', query.page).set('pageSize', query.pageSize);
+    if (query.branchId) params = params.set('branchId', query.branchId);
+    if (query.warehouseId) params = params.set('warehouseId', query.warehouseId);
+    if (query.productId) params = params.set('productId', query.productId);
+    if (query.q) params = params.set('q', query.q);
+    return this.http.get<StockListResponse>(`${this.config.apiBaseUrl()}/inventory/stock`, {
+      params,
       withCredentials: true,
     });
   }
