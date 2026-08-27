@@ -35,6 +35,8 @@ describe('ApplicationPage', () => {
     getBalance: ReturnType<typeof vi.fn>;
     createMovement: ReturnType<typeof vi.fn>;
     createStateTransition: ReturnType<typeof vi.fn>;
+    previewImport: ReturnType<typeof vi.fn>;
+    confirmImport: ReturnType<typeof vi.fn>;
   };
   let pos: {
     getCurrentShift: ReturnType<typeof vi.fn>;
@@ -144,6 +146,8 @@ describe('ApplicationPage', () => {
       ),
       createMovement: vi.fn(),
       createStateTransition: vi.fn(),
+      previewImport: vi.fn(),
+      confirmImport: vi.fn(),
     };
     pos = {
       getCurrentShift: vi.fn().mockReturnValue(
@@ -783,6 +787,79 @@ describe('ApplicationPage', () => {
     expect(
       fixture.nativeElement.querySelector('[aria-label="Existencias por producto"]').textContent,
     ).toContain('CAFE-1');
+  });
+
+  it('previews and confirms an atomic inventory import from the real file control', () => {
+    const preview = {
+      id: '11111111-1111-4111-8111-111111111111',
+      mode: 'COUNT' as const,
+      status: 'PREVIEWED' as const,
+      sourceFilename: 'conteo.csv',
+      policy: 'ATOMIC' as const,
+      canConfirm: true,
+      summary: { rows: 1, validRows: 1, errorRows: 0, movements: null },
+      rows: [
+        {
+          id: 'row-1',
+          rowNumber: 2,
+          product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
+          location: { id: 'location', name: 'General', code: 'GENERAL' },
+          state: 'AVAILABLE' as const,
+          targetQuantity: '12.000',
+          currentQuantity: '10.000',
+          difference: '2.000',
+          reason: 'Conteo físico',
+          errors: [],
+        },
+      ],
+      confirmedAt: null,
+    };
+    inventory.previewImport.mockReturnValue(of({ data: preview, meta: { apiVersion: '1' } }));
+    inventory.confirmImport.mockReturnValue(
+      of({
+        data: {
+          ...preview,
+          status: 'CONFIRMED',
+          canConfirm: false,
+          summary: { ...preview.summary, movements: 1 },
+          confirmedAt: '2026-08-27T12:00:00.000Z',
+        },
+        meta: { apiVersion: '1', idempotentReplay: false },
+      }),
+    );
+
+    const mode = fixture.nativeElement.querySelector('#inventoryImportMode') as HTMLSelectElement;
+    mode.value = 'COUNT';
+    mode.dispatchEvent(new Event('change', { bubbles: true }));
+    const file = new File(
+      ['sku,location,quantity,state,reason\nCAFE-1,GENERAL,12,AVAILABLE,Conteo físico'],
+      'conteo.csv',
+      { type: 'text/csv' },
+    );
+    const fileInput = fixture.nativeElement.querySelector(
+      '#inventoryImportFile',
+    ) as HTMLInputElement;
+    Object.defineProperty(fileInput, 'files', { configurable: true, value: [file] });
+    fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelector('.import-controls button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(inventory.previewImport).toHaveBeenCalledWith(file, 'COUNT');
+    expect(fixture.nativeElement.textContent).toContain('10.000 → 12.000');
+    expect(fixture.nativeElement.textContent).toContain('Política atómica');
+
+    const stockLoadsBeforeConfirmation = inventory.listStock.mock.calls.length;
+    (fixture.nativeElement.querySelector('.confirm-import') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(inventory.confirmImport).toHaveBeenCalledWith(
+      preview.id,
+      expect.stringMatching(/^web-inventory-import-/),
+    );
+    expect(fixture.nativeElement.textContent).toContain('1 movimiento(s) aplicado(s)');
+    expect(fixture.nativeElement.textContent).toContain('trazable en el historial');
+    expect(inventory.listStock.mock.calls.length).toBe(stockLoadsBeforeConfirmation + 1);
   });
 
   it('requires evidence and sends a positive magnitude for an operational loss', () => {

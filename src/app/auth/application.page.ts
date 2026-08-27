@@ -20,6 +20,7 @@ import {
   InventoryStockState,
   InventoryStockItem,
 } from '../inventory/inventory-api.service';
+import { InventoryImportPanelComponent } from '../inventory/inventory-import-panel.component';
 import { SessionApiService } from './session-api.service';
 import {
   CashRegisterClosureData,
@@ -69,7 +70,7 @@ interface CartEntry {
 
 @Component({
   selector: 'app-application-page',
-  imports: [DatePipe, ReactiveFormsModule, RouterLink],
+  imports: [DatePipe, ReactiveFormsModule, RouterLink, InventoryImportPanelComponent],
   templateUrl: './application.page.html',
   styleUrl: './application.page.scss',
 })
@@ -924,6 +925,7 @@ export class ApplicationPage implements OnInit {
       LOSS: 'Pérdida',
       DAMAGE: 'Daño',
       ADJUSTMENT: 'Ajuste',
+      IMPORT: 'Importación',
       STATE_TRANSITION: 'Cambio de estado',
       SALE: 'Venta',
       SALE_VOID: 'Anulación de venta',
@@ -937,6 +939,7 @@ export class ApplicationPage implements OnInit {
   protected movementDocumentLabel(type: InventoryMovementHistoryItem['document']['type']): string {
     return {
       MOVEMENT: 'Movimiento',
+      IMPORT: 'Importación',
       SALE: 'Venta',
       TRANSFER: 'Transferencia',
       RECEIPT: 'Recepción',
@@ -987,6 +990,14 @@ export class ApplicationPage implements OnInit {
         : [Validators.maxLength(120)],
     );
     reference.updateValueAndValidity();
+  }
+
+  protected inventoryImportConfirmed(): void {
+    this.loadStockList(1);
+    this.loadMovementHistory(1);
+    this.loadAuditEvents();
+    const selected = this.selectedProduct();
+    if (selected) this.loadBalance(selected.id);
   }
 
   protected openCashRegisterShift(): void {
@@ -1416,6 +1427,8 @@ export class ApplicationPage implements OnInit {
         WAREHOUSE_UPDATED: 'Bodega actualizada',
         WAREHOUSE_RETIRED: 'Bodega desactivada',
         CASH_REGISTER_CREATED: 'Caja creada',
+        INVENTORY_IMPORT_PREVIEWED: 'ImportaciÃ³n de inventario previsualizada',
+        INVENTORY_IMPORT_CONFIRMED: 'ImportaciÃ³n de inventario confirmada',
         SALE_COMPLETED: 'Venta completada',
         SALE_VOIDED: 'Venta anulada',
         ACCESS_ROLE_CREATED: 'Rol operativo creado',
