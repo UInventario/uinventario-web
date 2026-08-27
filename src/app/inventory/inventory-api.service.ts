@@ -2,7 +2,7 @@ import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { RuntimeConfigService } from '../core/runtime-config.service';
 
-export type InventoryMovementType = 'INITIAL' | 'ENTRY' | 'ADJUSTMENT';
+export type InventoryMovementType = 'INITIAL' | 'ENTRY' | 'ADJUSTMENT' | 'SALE';
 
 export interface InventoryLocationData {
   id: string;
@@ -19,7 +19,7 @@ export interface InventoryBalanceData {
 export interface InventoryMovementInput {
   productId: string;
   locationId: string;
-  type: InventoryMovementType;
+  type: Exclude<InventoryMovementType, 'SALE'>;
   quantity: string;
   reason: string;
   reference?: string;
@@ -30,6 +30,25 @@ export interface InventoryStockItem {
   availableQuantity: string;
   totalQuantity: string;
   states: Array<{ code: 'AVAILABLE'; quantity: string }>;
+}
+
+export interface InventoryMovementHistoryItem {
+  id: string;
+  type: InventoryMovementType;
+  direction: 'IN' | 'OUT';
+  quantityChange: string;
+  resultingQuantity: string;
+  reason: string;
+  reference: string | null;
+  createdAt: string;
+  product: { id: string; name: string; sku: string };
+  location: {
+    id: string;
+    name: string;
+    code: string;
+    warehouse: { id: string; name: string };
+  };
+  responsible: { id: string; email: string };
 }
 
 interface LocationsResponse {
@@ -66,6 +85,15 @@ export interface StockListResponse {
   };
 }
 
+interface MovementListResponse {
+  data: InventoryMovementHistoryItem[];
+  meta: {
+    apiVersion: '1';
+    scope: { branch: { id: string; name: string } };
+    pagination: { page: number; pageSize: number; total: number; totalPages: number };
+  };
+}
+
 @Injectable({ providedIn: 'root' })
 export class InventoryApiService {
   private readonly http = inject(HttpClient);
@@ -91,6 +119,25 @@ export class InventoryApiService {
     if (query.productId) params = params.set('productId', query.productId);
     if (query.q) params = params.set('q', query.q);
     return this.http.get<StockListResponse>(`${this.config.apiBaseUrl()}/inventory/stock`, {
+      params,
+      withCredentials: true,
+    });
+  }
+
+  listMovements(query: {
+    q?: string;
+    type?: InventoryMovementType;
+    dateFrom?: string;
+    dateTo?: string;
+    page: number;
+    pageSize: number;
+  }) {
+    let params = new HttpParams().set('page', query.page).set('pageSize', query.pageSize);
+    if (query.q) params = params.set('q', query.q);
+    if (query.type) params = params.set('type', query.type);
+    if (query.dateFrom) params = params.set('dateFrom', query.dateFrom);
+    if (query.dateTo) params = params.set('dateTo', query.dateTo);
+    return this.http.get<MovementListResponse>(`${this.config.apiBaseUrl()}/inventory/movements`, {
       params,
       withCredentials: true,
     });

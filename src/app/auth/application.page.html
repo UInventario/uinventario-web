@@ -387,6 +387,114 @@
         }
       }
     </section>
+
+    <section class="stock-overview movement-history" aria-labelledby="movement-history-title">
+      <div class="overview-heading">
+        <div>
+          <p class="eyebrow">Trazabilidad</p>
+          <h2 id="movement-history-title">Historial de movimientos</h2>
+          <p>{{ movementBranch() || session()?.context?.branch?.name }}</p>
+        </div>
+        <strong>{{ movementTotal() }} movimiento(s)</strong>
+      </div>
+
+      <form
+        class="movement-filters"
+        [formGroup]="movementFilterForm"
+        (ngSubmit)="filterMovements()"
+      >
+        <div class="field">
+          <label for="movementProduct">Producto</label>
+          <input id="movementProduct" formControlName="q" placeholder="Nombre, SKU o código" />
+        </div>
+        <div class="field">
+          <label for="movementHistoryType">Tipo</label>
+          <select id="movementHistoryType" formControlName="type">
+            <option value="">Todos</option>
+            <option value="INITIAL">Stock inicial</option>
+            <option value="ENTRY">Entrada</option>
+            <option value="ADJUSTMENT">Ajuste</option>
+            <option value="SALE">Venta</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="movementDateFrom">Desde</label>
+          <input id="movementDateFrom" type="date" formControlName="dateFrom" />
+        </div>
+        <div class="field">
+          <label for="movementDateTo">Hasta</label>
+          <input id="movementDateTo" type="date" formControlName="dateTo" />
+        </div>
+        <button class="secondary" type="submit">Filtrar movimientos</button>
+      </form>
+
+      @if (movementHistoryError()) {
+        <div class="form-error" role="alert">{{ movementHistoryError() }}</div>
+      }
+      @if (loadingMovementHistory()) {
+        <p class="catalog-state" role="status">Cargando movimientos…</p>
+      } @else if (movementHistory().length === 0) {
+        <div class="empty stock-empty">
+          <h3>Sin movimientos para mostrar</h3>
+          <p>Registra stock o ajusta los filtros para consultar la trazabilidad.</p>
+        </div>
+      } @else {
+        <ol class="movement-list" aria-label="Movimientos de inventario">
+          @for (movement of movementHistory(); track movement.id) {
+            <li class="movement-row">
+              <span>
+                <strong>{{ movementTypeLabel(movement.type) }}</strong>
+                <small>{{ dateTime(movement.createdAt) }}</small>
+              </span>
+              <span>
+                <strong>{{ movement.product.name }}</strong>
+                <small>{{ movement.product.sku }}</small>
+              </span>
+              <span>
+                <strong
+                  >{{ movement.direction === 'IN' ? 'Entrada' : 'Salida' }}
+                  {{ movement.quantityChange }}</strong
+                >
+                <small>Saldo {{ movement.resultingQuantity }}</small>
+              </span>
+              <span>
+                <strong>{{ movement.location.name }}</strong>
+                <small>{{ movement.location.warehouse.name }} · {{ movement.location.code }}</small>
+              </span>
+              <span>
+                <strong>{{ movement.reason }}</strong>
+                <small>{{ movement.reference || 'Sin referencia' }}</small>
+              </span>
+              <span>
+                <strong>{{ movement.responsible.email }}</strong>
+                <small>Responsable</small>
+              </span>
+            </li>
+          }
+        </ol>
+        @if (movementTotalPages() > 1) {
+          <div class="pagination">
+            <button
+              class="secondary"
+              type="button"
+              (click)="previousMovementPage()"
+              [disabled]="movementPage() === 1"
+            >
+              Anterior
+            </button>
+            <span>Página {{ movementPage() }} de {{ movementTotalPages() }}</span>
+            <button
+              class="secondary"
+              type="button"
+              (click)="nextMovementPage()"
+              [disabled]="movementPage() === movementTotalPages()"
+            >
+              Siguiente
+            </button>
+          </div>
+        }
+      }
+    </section>
   </section>
 
   <section class="pos-workspace" aria-labelledby="pos-title">

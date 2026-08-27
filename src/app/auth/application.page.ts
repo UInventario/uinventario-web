@@ -7,6 +7,8 @@ import {
   InventoryApiService,
   InventoryBalanceData,
   InventoryMovementInput,
+  InventoryMovementHistoryItem,
+  InventoryMovementType,
   InventoryStockItem,
 } from '../inventory/inventory-api.service';
 import { SessionApiService } from './session-api.service';
@@ -69,6 +71,13 @@ export class ApplicationPage implements OnInit {
   protected readonly stockList = signal<InventoryStockItem[]>([]);
   protected readonly stockListError = signal<string | null>(null);
   protected readonly loadingStockList = signal(true);
+  protected readonly movementHistory = signal<InventoryMovementHistoryItem[]>([]);
+  protected readonly loadingMovementHistory = signal(true);
+  protected readonly movementHistoryError = signal<string | null>(null);
+  protected readonly movementPage = signal(1);
+  protected readonly movementTotalPages = signal(0);
+  protected readonly movementTotal = signal(0);
+  protected readonly movementBranch = signal<string | null>(null);
   protected readonly stockPage = signal(1);
   protected readonly stockTotalPages = signal(0);
   protected readonly stockTotal = signal(0);
@@ -101,6 +110,12 @@ export class ApplicationPage implements OnInit {
   });
   protected readonly stockSearchForm = this.formBuilder.nonNullable.group({
     q: ['', [Validators.maxLength(80)]],
+  });
+  protected readonly movementFilterForm = this.formBuilder.nonNullable.group({
+    q: ['', [Validators.maxLength(80)]],
+    type: ['' as '' | InventoryMovementType],
+    dateFrom: [''],
+    dateTo: [''],
   });
   protected readonly posSearchForm = this.formBuilder.nonNullable.group({
     q: ['', [Validators.required, Validators.maxLength(80)]],
@@ -136,6 +151,7 @@ export class ApplicationPage implements OnInit {
     this.loadLocations();
     this.loadProducts(1);
     this.loadStockList(1);
+    this.loadMovementHistory(1);
     this.loadSales(1);
   }
 
@@ -224,6 +240,34 @@ export class ApplicationPage implements OnInit {
     if (this.stockPage() < this.stockTotalPages()) {
       this.loadStockList(this.stockPage() + 1);
     }
+  }
+
+  protected filterMovements(): void {
+    const { dateFrom, dateTo } = this.movementFilterForm.getRawValue();
+    if (dateFrom && dateTo && dateFrom > dateTo) {
+      this.movementHistoryError.set('La fecha inicial no puede ser posterior a la fecha final.');
+      return;
+    }
+    this.loadMovementHistory(1);
+  }
+
+  protected previousMovementPage(): void {
+    if (this.movementPage() > 1) this.loadMovementHistory(this.movementPage() - 1);
+  }
+
+  protected nextMovementPage(): void {
+    if (this.movementPage() < this.movementTotalPages()) {
+      this.loadMovementHistory(this.movementPage() + 1);
+    }
+  }
+
+  protected movementTypeLabel(type: InventoryMovementType): string {
+    return {
+      INITIAL: 'Stock inicial',
+      ENTRY: 'Entrada',
+      ADJUSTMENT: 'Ajuste',
+      SALE: 'Venta',
+    }[type];
   }
 
   protected searchPos(): void {
@@ -327,6 +371,7 @@ export class ApplicationPage implements OnInit {
           this.cartQuote.set(null);
           this.cashForm.reset({ cashReceived: '' });
           this.loadStockList(this.stockPage());
+          this.loadMovementHistory(1);
           this.loadSales(1);
           const selected = this.selectedProduct();
           if (selected) this.loadBalance(selected.id);
@@ -447,6 +492,7 @@ export class ApplicationPage implements OnInit {
             reference: '',
           });
           this.loadStockList(this.stockPage());
+          this.loadMovementHistory(1);
         },
         error: (error: HttpErrorResponse) => {
           if (error.status > 0 && error.status < 500) this.pendingMovement = null;
@@ -536,6 +582,35 @@ export class ApplicationPage implements OnInit {
           this.stockTotal.set(meta.pagination.total);
         },
         error: () => this.stockListError.set('No fue posible cargar las existencias.'),
+      });
+  }
+
+  private loadMovementHistory(page: number): void {
+    this.loadingMovementHistory.set(true);
+    this.movementHistoryError.set(null);
+    const value = this.movementFilterForm.getRawValue();
+    this.inventory
+      .listMovements({
+        ...(value.q.trim() ? { q: value.q.trim() } : {}),
+        ...(value.type ? { type: value.type } : {}),
+        ...(value.dateFrom ? { dateFrom: value.dateFrom } : {}),
+        ...(value.dateTo ? { dateTo: value.dateTo } : {}),
+        page,
+        pageSize: 10,
+      })
+      .pipe(finalize(() => this.loadingMovementHistory.set(false)))
+      .subscribe({
+        next: ({ data, meta }) => {
+          this.movementHistory.set(data);
+          this.movementPage.set(meta.pagination.page);
+          this.movementTotalPages.set(meta.pagination.totalPages);
+          this.movementTotal.set(meta.pagination.total);
+          this.movementBranch.set(meta.scope.branch.name);
+        },
+        error: () => {
+          this.movementHistory.set([]);
+          this.movementHistoryError.set('No fue posible cargar el historial de movimientos.');
+        },
       });
   }
 
