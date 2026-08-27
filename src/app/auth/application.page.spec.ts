@@ -18,6 +18,7 @@ import { OrganizationApiService } from '../organization/organization-api.service
 import { InventoryTransferApiService } from '../inventory/inventory-transfer-api.service';
 import { AccessApiService } from '../access/access-api.service';
 import { CustomerApiService } from '../customers/customer-api.service';
+import { ProductReservationApiService } from '../reservations/product-reservation-api.service';
 
 describe('ApplicationPage', () => {
   let fixture: ComponentFixture<ApplicationPage>;
@@ -86,6 +87,10 @@ describe('ApplicationPage', () => {
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
     deactivate: ReturnType<typeof vi.fn>;
+  };
+  let productReservations: {
+    list: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
   };
   let sessions: {
     session: ReturnType<typeof signal<SessionData | null>>;
@@ -278,6 +283,10 @@ describe('ApplicationPage', () => {
       update: vi.fn(),
       deactivate: vi.fn(),
     };
+    productReservations = {
+      list: vi.fn().mockReturnValue(of({ data: [], meta: { apiVersion: '1' } })),
+      create: vi.fn(),
+    };
     sessionState = signal<SessionData | null>({
       user: {
         id: 'user',
@@ -328,6 +337,7 @@ describe('ApplicationPage', () => {
         { provide: InventoryTransferApiService, useValue: transfers },
         { provide: AccessApiService, useValue: access },
         { provide: CustomerApiService, useValue: customers },
+        { provide: ProductReservationApiService, useValue: productReservations },
         { provide: SessionApiService, useValue: sessions },
       ],
     }).compileComponents();

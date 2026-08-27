@@ -56,6 +56,7 @@ import {
 import { SupplierPanelComponent } from '../suppliers/supplier-panel.component';
 import { PurchaseOrderPanelComponent } from '../procurement/purchase-order-panel.component';
 import { CustomerApiService, CustomerData, CustomerInput } from '../customers/customer-api.service';
+import { ProductReservationPanelComponent } from '../reservations/product-reservation-panel.component';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const POSITIVE_MONEY_PATTERN = /^(?:[1-9]\d{0,11}(?:\.\d{1,2})?|0\.(?:0[1-9]|[1-9]\d?))$/;
@@ -80,6 +81,7 @@ interface CartEntry {
     InventoryImportPanelComponent,
     SupplierPanelComponent,
     PurchaseOrderPanelComponent,
+    ProductReservationPanelComponent,
   ],
   templateUrl: './application.page.html',
   styleUrl: './application.page.scss',
