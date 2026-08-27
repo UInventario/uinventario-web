@@ -74,6 +74,16 @@ button.danger {
   color: #334e68;
 }
 
+.connection-state.conflict {
+  border: 1px solid #d97706;
+  background: #fff7ed;
+}
+
+.connection-state.failed {
+  border: 1px solid #a4262c;
+  background: #fff1f2;
+}
+
 .command-review h3 {
   margin: 0.25rem 0;
 }
@@ -97,6 +107,11 @@ button.danger {
 .command-review span {
   color: #4b5563;
   font-size: 0.85rem;
+}
+
+.command-review .guidance {
+  color: #243b53;
+  font-weight: 700;
 }
 
 .command-actions {

@@ -57,7 +57,7 @@
     <p role="status">Cargando inventario local…</p>
   }
   @if (success()) {
-    <p class="success" role="status">{{ success() }}</p>
+    <p class="pending" role="status">{{ success() }}</p>
   }
   @if (error()) {
     <p class="error" role="alert">{{ error() }}</p>

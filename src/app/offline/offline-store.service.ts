@@ -116,6 +116,8 @@ export class OfflineStorageError extends Error {
 @Injectable({ providedIn: 'root' })
 export class OfflineStoreService {
   private database: Promise<IDBDatabase> | undefined;
+  private outboxChannel: BroadcastChannel | undefined;
+  private readonly outboxListeners = new Set<(scopeKey: string) => void>();
 
   async deviceId(): Promise<string> {
     const database = await this.open();
@@ -287,6 +289,7 @@ export class OfflineStoreService {
       store.put(command);
     };
     await this.safeTransaction(transaction);
+    this.notifyOutbox(scopeKey);
     return command!;
   }
 
@@ -478,6 +481,17 @@ export class OfflineStoreService {
       }
     };
     await this.safeTransaction(transaction);
+    this.notifyOutbox(key);
+  }
+
+  watchOutbox(scope: OfflineScopeIdentity, listener: () => void): () => void {
+    const key = this.scopeKey(scope);
+    const scoped = (changedScope: string) => {
+      if (changedScope === '*' || changedScope === key) listener();
+    };
+    this.outboxListeners.add(scoped);
+    this.ensureOutboxChannel();
+    return () => this.outboxListeners.delete(scoped);
   }
 
   async clearAll(): Promise<void> {
@@ -487,6 +501,7 @@ export class OfflineStoreService {
     transaction.objectStore('entities').clear();
     transaction.objectStore('outbox').clear();
     await this.safeTransaction(transaction);
+    this.notifyOutbox('*');
   }
 
   scopeKey(scope: OfflineScopeIdentity): string {
@@ -533,6 +548,7 @@ export class OfflineStoreService {
       };
     }
     await this.safeTransaction(transaction);
+    this.notifyOutbox(scopeKey);
   }
 
   private open(): Promise<IDBDatabase> {
@@ -664,13 +680,35 @@ export class OfflineStoreService {
     const database = await this.open();
     const transaction = database.transaction('outbox', 'readwrite');
     const store = transaction.objectStore('outbox');
+    const changedScopes = new Set<string>();
     for (const commandId of commandIds) {
       const request = store.get(commandId) as IDBRequest<OfflineOutboxCommand | undefined>;
       request.onsuccess = () => {
-        if (request.result) store.put(update(request.result));
+        if (request.result) {
+          changedScopes.add(request.result.scopeKey);
+          store.put(update(request.result));
+        }
       };
     }
     await this.safeTransaction(transaction);
+    for (const scopeKey of changedScopes) this.notifyOutbox(scopeKey);
+  }
+
+  private ensureOutboxChannel(): void {
+    if (this.outboxChannel || typeof BroadcastChannel === 'undefined') return;
+    this.outboxChannel = new BroadcastChannel('uinventario-offline-outbox');
+    this.outboxChannel.addEventListener('message', ({ data }: MessageEvent<unknown>) => {
+      if (typeof data === 'string') this.emitOutbox(data);
+    });
+  }
+
+  private notifyOutbox(scopeKey: string): void {
+    this.emitOutbox(scopeKey);
+    this.outboxChannel?.postMessage(scopeKey);
+  }
+
+  private emitOutbox(scopeKey: string): void {
+    for (const listener of this.outboxListeners) listener(scopeKey);
   }
 
   private async updateScopedCommand(

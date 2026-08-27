@@ -19,6 +19,8 @@ describe('OfflineBootstrapPanelComponent', () => {
     retryNow: vi.fn(),
     rejectPending: vi.fn(),
     freshness: vi.fn(),
+    scopeKey: vi.fn(),
+    watchOutbox: vi.fn(),
   };
   const outbox = { flush: vi.fn() };
   const scope = {
@@ -50,6 +52,8 @@ describe('OfflineBootstrapPanelComponent', () => {
         INVENTORY_MOVEMENT: true,
       },
     });
+    store.scopeKey.mockReset().mockReturnValue('active-scope');
+    store.watchOutbox.mockReset().mockReturnValue(vi.fn());
     outbox.flush.mockReset().mockResolvedValue({ confirmed: 0, rejected: 0 });
     await TestBed.configureTestingModule({
       imports: [OfflineBootstrapPanelComponent],
@@ -242,5 +246,68 @@ describe('OfflineBootstrapPanelComponent', () => {
     expect(component.pendingCommands()).toBe(0);
     expect(component.rejectedCommands()).toBe(1);
     expect(fixture.nativeElement.textContent).toContain('requieren conciliación');
+  });
+
+  it('announces conflicts and exposes only safe review actions', async () => {
+    currentSession = {
+      tenant: { id: 'tenant-1' },
+      user: { id: 'user-1' },
+      context: { branch: { id: 'branch-1' }, cashRegister: null },
+    };
+    store.outbox.mockResolvedValue([
+      {
+        commandId: 'command-1',
+        sequence: 4,
+        kind: 'INVENTORY_COUNT',
+        status: 'ERROR',
+        retryable: false,
+        attempts: 1,
+        createdAt: '2026-08-27T20:00:00.000Z',
+        lastError: {
+          details: {
+            code: 'INVENTORY_COUNT_CONFLICT',
+            message: 'El saldo cambió.',
+          },
+        },
+      },
+    ]);
+    const component = fixture.componentInstance as unknown as {
+      sendPending(): Promise<void>;
+    };
+
+    await component.sendPending();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Conflictos por revisar');
+    expect(fixture.nativeElement.textContent).toContain('Conteo de inventario');
+    const review = fixture.nativeElement.querySelector(
+      '.command-actions button',
+    ) as HTMLButtonElement;
+    expect(review.textContent).toContain('Revisar');
+    expect(fixture.nativeElement.querySelector('button.danger')).toBeNull();
+    review.click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('el saldo anterior no se sobrescribió');
+  });
+
+  it('distinguishes offline, synchronizing and transport-error states accessibly', () => {
+    const component = fixture.componentInstance as unknown as {
+      offline(): void;
+      operationalState(): string;
+      statusLabel(): string;
+      syncing: { set(value: boolean): void };
+      error: { set(value: string | null): void };
+    };
+    component.offline();
+    expect(component.operationalState()).toBe('OFFLINE');
+    component.syncing.set(true);
+    expect(component.statusLabel()).toBe('Sincronizando');
+    component.syncing.set(false);
+    component.error.set('Red no disponible');
+    fixture.detectChanges();
+    expect(component.operationalState()).toBe('ERROR');
+    expect(fixture.nativeElement.querySelector('.connection-state').getAttribute('aria-live')).toBe(
+      'polite',
+    );
   });
 });
