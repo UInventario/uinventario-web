@@ -33,6 +33,8 @@ El mismo espacio lista, pagina y busca por nombre, SKU o código, y permite cons
 el detalle sin mezclar productos de otras empresas.
 Desde el detalle se registra stock inicial, entradas y ajustes por ubicación; la
 existencia mostrada proviene del saldo persistido y cada envío usa idempotencia.
+La vista de existencias agrega los saldos reales por la sucursal y bodega activas,
+con búsqueda de producto y estados claros de carga, vacío y error.
 
 ```bash
 npm run typecheck

@@ -274,5 +274,90 @@
         }
       </aside>
     </div>
+
+    <section class="stock-overview" aria-labelledby="stock-overview-title">
+      <div class="overview-heading">
+        <div>
+          <p class="eyebrow">Operación</p>
+          <h2 id="stock-overview-title">Existencias reales</h2>
+          <p>
+            {{ stockScope()?.branch?.name || session()?.context?.branch?.name }} ·
+            {{ stockScope()?.warehouse?.name || session()?.context?.warehouse?.name }}
+          </p>
+        </div>
+        <strong>{{ stockTotal() }} producto(s)</strong>
+      </div>
+
+      <form class="stock-search" [formGroup]="stockSearchForm" (ngSubmit)="searchStock()">
+        <label for="stockSearch">Filtrar producto por nombre, SKU o código</label>
+        <div>
+          <input id="stockSearch" formControlName="q" maxlength="80" />
+          <button class="secondary" type="submit">Filtrar</button>
+        </div>
+      </form>
+
+      @if (stockListError()) {
+        <div class="form-error" role="alert">{{ stockListError() }}</div>
+      }
+      @if (loadingStockList()) {
+        <p class="catalog-state" role="status">Cargando existencias…</p>
+      } @else if (stockList().length === 0) {
+        <div class="empty stock-empty">
+          <h3>Sin existencias para mostrar</h3>
+          <p>
+            {{
+              stockSearchForm.controls.q.value
+                ? 'Prueba con otro producto.'
+                : 'Crea un producto para comenzar a controlar su stock.'
+            }}
+          </p>
+        </div>
+      } @else {
+        <div class="stock-table" role="table" aria-label="Existencias por producto">
+          <div class="stock-row stock-header" role="row">
+            <span role="columnheader">Producto</span>
+            <span role="columnheader">Estado</span>
+            <span role="columnheader">Disponible</span>
+            <span role="columnheader">Total</span>
+          </div>
+          @for (item of stockList(); track item.product.id) {
+            <div class="stock-row" role="row">
+              <span role="cell"
+                ><strong>{{ item.product.name }}</strong
+                ><small>{{ item.product.sku }}</small></span
+              >
+              <span role="cell">Disponible</span>
+              <span class="stock-quantity" role="cell">
+                <small>Disponible</small><strong>{{ item.availableQuantity }}</strong>
+              </span>
+              <span class="stock-quantity" role="cell">
+                <small>Total</small><strong>{{ item.totalQuantity }}</strong>
+              </span>
+            </div>
+          }
+        </div>
+        @if (stockTotalPages() > 1) {
+          <div class="pagination stock-pagination">
+            <button
+              class="secondary"
+              type="button"
+              (click)="previousStockPage()"
+              [disabled]="stockPage() === 1"
+            >
+              Anterior
+            </button>
+            <span>Página {{ stockPage() }} de {{ stockTotalPages() }}</span>
+            <button
+              class="secondary"
+              type="button"
+              (click)="nextStockPage()"
+              [disabled]="stockPage() === stockTotalPages()"
+            >
+              Siguiente
+            </button>
+          </div>
+        }
+      }
+    </section>
   </section>
 </main>

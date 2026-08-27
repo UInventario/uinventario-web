@@ -88,6 +88,16 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await page.getByRole('button', { name: 'Registrar movimiento' }).click();
   await expect(page.getByRole('status')).toContainText('Existencia 10.500');
   await expect(page.locator('.balance').getByText('10.500')).toBeVisible();
+  const stockOverview = page.locator('.stock-overview');
+  await expect(stockOverview.getByRole('heading', { name: 'Existencias reales' })).toBeVisible();
+  await expect(stockOverview.getByText('CAFE-500')).toBeVisible();
+  await expect(stockOverview.getByText('10.500').first()).toBeVisible();
+  await page.getByLabel('Filtrar producto por nombre, SKU o código').fill('sin-stock');
+  await page.getByRole('button', { name: 'Filtrar' }).click();
+  await expect(page.getByRole('heading', { name: 'Sin existencias para mostrar' })).toBeVisible();
+  await page.getByLabel('Filtrar producto por nombre, SKU o código').fill('cafe-500');
+  await page.getByRole('button', { name: 'Filtrar' }).click();
+  await expect(stockOverview.getByText('CAFE-500')).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath('product-created.png'),
     fullPage: true,
@@ -132,18 +142,18 @@ test('logs in, reaches onboarding and restores the session after reload', async 
 
   await page.reload();
   await expect(page).toHaveURL(/\/app$/);
-  await expect(page.getByText('Sucursal Principal')).toBeVisible();
-  await expect(page.getByText('Bodega Principal')).toBeVisible();
-  await expect(page.getByText('Caja Principal')).toBeVisible();
+  await expect(page.locator('.context')).toContainText(
+    'Sucursal Principal · Bodega Principal · Caja Principal',
+  );
 
   const refresh = await page.request.post('http://localhost:3000/api/v1/auth/sessions/refresh');
   expect(refresh.status()).toBe(200);
   await page.reload();
-  await expect(page.getByText('Caja Principal')).toBeVisible();
+  await expect(page.locator('.context')).toContainText('Caja Principal');
 
   const secondTab = await context.newPage();
   await secondTab.goto('/app');
-  await expect(secondTab.getByText('Caja Principal')).toBeVisible();
+  await expect(secondTab.locator('.context')).toContainText('Caja Principal');
 
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
   await expect(page).toHaveURL(/\/login$/);
