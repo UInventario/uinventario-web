@@ -27,6 +27,8 @@ El segundo crea en una sola operación la sucursal, bodega y ubicación general,
 mantiene ese contexto activo en la sesión.
 El tercero crea la caja inicial y entra al producto con empresa, sucursal, bodega y
 caja obtenidas de la sesión, sin IDs hardcodeados.
+El catálogo permite crear productos reales con SKU, barcode opcional, categoría,
+marca, costo y precio; los duplicados se muestran sin perder el formulario.
 
 ```bash
 npm run typecheck
