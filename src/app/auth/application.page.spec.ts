@@ -13,6 +13,7 @@ describe('ApplicationPage', () => {
   let products: {
     getOptions: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
     list: ReturnType<typeof vi.fn>;
     get: ReturnType<typeof vi.fn>;
   };
@@ -35,6 +36,7 @@ describe('ApplicationPage', () => {
         .fn()
         .mockReturnValue(of({ data: { categories: [], brands: [] }, meta: { apiVersion: '1' } })),
       create: vi.fn(),
+      update: vi.fn(),
       list: vi.fn().mockReturnValue(
         of({
           data: [],
@@ -211,6 +213,60 @@ describe('ApplicationPage', () => {
 
     expect(products.get).toHaveBeenCalledWith('product');
     expect(fixture.nativeElement.textContent).toContain('Sin categoría');
+  });
+
+  it('loads real data and updates a product with its current version', () => {
+    const product = {
+      id: 'product',
+      name: 'Café',
+      sku: 'CAFE-1',
+      barcode: '7501',
+      category: { id: 'category', name: 'Abarrotes' },
+      brand: { id: 'brand', name: 'Casa' },
+      cost: '1.20',
+      price: '2.50',
+      active: true,
+      version: 1,
+    };
+    products.list.mockReturnValue(
+      of({
+        data: [product],
+        meta: {
+          apiVersion: '1',
+          pagination: { page: 1, pageSize: 5, total: 1, totalPages: 1 },
+        },
+      }),
+    );
+    products.get.mockReturnValue(of({ data: product, meta: { apiVersion: '1' } }));
+    products.update.mockReturnValue(
+      of({
+        data: { ...product, name: 'Café premium', price: '3.00', version: 2 },
+        meta: { apiVersion: '1' },
+      }),
+    );
+    (fixture.componentInstance as unknown as { search(): void }).search();
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelector('.product-list button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    (fixture.nativeElement.querySelector('.detail button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect((fixture.nativeElement.querySelector('#name') as HTMLInputElement).value).toBe('Café');
+    fill('name', 'Café premium');
+    fill('price', '3.00');
+    submit();
+
+    expect(products.update).toHaveBeenCalledWith('product', {
+      name: 'Café premium',
+      sku: 'CAFE-1',
+      barcode: '7501',
+      categoryName: 'Abarrotes',
+      brandName: 'Casa',
+      cost: '1.20',
+      price: '3.00',
+      version: 1,
+    });
+    expect(fixture.nativeElement.textContent).toContain('Producto actualizado');
   });
 
   it('registers initial stock and shows the persisted balance', () => {

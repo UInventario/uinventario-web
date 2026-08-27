@@ -33,6 +33,8 @@ El catálogo permite crear productos reales con SKU, barcode opcional, categorí
 marca, costo y precio; los duplicados se muestran sin perder el formulario.
 El mismo espacio lista, pagina y busca por nombre, SKU o código, y permite consultar
 el detalle sin mezclar productos de otras empresas.
+Desde ese detalle se pueden editar los datos comerciales; la Web envía la versión
+leída y avisa si otra edición ocurrió antes de guardar.
 Desde el detalle se registra stock inicial, entradas y ajustes por ubicación; la
 existencia mostrada proviene del saldo persistido y cada envío usa idempotencia.
 La vista de existencias agrega los saldos reales por la sucursal y bodega activas,

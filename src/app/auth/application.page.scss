@@ -189,6 +189,18 @@ select:focus {
   color: white;
 }
 
+.form-actions {
+  display: flex;
+  gap: 0.6rem;
+  align-items: end;
+  margin-top: 1rem;
+}
+
+.form-actions .primary {
+  flex: 1;
+  margin-top: 0;
+}
+
 button:disabled {
   cursor: wait;
   opacity: 0.62;

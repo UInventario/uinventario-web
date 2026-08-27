@@ -12,6 +12,7 @@ export interface ProductData {
   cost: string;
   price: string;
   active: boolean;
+  version: number;
 }
 
 export interface ProductInput {
@@ -51,14 +52,19 @@ export class ProductApiService {
   private readonly config = inject(RuntimeConfigService);
 
   getOptions() {
-    return this.http.get<CatalogOptionsResponse>(
-      `${this.config.apiBaseUrl()}/products/options`,
-      { withCredentials: true },
-    );
+    return this.http.get<CatalogOptionsResponse>(`${this.config.apiBaseUrl()}/products/options`, {
+      withCredentials: true,
+    });
   }
 
   create(input: ProductInput) {
     return this.http.post<ProductResponse>(`${this.config.apiBaseUrl()}/products`, input, {
+      withCredentials: true,
+    });
+  }
+
+  update(id: string, input: ProductInput & { version: number }) {
+    return this.http.patch<ProductResponse>(`${this.config.apiBaseUrl()}/products/${id}`, input, {
       withCredentials: true,
     });
   }

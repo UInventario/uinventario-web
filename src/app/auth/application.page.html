@@ -22,8 +22,14 @@
       <form class="product-form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
         <div class="form-heading">
           <div>
-            <h2>Nuevo producto</h2>
-            <p>Los campos categoría, marca y código de barras son opcionales.</p>
+            <h2>{{ editingProduct() ? 'Editar producto' : 'Nuevo producto' }}</h2>
+            <p>
+              {{
+                editingProduct()
+                  ? 'Modifica los datos comerciales. Las ventas anteriores conservarán sus valores.'
+                  : 'Los campos categoría, marca y código de barras son opcionales.'
+              }}
+            </p>
           </div>
         </div>
 
@@ -89,9 +95,22 @@
         @if (errorMessage()) {
           <div class="form-error" role="alert">{{ errorMessage() }}</div>
         }
-        <button class="primary" type="submit" [disabled]="saving() || loadingOptions()">
-          {{ saving() ? 'Creando…' : 'Crear producto' }}
-        </button>
+        <div class="form-actions">
+          @if (editingProduct()) {
+            <button class="secondary" type="button" (click)="cancelEditing()">Cancelar</button>
+          }
+          <button class="primary" type="submit" [disabled]="saving() || loadingOptions()">
+            {{
+              saving()
+                ? editingProduct()
+                  ? 'Guardando…'
+                  : 'Creando…'
+                : editingProduct()
+                  ? 'Guardar cambios'
+                  : 'Crear producto'
+            }}
+          </button>
+        </div>
       </form>
 
       <aside aria-live="polite" aria-labelledby="catalog-title">
@@ -168,7 +187,13 @@
             @if (createdProduct()) {
               <div class="success">Producto creado</div>
             }
+            @if (updatedProduct()) {
+              <div class="success">Producto actualizado</div>
+            }
             <h3>{{ product.name }}</h3>
+            <button class="secondary" type="button" (click)="startEditing(product)">
+              Editar producto
+            </button>
             <dl>
               <div>
                 <dt>SKU</dt>
