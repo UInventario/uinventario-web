@@ -16,6 +16,7 @@ describe('ApplicationPage', () => {
     getOptions: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
+    retire: ReturnType<typeof vi.fn>;
     list: ReturnType<typeof vi.fn>;
     get: ReturnType<typeof vi.fn>;
   };
@@ -42,6 +43,7 @@ describe('ApplicationPage', () => {
         .mockReturnValue(of({ data: { categories: [], brands: [] }, meta: { apiVersion: '1' } })),
       create: vi.fn(),
       update: vi.fn(),
+      retire: vi.fn(),
       list: vi.fn().mockReturnValue(
         of({
           data: [],
@@ -247,6 +249,68 @@ describe('ApplicationPage', () => {
 
     expect(products.get).toHaveBeenCalledWith('product');
     expect(fixture.nativeElement.textContent).toContain('Sin categoría');
+  });
+
+  it('filters inactive products explicitly and confirms their safe retirement', () => {
+    const product = {
+      id: 'product',
+      name: 'Café',
+      sku: 'CAFE-1',
+      barcode: '7501',
+      category: null,
+      brand: null,
+      cost: '1.20',
+      price: '2.50',
+      active: true,
+      version: 1,
+    };
+    products.list.mockReturnValue(
+      of({
+        data: [product],
+        meta: {
+          apiVersion: '1',
+          pagination: { page: 1, pageSize: 5, total: 1, totalPages: 1 },
+        },
+      }),
+    );
+    products.get.mockReturnValue(of({ data: product, meta: { apiVersion: '1' } }));
+    products.retire.mockReturnValue(
+      of({
+        data: { outcome: 'DEACTIVATED', product: { ...product, active: false, version: 2 } },
+        meta: { apiVersion: '1' },
+      }),
+    );
+
+    const status = fixture.nativeElement.querySelector(
+      '[aria-label="Estado del producto"]',
+    ) as HTMLSelectElement;
+    status.value = 'INACTIVE';
+    status.dispatchEvent(new Event('change', { bubbles: true }));
+    (fixture.componentInstance as unknown as { search(): void }).search();
+    fixture.detectChanges();
+    expect(products.list).toHaveBeenLastCalledWith({
+      status: 'INACTIVE',
+      page: 1,
+      pageSize: 5,
+    });
+
+    (fixture.nativeElement.querySelector('.product-list button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const buttonWithText = (text: string) =>
+      Array.from(fixture.nativeElement.querySelectorAll('button')).find((button) =>
+        (button as HTMLButtonElement).textContent?.includes(text),
+      ) as HTMLButtonElement;
+    buttonWithText('Retirar producto').click();
+    fixture.detectChanges();
+    expect(products.retire).not.toHaveBeenCalled();
+    buttonWithText('Confirmar retiro').click();
+    fixture.detectChanges();
+
+    expect(products.retire).toHaveBeenCalledWith('product');
+    expect(fixture.nativeElement.textContent).toContain(
+      'Producto desactivado; su stock e historial se conservaron.',
+    );
+    expect(fixture.nativeElement.textContent).not.toContain('Confirmar retiro');
   });
 
   it('loads real data and updates a product with its current version', () => {

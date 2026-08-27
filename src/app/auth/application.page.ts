@@ -3,7 +3,12 @@ import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
-import { ProductApiService, ProductData, ProductInput } from '../catalog/product-api.service';
+import {
+  ProductApiService,
+  ProductData,
+  ProductInput,
+  ProductStatusFilter,
+} from '../catalog/product-api.service';
 import {
   InventoryApiService,
   InventoryBalanceData,
@@ -81,6 +86,9 @@ export class ApplicationPage implements OnInit {
   protected readonly createdProduct = signal<ProductData | null>(null);
   protected readonly editingProduct = signal<ProductData | null>(null);
   protected readonly updatedProduct = signal(false);
+  protected readonly retiringProduct = signal(false);
+  protected readonly confirmingRetirement = signal(false);
+  protected readonly retirementMessage = signal<string | null>(null);
   protected readonly productList = signal<ProductData[]>([]);
   protected readonly selectedProduct = signal<ProductData | null>(null);
   protected readonly locations = signal<Array<{ id: string; name: string; code: string }>>([]);
@@ -136,6 +144,7 @@ export class ApplicationPage implements OnInit {
   protected readonly pageSize = 5;
   protected readonly pendingOperation = computed(() => {
     if (this.saving()) return this.editingProduct() ? 'Guardando producto…' : 'Creando producto…';
+    if (this.retiringProduct()) return 'Retirando producto del catálogo…';
     if (this.savingStock()) return 'Registrando movimiento de inventario…';
     if (this.savingSale()) return 'Confirmando venta y actualizando inventario…';
     if (this.quotingCart()) return 'Validando precios y existencias…';
@@ -143,6 +152,7 @@ export class ApplicationPage implements OnInit {
   });
   protected readonly searchForm = this.formBuilder.nonNullable.group({
     q: ['', [Validators.maxLength(80)]],
+    status: ['ACTIVE' as ProductStatusFilter],
   });
   protected readonly stockSearchForm = this.formBuilder.nonNullable.group({
     q: ['', [Validators.maxLength(80)]],
@@ -244,6 +254,50 @@ export class ApplicationPage implements OnInit {
     this.editingProduct.set(null);
     this.errorMessage.set(null);
     this.resetProductForm(this.selectedProduct());
+  }
+
+  protected requestRetirement(): void {
+    this.confirmingRetirement.set(true);
+    this.retirementMessage.set(null);
+    this.catalogError.set(null);
+  }
+
+  protected cancelRetirement(): void {
+    this.confirmingRetirement.set(false);
+  }
+
+  protected retireProduct(product: ProductData): void {
+    if (this.retiringProduct()) return;
+    this.retiringProduct.set(true);
+    this.catalogError.set(null);
+    this.products
+      .retire(product.id)
+      .pipe(finalize(() => this.retiringProduct.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.confirmingRetirement.set(false);
+          this.editingProduct.set(null);
+          this.createdProduct.set(null);
+          this.updatedProduct.set(false);
+          if (data.outcome === 'DELETED') {
+            this.selectedProduct.set(null);
+            this.stockBalance.set(null);
+            this.retirementMessage.set('Producto eliminado porque no tenía stock ni historial.');
+          } else {
+            this.selectedProduct.set(data.product);
+            this.retirementMessage.set(
+              'Producto desactivado; su stock e historial se conservaron.',
+            );
+          }
+          this.loadProducts(1);
+          if (this.canManageStock()) this.loadStockList(1);
+          if (this.canViewAudit()) this.loadAuditEvents();
+        },
+        error: (error: HttpErrorResponse) =>
+          this.catalogError.set(
+            this.operationMessage(error, 'No fue posible retirar el producto.'),
+          ),
+      });
   }
 
   protected logout(): void {
@@ -437,6 +491,8 @@ export class ApplicationPage implements OnInit {
       .pipe(finalize(() => this.loadingDetail.set(false)))
       .subscribe({
         next: ({ data }) => {
+          this.confirmingRetirement.set(false);
+          this.retirementMessage.set(null);
           this.createdProduct.set(null);
           this.updatedProduct.set(false);
           this.editingProduct.set(null);
@@ -618,8 +674,14 @@ export class ApplicationPage implements OnInit {
     this.loadingCatalog.set(true);
     this.catalogError.set(null);
     const q = this.searchForm.controls.q.value.trim();
+    const status = this.searchForm.controls.status.value;
     this.products
-      .list({ ...(q ? { q } : {}), page, pageSize: this.pageSize })
+      .list({
+        ...(q ? { q } : {}),
+        ...(status === 'ACTIVE' ? {} : { status }),
+        page,
+        pageSize: this.pageSize,
+      })
       .pipe(finalize(() => this.loadingCatalog.set(false)))
       .subscribe({
         next: ({ data, meta }) => {
