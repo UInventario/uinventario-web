@@ -26,6 +26,7 @@ describe('ApplicationPage', () => {
     listMovements: ReturnType<typeof vi.fn>;
     getBalance: ReturnType<typeof vi.fn>;
     createMovement: ReturnType<typeof vi.fn>;
+    createStateTransition: ReturnType<typeof vi.fn>;
   };
   let pos: {
     quote: ReturnType<typeof vi.fn>;
@@ -96,6 +97,7 @@ describe('ApplicationPage', () => {
         }),
       ),
       createMovement: vi.fn(),
+      createStateTransition: vi.fn(),
     };
     pos = {
       quote: vi.fn(),
@@ -580,6 +582,103 @@ describe('ApplicationPage', () => {
       expect.stringMatching(/^web-/),
     );
     expect(fixture.nativeElement.textContent).toContain('Existencia 9.000');
+  });
+
+  it('shows reconciled stock states and reserves available inventory', () => {
+    const product = {
+      id: 'product',
+      name: 'Café',
+      sku: 'CAFE-1',
+      barcode: null,
+      category: null,
+      brand: null,
+      cost: '1.20',
+      price: '2.50',
+      active: true,
+      version: 1,
+    };
+    products.list.mockReturnValue(
+      of({
+        data: [product],
+        meta: {
+          apiVersion: '1',
+          pagination: { page: 1, pageSize: 5, total: 1, totalPages: 1 },
+        },
+      }),
+    );
+    products.get.mockReturnValue(of({ data: product, meta: { apiVersion: '1' } }));
+    inventory.getBalance.mockReturnValue(
+      of({
+        data: {
+          product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
+          location: { id: 'location', name: 'General', code: 'GENERAL' },
+          quantity: '10.000',
+          totalQuantity: '10.000',
+          availableQuantity: '7.000',
+          states: [
+            { code: 'AVAILABLE', quantity: '7.000' },
+            { code: 'RESERVED', quantity: '2.000' },
+            { code: 'DAMAGED', quantity: '1.000' },
+            { code: 'IN_TRANSIT', quantity: '0.000' },
+          ],
+        },
+        meta: { apiVersion: '1' },
+      }),
+    );
+    inventory.createStateTransition.mockReturnValue(
+      of({
+        data: {
+          id: 'state-transition',
+          product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
+          location: { id: 'location', name: 'General', code: 'GENERAL' },
+          type: 'STATE_TRANSITION',
+          quantityChange: '0.000',
+          quantity: '10.000',
+          reason: 'Pedido confirmado',
+          reference: 'PED-42',
+          createdAt: new Date().toISOString(),
+          stateTransition: { from: 'AVAILABLE', to: 'RESERVED', quantity: '2.000' },
+        },
+        meta: { apiVersion: '1', idempotentReplay: false },
+      }),
+    );
+
+    (fixture.componentInstance as unknown as { search(): void }).search();
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelector('.product-list button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Reservado: 2.000');
+
+    fill('stateQuantity', '2');
+    fill('stateReason', 'Pedido confirmado');
+    fill('stateReference', 'PED-42');
+    (
+      fixture.nativeElement.querySelector('.state-transition-form') as HTMLFormElement
+    ).dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+
+    expect(inventory.createStateTransition).toHaveBeenCalledWith(
+      {
+        productId: 'product',
+        locationId: 'location',
+        fromState: 'AVAILABLE',
+        toState: 'RESERVED',
+        quantity: '2',
+        reason: 'Pedido confirmado',
+        reference: 'PED-42',
+      },
+      expect.stringMatching(/^web-state-/),
+    );
+    expect(fixture.nativeElement.textContent).toContain('Disponible → Reservado: 2.');
+
+    const source = fixture.nativeElement.querySelector('#stateFrom') as HTMLSelectElement;
+    source.value = 'DAMAGED';
+    source.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges();
+    const targets = Array.from(
+      (fixture.nativeElement.querySelector('#stateTo') as HTMLSelectElement).options,
+    ).map(({ value }) => value);
+    expect(targets).toEqual(['AVAILABLE']);
   });
 
   it('shows an error when the stock overview cannot be loaded', () => {

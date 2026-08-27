@@ -293,6 +293,14 @@
                 </div>
               </div>
 
+              @if (stockBalance()?.states; as states) {
+                <p>
+                  @for (state of states; track state.code) {
+                    <strong>{{ stockStateLabel(state.code) }}:</strong> {{ state.quantity }}
+                  }
+                </p>
+              }
+
               <form [formGroup]="stockForm" (ngSubmit)="recordMovement()" novalidate>
                 <div class="stock-fields">
                   <div class="field wide">
@@ -376,6 +384,94 @@
                   {{ savingStock() ? 'Registrando…' : 'Registrar movimiento' }}
                 </button>
               </form>
+
+              <form
+                class="state-transition-form"
+                [formGroup]="stateTransitionForm"
+                (ngSubmit)="changeStockState()"
+                novalidate
+              >
+                <div class="stock-heading">
+                  <div>
+                    <p class="eyebrow">Clasificación</p>
+                    <h4>Cambiar estado</h4>
+                  </div>
+                  <small>Ubicación seleccionada arriba</small>
+                </div>
+                <div class="stock-fields">
+                  <div class="field">
+                    <label for="stateFrom">Desde</label>
+                    <select
+                      id="stateFrom"
+                      formControlName="fromState"
+                      (change)="transitionSourceChanged()"
+                    >
+                      <option value="AVAILABLE">Disponible</option>
+                      <option value="RESERVED">Reservado</option>
+                      <option value="DAMAGED">Dañado</option>
+                      <option value="IN_TRANSIT">En tránsito</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="stateTo">Hacia</label>
+                    <select id="stateTo" formControlName="toState">
+                      @for (state of transitionTargets(); track state) {
+                        <option [value]="state">{{ stockStateLabel(state) }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="stateQuantity">Cantidad</label>
+                    <input
+                      id="stateQuantity"
+                      formControlName="quantity"
+                      inputmode="decimal"
+                      placeholder="0.000"
+                    />
+                    @if (
+                      stateTransitionForm.controls.quantity.touched &&
+                      stateTransitionForm.controls.quantity.invalid
+                    ) {
+                      <p class="field-error">Usa una cantidad positiva con máximo 3 decimales.</p>
+                    }
+                  </div>
+                  <div class="field wide">
+                    <label for="stateReason">Motivo</label>
+                    <input id="stateReason" formControlName="reason" maxlength="160" />
+                    @if (
+                      stateTransitionForm.controls.reason.touched &&
+                      stateTransitionForm.controls.reason.invalid
+                    ) {
+                      <p class="field-error">Describe el motivo del cambio.</p>
+                    }
+                  </div>
+                  <div class="field wide">
+                    <label for="stateReference">Referencia o evidencia</label>
+                    <input id="stateReference" formControlName="reference" maxlength="120" />
+                    @if (
+                      stateTransitionForm.controls.reference.touched &&
+                      stateTransitionForm.controls.reference.invalid
+                    ) {
+                      <p class="field-error">Agrega una referencia o evidencia.</p>
+                    }
+                  </div>
+                </div>
+                @if (stateTransitionError()) {
+                  <div class="form-error" role="alert">{{ stateTransitionError() }}</div>
+                }
+                @if (stateTransitionSuccess()) {
+                  <div class="success stock-success" role="status">
+                    {{ stateTransitionSuccess() }}
+                  </div>
+                }
+                <button
+                  class="secondary"
+                  type="submit"
+                  [disabled]="savingStateTransition() || locations().length === 0"
+                >
+                  {{ savingStateTransition() ? 'Actualizando…' : 'Cambiar estado' }}
+                </button>
+              </form>
             </section>
           </div>
         }
@@ -438,7 +534,11 @@
                 ><strong>{{ item.product.name }}</strong
                 ><small>{{ item.product.sku }}</small></span
               >
-              <span role="cell">Disponible</span>
+              <span role="cell">
+                @for (state of item.states; track state.code) {
+                  <small>{{ stockStateLabel(state.code) }} {{ state.quantity }}</small>
+                }
+              </span>
               <span class="stock-quantity" role="cell">
                 <small>Disponible</small><strong>{{ item.availableQuantity }}</strong>
               </span>
@@ -507,6 +607,7 @@
             <option value="LOSS">Pérdida</option>
             <option value="DAMAGE">Daño</option>
             <option value="ADJUSTMENT">Ajuste</option>
+            <option value="STATE_TRANSITION">Cambio de estado</option>
             <option value="SALE">Venta</option>
           </select>
         </div>
@@ -544,10 +645,17 @@
                 <small>{{ movement.product.sku }}</small>
               </span>
               <span>
-                <strong
-                  >{{ movement.direction === 'IN' ? 'Entrada' : 'Salida' }}
-                  {{ movement.quantityChange }}</strong
-                >
+                @if (movement.stateTransition; as transition) {
+                  <strong>
+                    {{ stockStateLabel(transition.from) }} → {{ stockStateLabel(transition.to) }}
+                    {{ transition.quantity }}
+                  </strong>
+                } @else {
+                  <strong>
+                    {{ movement.direction === 'IN' ? 'Entrada' : 'Salida' }}
+                    {{ movement.quantityChange }}
+                  </strong>
+                }
                 <small>Saldo {{ movement.resultingQuantity }}</small>
               </span>
               <span>
