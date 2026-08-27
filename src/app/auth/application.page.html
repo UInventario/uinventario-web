@@ -19,6 +19,9 @@
       <a routerLink="/app" fragment="transfers-title">Transferencias</a>
       <a routerLink="/app" fragment="movement-history-title">Movimientos</a>
     }
+    @if (canManageAccess()) {
+      <a routerLink="/app" fragment="access-title">Accesos</a>
+    }
     @if (canManageSales()) {
       <a routerLink="/app" fragment="pos-title">Punto de venta</a>
       <a routerLink="/app" fragment="sales-title">Historial</a>
@@ -258,9 +261,10 @@
       {{ session()?.context?.cashRegister?.name }}
     </p>
 
-    <div class="workspace" [hidden]="!canManageProducts()">
+    <div class="workspace">
       <form
         class="product-form catalog-product-form"
+        [hidden]="!canManageProducts()"
         [formGroup]="form"
         (ngSubmit)="submit()"
         novalidate
@@ -444,28 +448,30 @@
               <div class="success">Producto actualizado</div>
             }
             <h3>{{ product.name }}</h3>
-            <div class="form-actions">
-              <button class="secondary" type="button" (click)="startEditing(product)">
-                Editar producto
-              </button>
-              @if (product.active && !confirmingRetirement()) {
-                <button class="secondary" type="button" (click)="requestRetirement()">
-                  Retirar producto
+            @if (canManageProducts()) {
+              <div class="form-actions">
+                <button class="secondary" type="button" (click)="startEditing(product)">
+                  Editar producto
                 </button>
-              }
-              @if (confirmingRetirement()) {
-                <button class="secondary" type="button" (click)="cancelRetirement()">
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  (click)="retireProduct(product)"
-                  [disabled]="retiringProduct()"
-                >
-                  {{ retiringProduct() ? 'Retirando…' : 'Confirmar retiro' }}
-                </button>
-              }
-            </div>
+                @if (product.active && !confirmingRetirement()) {
+                  <button class="secondary" type="button" (click)="requestRetirement()">
+                    Retirar producto
+                  </button>
+                }
+                @if (confirmingRetirement()) {
+                  <button class="secondary" type="button" (click)="cancelRetirement()">
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    (click)="retireProduct(product)"
+                    [disabled]="retiringProduct()"
+                  >
+                    {{ retiringProduct() ? 'Retirando…' : 'Confirmar retiro' }}
+                  </button>
+                }
+              </div>
+            }
             <dl>
               <div>
                 <dt>SKU</dt>
@@ -513,7 +519,12 @@
                 </p>
               }
 
-              <form [formGroup]="stockForm" (ngSubmit)="recordMovement()" novalidate>
+              <form
+                [hidden]="!canAdjustInventory()"
+                [formGroup]="stockForm"
+                (ngSubmit)="recordMovement()"
+                novalidate
+              >
                 <div class="stock-fields">
                   <div class="field wide">
                     <label for="stockLocation">Ubicación</label>
@@ -599,6 +610,7 @@
 
               <form
                 class="state-transition-form"
+                [hidden]="!canAdjustInventory()"
                 [formGroup]="stateTransitionForm"
                 (ngSubmit)="changeStockState()"
                 novalidate
@@ -806,6 +818,7 @@
 
       <form
         class="movement-filters"
+        [hidden]="!canTransferInventory()"
         [formGroup]="transferForm"
         (ngSubmit)="createTransfer()"
         novalidate
@@ -930,22 +943,26 @@
               </span>
               <span>
                 @if (transfer.status === 'DRAFT') {
-                  <button
-                    class="primary"
-                    type="button"
-                    (click)="dispatchTransfer(transfer)"
-                    [disabled]="transferActionId()"
-                  >
-                    Despachar
-                  </button>
-                  <button
-                    class="secondary"
-                    type="button"
-                    (click)="cancelTransfer(transfer)"
-                    [disabled]="transferActionId()"
-                  >
-                    Cancelar
-                  </button>
+                  @if (canApproveInventory()) {
+                    <button
+                      class="primary"
+                      type="button"
+                      (click)="dispatchTransfer(transfer)"
+                      [disabled]="transferActionId()"
+                    >
+                      Despachar
+                    </button>
+                    <button
+                      class="secondary"
+                      type="button"
+                      (click)="cancelTransfer(transfer)"
+                      [disabled]="transferActionId()"
+                    >
+                      Cancelar
+                    </button>
+                  } @else {
+                    <small>Requiere permiso de aprobación.</small>
+                  }
                 } @else if (canReceiveTransfer(transfer)) {
                   @for (line of transfer.lines; track line.id) {
                     @if (line.pendingQuantity !== '0.000') {
@@ -1469,6 +1486,193 @@
         </article>
       </div>
     }
+  </section>
+
+  <section
+    class="stock-overview"
+    aria-labelledby="access-title"
+    [hidden]="!canManageAccess()"
+    [attr.aria-busy]="loadingAccess() || savingAccess()"
+  >
+    <div class="overview-heading">
+      <div>
+        <p class="eyebrow">Administración</p>
+        <h2 id="access-title">Roles y acceso operativo</h2>
+        <p>Delega sólo las operaciones y sucursales que cada persona necesita.</p>
+      </div>
+      <strong>{{ accessUsers().length }} usuario(s)</strong>
+    </div>
+
+    @if (accessError()) {
+      <div class="form-error" role="alert">{{ accessError() }}</div>
+    }
+    @if (accessSuccess()) {
+      <div class="success" role="status">{{ accessSuccess() }}</div>
+    }
+
+    <div class="workspace">
+      <form class="product-form" [formGroup]="accessRoleForm" (ngSubmit)="createAccessRole()">
+        <div class="form-heading">
+          <div>
+            <h3>Nuevo rol de inventario</h3>
+            <p>Combina permisos pequeños para evitar acceso innecesario.</p>
+          </div>
+        </div>
+        <div class="field wide">
+          <label for="accessRoleName">Nombre</label>
+          <input id="accessRoleName" formControlName="name" maxlength="80" />
+        </div>
+        <fieldset>
+          <legend>Permisos</legend>
+          @for (permission of inventoryPermissions; track permission) {
+            <label>
+              <input
+                #permissionInput
+                type="checkbox"
+                [checked]="selectedRolePermissions().includes(permission)"
+                (change)="toggleRolePermission(permission, permissionInput.checked)"
+              />
+              {{ permissionLabel(permission) }}
+            </label>
+          }
+        </fieldset>
+        <button class="primary" type="submit" [disabled]="savingAccess()">Crear rol</button>
+      </form>
+
+      <form class="product-form" [formGroup]="accessUserForm" (ngSubmit)="createAccessUser()">
+        <div class="form-heading">
+          <div>
+            <h3>Nuevo usuario operativo</h3>
+            <p>La cuenta inicia limitada al rol y la sucursal seleccionados.</p>
+          </div>
+        </div>
+        <div class="fields">
+          <div class="field wide">
+            <label for="accessUserEmail">Correo</label>
+            <input id="accessUserEmail" type="email" formControlName="email" maxlength="254" />
+          </div>
+          <div class="field wide">
+            <label for="accessUserPassword">Contraseña temporal</label>
+            <input
+              id="accessUserPassword"
+              type="password"
+              formControlName="password"
+              maxlength="128"
+              autocomplete="new-password"
+            />
+            @if (
+              accessUserForm.controls.password.touched && accessUserForm.controls.password.invalid
+            ) {
+              <p class="field-error">
+                Usa 12 caracteres con mayúscula, minúscula, número y símbolo.
+              </p>
+            }
+          </div>
+          <div class="field">
+            <label for="accessUserRole">Rol</label>
+            <select id="accessUserRole" formControlName="roleId">
+              @for (role of accessRoles(); track role.id) {
+                <option [value]="role.id">{{ role.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label for="accessUserBranch">Sucursal</label>
+            <select id="accessUserBranch" formControlName="branchId">
+              @for (branch of activeBranches(); track branch.id) {
+                <option [value]="branch.id">{{ branch.name }}</option>
+              }
+            </select>
+          </div>
+        </div>
+        <button
+          class="primary"
+          type="submit"
+          [disabled]="savingAccess() || accessRoles().length === 0"
+        >
+          Crear acceso
+        </button>
+      </form>
+    </div>
+
+    @if (manageableAccessUsers().length > 0) {
+      <form
+        class="movement-filters"
+        [formGroup]="accessAssignmentForm"
+        (ngSubmit)="updateAccessUser()"
+      >
+        <div class="field">
+          <label for="accessAssignmentUser">Usuario</label>
+          <select
+            id="accessAssignmentUser"
+            formControlName="userId"
+            (change)="assignmentUserChanged()"
+          >
+            @for (user of accessUsers(); track user.id) {
+              @if (user.manageable) {
+                <option [value]="user.id">{{ user.email }}</option>
+              }
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="accessAssignmentRole">Rol</label>
+          <select id="accessAssignmentRole" formControlName="roleId">
+            @for (role of accessRoles(); track role.id) {
+              <option [value]="role.id">{{ role.name }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="accessAssignmentBranch">Sucursal</label>
+          <select id="accessAssignmentBranch" formControlName="branchId">
+            @for (branch of activeBranches(); track branch.id) {
+              <option [value]="branch.id">{{ branch.name }}</option>
+            }
+          </select>
+        </div>
+        <button class="secondary" type="submit" [disabled]="savingAccess()">
+          Actualizar acceso
+        </button>
+      </form>
+    }
+
+    <div class="stock-table" role="table" aria-label="Usuarios y permisos operativos">
+      <div class="stock-row stock-header" role="row">
+        <span role="columnheader">Usuario</span>
+        <span role="columnheader">Roles</span>
+        <span role="columnheader">Permisos</span>
+        <span role="columnheader">Sucursales</span>
+      </div>
+      @for (user of accessUsers(); track user.id) {
+        <div class="stock-row" role="row">
+          <span role="cell"
+            ><strong>{{ user.email }}</strong></span
+          >
+          <span role="cell">
+            @for (role of user.roles; track role.id) {
+              <strong>{{ role.name }}</strong>
+            }
+          </span>
+          <span role="cell">
+            @for (role of user.roles; track role.id) {
+              @for (permission of role.permissions; track permission) {
+                <small>{{ permissionLabel(permission) }}</small>
+              }
+            }
+          </span>
+          <span role="cell">
+            @if (!user.manageable && user.roles[0]?.name === 'Administrador') {
+              <strong>Todas</strong>
+            } @else {
+              @for (branch of user.branches; track branch.id) {
+                <strong>{{ branch.name }}</strong>
+              }
+            }
+          </span>
+        </div>
+      }
+    </div>
   </section>
 
   <section

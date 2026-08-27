@@ -11,6 +11,7 @@ import { SessionApiService, SessionData } from './session-api.service';
 import { AuditApiService } from '../audit/audit-api.service';
 import { OrganizationApiService } from '../organization/organization-api.service';
 import { InventoryTransferApiService } from '../inventory/inventory-transfer-api.service';
+import { AccessApiService } from '../access/access-api.service';
 
 describe('ApplicationPage', () => {
   let fixture: ComponentFixture<ApplicationPage>;
@@ -52,6 +53,13 @@ describe('ApplicationPage', () => {
     dispatch: ReturnType<typeof vi.fn>;
     cancel: ReturnType<typeof vi.fn>;
     receive: ReturnType<typeof vi.fn>;
+  };
+  let access: {
+    listRoles: ReturnType<typeof vi.fn>;
+    createRole: ReturnType<typeof vi.fn>;
+    listUsers: ReturnType<typeof vi.fn>;
+    createUser: ReturnType<typeof vi.fn>;
+    updateUser: ReturnType<typeof vi.fn>;
   };
   let sessions: {
     session: ReturnType<typeof signal<SessionData | null>>;
@@ -184,12 +192,29 @@ describe('ApplicationPage', () => {
       cancel: vi.fn(),
       receive: vi.fn(),
     };
+    access = {
+      listRoles: vi.fn().mockReturnValue(of({ data: [], meta: { apiVersion: '1' } })),
+      createRole: vi.fn(),
+      listUsers: vi.fn().mockReturnValue(of({ data: [], meta: { apiVersion: '1' } })),
+      createUser: vi.fn(),
+      updateUser: vi.fn(),
+    };
     sessionState = signal<SessionData | null>({
       user: {
         id: 'user',
         email: 'admin@example.com',
         roles: ['ADMIN'],
-        permissions: ['TENANT_MANAGE', 'PRODUCTS_MANAGE', 'STOCK_MANAGE', 'SALES_MANAGE'],
+        permissions: [
+          'TENANT_MANAGE',
+          'PRODUCTS_MANAGE',
+          'SALES_MANAGE',
+          'ACCESS_MANAGE',
+          'INVENTORY_VIEW',
+          'INVENTORY_ADJUST',
+          'INVENTORY_TRANSFER',
+          'INVENTORY_COUNT',
+          'INVENTORY_APPROVE',
+        ],
       },
       tenant: { id: 'tenant', name: 'Tienda' },
       context: {
@@ -214,6 +239,7 @@ describe('ApplicationPage', () => {
         { provide: AuditApiService, useValue: audit },
         { provide: OrganizationApiService, useValue: organization },
         { provide: InventoryTransferApiService, useValue: transfers },
+        { provide: AccessApiService, useValue: access },
         { provide: SessionApiService, useValue: sessions },
       ],
     }).compileComponents();
@@ -1158,6 +1184,99 @@ describe('ApplicationPage', () => {
       true,
     );
     expect((fixture.nativeElement.querySelector('.audit-log') as HTMLElement).hidden).toBe(true);
+  });
+
+  it('lets a viewer inspect inventory without exposing mutating controls', () => {
+    products.getOptions.mockClear();
+    products.list.mockClear();
+    inventory.listStock.mockClear();
+    access.listRoles.mockClear();
+    sessionState.set({
+      user: {
+        id: 'viewer',
+        email: 'viewer@example.com',
+        roles: ['VIEWER'],
+        permissions: ['INVENTORY_VIEW'],
+      },
+      tenant: { id: 'tenant', name: 'Tienda' },
+      context: {
+        branch: { id: 'branch', name: 'Sucursal' },
+        warehouse: { id: 'warehouse', name: 'Bodega' },
+        cashRegister: null,
+      },
+      nextStep: 'APPLICATION',
+    });
+    fixture.destroy();
+    fixture = TestBed.createComponent(ApplicationPage);
+    fixture.detectChanges();
+
+    expect(products.getOptions).not.toHaveBeenCalled();
+    expect(products.list).toHaveBeenCalled();
+    expect(inventory.listStock).toHaveBeenCalled();
+    expect(access.listRoles).not.toHaveBeenCalled();
+    expect(
+      (fixture.nativeElement.querySelector('.catalog-product-form') as HTMLElement).hidden,
+    ).toBe(true);
+    expect(
+      (fixture.nativeElement.querySelector('#transferQuantity') as HTMLElement).closest('form')
+        ?.hidden,
+    ).toBe(true);
+    expect(
+      (fixture.nativeElement.querySelector('[aria-labelledby="access-title"]') as HTMLElement)
+        .hidden,
+    ).toBe(true);
+  });
+
+  it('creates a granular role and delegates it to one branch', () => {
+    const role = {
+      id: 'role-id',
+      name: 'Operador',
+      permissions: ['INVENTORY_VIEW', 'INVENTORY_ADJUST'] as const,
+    };
+    access.createRole.mockReturnValue(of({ data: role, meta: { apiVersion: '1' } }));
+    access.listRoles.mockReturnValue(of({ data: [role], meta: { apiVersion: '1' } }));
+    access.createUser.mockReturnValue(
+      of({
+        data: {
+          id: 'staff-id',
+          email: 'operator@example.com',
+          roles: [role],
+          branches: [{ id: 'branch', name: 'Sucursal' }],
+          manageable: true,
+        },
+        meta: { apiVersion: '1' },
+      }),
+    );
+
+    fill('accessRoleName', 'Operador');
+    const permissionInputs = Array.from(
+      fixture.nativeElement.querySelectorAll(
+        '[aria-labelledby="access-title"] input[type="checkbox"]',
+      ) as NodeListOf<HTMLInputElement>,
+    );
+    permissionInputs[1].click();
+    (fixture.nativeElement.querySelector('#accessRoleName') as HTMLElement)
+      .closest('form')
+      ?.dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+
+    expect(access.createRole).toHaveBeenCalledWith('Operador', [
+      'INVENTORY_VIEW',
+      'INVENTORY_ADJUST',
+    ]);
+
+    fill('accessUserEmail', 'operator@example.com');
+    fill('accessUserPassword', 'SecurePass1!');
+    (fixture.nativeElement.querySelector('#accessUserEmail') as HTMLElement)
+      .closest('form')
+      ?.dispatchEvent(new Event('submit'));
+
+    expect(access.createUser).toHaveBeenCalledWith(
+      'operator@example.com',
+      'SecurePass1!',
+      ['role-id'],
+      ['branch'],
+    );
   });
 
   it('quotes a cart and prevents duplicate cash sale submission', () => {
