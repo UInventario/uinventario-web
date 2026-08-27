@@ -10,6 +10,7 @@ export type InventoryMovementType =
   | 'LOSS'
   | 'DAMAGE'
   | 'ADJUSTMENT'
+  | 'IMPORT'
   | 'STATE_TRANSITION'
   | 'TRANSFER_OUT'
   | 'TRANSFER_IN'
@@ -46,6 +47,7 @@ export interface InventoryMovementInput {
   type: Exclude<
     InventoryMovementType,
     | 'STATE_TRANSITION'
+    | 'IMPORT'
     | 'TRANSFER_OUT'
     | 'TRANSFER_IN'
     | 'TRANSFER_RECEIPT'
@@ -96,7 +98,7 @@ export interface InventoryMovementHistoryItem {
   correlationId: string;
   idempotencyKey: string;
   document: {
-    type: 'MOVEMENT' | 'SALE' | 'TRANSFER' | 'RECEIPT';
+    type: 'MOVEMENT' | 'IMPORT' | 'SALE' | 'TRANSFER' | 'RECEIPT';
     id: string;
     reference: string | null;
   };
@@ -154,6 +156,41 @@ interface MovementListResponse {
     scope: { branch: { id: string; name: string } };
     pagination: { page: number; pageSize: number; total: number; totalPages: number };
   };
+}
+
+export type InventoryImportMode = 'INITIAL' | 'COUNT';
+
+export interface InventoryImportData {
+  id: string;
+  mode: InventoryImportMode;
+  status: 'PREVIEWED' | 'CONFIRMED';
+  sourceFilename: string;
+  policy: 'ATOMIC';
+  canConfirm: boolean;
+  summary: {
+    rows: number;
+    validRows: number;
+    errorRows: number;
+    movements: number | null;
+  };
+  rows: Array<{
+    id: string;
+    rowNumber: number;
+    product: { id: string; name: string; sku: string } | null;
+    location: InventoryLocationData | null;
+    state: InventoryStockState | null;
+    targetQuantity: string | null;
+    currentQuantity: string | null;
+    difference: string | null;
+    reason: string;
+    errors: Array<{ code: string; message: string }>;
+  }>;
+  confirmedAt: string | null;
+}
+
+interface InventoryImportResponse {
+  data: InventoryImportData;
+  meta: { apiVersion: '1'; idempotentReplay?: boolean };
 }
 
 @Injectable({ providedIn: 'root' })
@@ -233,6 +270,26 @@ export class InventoryApiService {
     return this.http.post<MovementResponse>(
       `${this.config.apiBaseUrl()}/inventory/state-transitions`,
       input,
+      { headers, withCredentials: true },
+    );
+  }
+
+  previewImport(file: File, mode: InventoryImportMode) {
+    const form = new FormData();
+    form.append('mode', mode);
+    form.append('file', file, file.name);
+    return this.http.post<InventoryImportResponse>(
+      `${this.config.apiBaseUrl()}/inventory/imports/preview`,
+      form,
+      { withCredentials: true },
+    );
+  }
+
+  confirmImport(importId: string, idempotencyKey: string) {
+    const headers = new HttpHeaders().set('Idempotency-Key', idempotencyKey);
+    return this.http.post<InventoryImportResponse>(
+      `${this.config.apiBaseUrl()}/inventory/imports/${importId}/confirm`,
+      {},
       { headers, withCredentials: true },
     );
   }

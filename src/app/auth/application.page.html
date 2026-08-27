@@ -845,6 +845,10 @@
       }
     </section>
 
+    @if (canAdjustInventory()) {
+      <app-inventory-import-panel (confirmed)="inventoryImportConfirmed()" />
+    }
+
     <section
       class="stock-overview movement-history"
       aria-labelledby="transfers-title"
@@ -1107,6 +1111,7 @@
             <option value="LOSS">Pérdida</option>
             <option value="DAMAGE">Daño</option>
             <option value="ADJUSTMENT">Ajuste</option>
+            <option value="IMPORT">ImportaciÃ³n</option>
             <option value="STATE_TRANSITION">Cambio de estado</option>
             <option value="TRANSFER_OUT">Transferencia despachada</option>
             <option value="TRANSFER_IN">Transferencia en tránsito</option>
