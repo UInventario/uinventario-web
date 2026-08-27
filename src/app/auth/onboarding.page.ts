@@ -1,97 +1,86 @@
-import { Component, inject, signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Component, inject, OnInit, signal } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs';
+import { CompanyOnboardingData, OnboardingApiService } from './onboarding-api.service';
 import { SessionApiService } from './session-api.service';
+
+const ISO_COUNTRY_CODES = `
+  AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR
+  BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC
+  EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK
+  HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB
+  LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ
+  NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW
+  SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR
+  TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW
+`
+  .trim()
+  .split(/\s+/);
+
+function buildCountryOptions(): Array<{ code: string; name: string }> {
+  const names = new Intl.DisplayNames(['es'], { type: 'region' });
+  return ISO_COUNTRY_CODES.map((code) => ({
+    code,
+    name: names.of(code) ?? code,
+  })).sort((left, right) => left.name.localeCompare(right.name, 'es'));
+}
 
 @Component({
   selector: 'app-onboarding-page',
-  template: `
-    <main>
-      <section aria-labelledby="onboarding-title">
-        <div class="brand" aria-hidden="true">UI</div>
-        <p class="eyebrow">Sesión protegida</p>
-        <h1 id="onboarding-title">Prepara {{ session()?.tenant?.name }}</h1>
-        <p>
-          Ingresaste como <strong>{{ session()?.user?.email }}</strong
-          >. Tu cuenta está lista y la configuración inicial continúa aquí.
-        </p>
-        <button type="button" (click)="logout()" [disabled]="closingSession()">
-          {{ closingSession() ? 'Cerrando…' : 'Cerrar sesión' }}
-        </button>
-      </section>
-    </main>
-  `,
-  styles: `
-    :host {
-      display: block;
-      min-height: 100vh;
-    }
-    main {
-      display: grid;
-      min-height: 100vh;
-      place-items: center;
-      padding: 1rem;
-      background: #eef3f8;
-    }
-    section {
-      width: min(100%, 42rem);
-      padding: clamp(1.6rem, 5vw, 3rem);
-      border-radius: 1.4rem;
-      background: white;
-      box-shadow: 0 1.5rem 4rem rgba(31, 55, 78, 0.12);
-    }
-    .brand {
-      display: grid;
-      width: 3rem;
-      height: 3rem;
-      place-items: center;
-      border-radius: 0.8rem;
-      background: #0b5cab;
-      color: white;
-      font-weight: 800;
-    }
-    .eyebrow {
-      margin: 1.7rem 0 0.4rem;
-      color: #0b5cab;
-      font-size: 0.75rem;
-      font-weight: 800;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
-    h1 {
-      margin: 0;
-      color: #112a40;
-      font-size: clamp(2rem, 7vw, 3rem);
-      letter-spacing: -0.045em;
-    }
-    p {
-      color: #5b6f80;
-      line-height: 1.6;
-    }
-    strong {
-      color: #263d52;
-    }
-    button {
-      min-height: 2.8rem;
-      margin-top: 1rem;
-      padding: 0.65rem 1rem;
-      border: 0;
-      border-radius: 0.65rem;
-      background: #0b5cab;
-      color: white;
-      cursor: pointer;
-      font: inherit;
-      font-weight: 700;
-    }
-    button:disabled {
-      cursor: wait;
-      opacity: 0.62;
-    }
-  `,
+  imports: [ReactiveFormsModule],
+  templateUrl: './onboarding.page.html',
+  styleUrl: './onboarding.page.scss',
 })
-export class OnboardingPage {
+export class OnboardingPage implements OnInit {
+  private readonly formBuilder = inject(FormBuilder);
+  private readonly onboarding = inject(OnboardingApiService);
   private readonly sessions = inject(SessionApiService);
+
   protected readonly session = this.sessions.session;
+  protected readonly loading = signal(true);
+  protected readonly saving = signal(false);
   protected readonly closingSession = signal(false);
+  protected readonly errorMessage = signal<string | null>(null);
+  protected readonly progress = signal<CompanyOnboardingData['progress'] | null>(null);
+  protected readonly countries = buildCountryOptions();
+  protected readonly form = this.formBuilder.nonNullable.group({
+    legalName: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
+    tradeName: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
+    countryCode: ['', [Validators.required, Validators.pattern(/^[A-Z]{2}$/)]],
+  });
+
+  ngOnInit(): void {
+    this.onboarding
+      .getCompany()
+      .pipe(finalize(() => this.loading.set(false)))
+      .subscribe({
+        next: ({ data }) => this.applyCompany(data),
+        error: () => this.errorMessage.set('No fue posible cargar el progreso del onboarding.'),
+      });
+  }
+
+  protected submit(): void {
+    if (this.form.invalid || this.saving()) {
+      this.form.markAllAsTouched();
+      return;
+    }
+
+    this.saving.set(true);
+    this.errorMessage.set(null);
+    this.onboarding
+      .configureCompany(this.form.getRawValue())
+      .pipe(finalize(() => this.saving.set(false)))
+      .subscribe({
+        next: ({ data }) => this.applyCompany(data),
+        error: (error: HttpErrorResponse) =>
+          this.errorMessage.set(
+            error.status === 0
+              ? 'No pudimos conectar con el servicio. Intenta nuevamente.'
+              : 'No fue posible guardar la empresa con esos datos.',
+          ),
+      });
+  }
 
   protected logout(): void {
     if (this.closingSession()) return;
@@ -100,5 +89,14 @@ export class OnboardingPage {
       .logout()
       .pipe(finalize(() => this.closingSession.set(false)))
       .subscribe({ error: () => undefined });
+  }
+
+  private applyCompany(data: CompanyOnboardingData): void {
+    this.form.setValue({
+      legalName: data.company.legalName ?? '',
+      tradeName: data.company.tradeName,
+      countryCode: data.company.countryCode ?? '',
+    });
+    this.progress.set(data.progress);
   }
 }

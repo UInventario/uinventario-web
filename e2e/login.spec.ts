@@ -26,11 +26,22 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await expect(page).toHaveURL(/\/onboarding$/);
   await expect(page.getByRole('heading', { name: 'Prepara Tienda Login' })).toBeVisible();
   await expect(page.getByText(email)).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath('onboarding-session.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Guardar y continuar' }).click();
+  await expect(page.getByText('Escribe el nombre legal de la empresa.')).toBeVisible();
+
+  await page.getByLabel('Nombre legal').fill('Tienda Login, S.A. de C.V.');
+  await expect(page.getByLabel('Nombre comercial')).toHaveValue('Tienda Login');
+  await page.getByLabel('País').selectOption('MX');
+  await page.getByRole('button', { name: 'Guardar y continuar' }).click();
+  await expect(
+    page.getByText('Empresa configurada. El siguiente paso es crear la sucursal inicial.'),
+  ).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('company-configured.png'), fullPage: true });
 
   await page.reload();
   await expect(page).toHaveURL(/\/onboarding$/);
-  await expect(page.getByText(email)).toBeVisible();
+  await expect(page.getByLabel('Nombre legal')).toHaveValue('Tienda Login, S.A. de C.V.');
+  await expect(page.getByLabel('País')).toHaveValue('MX');
 
   const refresh = await page.request.post('http://localhost:3000/api/v1/auth/sessions/refresh');
   expect(refresh.status()).toBe(200);

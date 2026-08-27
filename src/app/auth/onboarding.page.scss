@@ -1,0 +1,139 @@
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
+.onboarding-shell {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 2rem 1rem;
+  background: #eef3f8;
+}
+
+.onboarding-card {
+  width: min(100%, 42rem);
+  padding: clamp(1.6rem, 5vw, 3rem);
+  border-radius: 1.4rem;
+  background: white;
+  box-shadow: 0 1.5rem 4rem rgba(31, 55, 78, 0.12);
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand {
+  display: grid;
+  width: 3rem;
+  height: 3rem;
+  place-items: center;
+  border-radius: 0.8rem;
+  background: #0b5cab;
+  color: white;
+  font-weight: 800;
+}
+
+.eyebrow {
+  margin: 1.7rem 0 0.4rem;
+  color: #0b5cab;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  color: #112a40;
+  font-size: clamp(2rem, 7vw, 3rem);
+  letter-spacing: -0.045em;
+}
+
+.intro {
+  margin: 0.8rem 0 1.5rem;
+  color: #5b6f80;
+}
+
+.success {
+  margin-bottom: 1rem;
+  padding: 0.8rem;
+  border-radius: 0.6rem;
+  background: #eaf7ee;
+  color: #137333;
+}
+
+form {
+  display: grid;
+  gap: 0.55rem;
+}
+
+label {
+  margin-top: 0.65rem;
+  color: #263d52;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+input,
+select {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid #aebdca;
+  border-radius: 0.65rem;
+  background: #fbfdff;
+  color: #17212b;
+  font: inherit;
+}
+
+input:focus,
+select:focus {
+  border-color: #0b5cab;
+  outline: 3px solid rgba(11, 92, 171, 0.16);
+}
+
+.field-error,
+.form-error {
+  color: #b3261e;
+}
+
+.field-error {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.form-error {
+  margin-top: 0.75rem;
+  padding: 0.8rem;
+  border-radius: 0.6rem;
+  background: #fff1f0;
+}
+
+button {
+  border: 0;
+  border-radius: 0.65rem;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.primary {
+  min-height: 3rem;
+  margin-top: 1rem;
+  background: #0b5cab;
+  color: white;
+}
+
+.logout {
+  padding: 0.65rem 0.8rem;
+  background: #e9f1f8;
+  color: #0b5cab;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}

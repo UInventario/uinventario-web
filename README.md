@@ -21,6 +21,8 @@ Registro e inicio de sesión forman un recorrido real hasta `/onboarding`. La co
 queda bajo control del API y las rutas privadas validan la sesión al recargar.
 La Web renueva la sesión poco antes de expirar, sincroniza rotación/logout entre
 pestañas y vuelve a `/login` cuando la sesión termina.
+El primer paso de onboarding permite configurar y reanudar la empresa mínima antes
+de crear la sucursal inicial.
 
 ```bash
 npm run typecheck
