@@ -7,7 +7,7 @@ import { ProductApiService } from '../catalog/product-api.service';
 import { InventoryApiService } from '../inventory/inventory-api.service';
 import { CashSaleData, PosApiService } from '../pos/pos-api.service';
 import { ApplicationPage } from './application.page';
-import { SessionApiService } from './session-api.service';
+import { SessionApiService, SessionData } from './session-api.service';
 import { AuditApiService } from '../audit/audit-api.service';
 
 describe('ApplicationPage', () => {
@@ -33,6 +33,7 @@ describe('ApplicationPage', () => {
     getSale: ReturnType<typeof vi.fn>;
   };
   let audit: { list: ReturnType<typeof vi.fn> };
+  let sessionState: ReturnType<typeof signal<SessionData | null>>;
 
   beforeEach(async () => {
     products = {
@@ -119,17 +120,23 @@ describe('ApplicationPage', () => {
         }),
       ),
     };
+    sessionState = signal<SessionData | null>({
+      user: {
+        id: 'user',
+        email: 'admin@example.com',
+        roles: ['ADMIN'],
+        permissions: ['TENANT_MANAGE', 'PRODUCTS_MANAGE', 'STOCK_MANAGE', 'SALES_MANAGE'],
+      },
+      tenant: { id: 'tenant', name: 'Tienda' },
+      context: {
+        branch: { id: 'branch', name: 'Sucursal' },
+        warehouse: { id: 'warehouse', name: 'Bodega' },
+        cashRegister: { id: 'register', name: 'Caja', code: 'MAIN' },
+      },
+      nextStep: 'APPLICATION',
+    });
     const sessions = {
-      session: signal({
-        user: { id: 'user', email: 'admin@example.com', roles: ['ADMIN'], permissions: [] },
-        tenant: { id: 'tenant', name: 'Tienda' },
-        context: {
-          branch: { id: 'branch', name: 'Sucursal' },
-          warehouse: { id: 'warehouse', name: 'Bodega' },
-          cashRegister: { id: 'register', name: 'Caja', code: 'MAIN' },
-        },
-        nextStep: 'APPLICATION',
-      }),
+      session: sessionState,
       logout: vi.fn(),
     };
     await TestBed.configureTestingModule({
@@ -451,6 +458,53 @@ describe('ApplicationPage', () => {
     expect(alert.textContent).toContain(
       'No tienes permisos suficientes para realizar esta operación.',
     );
+  });
+
+  it('does not load or expose modules absent from the session permissions', () => {
+    products.getOptions.mockClear();
+    products.list.mockClear();
+    inventory.listLocations.mockClear();
+    inventory.listStock.mockClear();
+    inventory.listMovements.mockClear();
+    pos.listSales.mockClear();
+    audit.list.mockClear();
+    sessionState.set({
+      user: { id: 'staff', email: 'staff@example.com', roles: ['STAFF'], permissions: [] },
+      tenant: { id: 'tenant', name: 'Tienda' },
+      context: {
+        branch: { id: 'branch', name: 'Sucursal' },
+        warehouse: { id: 'warehouse', name: 'Bodega' },
+        cashRegister: { id: 'register', name: 'Caja', code: 'MAIN' },
+      },
+      nextStep: 'APPLICATION',
+    });
+    fixture.destroy();
+    fixture = TestBed.createComponent(ApplicationPage);
+    fixture.detectChanges();
+
+    expect(products.getOptions).not.toHaveBeenCalled();
+    expect(products.list).not.toHaveBeenCalled();
+    expect(inventory.listLocations).not.toHaveBeenCalled();
+    expect(inventory.listStock).not.toHaveBeenCalled();
+    expect(inventory.listMovements).not.toHaveBeenCalled();
+    expect(pos.listSales).not.toHaveBeenCalled();
+    expect(audit.list).not.toHaveBeenCalled();
+
+    const navigation = fixture.nativeElement.querySelector('nav') as HTMLElement;
+    expect(navigation.textContent).not.toContain('Empresa');
+    expect(navigation.textContent).not.toContain('Productos');
+    expect(navigation.textContent).not.toContain('Inventario');
+    expect(navigation.textContent).not.toContain('Punto de venta');
+    expect(navigation.textContent).not.toContain('Auditoría');
+    expect(fixture.nativeElement.textContent).toContain('Sin módulos asignados');
+    expect(
+      (fixture.nativeElement.querySelector('[aria-labelledby="products-title"]') as HTMLElement)
+        .hidden,
+    ).toBe(true);
+    expect((fixture.nativeElement.querySelector('.pos-workspace') as HTMLElement).hidden).toBe(
+      true,
+    );
+    expect((fixture.nativeElement.querySelector('.audit-log') as HTMLElement).hidden).toBe(true);
   });
 
   it('quotes a cart and prevents duplicate cash sale submission', () => {
