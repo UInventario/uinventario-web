@@ -2,12 +2,25 @@ import { Routes } from '@angular/router';
 import { ApplicationPage } from './auth/application.page';
 import { LoginPage } from './auth/login.page';
 import { OnboardingPage } from './auth/onboarding.page';
+import { PasswordResetPage } from './auth/password-reset.page';
 import { RegistrationPage } from './auth/registration.page';
 import { sessionGuard } from './auth/session.guard';
 
 export const routes: Routes = [
   { path: 'registro', component: RegistrationPage, title: 'Crear cuenta | UInventario' },
   { path: 'login', component: LoginPage, title: 'Iniciar sesión | UInventario' },
+  {
+    path: 'recuperar',
+    component: PasswordResetPage,
+    data: { mode: 'request' },
+    title: 'Recuperar contraseña | UInventario',
+  },
+  {
+    path: 'restablecer',
+    component: PasswordResetPage,
+    data: { mode: 'complete' },
+    title: 'Restablecer contraseña | UInventario',
+  },
   {
     path: 'onboarding',
     component: OnboardingPage,
