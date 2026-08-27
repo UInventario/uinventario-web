@@ -20,7 +20,10 @@ describe('LoginPage', () => {
       tenant: { id: 'tenant-id', name: 'Tienda Central' },
       nextStep: 'ONBOARDING',
     },
-    meta: { apiVersion: '1' },
+    meta: {
+      apiVersion: '1',
+      sessionExpiresAt: '2026-08-27T15:00:00.000Z',
+    },
   };
 
   beforeEach(async () => {

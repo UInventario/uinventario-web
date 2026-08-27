@@ -14,6 +14,7 @@ async function createAccount(page: import('@playwright/test').Page, email: strin
 
 test('logs in, reaches onboarding and restores the session after reload', async ({
   page,
+  context,
 }, testInfo) => {
   const email = `login-${testInfo.project.name}-${Date.now()}@example.com`;
   await createAccount(page, email);
@@ -30,6 +31,22 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await page.reload();
   await expect(page).toHaveURL(/\/onboarding$/);
   await expect(page.getByText(email)).toBeVisible();
+
+  const refresh = await page.request.post('http://localhost:3000/api/v1/auth/sessions/refresh');
+  expect(refresh.status()).toBe(200);
+  await page.reload();
+  await expect(page.getByText(email)).toBeVisible();
+
+  const secondTab = await context.newPage();
+  await secondTab.goto('/onboarding');
+  await expect(secondTab.getByText(email)).toBeVisible();
+
+  await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(secondTab).toHaveURL(/\/login$/);
+
+  await page.goto('/onboarding');
+  await expect(page).toHaveURL(/\/login\?returnUrl=%2Fonboarding$/);
 });
 
 test('protects private routes and reports invalid credentials generically', async ({ page }) => {
