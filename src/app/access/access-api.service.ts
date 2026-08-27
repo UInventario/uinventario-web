@@ -22,6 +22,8 @@ export type AppPermission =
   | 'CASH_REGISTER_CLOSE'
   | 'CASH_REGISTER_MOVE'
   | 'ACCESS_MANAGE'
+  | 'AUDIT_VIEW'
+  | 'AUDIT_EXPORT'
   | InventoryPermission;
 
 export const OPERATIONAL_PERMISSIONS = [
@@ -33,6 +35,8 @@ export const OPERATIONAL_PERMISSIONS = [
   'CASH_REGISTER_OPEN',
   'CASH_REGISTER_CLOSE',
   'CASH_REGISTER_MOVE',
+  'AUDIT_VIEW',
+  'AUDIT_EXPORT',
 ] as const satisfies readonly AppPermission[];
 
 export interface AccessRoleData {
