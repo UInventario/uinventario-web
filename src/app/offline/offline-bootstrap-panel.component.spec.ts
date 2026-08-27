@@ -8,7 +8,12 @@ import { OfflineOutboxService } from './offline-outbox.service';
 
 describe('OfflineBootstrapPanelComponent', () => {
   let fixture: ComponentFixture<OfflineBootstrapPanelComponent>;
-  const api = { page: vi.fn() };
+  const api = {
+    page: vi.fn(),
+    changes: vi.fn(),
+    devices: vi.fn(),
+    revokeDevice: vi.fn(),
+  };
   let currentSession: unknown = null;
   const store = {
     deviceId: vi.fn(),
@@ -33,7 +38,9 @@ describe('OfflineBootstrapPanelComponent', () => {
 
   beforeEach(async () => {
     api.page.mockReset();
-    Object.assign(api, { changes: vi.fn() });
+    api.changes.mockReset();
+    api.devices.mockReset().mockReturnValue(of({ data: [] }));
+    api.revokeDevice.mockReset().mockReturnValue(of(undefined));
     currentSession = null;
     store.deviceId.mockReset().mockResolvedValue('10000000-0000-4000-8000-000000000001');
     store.summary.mockReset().mockResolvedValue(null);
@@ -296,6 +303,50 @@ describe('OfflineBootstrapPanelComponent', () => {
     expect(fixture.nativeElement.textContent).toContain(
       'Sincroniza existencias y captura un conteo nuevo. Saldo actual: 7.000.',
     );
+  });
+
+  it('shows tenant device health to administrators and revokes from the console', async () => {
+    currentSession = {
+      tenant: { id: 'tenant-1' },
+      user: { id: 'user-1', permissions: ['ACCESS_MANAGE'] },
+      context: { branch: { id: 'branch-1' }, cashRegister: null },
+    };
+    const remoteDeviceId = '20000000-0000-4000-8000-000000000002';
+    api.devices.mockReturnValue(
+      of({
+        data: [
+          {
+            deviceId: remoteDeviceId,
+            user: { id: 'user-2', email: 'cajero@example.com' },
+            firstSeenAt: '2026-08-27T20:00:00.000Z',
+            lastSeenAt: '2026-08-27T20:10:00.000Z',
+            lastSyncAt: '2026-08-27T20:09:30.000Z',
+            cursorFingerprint: 'abc123def456',
+            correlationId: 'request-safe-id',
+            revokedAt: null,
+            bootstrapRequiredAt: null,
+            health: 'HEALTHY',
+            lagSeconds: 30,
+            lastSequence: 4,
+            metrics: { pending: 1, errors: 2, conflicts: 1, retries: 3, oldestPendingAt: null },
+          },
+        ],
+      }),
+    );
+    const component = fixture.componentInstance as unknown as {
+      refreshDevices(): Promise<void>;
+      revokeDevice(deviceId: string): Promise<void>;
+    };
+
+    await component.refreshDevices();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('cajero@example.com');
+    expect(fixture.nativeElement.textContent).toContain('abc123def456');
+    expect(fixture.nativeElement.textContent).toContain('1 / 2');
+    expect(fixture.nativeElement.textContent).toContain('1 / 3');
+    await component.revokeDevice(remoteDeviceId);
+    expect(api.revokeDevice).toHaveBeenCalledWith(remoteDeviceId);
   });
 
   it('distinguishes offline, synchronizing and transport-error states accessibly', () => {

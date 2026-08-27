@@ -11,7 +11,11 @@ import {
 } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { SessionApiService } from '../auth/session-api.service';
-import { OfflineBootstrapApiService, OfflineBootstrapData } from './offline-bootstrap-api.service';
+import {
+  OfflineBootstrapApiService,
+  OfflineBootstrapData,
+  OfflineDeviceHealthData,
+} from './offline-bootstrap-api.service';
 import {
   OfflineFreshnessState,
   OfflineOutboxCommand,
@@ -37,6 +41,12 @@ export class OfflineBootstrapPanelComponent implements OnInit, OnDestroy {
   protected readonly pendingCommands = signal(0);
   protected readonly rejectedCommands = signal(0);
   protected readonly commands = signal<OfflineOutboxCommand[]>([]);
+  protected readonly devices = signal<OfflineDeviceHealthData[]>([]);
+  protected readonly devicesLoading = signal(false);
+  protected readonly revokingDeviceId = signal<string | null>(null);
+  protected readonly canManageDevices = computed(() =>
+    Boolean(this.sessions.session()?.user.permissions?.includes('ACCESS_MANAGE')),
+  );
   protected readonly onlineState = signal(
     typeof navigator === 'undefined' ? true : navigator.onLine,
   );
@@ -122,6 +132,7 @@ export class OfflineBootstrapPanelComponent implements OnInit, OnDestroy {
         generatedAt: lastPage.generatedAt,
         restored: false,
       });
+      await this.refreshDevices();
     } catch (error) {
       this.invalidateRevokedAccess(error);
       this.error.set(this.message(error));
@@ -188,6 +199,7 @@ export class OfflineBootstrapPanelComponent implements OnInit, OnDestroy {
       });
       this.error.set(null);
       await this.refreshFreshness(scope);
+      await this.refreshDevices();
     } catch (error) {
       if (error instanceof HttpErrorResponse && [400, 410].includes(error.status)) {
         await this.prepare();
@@ -280,6 +292,52 @@ export class OfflineBootstrapPanelComponent implements OnInit, OnDestroy {
     return 'La operación no se aplicó. Revisa los datos actuales antes de capturar una nueva.';
   }
 
+  protected async refreshDevices(): Promise<void> {
+    if (!this.canManageDevices() || this.devicesLoading()) return;
+    this.devicesLoading.set(true);
+    try {
+      const { data } = await firstValueFrom(this.api.devices());
+      this.devices.set(data);
+    } catch (error) {
+      this.error.set(this.message(error));
+    } finally {
+      this.devicesLoading.set(false);
+    }
+  }
+
+  protected async revokeDevice(deviceId: string): Promise<void> {
+    if (this.revokingDeviceId()) return;
+    this.revokingDeviceId.set(deviceId);
+    this.error.set(null);
+    try {
+      await firstValueFrom(this.api.revokeDevice(deviceId));
+      await this.refreshDevices();
+      if ((await this.store.deviceId()) === deviceId) this.sessions.invalidate();
+    } catch (error) {
+      this.error.set(this.message(error));
+    } finally {
+      this.revokingDeviceId.set(null);
+    }
+  }
+
+  protected deviceHealthLabel(device: OfflineDeviceHealthData): string {
+    return (
+      {
+        HEALTHY: 'Saludable',
+        NEVER_SYNCED: 'Sin sincronización',
+        BOOTSTRAP_REQUIRED: 'Bootstrap requerido',
+        REVOKED: 'Revocado',
+      } as const
+    )[device.health];
+  }
+
+  protected deviceLag(device: OfflineDeviceHealthData): string {
+    if (device.lagSeconds === null) return 'Sin sincronización completa';
+    if (device.lagSeconds < 60) return `${device.lagSeconds} s de retraso`;
+    if (device.lagSeconds < 3600) return `${Math.floor(device.lagSeconds / 60)} min de retraso`;
+    return `${Math.floor(device.lagSeconds / 3600)} h de retraso`;
+  }
+
   private async restore(): Promise<void> {
     try {
       if (!this.sessions.session()) return;
@@ -296,6 +354,7 @@ export class OfflineBootstrapPanelComponent implements OnInit, OnDestroy {
       }
       await this.refreshOutbox(scope);
       await this.refreshFreshness(scope);
+      await this.refreshDevices();
     } catch (error) {
       this.error.set(this.message(error));
     }

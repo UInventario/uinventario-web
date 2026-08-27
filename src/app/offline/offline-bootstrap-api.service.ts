@@ -87,6 +87,28 @@ interface OfflineBootstrapResponse {
   data: OfflineBootstrapData;
 }
 
+export interface OfflineDeviceHealthData {
+  deviceId: string;
+  user: { id: string; email: string };
+  firstSeenAt: string;
+  lastSeenAt: string;
+  lastSyncAt: string | null;
+  cursorFingerprint: string | null;
+  correlationId: string | null;
+  revokedAt: string | null;
+  bootstrapRequiredAt: string | null;
+  health: 'HEALTHY' | 'NEVER_SYNCED' | 'BOOTSTRAP_REQUIRED' | 'REVOKED';
+  lagSeconds: number | null;
+  lastSequence: number;
+  metrics: {
+    pending: number;
+    errors: number;
+    conflicts: number;
+    retries: number;
+    oldestPendingAt: string | null;
+  };
+}
+
 @Injectable({ providedIn: 'root' })
 export class OfflineBootstrapApiService {
   private readonly http = inject(HttpClient);
@@ -110,5 +132,18 @@ export class OfflineBootstrapApiService {
       `${this.config.apiBaseUrl()}/offline/changes`,
       { params, withCredentials: true },
     );
+  }
+
+  devices() {
+    return this.http.get<{ data: OfflineDeviceHealthData[] }>(
+      `${this.config.apiBaseUrl()}/offline/devices`,
+      { withCredentials: true },
+    );
+  }
+
+  revokeDevice(deviceId: string) {
+    return this.http.delete<void>(`${this.config.apiBaseUrl()}/offline/devices/${deviceId}`, {
+      withCredentials: true,
+    });
   }
 }
