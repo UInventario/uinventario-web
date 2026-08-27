@@ -1055,6 +1055,30 @@
           </select>
         </div>
         <div class="field">
+          <label for="movementLocation">Ubicación</label>
+          <input
+            id="movementLocation"
+            formControlName="location"
+            placeholder="Ubicación, código o bodega"
+          />
+        </div>
+        <div class="field">
+          <label for="movementResponsible">Responsable</label>
+          <input
+            id="movementResponsible"
+            formControlName="responsible"
+            placeholder="Correo del usuario"
+          />
+        </div>
+        <div class="field">
+          <label for="movementDocument">Documento</label>
+          <input
+            id="movementDocument"
+            formControlName="document"
+            placeholder="Referencia, ID o clave idempotente"
+          />
+        </div>
+        <div class="field">
           <label for="movementDateFrom">Desde</label>
           <input id="movementDateFrom" type="date" formControlName="dateFrom" />
         </div>
@@ -1099,7 +1123,9 @@
                     {{ movement.quantityChange }}
                   </strong>
                 }
-                <small>Saldo {{ movement.resultingQuantity }}</small>
+                <small>
+                  Saldo {{ movement.previousQuantity }} → {{ movement.resultingQuantity }}
+                </small>
               </span>
               <span>
                 <strong>{{ movement.location.name }}</strong>
@@ -1107,11 +1133,15 @@
               </span>
               <span>
                 <strong>{{ movement.reason }}</strong>
-                <small>{{ movement.reference || 'Sin referencia' }}</small>
+                <small>
+                  {{ movementDocumentLabel(movement.document.type) }} ·
+                  {{ movement.document.reference || movement.document.id }}
+                </small>
               </span>
               <span>
                 <strong>{{ movement.responsible.email }}</strong>
-                <small>Responsable</small>
+                <small>Correlación {{ movement.correlationId }}</small>
+                <small>Idempotencia {{ movement.idempotencyKey }}</small>
               </span>
             </li>
           }
