@@ -1,21 +1,32 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
+import { SessionApiService } from '../auth/session-api.service';
 import { OfflineBootstrapApiService, OfflineBootstrapData } from './offline-bootstrap-api.service';
+import { OfflineStoreService } from './offline-store.service';
 
 @Component({
   selector: 'app-offline-bootstrap-panel',
   templateUrl: './offline-bootstrap-panel.component.html',
   styleUrl: './offline-bootstrap-panel.component.scss',
 })
-export class OfflineBootstrapPanelComponent {
+export class OfflineBootstrapPanelComponent implements OnInit {
   private readonly api = inject(OfflineBootstrapApiService);
-  private readonly deviceId = crypto.randomUUID();
+  private readonly store = inject(OfflineStoreService);
+  private readonly sessions = inject(SessionApiService);
 
   protected readonly preparing = signal(false);
   protected readonly downloaded = signal(0);
-  protected readonly result = signal<{ entities: number; generatedAt: string } | null>(null);
+  protected readonly result = signal<{
+    entities: number;
+    generatedAt: string;
+    restored: boolean;
+  } | null>(null);
   protected readonly error = signal<string | null>(null);
+
+  ngOnInit(): void {
+    void this.restore();
+  }
 
   protected async prepare(): Promise<void> {
     if (this.preparing()) return;
@@ -24,12 +35,14 @@ export class OfflineBootstrapPanelComponent {
     this.result.set(null);
     this.error.set(null);
     try {
+      const deviceId = await this.store.deviceId();
       let cursor: string | undefined;
       let expectedScope: string | undefined;
       let initialSyncCursor: string | undefined;
       let lastPage: OfflineBootstrapData | undefined;
+      const entities: OfflineBootstrapData['page']['entities'] = [];
       do {
-        const { data } = await firstValueFrom(this.api.page(this.deviceId, cursor));
+        const { data } = await firstValueFrom(this.api.page(deviceId, cursor));
         const scope = JSON.stringify(data.scope);
         if (
           expectedScope &&
@@ -39,18 +52,47 @@ export class OfflineBootstrapPanelComponent {
         }
         expectedScope ??= scope;
         initialSyncCursor ??= data.page.initialSyncCursor;
+        entities.push(...data.page.entities);
         this.downloaded.update((count) => count + data.page.entities.length);
         cursor = data.page.nextCursor ?? undefined;
         lastPage = data;
       } while (cursor);
+      if (!lastPage) throw new Error('El servidor no entregó un bootstrap válido.');
+      await this.store.replaceBootstrap(lastPage, entities);
       this.result.set({
         entities: this.downloaded(),
-        generatedAt: lastPage?.generatedAt ?? new Date().toISOString(),
+        generatedAt: lastPage.generatedAt,
+        restored: false,
       });
     } catch (error) {
       this.error.set(this.message(error));
     } finally {
       this.preparing.set(false);
+    }
+  }
+
+  private async restore(): Promise<void> {
+    try {
+      const session = this.sessions.session();
+      if (!session) return;
+      const deviceId = await this.store.deviceId();
+      const summary = await this.store.summary({
+        tenantId: session.tenant.id,
+        userId: session.user.id,
+        deviceId,
+        branchId: session.context.branch?.id ?? null,
+        cashRegisterId: session.context.cashRegister?.id ?? null,
+      });
+      if (summary) {
+        this.downloaded.set(summary.entities);
+        this.result.set({
+          entities: summary.entities,
+          generatedAt: summary.generatedAt,
+          restored: true,
+        });
+      }
+    } catch (error) {
+      this.error.set(this.message(error));
     }
   }
 

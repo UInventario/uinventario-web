@@ -15,7 +15,8 @@
   }
   @if (result(); as prepared) {
     <p class="success" role="status">
-      Bootstrap completo: {{ prepared.entities }} registros autorizados.
+      {{ prepared.restored ? 'Datos offline disponibles' : 'Bootstrap guardado' }}:
+      {{ prepared.entities }} registros autorizados.
     </p>
   }
   @if (error()) {
