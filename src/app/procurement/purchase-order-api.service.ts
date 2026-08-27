@@ -1,4 +1,4 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { RuntimeConfigService } from '../core/runtime-config.service';
 
@@ -28,9 +28,23 @@ export interface PurchaseOrderData {
   subtotal: string;
   total: string;
   version: number;
+  approvedAt: string | null;
+  sentAt: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  transitions: PurchaseOrderTransitionData[];
   lines: PurchaseOrderLineData[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PurchaseOrderTransitionData {
+  id: string;
+  fromStatus: PurchaseOrderStatus;
+  toStatus: PurchaseOrderStatus;
+  reason: string | null;
+  delivery: { mode: 'SIMULATED'; recipient: string | null } | null;
+  createdAt: string;
 }
 
 export interface PurchaseOrderInput {
@@ -85,6 +99,34 @@ export class PurchaseOrderApiService {
       `${this.config.apiBaseUrl()}/purchase-orders/${id}`,
       input,
       { withCredentials: true },
+    );
+  }
+
+  approve(id: string, input: { version: number; reason?: string }, idempotencyKey: string) {
+    return this.transition(id, 'approve', input, idempotencyKey);
+  }
+
+  send(id: string, version: number, idempotencyKey: string) {
+    return this.transition(id, 'send', { version }, idempotencyKey);
+  }
+
+  cancel(id: string, input: { version: number; reason: string }, idempotencyKey: string) {
+    return this.transition(id, 'cancel', input, idempotencyKey);
+  }
+
+  private transition(
+    id: string,
+    action: 'approve' | 'send' | 'cancel',
+    body: { version: number; reason?: string },
+    idempotencyKey: string,
+  ) {
+    return this.http.post<PurchaseOrderResponse>(
+      `${this.config.apiBaseUrl()}/purchase-orders/${id}/${action}`,
+      body,
+      {
+        headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+        withCredentials: true,
+      },
     );
   }
 }

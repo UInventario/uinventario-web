@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, input, OnInit, signal } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs';
 import { SupplierApiService, SupplierData } from '../suppliers/supplier-api.service';
@@ -27,6 +27,16 @@ export class PurchaseOrderPanelComponent implements OnInit {
   private readonly ordersApi = inject(PurchaseOrderApiService);
   private readonly suppliersApi = inject(SupplierApiService);
   private readonly supplierProductsApi = inject(SupplierProductApiService);
+  private pendingTransition: {
+    orderId: string;
+    action: 'approve' | 'send' | 'cancel';
+    version: number;
+    reason?: string;
+    key: string;
+  } | null = null;
+
+  readonly canApprove = input(false);
+  readonly canManage = input(true);
 
   protected readonly suppliers = signal<SupplierData[]>([]);
   protected readonly supplierProducts = signal<SupplierProductData[]>([]);
@@ -34,6 +44,8 @@ export class PurchaseOrderPanelComponent implements OnInit {
   protected readonly editing = signal<PurchaseOrderData | null>(null);
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
+  protected readonly transitioningId = signal<string | null>(null);
+  protected readonly cancelling = signal<PurchaseOrderData | null>(null);
   protected readonly error = signal<string | null>(null);
   protected readonly success = signal<string | null>(null);
   protected readonly page = signal(1);
@@ -41,6 +53,9 @@ export class PurchaseOrderPanelComponent implements OnInit {
   protected readonly total = signal(0);
   protected readonly searchForm = this.formBuilder.nonNullable.group({
     q: ['', [Validators.maxLength(100)]],
+  });
+  protected readonly cancelForm = this.formBuilder.nonNullable.group({
+    reason: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(500)]],
   });
   protected readonly form = this.formBuilder.nonNullable.group({
     supplierId: ['', [Validators.required]],
@@ -54,7 +69,7 @@ export class PurchaseOrderPanelComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.loadOptions();
+    if (this.canManage()) this.loadOptions();
     this.load(1);
   }
 
@@ -101,7 +116,7 @@ export class PurchaseOrderPanelComponent implements OnInit {
   }
 
   protected edit(order: PurchaseOrderData): void {
-    if (order.status !== 'DRAFT') return;
+    if (!this.canManage() || order.status !== 'DRAFT') return;
     this.editing.set(order);
     this.form.patchValue({
       supplierId: order.supplier.id,
@@ -126,6 +141,48 @@ export class PurchaseOrderPanelComponent implements OnInit {
   protected cancelEditing(): void {
     this.editing.set(null);
     this.resetForm();
+  }
+
+  protected approve(order: PurchaseOrderData): void {
+    if (!this.canApprove() || order.status !== 'DRAFT') return;
+    this.transition(order, 'approve');
+  }
+
+  protected send(order: PurchaseOrderData): void {
+    if (!this.canManage() || order.status !== 'APPROVED') return;
+    this.transition(order, 'send');
+  }
+
+  protected requestCancellation(order: PurchaseOrderData): void {
+    if (!this.canApprove() || !['DRAFT', 'APPROVED', 'SENT'].includes(order.status)) return;
+    this.cancelling.set(order);
+    this.cancelForm.reset({ reason: '' });
+    this.error.set(null);
+  }
+
+  protected dismissCancellation(): void {
+    this.cancelling.set(null);
+    this.cancelForm.reset({ reason: '' });
+  }
+
+  protected confirmCancellation(): void {
+    const order = this.cancelling();
+    if (!order || this.cancelForm.invalid) {
+      this.cancelForm.markAllAsTouched();
+      return;
+    }
+    this.transition(order, 'cancel', this.cancelForm.controls.reason.value.trim());
+  }
+
+  protected statusLabel(status: PurchaseOrderData['status']): string {
+    return {
+      DRAFT: 'Borrador',
+      APPROVED: 'Aprobada',
+      SENT: 'Enviada',
+      PARTIALLY_RECEIVED: 'Recibida parcialmente',
+      RECEIVED: 'Recibida',
+      CANCELLED: 'Cancelada',
+    }[status];
   }
 
   protected submit(): void {
@@ -180,6 +237,61 @@ export class PurchaseOrderPanelComponent implements OnInit {
     this.supplierProductsApi.list({ page: 1, pageSize: 100 }).subscribe({
       next: ({ data }) => this.supplierProducts.set(data),
       error: (error: HttpErrorResponse) => this.error.set(this.message(error)),
+    });
+  }
+
+  private transition(
+    order: PurchaseOrderData,
+    action: 'approve' | 'send' | 'cancel',
+    reason?: string,
+  ): void {
+    if (this.transitioningId()) return;
+    const pending = this.pendingTransition;
+    const request =
+      pending &&
+      pending.orderId === order.id &&
+      pending.action === action &&
+      pending.version === order.version &&
+      pending.reason === reason
+        ? pending
+        : {
+            orderId: order.id,
+            action,
+            version: order.version,
+            reason,
+            key: `web-purchase-${action}-${globalThis.crypto.randomUUID()}`,
+          };
+    this.pendingTransition = request;
+    this.transitioningId.set(order.id);
+    this.error.set(null);
+    this.success.set(null);
+    const operation =
+      action === 'approve'
+        ? this.ordersApi.approve(order.id, { version: order.version }, request.key)
+        : action === 'send'
+          ? this.ordersApi.send(order.id, order.version, request.key)
+          : this.ordersApi.cancel(
+              order.id,
+              { version: order.version, reason: reason! },
+              request.key,
+            );
+    operation.pipe(finalize(() => this.transitioningId.set(null))).subscribe({
+      next: ({ data }) => {
+        this.pendingTransition = null;
+        this.cancelling.set(null);
+        this.success.set(
+          action === 'approve'
+            ? `Orden ${data.folio} aprobada y disponible para recepción.`
+            : action === 'send'
+              ? `Envío simulado para la orden ${data.folio}.`
+              : `Orden ${data.folio} cancelada.`,
+        );
+        this.load(1);
+      },
+      error: (error: HttpErrorResponse) => {
+        if (error.status > 0 && error.status < 500) this.pendingTransition = null;
+        this.error.set(this.message(error));
+      },
     });
   }
 

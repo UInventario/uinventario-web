@@ -17,7 +17,7 @@
     @if (canManageSuppliers()) {
       <a routerLink="/app" fragment="suppliers-title">Proveedores</a>
     }
-    @if (canManagePurchaseOrders()) {
+    @if (canAccessPurchaseOrders()) {
       <a routerLink="/app" fragment="purchase-orders-title">Órdenes de compra</a>
     }
     @if (canManageStock()) {
@@ -290,8 +290,11 @@
     <app-supplier-panel />
   }
 
-  @if (canManagePurchaseOrders()) {
-    <app-purchase-order-panel />
+  @if (canAccessPurchaseOrders()) {
+    <app-purchase-order-panel
+      [canManage]="canManagePurchaseOrders()"
+      [canApprove]="canApprovePurchaseOrders()"
+    />
   }
 
   @if (hasNoCoreAccess()) {
