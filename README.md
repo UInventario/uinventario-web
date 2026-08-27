@@ -52,11 +52,17 @@ El historial permite filtrar ventas de la sucursal activa y auditar líneas, efe
 caja, usuario y movimientos de inventario desde su detalle.
 
 ```bash
+npm ci
+npm run format:check
+npm run lint
 npm run typecheck
-npx ng test --watch=false
-npm run test:e2e
+npm run test:ci
 npm run build
 ```
+
+El workflow `CI` ejecuta esta secuencia en cada PR y push a `develop` o `master`.
+El job se llama `verify`; cualquier paso fallido detiene el job y, por contrato,
+el pipeline de despliegue debe ejecutar este gate antes de publicar.
 
 El E2E requiere MySQL local sano y el build actual de `uinventario-api`; Playwright levanta temporalmente API y Web.
 

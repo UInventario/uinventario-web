@@ -30,10 +30,7 @@ describe('RuntimeConfigService', () => {
   it.each([
     [{ apiBaseUrl: 'http://localhost:3000/api/v1' }, 'environment válido'],
     [{ environment: 'prod' }, 'requiere apiBaseUrl'],
-    [
-      { environment: 'prod', apiBaseUrl: 'http://api.example.invalid/api/v1' },
-      'no es segura',
-    ],
+    [{ environment: 'prod', apiBaseUrl: 'http://api.example.invalid/api/v1' }, 'no es segura'],
     [
       { environment: 'dev', apiBaseUrl: 'https://example-user@api.example.invalid/api/v1' },
       'no es segura',
