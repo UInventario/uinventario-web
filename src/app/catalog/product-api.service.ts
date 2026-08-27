@@ -38,6 +38,16 @@ export interface ProductListResponse {
   };
 }
 
+export type ProductStatusFilter = 'ACTIVE' | 'INACTIVE' | 'ALL';
+
+export interface ProductRetirementResponse {
+  data: {
+    outcome: 'DELETED' | 'DEACTIVATED';
+    product: ProductData | null;
+  };
+  meta: { apiVersion: '1' };
+}
+
 interface CatalogOptionsResponse {
   data: {
     categories: Array<{ id: string; name: string }>;
@@ -69,9 +79,10 @@ export class ProductApiService {
     });
   }
 
-  list(query: { q?: string; page: number; pageSize: number }) {
+  list(query: { q?: string; status?: ProductStatusFilter; page: number; pageSize: number }) {
     let params = new HttpParams().set('page', query.page).set('pageSize', query.pageSize);
     if (query.q) params = params.set('q', query.q);
+    if (query.status) params = params.set('status', query.status);
     return this.http.get<ProductListResponse>(`${this.config.apiBaseUrl()}/products`, {
       params,
       withCredentials: true,
@@ -82,5 +93,12 @@ export class ProductApiService {
     return this.http.get<ProductResponse>(`${this.config.apiBaseUrl()}/products/${id}`, {
       withCredentials: true,
     });
+  }
+
+  retire(id: string) {
+    return this.http.delete<ProductRetirementResponse>(
+      `${this.config.apiBaseUrl()}/products/${id}`,
+      { withCredentials: true },
+    );
   }
 }

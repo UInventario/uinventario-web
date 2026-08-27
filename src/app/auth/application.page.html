@@ -152,10 +152,18 @@
           <label for="productSearch">Buscar por nombre, SKU o código</label>
           <div>
             <input id="productSearch" formControlName="q" maxlength="80" />
+            <select aria-label="Estado del producto" formControlName="status">
+              <option value="ACTIVE">Activos</option>
+              <option value="INACTIVE">Inactivos</option>
+              <option value="ALL">Todos</option>
+            </select>
             <button class="secondary" type="submit">Buscar</button>
           </div>
         </form>
 
+        @if (retirementMessage()) {
+          <div class="success" role="status">{{ retirementMessage() }}</div>
+        }
         @if (catalogError()) {
           <div class="form-error" role="alert">{{ catalogError() }}</div>
         }
@@ -224,9 +232,28 @@
               <div class="success">Producto actualizado</div>
             }
             <h3>{{ product.name }}</h3>
-            <button class="secondary" type="button" (click)="startEditing(product)">
-              Editar producto
-            </button>
+            <div class="form-actions">
+              <button class="secondary" type="button" (click)="startEditing(product)">
+                Editar producto
+              </button>
+              @if (product.active && !confirmingRetirement()) {
+                <button class="secondary" type="button" (click)="requestRetirement()">
+                  Retirar producto
+                </button>
+              }
+              @if (confirmingRetirement()) {
+                <button class="secondary" type="button" (click)="cancelRetirement()">
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  (click)="retireProduct(product)"
+                  [disabled]="retiringProduct()"
+                >
+                  {{ retiringProduct() ? 'Retirando…' : 'Confirmar retiro' }}
+                </button>
+              }
+            </div>
             <dl>
               <div>
                 <dt>SKU</dt>
