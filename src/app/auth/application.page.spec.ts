@@ -5,7 +5,7 @@ import { of, Subject, throwError } from 'rxjs';
 import { provideRouter } from '@angular/router';
 import { ProductApiService } from '../catalog/product-api.service';
 import { InventoryApiService } from '../inventory/inventory-api.service';
-import { CashSaleData, PosApiService } from '../pos/pos-api.service';
+import { CashRegisterClosureData, CashSaleData, PosApiService } from '../pos/pos-api.service';
 import { ApplicationPage } from './application.page';
 import { SessionApiService, SessionData } from './session-api.service';
 import { AuditApiService } from '../audit/audit-api.service';
@@ -37,6 +37,8 @@ describe('ApplicationPage', () => {
     listCashMovements: ReturnType<typeof vi.fn>;
     createCashMovement: ReturnType<typeof vi.fn>;
     reverseCashMovement: ReturnType<typeof vi.fn>;
+    getLatestClosure: ReturnType<typeof vi.fn>;
+    closeShift: ReturnType<typeof vi.fn>;
     quote: ReturnType<typeof vi.fn>;
     createCashSale: ReturnType<typeof vi.fn>;
     listSales: ReturnType<typeof vi.fn>;
@@ -166,6 +168,8 @@ describe('ApplicationPage', () => {
       ),
       createCashMovement: vi.fn(),
       reverseCashMovement: vi.fn(),
+      getLatestClosure: vi.fn().mockReturnValue(of({ data: null, meta: { apiVersion: '1' } })),
+      closeShift: vi.fn(),
       quote: vi.fn(),
       createCashSale: vi.fn(),
       listSales: vi.fn().mockReturnValue(
@@ -1603,5 +1607,62 @@ describe('ApplicationPage', () => {
     expect(fixture.nativeElement.textContent).toContain('Saldo esperado MXN 100.00');
     expect(fixture.nativeElement.textContent).toContain('Reversa confirmada');
     expect(fixture.nativeElement.textContent).toContain('Reversado');
+  });
+
+  it('closes the active cash register and renders the persisted reconciliation', () => {
+    const response = new Subject<{
+      data: CashRegisterClosureData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>();
+    pos.closeShift.mockReturnValue(response);
+    fill('cashCountedAmount', '100.00');
+    fill('cashDenominations', '50x2');
+    (fixture.nativeElement.querySelector('.cash-closure-form') as HTMLFormElement).dispatchEvent(
+      new Event('submit'),
+    );
+    (
+      fixture.componentInstance as unknown as { closeCashRegisterShift(): void }
+    ).closeCashRegisterShift();
+
+    expect(pos.closeShift).toHaveBeenCalledTimes(1);
+    expect(pos.closeShift).toHaveBeenCalledWith(
+      {
+        countedAmount: '100.00',
+        denominations: [{ denomination: '50', quantity: 2 }],
+      },
+      expect.stringMatching(/^web-cash-closure-/),
+    );
+    response.next({
+      data: {
+        id: 'closure',
+        status: 'CLOSED',
+        branch: { id: 'branch', name: 'Sucursal' },
+        cashRegister: { id: 'register', name: 'Caja', code: 'MAIN' },
+        openedBy: { id: 'user', email: 'admin@example.com' },
+        closedBy: { id: 'user', email: 'admin@example.com' },
+        currency: 'MXN',
+        openingAmount: '100.00',
+        salesCount: 0,
+        cashSales: '0.00',
+        movementsCount: 0,
+        movementsNet: '0.00',
+        expectedCash: '100.00',
+        countedCash: '100.00',
+        difference: '0.00',
+        differenceReason: null,
+        denominations: [{ denomination: '50.00', quantity: 2 }],
+        openedAt: '2026-08-27T14:00:00.000Z',
+        closedAt: '2026-08-27T15:00:00.000Z',
+      },
+      meta: { apiVersion: '1', idempotentReplay: false },
+    });
+    response.complete();
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement.querySelector('.pos-grid') as HTMLElement).hidden).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Caja cerrada');
+    expect(fixture.nativeElement.textContent).toContain('Último arqueo');
+    expect(fixture.nativeElement.textContent).toContain('Diferencia MXN 0.00');
+    expect(fixture.nativeElement.textContent).toContain('Abrir caja');
   });
 });

@@ -1351,6 +1351,95 @@
             }
           </ul>
         }
+
+        <form
+          class="cash-payment cash-closure-form"
+          [formGroup]="cashClosureForm"
+          (ngSubmit)="closeCashRegisterShift()"
+        >
+          <h3>Cerrar caja y realizar arqueo</h3>
+          <p>El servidor volverá a calcular el saldo esperado antes de cerrar el turno.</p>
+          <label for="cashCountedAmount">Efectivo contado</label>
+          <input
+            id="cashCountedAmount"
+            formControlName="countedAmount"
+            inputmode="decimal"
+            autocomplete="off"
+          />
+          <label for="cashDifferenceReason">Motivo de diferencia (si existe)</label>
+          <input id="cashDifferenceReason" formControlName="differenceReason" maxlength="160" />
+          <label for="cashDenominations">Denominaciones opcionales</label>
+          <input
+            id="cashDenominations"
+            formControlName="denominations"
+            maxlength="240"
+            placeholder="200x2, 50x1"
+          />
+          <small>La suma debe coincidir con el efectivo contado.</small>
+          @if (cashClosureForm.touched && cashClosureForm.invalid) {
+            <small class="field-error">Revisa el conteo y los datos del arqueo.</small>
+          }
+          @if (cashClosureError()) {
+            <div class="form-error" role="alert">{{ cashClosureError() }}</div>
+          }
+          <button type="submit" [disabled]="closingCashRegister()">
+            {{ closingCashRegister() ? 'Cerrando caja…' : 'Cerrar caja' }}
+          </button>
+        </form>
+      </div>
+    }
+
+    @if (cashClosureSuccess()) {
+      <div class="success" role="status">{{ cashClosureSuccess() }}</div>
+    }
+    @if (loadingCashClosure()) {
+      <p class="catalog-state" role="status">Consultando último arqueo…</p>
+    } @else if (latestCashClosure(); as closure) {
+      <div class="cart-panel cash-closure-report">
+        <div class="cart-heading">
+          <div>
+            <p class="eyebrow">Último arqueo</p>
+            <h3>{{ closure.cashRegister.name }} · {{ closure.closedAt | date: 'short' }}</h3>
+          </div>
+          <strong>Diferencia {{ closure.currency }} {{ closure.difference }}</strong>
+        </div>
+        <dl class="cart-totals">
+          <div>
+            <dt>Fondo inicial</dt>
+            <dd>{{ closure.currency }} {{ closure.openingAmount }}</dd>
+          </div>
+          <div>
+            <dt>Ventas ({{ closure.salesCount }})</dt>
+            <dd>{{ closure.currency }} {{ closure.cashSales }}</dd>
+          </div>
+          <div>
+            <dt>Movimientos ({{ closure.movementsCount }})</dt>
+            <dd>{{ closure.currency }} {{ closure.movementsNet }}</dd>
+          </div>
+          <div>
+            <dt>Esperado</dt>
+            <dd>{{ closure.currency }} {{ closure.expectedCash }}</dd>
+          </div>
+          <div>
+            <dt>Contado</dt>
+            <dd>{{ closure.currency }} {{ closure.countedCash }}</dd>
+          </div>
+        </dl>
+        <p>
+          Abrió {{ closure.openedBy.email }} · Cerró {{ closure.closedBy.email }} ·
+          {{ closure.openedAt | date: 'short' }} a {{ closure.closedAt | date: 'short' }}
+        </p>
+        @if (closure.differenceReason) {
+          <p><strong>Motivo:</strong> {{ closure.differenceReason }}</p>
+        }
+        @if (closure.denominations.length > 0) {
+          <p>
+            <strong>Denominaciones:</strong>
+            @for (item of closure.denominations; track $index) {
+              {{ item.denomination }} × {{ item.quantity }}
+            }
+          </p>
+        }
       </div>
     }
 
