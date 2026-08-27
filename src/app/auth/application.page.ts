@@ -22,6 +22,7 @@ import {
 } from '../inventory/inventory-api.service';
 import { SessionApiService } from './session-api.service';
 import {
+  CashRegisterMovementData,
   CashRegisterShiftData,
   CashSaleData,
   PosApiService,
@@ -53,6 +54,7 @@ import {
 } from '../access/access-api.service';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
+const POSITIVE_MONEY_PATTERN = /^(?:[1-9]\d{0,11}(?:\.\d{1,2})?|0\.(?:0[1-9]|[1-9]\d?))$/;
 const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
 const BARCODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{3,63}$/;
 const QUANTITY_PATTERN = /^-?(0|[1-9]\d{0,11})(\.\d{1,3})?$/;
@@ -99,6 +101,11 @@ export class ApplicationPage implements OnInit {
     key: string;
   } | null = null;
   private pendingShiftOpening: { openingAmount: string; key: string } | null = null;
+  private pendingCashMovement: {
+    input: { type: 'INCOME' | 'WITHDRAWAL'; amount: string; reason: string };
+    key: string;
+  } | null = null;
+  private pendingCashReversal: { movementId: string; reason: string; key: string } | null = null;
 
   protected readonly session = this.sessions.session;
   protected readonly canManageTenant = computed(
@@ -218,6 +225,14 @@ export class ApplicationPage implements OnInit {
   protected readonly openingCashRegisterShift = signal(false);
   protected readonly cashRegisterShiftError = signal<string | null>(null);
   protected readonly cashRegisterShiftSuccess = signal<string | null>(null);
+  protected readonly cashRegisterMovements = signal<CashRegisterMovementData[]>([]);
+  protected readonly expectedCash = signal<string | null>(null);
+  protected readonly loadingCashMovements = signal(false);
+  protected readonly savingCashMovement = signal(false);
+  protected readonly reversingCashMovementId = signal<string | null>(null);
+  protected readonly cashMovementError = signal<string | null>(null);
+  protected readonly cashMovementSuccess = signal<string | null>(null);
+  protected readonly movementToReverse = signal<CashRegisterMovementData | null>(null);
   protected readonly cart = signal<CartEntry[]>([]);
   protected readonly cartQuote = signal<PosCartQuote | null>(null);
   protected readonly completedSale = signal<CashSaleData | null>(null);
@@ -251,6 +266,8 @@ export class ApplicationPage implements OnInit {
     if (this.savingAccess()) return 'Guardando acceso operativo…';
     if (this.switchingContext()) return 'Cambiando contexto operativo…';
     if (this.openingCashRegisterShift()) return 'Abriendo caja…';
+    if (this.savingCashMovement()) return 'Registrando movimiento de caja…';
+    if (this.reversingCashMovementId()) return 'Reversando movimiento de caja…';
     if (this.savingSale()) return 'Confirmando venta y actualizando inventario…';
     if (this.quotingCart()) return 'Validando precios y existencias…';
     return null;
@@ -279,6 +296,14 @@ export class ApplicationPage implements OnInit {
   });
   protected readonly cashRegisterShiftForm = this.formBuilder.nonNullable.group({
     openingAmount: ['0.00', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
+  });
+  protected readonly cashMovementForm = this.formBuilder.nonNullable.group({
+    type: ['INCOME' as 'INCOME' | 'WITHDRAWAL', [Validators.required]],
+    amount: ['', [Validators.required, Validators.pattern(POSITIVE_MONEY_PATTERN)]],
+    reason: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
+  });
+  protected readonly cashMovementReversalForm = this.formBuilder.nonNullable.group({
+    reason: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
   });
   protected readonly salesFilterForm = this.formBuilder.nonNullable.group({
     dateFrom: [''],
@@ -554,6 +579,13 @@ export class ApplicationPage implements OnInit {
           this.pendingShiftOpening = null;
           this.cashRegisterShiftError.set(null);
           this.cashRegisterShiftSuccess.set(null);
+          this.cashRegisterMovements.set([]);
+          this.expectedCash.set(null);
+          this.cashMovementError.set(null);
+          this.cashMovementSuccess.set(null);
+          this.movementToReverse.set(null);
+          this.pendingCashMovement = null;
+          this.pendingCashReversal = null;
           this.selectedSale.set(null);
           this.salesHistory.set([]);
           if (this.canManageStock()) {
@@ -864,12 +896,106 @@ export class ApplicationPage implements OnInit {
           this.pendingShiftOpening = null;
           this.currentCashRegisterShift.set(data);
           this.cashRegisterShiftSuccess.set('Caja abierta y lista para vender.');
+          this.loadCashMovements();
         },
         error: (error: HttpErrorResponse) => {
           if (error.status > 0 && error.status < 500) this.pendingShiftOpening = null;
           this.cashRegisterShiftError.set(this.cashRegisterShiftMessageFor(error));
         },
       });
+  }
+
+  protected submitCashMovement(): void {
+    if (this.cashMovementForm.invalid || this.savingCashMovement()) {
+      this.cashMovementForm.markAllAsTouched();
+      return;
+    }
+    const value = this.cashMovementForm.getRawValue();
+    const input = {
+      type: value.type,
+      amount: value.amount.trim(),
+      reason: value.reason.trim(),
+    };
+    const pending = this.pendingCashMovement;
+    const key =
+      pending && JSON.stringify(pending.input) === JSON.stringify(input)
+        ? pending.key
+        : `web-cash-movement-${globalThis.crypto.randomUUID()}`;
+    this.pendingCashMovement = { input, key };
+    this.savingCashMovement.set(true);
+    this.cashMovementError.set(null);
+    this.cashMovementSuccess.set(null);
+    this.pos
+      .createCashMovement(input, key)
+      .pipe(finalize(() => this.savingCashMovement.set(false)))
+      .subscribe({
+        next: () => {
+          this.pendingCashMovement = null;
+          this.cashMovementForm.reset({ type: value.type, amount: '', reason: '' });
+          this.cashMovementSuccess.set(
+            value.type === 'INCOME' ? 'Ingreso confirmado.' : 'Egreso confirmado.',
+          );
+          this.loadCashMovements();
+          this.loadAuditEvents();
+        },
+        error: (error: HttpErrorResponse) => {
+          if (error.status > 0 && error.status < 500) this.pendingCashMovement = null;
+          this.cashMovementError.set(this.cashMovementMessageFor(error));
+        },
+      });
+  }
+
+  protected startCashMovementReversal(movement: CashRegisterMovementData): void {
+    if (movement.type === 'REVERSAL' || movement.reversed) return;
+    this.movementToReverse.set(movement);
+    this.cashMovementReversalForm.reset({ reason: '' });
+    this.cashMovementError.set(null);
+  }
+
+  protected cancelCashMovementReversal(): void {
+    this.movementToReverse.set(null);
+    this.pendingCashReversal = null;
+    this.cashMovementReversalForm.reset({ reason: '' });
+  }
+
+  protected reverseCashMovement(): void {
+    const movement = this.movementToReverse();
+    if (!movement || this.cashMovementReversalForm.invalid || this.reversingCashMovementId()) {
+      this.cashMovementReversalForm.markAllAsTouched();
+      return;
+    }
+    const reason = this.cashMovementReversalForm.controls.reason.value.trim();
+    const pending = this.pendingCashReversal;
+    const key =
+      pending?.movementId === movement.id && pending.reason === reason
+        ? pending.key
+        : `web-cash-reversal-${globalThis.crypto.randomUUID()}`;
+    this.pendingCashReversal = { movementId: movement.id, reason, key };
+    this.reversingCashMovementId.set(movement.id);
+    this.cashMovementError.set(null);
+    this.cashMovementSuccess.set(null);
+    this.pos
+      .reverseCashMovement(movement.id, reason, key)
+      .pipe(finalize(() => this.reversingCashMovementId.set(null)))
+      .subscribe({
+        next: () => {
+          this.pendingCashReversal = null;
+          this.movementToReverse.set(null);
+          this.cashMovementSuccess.set('Reversa confirmada y saldo actualizado.');
+          this.loadCashMovements();
+          this.loadAuditEvents();
+        },
+        error: (error: HttpErrorResponse) => {
+          if (error.status > 0 && error.status < 500) this.pendingCashReversal = null;
+          this.cashMovementError.set(this.cashMovementMessageFor(error));
+        },
+      });
+  }
+
+  protected cashMovementLabel(movement: CashRegisterMovementData): string {
+    if (movement.type === 'INCOME') return 'Ingreso';
+    if (movement.type === 'WITHDRAWAL') return 'Egreso';
+    return `Reversa de ${movement.reversalOf?.type === 'INCOME' ? 'ingreso' : 'egreso'}`;
   }
 
   protected searchPos(): void {
@@ -981,6 +1107,7 @@ export class ApplicationPage implements OnInit {
           this.loadStockList(this.stockPage());
           this.loadMovementHistory(1);
           this.loadSales(1);
+          this.loadCashMovements();
           this.loadAuditEvents();
           const selected = this.selectedProduct();
           if (selected) this.loadBalance(selected.id);
@@ -1802,10 +1929,37 @@ export class ApplicationPage implements OnInit {
       .getCurrentShift()
       .pipe(finalize(() => this.loadingCashRegisterShift.set(false)))
       .subscribe({
-        next: ({ data }) => this.currentCashRegisterShift.set(data),
+        next: ({ data }) => {
+          this.currentCashRegisterShift.set(data);
+          if (data) this.loadCashMovements();
+          else {
+            this.cashRegisterMovements.set([]);
+            this.expectedCash.set(null);
+          }
+        },
         error: (error: HttpErrorResponse) => {
           this.currentCashRegisterShift.set(null);
           this.cashRegisterShiftError.set(this.cashRegisterShiftMessageFor(error));
+        },
+      });
+  }
+
+  private loadCashMovements(): void {
+    if (!this.currentCashRegisterShift()) return;
+    this.loadingCashMovements.set(true);
+    this.cashMovementError.set(null);
+    this.pos
+      .listCashMovements()
+      .pipe(finalize(() => this.loadingCashMovements.set(false)))
+      .subscribe({
+        next: ({ data, meta }) => {
+          this.cashRegisterMovements.set(data);
+          this.expectedCash.set(meta.expectedCash);
+        },
+        error: (error: HttpErrorResponse) => {
+          this.cashRegisterMovements.set([]);
+          this.expectedCash.set(null);
+          this.cashMovementError.set(this.cashMovementMessageFor(error));
         },
       });
   }
@@ -1994,6 +2148,24 @@ export class ApplicationPage implements OnInit {
       return 'El fondo de apertura cambió durante el reintento. Intenta nuevamente.';
     }
     return this.operationMessage(error, 'No fue posible abrir la caja.');
+  }
+
+  private cashMovementMessageFor(error: HttpErrorResponse): string {
+    const code = (error.error as { code?: string } | null)?.code;
+    if (code === 'INSUFFICIENT_EXPECTED_CASH') {
+      return 'El egreso o la reversa dejaría un saldo esperado negativo.';
+    }
+    if (code === 'CASH_REGISTER_MOVEMENT_ALREADY_REVERSED') {
+      return 'El movimiento ya fue reversado. Actualiza el historial.';
+    }
+    if (code === 'IDEMPOTENCY_KEY_REUSED') {
+      return 'El movimiento cambió durante el reintento. Revísalo e intenta nuevamente.';
+    }
+    if (code === 'CASH_REGISTER_SHIFT_REQUIRED') {
+      this.currentCashRegisterShift.set(null);
+      return 'Abre la caja antes de registrar movimientos.';
+    }
+    return this.operationMessage(error, 'No fue posible procesar el movimiento de caja.');
   }
 
   private assertOpenCashRegisterShift(): boolean {

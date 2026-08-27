@@ -38,6 +38,21 @@ export interface CashRegisterShiftData {
   openedAt: string;
 }
 
+export interface CashRegisterMovementData {
+  id: string;
+  type: 'INCOME' | 'WITHDRAWAL' | 'REVERSAL';
+  amount: string;
+  reason: string;
+  responsible: { id: string; email: string };
+  reversalOf: {
+    id: string;
+    type: 'INCOME' | 'WITHDRAWAL';
+    reason: string;
+  } | null;
+  reversed: boolean;
+  createdAt: string;
+}
+
 export interface CashSaleData {
   id: string;
   receiptNumber: string;
@@ -109,6 +124,47 @@ export class PosApiService {
     }>(
       `${this.config.apiBaseUrl()}/pos/register-shifts`,
       { openingAmount },
+      {
+        headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+        withCredentials: true,
+      },
+    );
+  }
+
+  listCashMovements() {
+    return this.http.get<{
+      data: CashRegisterMovementData[];
+      meta: {
+        apiVersion: '1';
+        shiftId: string;
+        currency: string;
+        expectedCash: string;
+      };
+    }>(`${this.config.apiBaseUrl()}/pos/register-shifts/current/movements`, {
+      withCredentials: true,
+    });
+  }
+
+  createCashMovement(
+    input: { type: 'INCOME' | 'WITHDRAWAL'; amount: string; reason: string },
+    idempotencyKey: string,
+  ) {
+    return this.http.post<{
+      data: CashRegisterMovementData;
+      meta: { apiVersion: '1'; expectedCash: string; idempotentReplay: boolean };
+    }>(`${this.config.apiBaseUrl()}/pos/register-shifts/current/movements`, input, {
+      headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+      withCredentials: true,
+    });
+  }
+
+  reverseCashMovement(movementId: string, reason: string, idempotencyKey: string) {
+    return this.http.post<{
+      data: CashRegisterMovementData;
+      meta: { apiVersion: '1'; expectedCash: string; idempotentReplay: boolean };
+    }>(
+      `${this.config.apiBaseUrl()}/pos/register-shifts/current/movements/${movementId}/reversals`,
+      { reason },
       {
         headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
         withCredentials: true,

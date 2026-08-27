@@ -34,6 +34,9 @@ describe('ApplicationPage', () => {
   let pos: {
     getCurrentShift: ReturnType<typeof vi.fn>;
     openShift: ReturnType<typeof vi.fn>;
+    listCashMovements: ReturnType<typeof vi.fn>;
+    createCashMovement: ReturnType<typeof vi.fn>;
+    reverseCashMovement: ReturnType<typeof vi.fn>;
     quote: ReturnType<typeof vi.fn>;
     createCashSale: ReturnType<typeof vi.fn>;
     listSales: ReturnType<typeof vi.fn>;
@@ -150,6 +153,19 @@ describe('ApplicationPage', () => {
         }),
       ),
       openShift: vi.fn(),
+      listCashMovements: vi.fn().mockReturnValue(
+        of({
+          data: [],
+          meta: {
+            apiVersion: '1',
+            shiftId: 'shift',
+            currency: 'MXN',
+            expectedCash: '100.00',
+          },
+        }),
+      ),
+      createCashMovement: vi.fn(),
+      reverseCashMovement: vi.fn(),
       quote: vi.fn(),
       createCashSale: vi.fn(),
       listSales: vi.fn().mockReturnValue(
@@ -1476,5 +1492,116 @@ describe('ApplicationPage', () => {
     expect((fixture.nativeElement.querySelector('.pos-grid') as HTMLElement).hidden).toBe(false);
     expect(fixture.nativeElement.textContent).toContain('Caja abierta y lista para vender.');
     expect(fixture.nativeElement.textContent).toContain('MXN 250.00');
+  });
+
+  it('records an immutable cash movement and reverses it explicitly', () => {
+    const movement = {
+      id: 'cash-movement',
+      type: 'INCOME' as const,
+      amount: '50.00',
+      reason: 'Fondo adicional',
+      responsible: { id: 'user', email: 'admin@example.com' },
+      reversalOf: null,
+      reversed: false,
+      createdAt: '2026-08-27T14:10:00.000Z',
+    };
+    const createResponse = new Subject<{
+      data: typeof movement;
+      meta: { apiVersion: '1'; expectedCash: string; idempotentReplay: boolean };
+    }>();
+    pos.createCashMovement.mockReturnValue(createResponse);
+    fill('cashMovementAmount', '50.00');
+    fill('cashMovementReason', 'Fondo adicional');
+    (
+      fixture.nativeElement.querySelector('.cash-movements .cash-payment') as HTMLFormElement
+    ).dispatchEvent(new Event('submit'));
+    (fixture.componentInstance as unknown as { submitCashMovement(): void }).submitCashMovement();
+
+    expect(pos.createCashMovement).toHaveBeenCalledTimes(1);
+    expect(pos.createCashMovement).toHaveBeenCalledWith(
+      { type: 'INCOME', amount: '50.00', reason: 'Fondo adicional' },
+      expect.stringMatching(/^web-cash-movement-/),
+    );
+    pos.listCashMovements.mockReturnValue(
+      of({
+        data: [movement],
+        meta: {
+          apiVersion: '1',
+          shiftId: 'shift',
+          currency: 'MXN',
+          expectedCash: '150.00',
+        },
+      }),
+    );
+    createResponse.next({
+      data: movement,
+      meta: { apiVersion: '1', expectedCash: '150.00', idempotentReplay: false },
+    });
+    createResponse.complete();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Saldo esperado MXN 150.00');
+    expect(fixture.nativeElement.textContent).toContain('Ingreso confirmado.');
+    (
+      fixture.nativeElement.querySelector(
+        '.cash-movements .pos-results button',
+      ) as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+
+    const reverseResponse = new Subject<{
+      data: {
+        id: string;
+        type: 'REVERSAL';
+        amount: string;
+        reason: string;
+        responsible: { id: string; email: string };
+        reversalOf: { id: string; type: 'INCOME'; reason: string };
+        reversed: boolean;
+        createdAt: string;
+      };
+      meta: { apiVersion: '1'; expectedCash: string; idempotentReplay: boolean };
+    }>();
+    pos.reverseCashMovement.mockReturnValue(reverseResponse);
+    fill('cashMovementReversalReason', 'Captura incorrecta');
+    (fixture.componentInstance as unknown as { reverseCashMovement(): void }).reverseCashMovement();
+    (fixture.componentInstance as unknown as { reverseCashMovement(): void }).reverseCashMovement();
+
+    expect(pos.reverseCashMovement).toHaveBeenCalledTimes(1);
+    expect(pos.reverseCashMovement).toHaveBeenCalledWith(
+      'cash-movement',
+      'Captura incorrecta',
+      expect.stringMatching(/^web-cash-reversal-/),
+    );
+    pos.listCashMovements.mockReturnValue(
+      of({
+        data: [{ ...movement, reversed: true }],
+        meta: {
+          apiVersion: '1',
+          shiftId: 'shift',
+          currency: 'MXN',
+          expectedCash: '100.00',
+        },
+      }),
+    );
+    reverseResponse.next({
+      data: {
+        id: 'cash-reversal',
+        type: 'REVERSAL',
+        amount: '50.00',
+        reason: 'Captura incorrecta',
+        responsible: { id: 'user', email: 'admin@example.com' },
+        reversalOf: { id: movement.id, type: 'INCOME', reason: movement.reason },
+        reversed: false,
+        createdAt: '2026-08-27T14:15:00.000Z',
+      },
+      meta: { apiVersion: '1', expectedCash: '100.00', idempotentReplay: false },
+    });
+    reverseResponse.complete();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Saldo esperado MXN 100.00');
+    expect(fixture.nativeElement.textContent).toContain('Reversa confirmada');
+    expect(fixture.nativeElement.textContent).toContain('Reversado');
   });
 });
