@@ -118,6 +118,7 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await pos.getByRole('button', { name: 'Cobrar en efectivo' }).click();
   await expect(pos.getByText(/Venta V-[A-F0-9]{12} completada/)).toBeVisible();
   await expect(pos.getByText(/Cambio MXN\s+10\.20/)).toBeVisible();
+  await expect(stockOverview.getByText('8.500').first()).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('pos-cart.png'), fullPage: true });
   await page.screenshot({
     path: testInfo.outputPath('product-created.png'),
@@ -147,7 +148,7 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await expect(page.getByText('1 producto(s)')).toBeVisible();
   await page.getByRole('button', { name: /Café molido 500 g/ }).click();
   await expect(page.getByText('7501234567890')).toBeVisible();
-  await expect(page.locator('.balance').getByText('10.500')).toBeVisible();
+  await expect(page.locator('.balance').getByText('8.500')).toBeVisible();
   await page.getByLabel('Buscar por nombre, SKU o código').fill('inexistente');
   await catalog.getByRole('button', { name: 'Buscar' }).click();
   await expect(page.getByRole('heading', { name: 'Sin resultados' })).toBeVisible();

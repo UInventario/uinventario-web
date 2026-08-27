@@ -286,6 +286,9 @@ export class ApplicationPage implements OnInit {
           this.cart.set([]);
           this.cartQuote.set(null);
           this.cashForm.reset({ cashReceived: '' });
+          this.loadStockList(this.stockPage());
+          const selected = this.selectedProduct();
+          if (selected) this.loadBalance(selected.id);
         },
         error: (error: HttpErrorResponse) => {
           if (error.status > 0 && error.status < 500) this.pendingSale = null;
