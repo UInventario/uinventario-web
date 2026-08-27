@@ -2,26 +2,60 @@
   <section class="onboarding-card" aria-labelledby="onboarding-title">
     <header>
       <div class="brand" aria-hidden="true">UI</div>
-      <button class="logout" type="button" (click)="logout()" [disabled]="closingSession()">
-        {{ closingSession() ? 'Cerrando…' : 'Cerrar sesión' }}
-      </button>
+      <div class="header-actions">
+        @if (progress()?.currentStep === 'COMPLETE') {
+          <a class="back" routerLink="/app">Volver a operación</a>
+        }
+        <button class="logout" type="button" (click)="logout()" [disabled]="closingSession()">
+          {{ closingSession() ? 'Cerrando…' : 'Cerrar sesión' }}
+        </button>
+      </div>
     </header>
 
     <p class="eyebrow">
       {{
-        progress()?.currentStep === 'COMPANY'
-          ? 'Paso 1 de 3 · Empresa'
-          : initialLocation()
-            ? 'Paso 3 de 3 · Caja'
-            : 'Paso 2 de 3 · Sucursal'
+        progress()?.currentStep === 'COMPLETE'
+          ? 'Administración · Empresa'
+          : progress()?.currentStep === 'COMPANY'
+            ? 'Paso 1 de 3 · Empresa'
+            : initialLocation()
+              ? 'Paso 3 de 3 · Caja'
+              : 'Paso 2 de 3 · Sucursal'
       }}
     </p>
-    <h1 id="onboarding-title">Prepara {{ session()?.tenant?.name }}</h1>
+    <h1 id="onboarding-title">
+      {{ progress()?.currentStep === 'COMPLETE' ? 'Administra' : 'Prepara' }}
+      {{ session()?.tenant?.name }}
+    </h1>
     <p class="intro">
-      Configuración mínima para comenzar a operar como
+      {{
+        progress()?.currentStep === 'COMPLETE'
+          ? 'Actualiza los datos generales sin interrumpir la operación de'
+          : 'Configuración mínima para comenzar a operar como'
+      }}
       <strong>{{ session()?.user?.email }}</strong
       >.
     </p>
+
+    @if (progress()?.currentStep === 'COMPLETE') {
+      <dl aria-label="Contexto operativo activo">
+        <div>
+          <dt>Sucursal</dt>
+          <dd>{{ session()?.context?.branch?.name }}</dd>
+        </div>
+        <div>
+          <dt>Bodega</dt>
+          <dd>{{ session()?.context?.warehouse?.name }}</dd>
+        </div>
+        <div>
+          <dt>Caja</dt>
+          <dd>{{ session()?.context?.cashRegister?.name }}</dd>
+        </div>
+      </dl>
+      @if (companySaved()) {
+        <div class="success maintenance-success" role="status">Datos de empresa guardados.</div>
+      }
+    }
 
     @if (initialLocation()) {
       <div class="success" role="status">
@@ -47,7 +81,7 @@
 
     @if (loading()) {
       <p role="status">Cargando configuración…</p>
-    } @else if (progress()?.currentStep === 'COMPANY') {
+    } @else if (progress()?.currentStep === 'COMPANY' || progress()?.currentStep === 'COMPLETE') {
       <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
         <label for="legalName">Nombre legal</label>
         <input
@@ -78,7 +112,13 @@
         }
 
         <button class="primary" type="submit" [disabled]="saving()">
-          {{ saving() ? 'Guardando…' : 'Guardar y continuar' }}
+          {{
+            saving()
+              ? 'Guardando…'
+              : progress()?.currentStep === 'COMPLETE'
+                ? 'Guardar empresa'
+                : 'Guardar y continuar'
+          }}
         </button>
       </form>
     } @else if (!initialLocation()) {

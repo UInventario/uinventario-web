@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import {
   CompanyOnboardingData,
@@ -34,7 +34,7 @@ function buildCountryOptions(): Array<{ code: string; name: string }> {
 
 @Component({
   selector: 'app-onboarding-page',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, RouterLink],
   templateUrl: './onboarding.page.html',
   styleUrl: './onboarding.page.scss',
 })
@@ -49,6 +49,7 @@ export class OnboardingPage implements OnInit {
   protected readonly saving = signal(false);
   protected readonly closingSession = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
+  protected readonly companySaved = signal(false);
   protected readonly progress = signal<CompanyOnboardingData['progress'] | null>(null);
   protected readonly initialLocation = signal<InitialLocationData | null>(null);
   protected readonly initialCashRegister = signal<InitialCashRegisterData | null>(null);
@@ -76,7 +77,7 @@ export class OnboardingPage implements OnInit {
       next: ({ data }) => {
         this.applyCompany(data);
         if (data.progress.currentStep === 'COMPLETE') {
-          void this.router.navigateByUrl('/app');
+          this.loading.set(false);
         } else if (data.progress.currentStep === 'BRANCH') {
           this.loadInitialLocation();
         } else {
@@ -98,13 +99,18 @@ export class OnboardingPage implements OnInit {
 
     this.saving.set(true);
     this.errorMessage.set(null);
+    this.companySaved.set(false);
     this.onboarding
       .configureCompany(this.form.getRawValue())
       .pipe(finalize(() => this.saving.set(false)))
       .subscribe({
         next: ({ data }) => {
           this.applyCompany(data);
-          this.loadInitialLocation();
+          if (data.progress.currentStep === 'COMPLETE') {
+            this.companySaved.set(true);
+          } else {
+            this.loadInitialLocation();
+          }
         },
         error: (error: HttpErrorResponse) =>
           this.errorMessage.set(

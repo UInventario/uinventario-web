@@ -12,9 +12,6 @@ export const sessionGuard: CanActivateFn = (_route, state) => {
       if (state.url.startsWith('/app') && data.nextStep === 'ONBOARDING') {
         return router.createUrlTree(['/onboarding']);
       }
-      if (state.url === '/onboarding' && data.nextStep === 'APPLICATION') {
-        return router.createUrlTree(['/app']);
-      }
       return true;
     }),
     catchError(() =>

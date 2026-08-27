@@ -1,6 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { ProductApiService, ProductData, ProductInput } from '../catalog/product-api.service';
 import {
@@ -33,7 +34,7 @@ interface CartEntry {
 
 @Component({
   selector: 'app-application-page',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, RouterLink],
   templateUrl: './application.page.html',
   styleUrl: './application.page.scss',
 })
@@ -105,6 +106,13 @@ export class ApplicationPage implements OnInit {
   protected readonly totalPages = signal(0);
   protected readonly totalProducts = signal(0);
   protected readonly pageSize = 5;
+  protected readonly pendingOperation = computed(() => {
+    if (this.saving()) return this.editingProduct() ? 'Guardando producto…' : 'Creando producto…';
+    if (this.savingStock()) return 'Registrando movimiento de inventario…';
+    if (this.savingSale()) return 'Confirmando venta y actualizando inventario…';
+    if (this.quotingCart()) return 'Validando precios y existencias…';
+    return null;
+  });
   protected readonly searchForm = this.formBuilder.nonNullable.group({
     q: ['', [Validators.maxLength(80)]],
   });
@@ -282,7 +290,10 @@ export class ApplicationPage implements OnInit {
       .pipe(finalize(() => this.searchingPos.set(false)))
       .subscribe({
         next: ({ data }) => this.posResults.set(data),
-        error: () => this.posError.set('No fue posible buscar productos para la venta.'),
+        error: (error: HttpErrorResponse) =>
+          this.posError.set(
+            this.operationMessage(error, 'No fue posible buscar productos para la venta.'),
+          ),
       });
   }
 
@@ -397,7 +408,10 @@ export class ApplicationPage implements OnInit {
           this.selectedProduct.set(data);
           this.loadBalance(data.id);
         },
-        error: () => this.catalogError.set('No fue posible consultar el producto.'),
+        error: (error: HttpErrorResponse) =>
+          this.catalogError.set(
+            this.operationMessage(error, 'No fue posible consultar el producto.'),
+          ),
       });
   }
 
@@ -423,9 +437,11 @@ export class ApplicationPage implements OnInit {
       .pipe(finalize(() => this.loadingSaleDetail.set(false)))
       .subscribe({
         next: ({ data }) => this.selectedSale.set(data),
-        error: () => {
+        error: (error: HttpErrorResponse) => {
           this.selectedSale.set(null);
-          this.salesError.set('No fue posible consultar el detalle de la venta.');
+          this.salesError.set(
+            this.operationMessage(error, 'No fue posible consultar el detalle de la venta.'),
+          );
         },
       });
   }
@@ -511,7 +527,10 @@ export class ApplicationPage implements OnInit {
           this.categories.set(data.categories);
           this.brands.set(data.brands);
         },
-        error: () => this.errorMessage.set('No fue posible cargar categorías y marcas.'),
+        error: (error: HttpErrorResponse) =>
+          this.errorMessage.set(
+            this.operationMessage(error, 'No fue posible cargar categorías y marcas.'),
+          ),
       });
   }
 
@@ -525,7 +544,8 @@ export class ApplicationPage implements OnInit {
         const product = this.selectedProduct();
         if (product) this.loadBalance(product.id);
       },
-      error: () => this.stockError.set('No fue posible cargar las ubicaciones.'),
+      error: (error: HttpErrorResponse) =>
+        this.stockError.set(this.operationMessage(error, 'No fue posible cargar las ubicaciones.')),
     });
   }
 
@@ -537,7 +557,10 @@ export class ApplicationPage implements OnInit {
     if (!locationId) return;
     this.inventory.getBalance(productId, locationId).subscribe({
       next: ({ data }) => this.stockBalance.set(data),
-      error: () => this.stockError.set('No fue posible consultar la existencia.'),
+      error: (error: HttpErrorResponse) =>
+        this.stockError.set(
+          this.operationMessage(error, 'No fue posible consultar la existencia.'),
+        ),
     });
   }
 
@@ -555,7 +578,8 @@ export class ApplicationPage implements OnInit {
           this.totalPages.set(meta.pagination.totalPages);
           this.totalProducts.set(meta.pagination.total);
         },
-        error: () => this.catalogError.set('No fue posible cargar el catálogo.'),
+        error: (error: HttpErrorResponse) =>
+          this.catalogError.set(this.operationMessage(error, 'No fue posible cargar el catálogo.')),
       });
   }
 
@@ -581,7 +605,10 @@ export class ApplicationPage implements OnInit {
           this.stockTotalPages.set(meta.pagination.totalPages);
           this.stockTotal.set(meta.pagination.total);
         },
-        error: () => this.stockListError.set('No fue posible cargar las existencias.'),
+        error: (error: HttpErrorResponse) =>
+          this.stockListError.set(
+            this.operationMessage(error, 'No fue posible cargar las existencias.'),
+          ),
       });
   }
 
@@ -607,9 +634,11 @@ export class ApplicationPage implements OnInit {
           this.movementTotal.set(meta.pagination.total);
           this.movementBranch.set(meta.scope.branch.name);
         },
-        error: () => {
+        error: (error: HttpErrorResponse) => {
           this.movementHistory.set([]);
-          this.movementHistoryError.set('No fue posible cargar el historial de movimientos.');
+          this.movementHistoryError.set(
+            this.operationMessage(error, 'No fue posible cargar el historial de movimientos.'),
+          );
         },
       });
   }
@@ -637,10 +666,12 @@ export class ApplicationPage implements OnInit {
           if (data[0] && !this.selectedSale()) this.selectSale(data[0].id);
           if (data.length === 0) this.selectedSale.set(null);
         },
-        error: () => {
+        error: (error: HttpErrorResponse) => {
           this.salesHistory.set([]);
           this.selectedSale.set(null);
-          this.salesError.set('No fue posible cargar el historial de ventas.');
+          this.salesError.set(
+            this.operationMessage(error, 'No fue posible cargar el historial de ventas.'),
+          );
         },
       });
   }
@@ -703,6 +734,7 @@ export class ApplicationPage implements OnInit {
     if (code === 'PRODUCT_VERSION_CONFLICT') {
       return 'El producto cambió desde que lo abriste. Cancela y vuelve a abrirlo antes de guardar.';
     }
+    if (error.status === 403) return this.permissionMessage();
     if (error.status === 0) return 'No pudimos conectar con el servicio. Intenta nuevamente.';
     return 'No fue posible guardar el producto con esos datos.';
   }
@@ -715,6 +747,7 @@ export class ApplicationPage implements OnInit {
     if (code === 'INVALID_STOCK_QUANTITY') {
       return 'La cantidad es inválida o dejaría la existencia negativa.';
     }
+    if (error.status === 403) return this.permissionMessage();
     if (error.status === 0) return 'No pudimos conectar con el servicio. Intenta nuevamente.';
     return 'No fue posible registrar el movimiento.';
   }
@@ -730,8 +763,19 @@ export class ApplicationPage implements OnInit {
     if (code === 'IDEMPOTENCY_KEY_REUSED') {
       return 'La venta cambió durante el reintento. Revisa el carrito e intenta nuevamente.';
     }
+    if (error.status === 403) return this.permissionMessage();
     if (error.status === 0) return 'No pudimos conectar con el servicio. Intenta nuevamente.';
     return 'No fue posible completar la venta.';
+  }
+
+  private operationMessage(error: HttpErrorResponse, fallback: string): string {
+    if (error.status === 403) return this.permissionMessage();
+    if (error.status === 0) return 'No pudimos conectar con el servicio. Intenta nuevamente.';
+    return fallback;
+  }
+
+  private permissionMessage(): string {
+    return 'No tienes permisos suficientes para realizar esta operación.';
   }
 
   private resetCompletedSale(): void {
