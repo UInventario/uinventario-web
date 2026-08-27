@@ -229,10 +229,10 @@ export class PosApiService {
     });
   }
 
-  quote(lines: Array<{ productId: string; quantity: string }>) {
+  quote(lines: Array<{ productId: string; quantity: string }>, reservationId?: string) {
     return this.http.post<PosCartQuoteResponse>(
       `${this.config.apiBaseUrl()}/pos/cart/quote`,
-      { lines },
+      { lines, ...(reservationId ? { reservationId } : {}) },
       { withCredentials: true },
     );
   }
@@ -242,6 +242,7 @@ export class PosApiService {
       lines: Array<{ productId: string; quantity: string }>;
       cashReceived: string;
       customerId?: string;
+      reservationId?: string;
     },
     idempotencyKey: string,
   ) {

@@ -3,6 +3,7 @@ import { of, Subject } from 'rxjs';
 import { ProductApiService } from '../catalog/product-api.service';
 import { CustomerApiService } from '../customers/customer-api.service';
 import { InventoryApiService } from '../inventory/inventory-api.service';
+import { PosApiService } from '../pos/pos-api.service';
 import {
   ProductReservationApiService,
   ProductReservationData,
@@ -44,6 +45,10 @@ describe('ProductReservationPanelComponent', () => {
       imports: [ProductReservationPanelComponent],
       providers: [
         { provide: ProductReservationApiService, useValue: api },
+        {
+          provide: PosApiService,
+          useValue: { quote: vi.fn(), createCashSale: vi.fn() },
+        },
         {
           provide: CustomerApiService,
           useValue: {
@@ -144,6 +149,9 @@ describe('ProductReservationPanelComponent', () => {
         responsible: { id: 'user', email: 'admin@example.com' },
         expiresAt: '2026-08-28T12:00:00.000Z',
         createdAt: '2026-08-27T12:00:00.000Z',
+        closedAt: null,
+        closureReason: null,
+        sale: null,
         lines: [],
       },
       meta: { apiVersion: '1', idempotentReplay: false },

@@ -3,23 +3,23 @@
     <div>
       <p>Clientes e inventario</p>
       <h2 id="reservations-title">Reservas de productos</h2>
-      <span>Aparta existencias disponibles sin registrar una venta.</span>
+      <span>Aparta existencias y conviértelas en venta sin descontar stock dos veces.</span>
     </div>
-    <strong>{{ reservations().length }} activa(s)</strong>
+    <button type="button" class="secondary" (click)="expireDue()" [disabled]="actionBusy()">
+      Procesar vencidas
+    </button>
   </div>
-
   @if (error()) {
     <div class="message error" role="alert">{{ error() }}</div>
   }
   @if (success()) {
     <div class="message success" role="status">{{ success() }}</div>
   }
-
   <div class="workspace">
     <form class="editor" [formGroup]="form" (ngSubmit)="submit()">
       <h3>Nueva reserva</h3>
-      <label>
-        Cliente
+      <label
+        >Cliente
         <select id="reservationCustomer" formControlName="customerId">
           <option value="">Selecciona un cliente</option>
           @for (customer of customers(); track customer.id) {
@@ -30,8 +30,8 @@
         </select>
       </label>
       <div class="row">
-        <label>
-          Ubicación
+        <label
+          >Ubicación
           <select id="reservationLocation" formControlName="locationId">
             <option value="">Selecciona una ubicación</option>
             @for (location of locations(); track location.id) {
@@ -39,18 +39,15 @@
             }
           </select>
         </label>
-        <label>
-          Vigencia (horas)
-          <input
+        <label
+          >Vigencia (horas)<input
             id="reservationExpiry"
             type="number"
             min="1"
             max="720"
             formControlName="expiresInHours"
-          />
-        </label>
+        /></label>
       </div>
-
       <div class="line-heading">
         <h4>Productos</h4>
         <button type="button" class="secondary" (click)="addLine()">Agregar línea</button>
@@ -59,8 +56,8 @@
         @for (line of lines.controls; track line; let index = $index) {
           <fieldset [formGroupName]="index">
             <legend>Línea {{ index + 1 }}</legend>
-            <label>
-              Producto
+            <label
+              >Producto
               <select [id]="'reservationProduct' + index" formControlName="productId">
                 <option value="">Selecciona un producto</option>
                 @for (product of products(); track product.id) {
@@ -68,14 +65,12 @@
                 }
               </select>
             </label>
-            <label>
-              Cantidad
-              <input
+            <label
+              >Cantidad<input
                 [id]="'reservationQuantity' + index"
                 inputmode="decimal"
                 formControlName="quantity"
-              />
-            </label>
+            /></label>
             <button
               type="button"
               class="secondary"
@@ -91,17 +86,31 @@
         {{ saving() ? 'Apartando…' : 'Crear reserva' }}
       </button>
     </form>
-
     <div class="history">
-      <h3>Reservas activas</h3>
+      <h3>Historial de reservas</h3>
+      @if (saleReservation(); as selected) {
+        <form class="sale-box" (ngSubmit)="consume()">
+          <strong>Vender {{ selected.reservationNumber }}</strong>
+          <span>Total: {{ saleQuote()?.totals?.total }} {{ saleQuote()?.currency }}</span>
+          <label>Efectivo recibido<input [formControl]="cashReceived" inputmode="decimal" /></label>
+          <div class="actions">
+            <button type="submit" [disabled]="actionBusy() || cashReceived.invalid">
+              Cobrar reserva</button
+            ><button type="button" class="secondary" (click)="cancelSale()">Cancelar</button>
+          </div>
+        </form>
+      }
       @if (!loading() && reservations().length === 0) {
         <p class="empty">Todavía no hay reservas.</p>
       }
       @for (reservation of reservations(); track reservation.id) {
         <article>
           <div>
-            <strong>{{ reservation.reservationNumber }}</strong>
-            <span
+            <strong>{{ reservation.reservationNumber }}</strong
+            ><b [class]="'status ' + reservation.status.toLowerCase()">{{
+              statusLabel(reservation.status)
+            }}</b
+            ><span
               >{{ reservation.customer.name }} · vence
               {{ reservation.expiresAt | date: 'short' }}</span
             >
@@ -114,6 +123,24 @@
           <small
             >{{ reservation.context.location.code }} · {{ reservation.responsible.email }}</small
           >
+          @if (reservation.status === 'ACTIVE') {
+            <div class="actions">
+              <button type="button" (click)="prepareSale(reservation)" [disabled]="actionBusy()">
+                Vender</button
+              ><button
+                type="button"
+                class="secondary"
+                (click)="release(reservation)"
+                [disabled]="actionBusy()"
+              >
+                Liberar
+              </button>
+            </div>
+          } @else if (reservation.sale) {
+            <small>Venta {{ reservation.sale.receiptNumber }}</small>
+          } @else if (reservation.closureReason) {
+            <small>{{ reservation.closureReason }}</small>
+          }
         </article>
       }
     </div>
