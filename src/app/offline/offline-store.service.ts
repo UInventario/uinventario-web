@@ -6,7 +6,7 @@ import {
 } from './offline-bootstrap-api.service';
 
 const DATABASE_NAME = 'uinventario-offline';
-export const OFFLINE_SCHEMA_VERSION = 1;
+export const OFFLINE_SCHEMA_VERSION = 2;
 
 interface MetaRecord {
   key: string;
@@ -48,13 +48,30 @@ export interface OfflineStoredSummary {
 }
 
 export interface OfflineOutboxCommand {
+  protocolVersion: '1.0';
   commandId: string;
   scopeKey: string;
+  scope: OfflineScopeIdentity;
   idempotencyKey: string;
-  type: string;
-  payload: unknown;
+  sequence: number;
+  kind: 'CASH_SALE' | 'INVENTORY_COUNT' | 'INVENTORY_MOVEMENT';
+  payload: Readonly<Record<string, unknown>>;
   createdAt: string;
+  status: 'PENDING' | 'SENT' | 'CONFIRMED' | 'ERROR';
   attempts: number;
+  nextAttemptAt: string | null;
+  retryable: boolean;
+  lastError: unknown | null;
+  result: unknown | null;
+}
+
+export interface OfflineCommandServerResult {
+  commandId: string;
+  sequence: number;
+  status: 'CONFIRMED' | 'ERROR';
+  replay: boolean;
+  result?: unknown;
+  error?: unknown;
 }
 
 export class OfflineStorageError extends Error {
@@ -179,28 +196,129 @@ export class OfflineStoreService {
     await this.safeTransaction(transaction);
   }
 
-  async enqueue(command: OfflineOutboxCommand): Promise<void> {
-    if (this.containsCredential(command.payload)) {
+  async queue(
+    scope: OfflineScopeIdentity,
+    kind: OfflineOutboxCommand['kind'],
+    payload: Readonly<Record<string, unknown>>,
+  ): Promise<OfflineOutboxCommand> {
+    if (this.containsCredential(payload)) {
       throw new OfflineStorageError(
         'WRITE_FAILED',
         'El comando contiene credenciales que no pueden guardarse offline.',
       );
     }
     const database = await this.open();
+    const scopeKey = this.scopeKey(scope);
     const transaction = database.transaction('outbox', 'readwrite');
-    transaction.objectStore('outbox').put(command);
+    const store = transaction.objectStore('outbox');
+    const request = store.index('scopeKey').getAll(IDBKeyRange.only(scopeKey));
+    let command: OfflineOutboxCommand | undefined;
+    request.onsuccess = () => {
+      const sequence =
+        request.result.reduce(
+          (maximum, current) =>
+            Math.max(maximum, Number((current as OfflineOutboxCommand).sequence ?? 0)),
+          0,
+        ) + 1;
+      const commandId = crypto.randomUUID();
+      command = {
+        protocolVersion: '1.0',
+        commandId,
+        scopeKey,
+        scope,
+        idempotencyKey: `offline-${commandId}`,
+        sequence,
+        kind,
+        payload,
+        createdAt: new Date().toISOString(),
+        status: 'PENDING',
+        attempts: 0,
+        nextAttemptAt: null,
+        retryable: true,
+        lastError: null,
+        result: null,
+      };
+      store.put(command);
+    };
     await this.safeTransaction(transaction);
+    return command!;
   }
 
   async pending(scope: OfflineScopeIdentity): Promise<OfflineOutboxCommand[]> {
     const database = await this.open();
-    return this.request<OfflineOutboxCommand[]>(
+    const commands = await this.request<OfflineOutboxCommand[]>(
       database
         .transaction('outbox')
         .objectStore('outbox')
         .index('scopeKey')
         .getAll(IDBKeyRange.only(this.scopeKey(scope))),
     );
+    const now = Date.now();
+    const pending: OfflineOutboxCommand[] = [];
+    for (const command of commands.sort((left, right) => left.sequence - right.sequence)) {
+      if (command.status === 'CONFIRMED' || (command.status === 'ERROR' && !command.retryable)) {
+        continue;
+      }
+      if (
+        command.status === 'ERROR' &&
+        command.nextAttemptAt &&
+        new Date(command.nextAttemptAt).getTime() > now
+      ) {
+        break;
+      }
+      pending.push(command);
+    }
+    return pending;
+  }
+
+  async outbox(scope: OfflineScopeIdentity): Promise<OfflineOutboxCommand[]> {
+    const database = await this.open();
+    const commands = await this.request<OfflineOutboxCommand[]>(
+      database
+        .transaction('outbox')
+        .objectStore('outbox')
+        .index('scopeKey')
+        .getAll(IDBKeyRange.only(this.scopeKey(scope))),
+    );
+    return commands.sort((left, right) => left.sequence - right.sequence);
+  }
+
+  async markSent(commandIds: string[]): Promise<void> {
+    await this.updateCommands(commandIds, (command) => ({
+      ...command,
+      status: 'SENT',
+      attempts: command.attempts + 1,
+      nextAttemptAt: null,
+      lastError: null,
+    }));
+  }
+
+  async settle(results: OfflineCommandServerResult[]): Promise<void> {
+    const byId = new Map(results.map((result) => [result.commandId, result]));
+    await this.updateCommands([...byId.keys()], (command) => {
+      const response = byId.get(command.commandId)!;
+      return {
+        ...command,
+        status: response.status,
+        retryable: false,
+        nextAttemptAt: null,
+        lastError: response.error ?? null,
+        result: response.result ?? null,
+      };
+    });
+  }
+
+  async retry(commandIds: string[], error: unknown): Promise<void> {
+    await this.updateCommands(commandIds, (command) => ({
+      ...command,
+      status: 'ERROR',
+      retryable: true,
+      nextAttemptAt: new Date(
+        Date.now() +
+          Math.min(5 * 60_000, 1_000 * 2 ** Math.min(9, Math.max(0, command.attempts - 1))),
+      ).toISOString(),
+      lastError: this.serializableError(error),
+    }));
   }
 
   async clearAll(): Promise<void> {
@@ -287,7 +405,7 @@ export class OfflineStoreService {
   private openOnce(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(DATABASE_NAME, OFFLINE_SCHEMA_VERSION);
-      request.onupgradeneeded = () => {
+      request.onupgradeneeded = (event) => {
         const database = request.result;
         if (!database.objectStoreNames.contains('meta')) {
           database.createObjectStore('meta', { keyPath: 'key' });
@@ -302,6 +420,13 @@ export class OfflineStoreService {
         if (!database.objectStoreNames.contains('outbox')) {
           const outbox = database.createObjectStore('outbox', { keyPath: 'commandId' });
           outbox.createIndex('scopeKey', 'scopeKey', { unique: false });
+          outbox.createIndex('scopeSequence', ['scopeKey', 'sequence'], { unique: true });
+        } else {
+          const outbox = request.transaction!.objectStore('outbox');
+          if ((event as IDBVersionChangeEvent).oldVersion < 2) outbox.clear();
+          if (!outbox.indexNames.contains('scopeSequence')) {
+            outbox.createIndex('scopeSequence', ['scopeKey', 'sequence'], { unique: true });
+          }
         }
       };
       request.onsuccess = () => {
@@ -330,7 +455,8 @@ export class OfflineStoreService {
       const transaction = database.transaction(['entities', 'outbox']);
       return (
         transaction.objectStore('entities').indexNames.contains('scopeKey') &&
-        transaction.objectStore('outbox').indexNames.contains('scopeKey')
+        transaction.objectStore('outbox').indexNames.contains('scopeKey') &&
+        transaction.objectStore('outbox').indexNames.contains('scopeSequence')
       );
     } catch {
       return false;
@@ -346,6 +472,33 @@ export class OfflineStoreService {
       if (this.containsCredential(child, visited)) return true;
     }
     return false;
+  }
+
+  private serializableError(error: unknown): unknown {
+    if (error instanceof Error) return { name: error.name, message: error.message };
+    if (typeof error === 'string' || error === null) return error;
+    try {
+      return JSON.parse(JSON.stringify(error)) as unknown;
+    } catch {
+      return 'Error de sincronización no serializable';
+    }
+  }
+
+  private async updateCommands(
+    commandIds: string[],
+    update: (command: OfflineOutboxCommand) => OfflineOutboxCommand,
+  ): Promise<void> {
+    if (!commandIds.length) return;
+    const database = await this.open();
+    const transaction = database.transaction('outbox', 'readwrite');
+    const store = transaction.objectStore('outbox');
+    for (const commandId of commandIds) {
+      const request = store.get(commandId) as IDBRequest<OfflineOutboxCommand | undefined>;
+      request.onsuccess = () => {
+        if (request.result) store.put(update(request.result));
+      };
+    }
+    await this.safeTransaction(transaction);
   }
 
   private deleteDatabase(): Promise<void> {

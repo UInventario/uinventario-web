@@ -4,10 +4,20 @@
     <h2 id="offline-bootstrap-title">Descargar datos autorizados</h2>
     <p>
       Comprueba y descarga por páginas tu estructura, permisos, catálogo compacto y existencias. El
-      almacenamiento local se habilitará en el siguiente incremento.
+      almacenamiento local conserva estos datos y una cola de operaciones hasta recuperar conexión.
     </p>
   </div>
   <div class="actions">
+    @if (pendingCommands()) {
+      <button
+        type="button"
+        class="secondary"
+        (click)="sendPending()"
+        [disabled]="sendingCommands()"
+      >
+        {{ sendingCommands() ? 'Enviando…' : 'Enviar pendientes (' + pendingCommands() + ')' }}
+      </button>
+    }
     @if (result()) {
       <button
         type="button"
