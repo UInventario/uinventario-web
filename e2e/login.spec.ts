@@ -61,7 +61,7 @@ test('logs in, reaches onboarding and restores the session after reload', async 
     'Sucursal Principal · Bodega Principal · Caja Principal',
   );
   const coreNavigation = page.getByRole('navigation', { name: 'Módulos principales' });
-  await expect(coreNavigation.getByRole('link')).toHaveCount(6);
+  await expect(coreNavigation.getByRole('link')).toHaveCount(7);
   const productLink = coreNavigation.getByRole('link', { name: 'Productos' });
   const inventoryLink = coreNavigation.getByRole('link', { name: 'Inventario' });
   await productLink.focus();
@@ -98,7 +98,9 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   ).toBeVisible();
   await page.getByLabel('Costo').fill('85.40');
   await page.getByRole('button', { name: 'Crear producto' }).click();
-  await expect(page.getByText('Producto creado')).toBeVisible();
+  await expect(
+    page.getByLabel('Catálogo real').getByText('Producto creado'),
+  ).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Café molido 500 g' })).toBeVisible();
   await expect(page.locator('.detail').getByText('119.90')).toBeVisible();
   await page.getByRole('button', { name: 'Editar producto' }).click();
@@ -106,7 +108,9 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await expect(page.getByLabel('Nombre', { exact: true })).toHaveValue('Café molido 500 g');
   await page.getByLabel('Costo').fill('86.00');
   await page.getByRole('button', { name: 'Guardar cambios' }).click();
-  await expect(page.getByText('Producto actualizado')).toBeVisible();
+  await expect(
+    page.getByLabel('Catálogo real').getByText('Producto actualizado'),
+  ).toBeVisible();
   await expect(page.locator('.detail').getByText('86.00')).toBeVisible();
   await expect(page.locator('.balance').getByText('0.000')).toBeVisible();
   await page.getByLabel('Cantidad').fill('10.5');
@@ -180,6 +184,10 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await salesHistory.getByLabel('Desde').fill('');
   await salesHistory.getByRole('button', { name: 'Filtrar ventas' }).click();
   await expect(salesHistory.getByRole('button', { name: /Abrir venta V-/ })).toBeVisible();
+  const auditLog = page.locator('.audit-log');
+  await expect(auditLog.getByRole('heading', { name: 'Auditoría Core' })).toBeVisible();
+  await expect(auditLog.getByText('Venta completada')).toBeVisible();
+  await expect(auditLog.getByText(email).first()).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('pos-cart.png'), fullPage: true });
   await page.screenshot({
     path: testInfo.outputPath('product-created.png'),
@@ -206,7 +214,7 @@ test('logs in, reaches onboarding and restores the session after reload', async 
 
   await page.getByLabel('Buscar por nombre, SKU o código').fill(' cafe-500 ');
   await catalog.getByRole('button', { name: 'Buscar' }).click();
-  await expect(page.getByText('1 producto(s)')).toBeVisible();
+  await expect(catalog.getByText('1 producto(s)')).toBeVisible();
   await page.getByRole('button', { name: /Café molido 500 g/ }).click();
   await expect(page.getByText('7501234567890')).toBeVisible();
   await expect(page.locator('.balance').getByText('8.500')).toBeVisible();

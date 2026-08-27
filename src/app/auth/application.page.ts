@@ -20,6 +20,7 @@ import {
   SaleDetailData,
   SaleSummaryData,
 } from '../pos/pos-api.service';
+import { AuditApiService, AuditEventData } from '../audit/audit-api.service';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
@@ -44,6 +45,7 @@ export class ApplicationPage implements OnInit {
   private readonly inventory = inject(InventoryApiService);
   private readonly sessions = inject(SessionApiService);
   private readonly pos = inject(PosApiService);
+  private readonly audit = inject(AuditApiService);
   private pendingMovement: { input: InventoryMovementInput; key: string } | null = null;
   private pendingSale: {
     input: { lines: Array<{ productId: string; quantity: string }>; cashReceived: string };
@@ -102,6 +104,9 @@ export class ApplicationPage implements OnInit {
   protected readonly salesPage = signal(1);
   protected readonly salesTotalPages = signal(0);
   protected readonly salesTotal = signal(0);
+  protected readonly auditEvents = signal<AuditEventData[]>([]);
+  protected readonly loadingAudit = signal(true);
+  protected readonly auditError = signal<string | null>(null);
   protected readonly page = signal(1);
   protected readonly totalPages = signal(0);
   protected readonly totalProducts = signal(0);
@@ -161,6 +166,7 @@ export class ApplicationPage implements OnInit {
     this.loadStockList(1);
     this.loadMovementHistory(1);
     this.loadSales(1);
+    this.loadAuditEvents();
   }
 
   protected submit(): void {
@@ -185,6 +191,7 @@ export class ApplicationPage implements OnInit {
         this.loadProducts(1);
         this.loadBalance(data.id);
         this.loadStockList(1);
+        this.loadAuditEvents();
       },
       error: (error: HttpErrorResponse) => this.errorMessage.set(this.messageFor(error)),
     });
@@ -384,6 +391,7 @@ export class ApplicationPage implements OnInit {
           this.loadStockList(this.stockPage());
           this.loadMovementHistory(1);
           this.loadSales(1);
+          this.loadAuditEvents();
           const selected = this.selectedProduct();
           if (selected) this.loadBalance(selected.id);
         },
@@ -450,6 +458,20 @@ export class ApplicationPage implements OnInit {
     return new Date(value).toLocaleString('es-MX');
   }
 
+  protected auditActionLabel(action: string): string {
+    return (
+      {
+        REGISTRATION_CREATED: 'Cuenta creada',
+        AUTH_LOGIN_SUCCEEDED: 'Inicio de sesión',
+        COMPANY_UPDATED: 'Empresa actualizada',
+        PRODUCT_CREATED: 'Producto creado',
+        PRODUCT_UPDATED: 'Producto actualizado',
+        INVENTORY_MOVEMENT_CREATED: 'Movimiento registrado',
+        SALE_COMPLETED: 'Venta completada',
+      }[action] ?? action
+    );
+  }
+
   protected locationChanged(): void {
     const product = this.selectedProduct();
     if (product) this.loadBalance(product.id);
@@ -509,6 +531,7 @@ export class ApplicationPage implements OnInit {
           });
           this.loadStockList(this.stockPage());
           this.loadMovementHistory(1);
+          this.loadAuditEvents();
         },
         error: (error: HttpErrorResponse) => {
           if (error.status > 0 && error.status < 500) this.pendingMovement = null;
@@ -672,6 +695,21 @@ export class ApplicationPage implements OnInit {
           this.salesError.set(
             this.operationMessage(error, 'No fue posible cargar el historial de ventas.'),
           );
+        },
+      });
+  }
+
+  private loadAuditEvents(): void {
+    this.loadingAudit.set(true);
+    this.auditError.set(null);
+    this.audit
+      .list()
+      .pipe(finalize(() => this.loadingAudit.set(false)))
+      .subscribe({
+        next: ({ data }) => this.auditEvents.set(data),
+        error: (error: HttpErrorResponse) => {
+          this.auditEvents.set([]);
+          this.auditError.set(this.operationMessage(error, 'No fue posible cargar la auditoría.'));
         },
       });
   }

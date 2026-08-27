@@ -129,7 +129,8 @@ section {
 #stock-overview-title,
 #movement-history-title,
 #pos-title,
-#sales-title {
+#sales-title,
+#audit-title {
   scroll-margin-top: 5rem;
 }
 
@@ -560,6 +561,10 @@ dd {
 .movement-row small {
   overflow-wrap: anywhere;
   color: #6d7f90;
+}
+
+.audit-log .movement-row {
+  grid-template-columns: 1.2fr 1.3fr 1fr 1.5fr;
 }
 
 .pos-workspace {
