@@ -43,7 +43,7 @@ test('registers through the real UI and reaches login', async ({ page }, testInf
   await expect(page.getByText('Tu cuenta y organización se crearon correctamente.')).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('registration-success.png'), fullPage: true });
 
-  await page.getByRole('link', { name: 'Crear otra cuenta' }).click();
+  await page.getByRole('link', { name: 'Crear cuenta' }).click();
   await expect(page).toHaveURL(/\/registro$/);
 });
 
