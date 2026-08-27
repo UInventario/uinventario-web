@@ -505,6 +505,83 @@ describe('ApplicationPage', () => {
     expect(fixture.nativeElement.querySelector('.stock-table').textContent).toContain('CAFE-1');
   });
 
+  it('requires evidence and sends a positive magnitude for an operational loss', () => {
+    const product = {
+      id: 'product',
+      name: 'Café',
+      sku: 'CAFE-1',
+      barcode: null,
+      category: null,
+      brand: null,
+      cost: '1.20',
+      price: '2.50',
+      active: true,
+      version: 1,
+    };
+    products.list.mockReturnValue(
+      of({
+        data: [product],
+        meta: {
+          apiVersion: '1',
+          pagination: { page: 1, pageSize: 5, total: 1, totalPages: 1 },
+        },
+      }),
+    );
+    products.get.mockReturnValue(of({ data: product, meta: { apiVersion: '1' } }));
+    inventory.createMovement.mockReturnValue(
+      of({
+        data: {
+          id: 'loss-movement',
+          product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
+          location: { id: 'location', name: 'General', code: 'GENERAL' },
+          type: 'LOSS',
+          quantityChange: '-1.000',
+          quantity: '9.000',
+          reason: 'Merma documentada',
+          reference: 'INC-001',
+          createdAt: new Date().toISOString(),
+        },
+        meta: { apiVersion: '1', idempotentReplay: false },
+      }),
+    );
+    (fixture.componentInstance as unknown as { search(): void }).search();
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelector('.product-list button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const type = fixture.nativeElement.querySelector('#movementType') as HTMLSelectElement;
+    type.value = 'LOSS';
+    type.dispatchEvent(new Event('change', { bubbles: true }));
+    fill('stockQuantity', '1');
+    fill('stockReason', 'Merma documentada');
+    (fixture.nativeElement.querySelector('.stock-card form') as HTMLFormElement).dispatchEvent(
+      new Event('submit'),
+    );
+    fixture.detectChanges();
+
+    expect(inventory.createMovement).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain(
+      'La referencia es obligatoria para este tipo.',
+    );
+
+    fill('stockReference', 'INC-001');
+    (fixture.nativeElement.querySelector('.stock-card form') as HTMLFormElement).dispatchEvent(
+      new Event('submit'),
+    );
+    fixture.detectChanges();
+    expect(inventory.createMovement).toHaveBeenCalledWith(
+      {
+        productId: 'product',
+        locationId: 'location',
+        type: 'LOSS',
+        quantity: '1',
+        reason: 'Merma documentada',
+        reference: 'INC-001',
+      },
+      expect.stringMatching(/^web-/),
+    );
+    expect(fixture.nativeElement.textContent).toContain('Existencia 9.000');
+  });
+
   it('shows an error when the stock overview cannot be loaded', () => {
     inventory.listStock.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 503 })));
     (fixture.componentInstance as unknown as { searchStock(): void }).searchStock();

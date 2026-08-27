@@ -361,9 +361,27 @@ export class ApplicationPage implements OnInit {
     return {
       INITIAL: 'Stock inicial',
       ENTRY: 'Entrada',
+      EXIT: 'Salida',
+      RETURN: 'Devolución',
+      LOSS: 'Pérdida',
+      DAMAGE: 'Daño',
       ADJUSTMENT: 'Ajuste',
       SALE: 'Venta',
     }[type];
+  }
+
+  protected movementRequiresReference(): boolean {
+    return this.stockForm.controls.type.value !== 'INITIAL';
+  }
+
+  protected movementTypeChanged(): void {
+    const reference = this.stockForm.controls.reference;
+    reference.setValidators(
+      this.movementRequiresReference()
+        ? [Validators.required, Validators.maxLength(120)]
+        : [Validators.maxLength(120)],
+    );
+    reference.updateValueAndValidity();
   }
 
   protected searchPos(): void {
@@ -577,7 +595,15 @@ export class ApplicationPage implements OnInit {
       return;
     }
     if (value.type !== 'ADJUSTMENT' && value.quantity.startsWith('-')) {
-      this.stockError.set('El stock inicial y las entradas deben usar una cantidad positiva.');
+      this.stockError.set(
+        'Usa una cantidad positiva; el tipo de movimiento determina si entra o sale stock.',
+      );
+      return;
+    }
+    if (value.type !== 'INITIAL' && !value.reference.trim()) {
+      this.stockForm.controls.reference.setErrors({ required: true });
+      this.stockForm.controls.reference.markAsTouched();
+      this.stockError.set('Agrega una referencia o evidencia para este movimiento.');
       return;
     }
     this.savingStock.set(true);
@@ -612,6 +638,7 @@ export class ApplicationPage implements OnInit {
             reason: '',
             reference: '',
           });
+          this.movementTypeChanged();
           this.loadStockList(this.stockPage());
           this.loadMovementHistory(1);
           this.loadAuditEvents();
@@ -873,6 +900,9 @@ export class ApplicationPage implements OnInit {
     }
     if (code === 'INVALID_STOCK_QUANTITY') {
       return 'La cantidad es inválida o dejaría la existencia negativa.';
+    }
+    if (code === 'MOVEMENT_REFERENCE_REQUIRED') {
+      return 'Agrega una referencia o evidencia para este movimiento.';
     }
     if (error.status === 403) return this.permissionMessage();
     if (error.status === 0) return 'No pudimos conectar con el servicio. Intenta nuevamente.';

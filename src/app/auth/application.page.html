@@ -311,9 +311,17 @@
                   </div>
                   <div class="field">
                     <label for="movementType">Tipo</label>
-                    <select id="movementType" formControlName="type">
+                    <select
+                      id="movementType"
+                      formControlName="type"
+                      (change)="movementTypeChanged()"
+                    >
                       <option value="INITIAL">Stock inicial</option>
                       <option value="ENTRY">Entrada</option>
+                      <option value="EXIT">Salida</option>
+                      <option value="RETURN">Devolución</option>
+                      <option value="LOSS">Pérdida</option>
+                      <option value="DAMAGE">Daño</option>
                       <option value="ADJUSTMENT">Ajuste</option>
                     </select>
                   </div>
@@ -339,8 +347,19 @@
                     }
                   </div>
                   <div class="field wide">
-                    <label for="stockReference">Referencia <span>Opcional</span></label>
+                    <label for="stockReference">
+                      Referencia o evidencia
+                      @if (!movementRequiresReference()) {
+                        <span>Opcional</span>
+                      }
+                    </label>
                     <input id="stockReference" formControlName="reference" maxlength="120" />
+                    @if (
+                      stockForm.controls.reference.touched &&
+                      stockForm.controls.reference.hasError('required')
+                    ) {
+                      <p class="field-error">La referencia es obligatoria para este tipo.</p>
+                    }
                   </div>
                 </div>
                 @if (stockError()) {
@@ -483,6 +502,10 @@
             <option value="">Todos</option>
             <option value="INITIAL">Stock inicial</option>
             <option value="ENTRY">Entrada</option>
+            <option value="EXIT">Salida</option>
+            <option value="RETURN">Devolución</option>
+            <option value="LOSS">Pérdida</option>
+            <option value="DAMAGE">Daño</option>
             <option value="ADJUSTMENT">Ajuste</option>
             <option value="SALE">Venta</option>
           </select>
