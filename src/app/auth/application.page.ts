@@ -1,137 +1,112 @@
-import { Component, inject } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Component, inject, OnInit, signal } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { finalize } from 'rxjs';
+import { ProductApiService, ProductData, ProductInput } from '../catalog/product-api.service';
 import { SessionApiService } from './session-api.service';
+
+const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
+const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
+const BARCODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{3,63}$/;
 
 @Component({
   selector: 'app-application-page',
-  template: `<main>
-    <header>
-      <div><span class="brand">UI</span><strong>{{ session()?.tenant?.name }}</strong></div>
-      <button type="button" (click)="logout()">Cerrar sesión</button>
-    </header>
-    <nav aria-label="Módulos principales"><a aria-current="page">Productos</a></nav>
-    <section aria-labelledby="products-title">
-      <p class="eyebrow">Catálogo</p>
-      <h1 id="products-title">Productos</h1>
-      <p class="context">
-        {{ session()?.context?.branch?.name }} · {{ session()?.context?.warehouse?.name }} ·
-        {{ session()?.context?.cashRegister?.name }}
-      </p>
-      <div class="empty">
-        <h2>Aún no hay productos</h2>
-        <p>Tu empresa ya está lista. El siguiente paso es crear el primer producto.</p>
-      </div>
-    </section>
-  </main>`,
-  styles: `
-    main {
-      min-height: 100vh;
-      background: #f4f7fa;
-      color: #17212b;
-    }
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      min-height: 4.2rem;
-      padding: 0 1.5rem;
-      background: #fff;
-      border-bottom: 1px solid #dbe3ea;
-    }
-    header div {
-      display: flex;
-      align-items: center;
-      gap: 0.8rem;
-    }
-    .brand {
-      display: grid;
-      width: 2.5rem;
-      height: 2.5rem;
-      place-items: center;
-      border-radius: 0.65rem;
-      background: #0b5cab;
-      color: white;
-      font-weight: 800;
-    }
-    button {
-      border: 0;
-      border-radius: 0.6rem;
-      padding: 0.65rem 0.8rem;
-      background: #e9f1f8;
-      color: #0b5cab;
-      cursor: pointer;
-      font-weight: 700;
-    }
-    nav {
-      padding: 0.75rem 1.5rem 0;
-      background: #fff;
-    }
-    nav a {
-      display: inline-block;
-      padding: 0.7rem 1rem;
-      border-bottom: 3px solid #0b5cab;
-      color: #0b5cab;
-      font-weight: 700;
-    }
-    section {
-      max-width: 70rem;
-      margin: 0 auto;
-      padding: 2.5rem 1.5rem;
-    }
-    .eyebrow {
-      margin: 0;
-      color: #0b5cab;
-      font-size: 0.75rem;
-      font-weight: 800;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
-    h1 {
-      margin: 0.35rem 0;
-      font-size: clamp(2rem, 5vw, 3rem);
-    }
-    .context {
-      margin: 0;
-      color: #5b6f80;
-    }
-    .empty {
-      margin-top: 2rem;
-      padding: clamp(2rem, 7vw, 4rem);
-      border: 1px dashed #aebdca;
-      border-radius: 1rem;
-      background: #fff;
-      text-align: center;
-    }
-    .empty h2 {
-      margin: 0;
-      color: #263d52;
-    }
-    .empty p {
-      color: #5b6f80;
-    }
-    @media (max-width: 36rem) {
-      header {
-        padding: 0 0.9rem;
-      }
-      header strong {
-        max-width: 9rem;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-      section {
-        padding: 1.7rem 1rem;
-      }
-      .context {
-        line-height: 1.7;
-      }
-    }
-  `,
+  imports: [ReactiveFormsModule],
+  templateUrl: './application.page.html',
+  styleUrl: './application.page.scss',
 })
-export class ApplicationPage {
+export class ApplicationPage implements OnInit {
+  private readonly formBuilder = inject(FormBuilder);
+  private readonly products = inject(ProductApiService);
   private readonly sessions = inject(SessionApiService);
+
   protected readonly session = this.sessions.session;
+  protected readonly categories = signal<Array<{ id: string; name: string }>>([]);
+  protected readonly brands = signal<Array<{ id: string; name: string }>>([]);
+  protected readonly createdProduct = signal<ProductData | null>(null);
+  protected readonly loadingOptions = signal(true);
+  protected readonly saving = signal(false);
+  protected readonly errorMessage = signal<string | null>(null);
+  protected readonly form = this.formBuilder.nonNullable.group({
+    name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
+    sku: ['', [Validators.required, Validators.pattern(SKU_PATTERN)]],
+    barcode: ['', [Validators.pattern(BARCODE_PATTERN)]],
+    categoryName: ['', [Validators.minLength(2), Validators.maxLength(80)]],
+    brandName: ['', [Validators.minLength(2), Validators.maxLength(120)]],
+    cost: ['', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
+    price: ['', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
+  });
+
+  ngOnInit(): void {
+    this.loadOptions();
+  }
+
+  protected submit(): void {
+    if (this.form.invalid || this.saving()) {
+      this.form.markAllAsTouched();
+      return;
+    }
+    this.saving.set(true);
+    this.errorMessage.set(null);
+    this.products
+      .create(this.toInput())
+      .pipe(finalize(() => this.saving.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.createdProduct.set(data);
+          this.form.reset({
+            name: '',
+            sku: '',
+            barcode: '',
+            categoryName: data.category?.name ?? '',
+            brandName: data.brand?.name ?? '',
+            cost: '',
+            price: '',
+          });
+          this.loadOptions();
+        },
+        error: (error: HttpErrorResponse) => this.errorMessage.set(this.messageFor(error)),
+      });
+  }
 
   protected logout(): void {
     this.sessions.logout().subscribe({ error: () => undefined });
+  }
+
+  private loadOptions(): void {
+    this.loadingOptions.set(true);
+    this.products
+      .getOptions()
+      .pipe(finalize(() => this.loadingOptions.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.categories.set(data.categories);
+          this.brands.set(data.brands);
+        },
+        error: () => this.errorMessage.set('No fue posible cargar categorías y marcas.'),
+      });
+  }
+
+  private toInput(): ProductInput {
+    const value = this.form.getRawValue();
+    return {
+      name: value.name.trim(),
+      sku: value.sku.trim(),
+      ...(value.barcode.trim() ? { barcode: value.barcode.trim() } : {}),
+      ...(value.categoryName.trim() ? { categoryName: value.categoryName.trim() } : {}),
+      ...(value.brandName.trim() ? { brandName: value.brandName.trim() } : {}),
+      cost: value.cost.trim(),
+      price: value.price.trim(),
+    };
+  }
+
+  private messageFor(error: HttpErrorResponse): string {
+    const code = (error.error as { code?: string } | null)?.code;
+    if (code === 'SKU_ALREADY_EXISTS') return 'Ya existe un producto con ese SKU.';
+    if (code === 'BARCODE_ALREADY_EXISTS') {
+      return 'Ya existe un producto con ese código de barras.';
+    }
+    if (error.status === 0) return 'No pudimos conectar con el servicio. Intenta nuevamente.';
+    return 'No fue posible crear el producto con esos datos.';
   }
 }
