@@ -1,0 +1,160 @@
+<main class="onboarding-shell">
+  <section class="onboarding-card" aria-labelledby="onboarding-title">
+    <header>
+      <div class="brand" aria-hidden="true">UI</div>
+      <div class="header-actions">
+        @if (progress()?.currentStep === 'COMPLETE') {
+          <a class="back" routerLink="/app">Volver a operación</a>
+        }
+        <button class="logout" type="button" (click)="logout()" [disabled]="closingSession()">
+          {{ closingSession() ? 'Cerrando…' : 'Cerrar sesión' }}
+        </button>
+      </div>
+    </header>
+
+    <p class="eyebrow">
+      {{
+        progress()?.currentStep === 'COMPLETE'
+          ? 'Administración · Empresa'
+          : progress()?.currentStep === 'COMPANY'
+            ? 'Paso 1 de 3 · Empresa'
+            : initialLocation()
+              ? 'Paso 3 de 3 · Caja'
+              : 'Paso 2 de 3 · Sucursal'
+      }}
+    </p>
+    <h1 id="onboarding-title">
+      {{ progress()?.currentStep === 'COMPLETE' ? 'Administra' : 'Prepara' }}
+      {{ session()?.tenant?.name }}
+    </h1>
+    <p class="intro">
+      {{
+        progress()?.currentStep === 'COMPLETE'
+          ? 'Actualiza los datos generales sin interrumpir la operación de'
+          : 'Configuración mínima para comenzar a operar como'
+      }}
+      <strong>{{ session()?.user?.email }}</strong
+      >.
+    </p>
+
+    @if (progress()?.currentStep === 'COMPLETE') {
+      <dl aria-label="Contexto operativo activo">
+        <div>
+          <dt>Sucursal</dt>
+          <dd>{{ session()?.context?.branch?.name }}</dd>
+        </div>
+        <div>
+          <dt>Bodega</dt>
+          <dd>{{ session()?.context?.warehouse?.name }}</dd>
+        </div>
+        <div>
+          <dt>Caja</dt>
+          <dd>{{ session()?.context?.cashRegister?.name }}</dd>
+        </div>
+      </dl>
+      @if (companySaved()) {
+        <div class="success maintenance-success" role="status">Datos de empresa guardados.</div>
+      }
+    }
+
+    @if (initialLocation()) {
+      <div class="success" role="status">
+        Sucursal y bodega listas. Crea la caja inicial para comenzar a operar.
+      </div>
+      <dl>
+        <div>
+          <dt>Sucursal</dt>
+          <dd>{{ initialLocation()?.branch?.name }}</dd>
+        </div>
+        <div>
+          <dt>Bodega</dt>
+          <dd>{{ initialLocation()?.warehouse?.name }}</dd>
+        </div>
+        <div>
+          <dt>Ubicación</dt>
+          <dd>{{ initialLocation()?.location?.name }}</dd>
+        </div>
+      </dl>
+    } @else if (progress()?.currentStep === 'BRANCH') {
+      <div class="success" role="status">Empresa configurada. Crea la sucursal inicial.</div>
+    }
+
+    @if (loading()) {
+      <p role="status">Cargando configuración…</p>
+    } @else if (progress()?.currentStep === 'COMPANY' || progress()?.currentStep === 'COMPLETE') {
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        <label for="legalName">Nombre legal</label>
+        <input
+          id="legalName"
+          formControlName="legalName"
+          autocomplete="organization"
+          maxlength="160"
+        />
+        @if (form.controls.legalName.touched && form.controls.legalName.invalid) {
+          <p class="field-error">Escribe el nombre legal de la empresa.</p>
+        }
+
+        <label for="tradeName">Nombre comercial</label>
+        <input id="tradeName" formControlName="tradeName" maxlength="120" />
+        @if (form.controls.tradeName.touched && form.controls.tradeName.invalid) {
+          <p class="field-error">Escribe el nombre que verán tus usuarios.</p>
+        }
+
+        <label for="countryCode">País</label>
+        <select id="countryCode" formControlName="countryCode">
+          <option value="">Selecciona un país</option>
+          @for (country of countries; track country.code) {
+            <option [value]="country.code">{{ country.name }}</option>
+          }
+        </select>
+        @if (form.controls.countryCode.touched && form.controls.countryCode.invalid) {
+          <p class="field-error">Selecciona el país de operación.</p>
+        }
+
+        <button class="primary" type="submit" [disabled]="saving()">
+          {{
+            saving()
+              ? 'Guardando…'
+              : progress()?.currentStep === 'COMPLETE'
+                ? 'Guardar empresa'
+                : 'Guardar y continuar'
+          }}
+        </button>
+      </form>
+    } @else if (!initialLocation()) {
+      <form [formGroup]="locationForm" (ngSubmit)="submitInitialLocation()" novalidate>
+        <label for="branchName">Nombre de la sucursal</label>
+        <input id="branchName" formControlName="branchName" maxlength="120" />
+
+        <label for="timezone">Zona horaria</label>
+        <input id="timezone" formControlName="timezone" maxlength="64" />
+
+        <label for="warehouseName">Nombre de la bodega</label>
+        <input id="warehouseName" formControlName="warehouseName" maxlength="120" />
+
+        <label for="locationName">Ubicación inicial</label>
+        <input id="locationName" formControlName="locationName" maxlength="120" />
+
+        <button class="primary" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Creando…' : 'Crear sucursal y bodega' }}
+        </button>
+      </form>
+    } @else if (!initialCashRegister()) {
+      <form [formGroup]="cashRegisterForm" (ngSubmit)="submitInitialCashRegister()" novalidate>
+        <label for="cashRegisterName">Nombre de la caja</label>
+        <input id="cashRegisterName" formControlName="name" maxlength="120" />
+        @if (cashRegisterForm.controls.name.touched && cashRegisterForm.controls.name.invalid) {
+          <p class="field-error">Escribe el nombre de la caja.</p>
+        }
+
+        <button class="primary" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Creando…' : 'Crear caja y comenzar' }}
+        </button>
+      </form>
+    }
+
+    @if (errorMessage()) {
+      <div class="form-error" role="alert">{{ errorMessage() }}</div>
+    }
+  </section>
+</main>

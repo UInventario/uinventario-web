@@ -1,0 +1,867 @@
+<a class="skip-link" routerLink="/app" fragment="products-title">Saltar al contenido</a>
+<main id="application-shell">
+  <header id="company-context">
+    <div>
+      <span class="brand">UI</span><strong>{{ session()?.tenant?.name }}</strong>
+    </div>
+    <button class="secondary" type="button" (click)="logout()">Cerrar sesión</button>
+  </header>
+  <nav aria-label="Módulos principales">
+    <a routerLink="/onboarding">Empresa</a>
+    <a routerLink="/app" fragment="products-title">Productos</a>
+    <a routerLink="/app" fragment="stock-overview-title">Inventario</a>
+    <a routerLink="/app" fragment="movement-history-title">Movimientos</a>
+    <a routerLink="/app" fragment="pos-title">Punto de venta</a>
+    <a routerLink="/app" fragment="sales-title">Historial</a>
+    <a routerLink="/app" fragment="audit-title">Auditoría</a>
+  </nav>
+
+  @if (pendingOperation(); as operation) {
+    <div class="operation-status" role="status" aria-live="polite">
+      <span class="operation-spinner" aria-hidden="true"></span>{{ operation }}
+    </div>
+  }
+
+  <section
+    aria-labelledby="products-title"
+    [attr.aria-busy]="loadingCatalog() || loadingOptions() || saving()"
+  >
+    <p class="eyebrow">Catálogo</p>
+    <h1 id="products-title">Productos</h1>
+    <p class="context">
+      {{ session()?.context?.branch?.name }} · {{ session()?.context?.warehouse?.name }} ·
+      {{ session()?.context?.cashRegister?.name }}
+    </p>
+
+    <div class="workspace">
+      <form class="product-form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        <div class="form-heading">
+          <div>
+            <h2>{{ editingProduct() ? 'Editar producto' : 'Nuevo producto' }}</h2>
+            <p>
+              {{
+                editingProduct()
+                  ? 'Modifica los datos comerciales. Las ventas anteriores conservarán sus valores.'
+                  : 'Los campos categoría, marca y código de barras son opcionales.'
+              }}
+            </p>
+          </div>
+        </div>
+
+        <div class="fields">
+          <div class="field wide">
+            <label for="name">Nombre</label>
+            <input id="name" formControlName="name" maxlength="160" />
+            @if (form.controls.name.touched && form.controls.name.invalid) {
+              <p class="field-error">Escribe un nombre de al menos 2 caracteres.</p>
+            }
+          </div>
+
+          <div class="field">
+            <label for="sku">SKU</label>
+            <input id="sku" formControlName="sku" maxlength="40" autocomplete="off" />
+            @if (form.controls.sku.touched && form.controls.sku.invalid) {
+              <p class="field-error">Usa letras, números, punto, guion o guion bajo.</p>
+            }
+          </div>
+          <div class="field">
+            <label for="barcode">Código de barras <span>Opcional</span></label>
+            <input id="barcode" formControlName="barcode" maxlength="64" autocomplete="off" />
+            @if (form.controls.barcode.touched && form.controls.barcode.invalid) {
+              <p class="field-error">Usa entre 4 y 64 caracteres válidos.</p>
+            }
+          </div>
+
+          <div class="field">
+            <label for="categoryName">Categoría <span>Opcional</span></label>
+            <input id="categoryName" formControlName="categoryName" list="category-options" />
+          </div>
+          <div class="field">
+            <label for="brandName">Marca <span>Opcional</span></label>
+            <input id="brandName" formControlName="brandName" list="brand-options" />
+          </div>
+          <datalist id="category-options">
+            @for (category of categories(); track category.id) {
+              <option [value]="category.name"></option>
+            }
+          </datalist>
+          <datalist id="brand-options">
+            @for (brand of brands(); track brand.id) {
+              <option [value]="brand.name"></option>
+            }
+          </datalist>
+
+          <div class="field">
+            <label for="cost">Costo</label>
+            <input id="cost" formControlName="cost" inputmode="decimal" placeholder="0.00" />
+            @if (form.controls.cost.touched && form.controls.cost.invalid) {
+              <p class="field-error">Escribe un costo no negativo, con máximo 2 decimales.</p>
+            }
+          </div>
+          <div class="field">
+            <label for="price">Precio de venta</label>
+            <input id="price" formControlName="price" inputmode="decimal" placeholder="0.00" />
+            @if (form.controls.price.touched && form.controls.price.invalid) {
+              <p class="field-error">Escribe un precio no negativo, con máximo 2 decimales.</p>
+            }
+          </div>
+        </div>
+
+        @if (errorMessage()) {
+          <div class="form-error" role="alert">{{ errorMessage() }}</div>
+        }
+        <div class="form-actions">
+          @if (editingProduct()) {
+            <button class="secondary" type="button" (click)="cancelEditing()">Cancelar</button>
+          }
+          <button class="primary" type="submit" [disabled]="saving() || loadingOptions()">
+            {{
+              saving()
+                ? editingProduct()
+                  ? 'Guardando…'
+                  : 'Creando…'
+                : editingProduct()
+                  ? 'Guardar cambios'
+                  : 'Crear producto'
+            }}
+          </button>
+        </div>
+      </form>
+
+      <aside aria-live="polite" aria-labelledby="catalog-title">
+        <h2 id="catalog-title">Catálogo real</h2>
+        <form class="search" [formGroup]="searchForm" (ngSubmit)="search()">
+          <label for="productSearch">Buscar por nombre, SKU o código</label>
+          <div>
+            <input id="productSearch" formControlName="q" maxlength="80" />
+            <button class="secondary" type="submit">Buscar</button>
+          </div>
+        </form>
+
+        @if (catalogError()) {
+          <div class="form-error" role="alert">{{ catalogError() }}</div>
+        }
+        @if (loadingCatalog()) {
+          <p class="catalog-state" role="status">Cargando productos…</p>
+        } @else if (productList().length === 0) {
+          <div class="empty">
+            <h3>{{ searchForm.controls.q.value ? 'Sin resultados' : 'Aún no hay productos' }}</h3>
+            <p>
+              {{
+                searchForm.controls.q.value
+                  ? 'Prueba con otro nombre, SKU o código.'
+                  : 'Crea el primero para después asignarle stock.'
+              }}
+            </p>
+          </div>
+        } @else {
+          <p class="result-count">{{ totalProducts() }} producto(s)</p>
+          <ul class="product-list">
+            @for (product of productList(); track product.id) {
+              <li>
+                <button type="button" (click)="selectProduct(product.id)">
+                  <span
+                    ><strong>{{ product.name }}</strong
+                    ><small>{{ product.sku }}</small></span
+                  >
+                  <span
+                    ><strong>{{ product.price }}</strong
+                    ><small>{{ product.active ? 'Activo' : 'Inactivo' }}</small></span
+                  >
+                </button>
+              </li>
+            }
+          </ul>
+          @if (totalPages() > 1) {
+            <div class="pagination">
+              <button
+                class="secondary"
+                type="button"
+                (click)="previousPage()"
+                [disabled]="page() === 1"
+              >
+                Anterior
+              </button>
+              <span>Página {{ page() }} de {{ totalPages() }}</span>
+              <button
+                class="secondary"
+                type="button"
+                (click)="nextPage()"
+                [disabled]="page() === totalPages()"
+              >
+                Siguiente
+              </button>
+            </div>
+          }
+        }
+
+        @if (loadingDetail()) {
+          <p class="catalog-state" role="status">Consultando detalle…</p>
+        } @else if (selectedProduct(); as product) {
+          <div class="detail">
+            @if (createdProduct()) {
+              <div class="success">Producto creado</div>
+            }
+            @if (updatedProduct()) {
+              <div class="success">Producto actualizado</div>
+            }
+            <h3>{{ product.name }}</h3>
+            <button class="secondary" type="button" (click)="startEditing(product)">
+              Editar producto
+            </button>
+            <dl>
+              <div>
+                <dt>SKU</dt>
+                <dd>{{ product.sku }}</dd>
+              </div>
+              <div>
+                <dt>Código</dt>
+                <dd>{{ product.barcode || 'Sin código' }}</dd>
+              </div>
+              <div>
+                <dt>Costo</dt>
+                <dd>{{ product.cost }}</dd>
+              </div>
+              <div>
+                <dt>Precio</dt>
+                <dd>{{ product.price }}</dd>
+              </div>
+              <div>
+                <dt>Categoría</dt>
+                <dd>{{ product.category?.name || 'Sin categoría' }}</dd>
+              </div>
+              <div>
+                <dt>Marca</dt>
+                <dd>{{ product.brand?.name || 'Sin marca' }}</dd>
+              </div>
+            </dl>
+
+            <section class="stock-card" aria-labelledby="stock-title">
+              <div class="stock-heading">
+                <div>
+                  <p class="eyebrow">Inventario</p>
+                  <h4 id="stock-title">Registrar movimiento</h4>
+                </div>
+                <div class="balance" aria-live="polite">
+                  <span>Existencia</span>
+                  <strong>{{ stockBalance()?.quantity ?? '0.000' }}</strong>
+                </div>
+              </div>
+
+              <form [formGroup]="stockForm" (ngSubmit)="recordMovement()" novalidate>
+                <div class="stock-fields">
+                  <div class="field wide">
+                    <label for="stockLocation">Ubicación</label>
+                    <select
+                      id="stockLocation"
+                      formControlName="locationId"
+                      (change)="locationChanged()"
+                    >
+                      @for (location of locations(); track location.id) {
+                        <option [value]="location.id">
+                          {{ location.name }} · {{ location.code }}
+                        </option>
+                      }
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="movementType">Tipo</label>
+                    <select id="movementType" formControlName="type">
+                      <option value="INITIAL">Stock inicial</option>
+                      <option value="ENTRY">Entrada</option>
+                      <option value="ADJUSTMENT">Ajuste</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="stockQuantity">Cantidad</label>
+                    <input
+                      id="stockQuantity"
+                      formControlName="quantity"
+                      inputmode="decimal"
+                      placeholder="0.000"
+                    />
+                    @if (
+                      stockForm.controls.quantity.touched && stockForm.controls.quantity.invalid
+                    ) {
+                      <p class="field-error">Usa una cantidad válida con máximo 3 decimales.</p>
+                    }
+                  </div>
+                  <div class="field wide">
+                    <label for="stockReason">Motivo</label>
+                    <input id="stockReason" formControlName="reason" maxlength="160" />
+                    @if (stockForm.controls.reason.touched && stockForm.controls.reason.invalid) {
+                      <p class="field-error">Describe el motivo del movimiento.</p>
+                    }
+                  </div>
+                  <div class="field wide">
+                    <label for="stockReference">Referencia <span>Opcional</span></label>
+                    <input id="stockReference" formControlName="reference" maxlength="120" />
+                  </div>
+                </div>
+                @if (stockError()) {
+                  <div class="form-error" role="alert">{{ stockError() }}</div>
+                }
+                @if (stockSuccess()) {
+                  <div class="success stock-success" role="status">{{ stockSuccess() }}</div>
+                }
+                <button
+                  class="primary"
+                  type="submit"
+                  [disabled]="savingStock() || locations().length === 0"
+                >
+                  {{ savingStock() ? 'Registrando…' : 'Registrar movimiento' }}
+                </button>
+              </form>
+            </section>
+          </div>
+        }
+      </aside>
+    </div>
+
+    <section
+      class="stock-overview"
+      aria-labelledby="stock-overview-title"
+      [attr.aria-busy]="loadingStockList()"
+    >
+      <div class="overview-heading">
+        <div>
+          <p class="eyebrow">Operación</p>
+          <h2 id="stock-overview-title">Existencias reales</h2>
+          <p>
+            {{ stockScope()?.branch?.name || session()?.context?.branch?.name }} ·
+            {{ stockScope()?.warehouse?.name || session()?.context?.warehouse?.name }}
+          </p>
+        </div>
+        <strong>{{ stockTotal() }} producto(s)</strong>
+      </div>
+
+      <form class="stock-search" [formGroup]="stockSearchForm" (ngSubmit)="searchStock()">
+        <label for="stockSearch">Filtrar producto por nombre, SKU o código</label>
+        <div>
+          <input id="stockSearch" formControlName="q" maxlength="80" />
+          <button class="secondary" type="submit">Filtrar</button>
+        </div>
+      </form>
+
+      @if (stockListError()) {
+        <div class="form-error" role="alert">{{ stockListError() }}</div>
+      }
+      @if (loadingStockList()) {
+        <p class="catalog-state" role="status">Cargando existencias…</p>
+      } @else if (stockList().length === 0) {
+        <div class="empty stock-empty">
+          <h3>Sin existencias para mostrar</h3>
+          <p>
+            {{
+              stockSearchForm.controls.q.value
+                ? 'Prueba con otro producto.'
+                : 'Crea un producto para comenzar a controlar su stock.'
+            }}
+          </p>
+        </div>
+      } @else {
+        <div class="stock-table" role="table" aria-label="Existencias por producto">
+          <div class="stock-row stock-header" role="row">
+            <span role="columnheader">Producto</span>
+            <span role="columnheader">Estado</span>
+            <span role="columnheader">Disponible</span>
+            <span role="columnheader">Total</span>
+          </div>
+          @for (item of stockList(); track item.product.id) {
+            <div class="stock-row" role="row">
+              <span role="cell"
+                ><strong>{{ item.product.name }}</strong
+                ><small>{{ item.product.sku }}</small></span
+              >
+              <span role="cell">Disponible</span>
+              <span class="stock-quantity" role="cell">
+                <small>Disponible</small><strong>{{ item.availableQuantity }}</strong>
+              </span>
+              <span class="stock-quantity" role="cell">
+                <small>Total</small><strong>{{ item.totalQuantity }}</strong>
+              </span>
+            </div>
+          }
+        </div>
+        @if (stockTotalPages() > 1) {
+          <div class="pagination stock-pagination">
+            <button
+              class="secondary"
+              type="button"
+              (click)="previousStockPage()"
+              [disabled]="stockPage() === 1"
+            >
+              Anterior
+            </button>
+            <span>Página {{ stockPage() }} de {{ stockTotalPages() }}</span>
+            <button
+              class="secondary"
+              type="button"
+              (click)="nextStockPage()"
+              [disabled]="stockPage() === stockTotalPages()"
+            >
+              Siguiente
+            </button>
+          </div>
+        }
+      }
+    </section>
+
+    <section
+      class="stock-overview movement-history"
+      aria-labelledby="movement-history-title"
+      [attr.aria-busy]="loadingMovementHistory()"
+    >
+      <div class="overview-heading">
+        <div>
+          <p class="eyebrow">Trazabilidad</p>
+          <h2 id="movement-history-title">Historial de movimientos</h2>
+          <p>{{ movementBranch() || session()?.context?.branch?.name }}</p>
+        </div>
+        <strong>{{ movementTotal() }} movimiento(s)</strong>
+      </div>
+
+      <form
+        class="movement-filters"
+        [formGroup]="movementFilterForm"
+        (ngSubmit)="filterMovements()"
+      >
+        <div class="field">
+          <label for="movementProduct">Producto</label>
+          <input id="movementProduct" formControlName="q" placeholder="Nombre, SKU o código" />
+        </div>
+        <div class="field">
+          <label for="movementHistoryType">Tipo</label>
+          <select id="movementHistoryType" formControlName="type">
+            <option value="">Todos</option>
+            <option value="INITIAL">Stock inicial</option>
+            <option value="ENTRY">Entrada</option>
+            <option value="ADJUSTMENT">Ajuste</option>
+            <option value="SALE">Venta</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="movementDateFrom">Desde</label>
+          <input id="movementDateFrom" type="date" formControlName="dateFrom" />
+        </div>
+        <div class="field">
+          <label for="movementDateTo">Hasta</label>
+          <input id="movementDateTo" type="date" formControlName="dateTo" />
+        </div>
+        <button class="secondary" type="submit">Filtrar movimientos</button>
+      </form>
+
+      @if (movementHistoryError()) {
+        <div class="form-error" role="alert">{{ movementHistoryError() }}</div>
+      }
+      @if (loadingMovementHistory()) {
+        <p class="catalog-state" role="status">Cargando movimientos…</p>
+      } @else if (movementHistory().length === 0) {
+        <div class="empty stock-empty">
+          <h3>Sin movimientos para mostrar</h3>
+          <p>Registra stock o ajusta los filtros para consultar la trazabilidad.</p>
+        </div>
+      } @else {
+        <ol class="movement-list" aria-label="Movimientos de inventario">
+          @for (movement of movementHistory(); track movement.id) {
+            <li class="movement-row">
+              <span>
+                <strong>{{ movementTypeLabel(movement.type) }}</strong>
+                <small>{{ dateTime(movement.createdAt) }}</small>
+              </span>
+              <span>
+                <strong>{{ movement.product.name }}</strong>
+                <small>{{ movement.product.sku }}</small>
+              </span>
+              <span>
+                <strong
+                  >{{ movement.direction === 'IN' ? 'Entrada' : 'Salida' }}
+                  {{ movement.quantityChange }}</strong
+                >
+                <small>Saldo {{ movement.resultingQuantity }}</small>
+              </span>
+              <span>
+                <strong>{{ movement.location.name }}</strong>
+                <small>{{ movement.location.warehouse.name }} · {{ movement.location.code }}</small>
+              </span>
+              <span>
+                <strong>{{ movement.reason }}</strong>
+                <small>{{ movement.reference || 'Sin referencia' }}</small>
+              </span>
+              <span>
+                <strong>{{ movement.responsible.email }}</strong>
+                <small>Responsable</small>
+              </span>
+            </li>
+          }
+        </ol>
+        @if (movementTotalPages() > 1) {
+          <div class="pagination">
+            <button
+              class="secondary"
+              type="button"
+              (click)="previousMovementPage()"
+              [disabled]="movementPage() === 1"
+            >
+              Anterior
+            </button>
+            <span>Página {{ movementPage() }} de {{ movementTotalPages() }}</span>
+            <button
+              class="secondary"
+              type="button"
+              (click)="nextMovementPage()"
+              [disabled]="movementPage() === movementTotalPages()"
+            >
+              Siguiente
+            </button>
+          </div>
+        }
+      }
+    </section>
+  </section>
+
+  <section
+    class="pos-workspace"
+    aria-labelledby="pos-title"
+    [attr.aria-busy]="searchingPos() || quotingCart() || savingSale()"
+  >
+    <p class="eyebrow">Caja</p>
+    <h2 id="pos-title">Punto de venta</h2>
+    <p class="context">
+      {{ session()?.context?.branch?.name }} · {{ session()?.context?.warehouse?.name }} ·
+      {{ session()?.context?.cashRegister?.name }}
+    </p>
+
+    <div class="pos-grid">
+      <div class="pos-search-panel">
+        <h2>Agregar productos</h2>
+        <form class="search" [formGroup]="posSearchForm" (ngSubmit)="searchPos()">
+          <label for="posSearch">Buscar producto para venta por nombre, SKU o código</label>
+          <div>
+            <input id="posSearch" formControlName="q" maxlength="80" autocomplete="off" />
+            <button class="secondary" type="submit" [disabled]="searchingPos()">
+              {{ searchingPos() ? 'Buscando…' : 'Buscar' }}
+            </button>
+          </div>
+        </form>
+        @if (posResults().length === 0) {
+          <div class="empty pos-empty">
+            <h3>Busca el primer producto</h3>
+            <p>Usa nombre, SKU o lector de código de barras.</p>
+          </div>
+        } @else {
+          <ul class="pos-results">
+            @for (product of posResults(); track product.id) {
+              <li>
+                <div>
+                  <strong>{{ product.name }}</strong
+                  ><small>{{ product.sku }} · {{ product.price }}</small>
+                </div>
+                <button
+                  class="secondary"
+                  type="button"
+                  (click)="addToCart(product)"
+                  [disabled]="!product.active"
+                >
+                  {{ product.active ? 'Agregar' : 'Inactivo' }}
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+
+      <div class="cart-panel" aria-live="polite">
+        <div class="cart-heading">
+          <div>
+            <p class="eyebrow">Venta actual</p>
+            <h2>Carrito</h2>
+          </div>
+          <strong>{{ cart().length }} línea(s)</strong>
+        </div>
+        @if (posError()) {
+          <div class="form-error" role="alert">{{ posError() }}</div>
+        }
+        @if (completedSale(); as sale) {
+          <div class="success sale-complete" role="status">
+            <strong>Venta {{ sale.receiptNumber }} completada</strong>
+            <span>
+              Total {{ sale.currency }} {{ sale.totals.total }} · Cambio {{ sale.currency }}
+              {{ sale.payment.change }}
+            </span>
+          </div>
+        }
+        @if (cart().length === 0) {
+          <div class="empty pos-empty">
+            <h3>Carrito vacío</h3>
+            <p>Agrega un producto para calcular la venta.</p>
+          </div>
+        } @else {
+          <ul class="cart-lines">
+            @for (entry of cart(); track entry.product.id) {
+              <li>
+                <div class="cart-product">
+                  <strong>{{ entry.product.name }}</strong
+                  ><small>{{ entry.product.sku }}</small>
+                </div>
+                <label>
+                  Cantidad
+                  <input
+                    [attr.aria-label]="'Cantidad de ' + entry.product.name"
+                    [value]="entry.quantity"
+                    inputmode="decimal"
+                    (change)="updateCartQuantity(entry.product.id, $any($event.target).value)"
+                  />
+                </label>
+                <div class="line-total">
+                  <small>Total validado</small
+                  ><strong>{{ quotedLine(entry.product.id)?.total || '—' }}</strong>
+                </div>
+                <button class="remove" type="button" (click)="removeFromCart(entry.product.id)">
+                  Quitar
+                </button>
+              </li>
+            }
+          </ul>
+          @if (quotingCart()) {
+            <p class="catalog-state" role="status">Validando precios y existencia…</p>
+          } @else if (cartQuote(); as quote) {
+            <dl class="cart-totals">
+              <div>
+                <dt>Subtotal</dt>
+                <dd>{{ quote.currency }} {{ quote.totals.subtotal }}</dd>
+              </div>
+              <div>
+                <dt>Impuesto incluido ({{ taxPercent(quote.taxRate) }})</dt>
+                <dd>{{ quote.currency }} {{ quote.totals.tax }}</dd>
+              </div>
+              <div class="grand-total">
+                <dt>Total</dt>
+                <dd>{{ quote.currency }} {{ quote.totals.total }}</dd>
+              </div>
+            </dl>
+            <div class="success cart-ready" role="status">Carrito validado y listo para cobrar</div>
+            <form class="cash-payment" [formGroup]="cashForm" (ngSubmit)="completeCashSale()">
+              <label for="cashReceived">Efectivo recibido</label>
+              <input
+                id="cashReceived"
+                formControlName="cashReceived"
+                inputmode="decimal"
+                autocomplete="off"
+              />
+              @if (
+                cashForm.controls.cashReceived.touched && cashForm.controls.cashReceived.invalid
+              ) {
+                <small class="field-error">Escribe un importe válido con máximo 2 decimales.</small>
+              }
+              <button type="submit" [disabled]="savingSale() || quotingCart()">
+                {{ savingSale() ? 'Registrando venta…' : 'Cobrar en efectivo' }}
+              </button>
+            </form>
+          }
+        }
+      </div>
+    </div>
+  </section>
+
+  <section
+    class="sales-workspace"
+    aria-labelledby="sales-title"
+    [attr.aria-busy]="loadingSales() || loadingSaleDetail()"
+  >
+    <p class="eyebrow">Auditoría</p>
+    <div class="sales-heading">
+      <div>
+        <h2 id="sales-title">Historial de ventas</h2>
+        <p class="context">{{ session()?.context?.branch?.name }} · {{ salesTotal() }} venta(s)</p>
+      </div>
+    </div>
+
+    <form class="sales-filters" [formGroup]="salesFilterForm" (ngSubmit)="filterSales()">
+      <label>
+        Desde
+        <input type="date" formControlName="dateFrom" />
+      </label>
+      <label>
+        Hasta
+        <input type="date" formControlName="dateTo" />
+      </label>
+      <label>
+        Caja
+        <select formControlName="cashRegisterId">
+          <option value="">Todas</option>
+          @if (session()?.context?.cashRegister; as register) {
+            <option [value]="register.id">{{ register.name }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        Usuario
+        <select formControlName="userId">
+          <option value="">Todos</option>
+          @if (session()?.user; as user) {
+            <option [value]="user.id">{{ user.email }}</option>
+          }
+        </select>
+      </label>
+      <button class="secondary" type="submit" [disabled]="loadingSales()">Filtrar ventas</button>
+    </form>
+
+    @if (salesError()) {
+      <div class="form-error" role="alert">{{ salesError() }}</div>
+    }
+    @if (loadingSales()) {
+      <p class="catalog-state" role="status">Cargando historial…</p>
+    } @else if (salesHistory().length === 0) {
+      <div class="empty sales-empty">
+        <h2>Sin ventas para mostrar</h2>
+        <p>Ajusta los filtros o registra la primera venta.</p>
+      </div>
+    } @else {
+      <div class="sales-grid">
+        <div class="sales-list">
+          @for (sale of salesHistory(); track sale.id) {
+            <button
+              type="button"
+              class="sale-row"
+              [class.selected]="selectedSale()?.id === sale.id"
+              (click)="selectSale(sale.id)"
+              [attr.aria-label]="'Abrir venta ' + sale.receiptNumber"
+            >
+              <span
+                ><strong>{{ sale.receiptNumber }}</strong
+                ><small>{{ dateTime(sale.createdAt) }}</small></span
+              >
+              <span
+                >{{ sale.cashRegister.name }}<small>{{ sale.user.email }}</small></span
+              >
+              <span
+                ><strong>{{ sale.currency }} {{ sale.total }}</strong
+                ><small>{{ sale.status }}</small></span
+              >
+            </button>
+          }
+          @if (salesTotalPages() > 1) {
+            <div class="pagination">
+              <button
+                class="secondary"
+                type="button"
+                (click)="previousSalesPage()"
+                [disabled]="salesPage() === 1"
+              >
+                Anterior
+              </button>
+              <span>Página {{ salesPage() }} de {{ salesTotalPages() }}</span>
+              <button
+                class="secondary"
+                type="button"
+                (click)="nextSalesPage()"
+                [disabled]="salesPage() === salesTotalPages()"
+              >
+                Siguiente
+              </button>
+            </div>
+          }
+        </div>
+
+        <article class="sale-detail">
+          @if (loadingSaleDetail()) {
+            <p class="catalog-state" role="status">Cargando detalle…</p>
+          } @else if (selectedSale(); as sale) {
+            <p class="eyebrow">Venta confirmada</p>
+            <h2>{{ sale.receiptNumber }}</h2>
+            <p>
+              {{ sale.user.email }} · {{ sale.context.cashRegister.name }} ·
+              {{ dateTime(sale.createdAt) }}
+            </p>
+            <dl class="sale-payment">
+              <div>
+                <dt>Total</dt>
+                <dd>{{ sale.currency }} {{ sale.totals.total }}</dd>
+              </div>
+              <div>
+                <dt>Efectivo</dt>
+                <dd>{{ sale.currency }} {{ sale.payment.amountReceived }}</dd>
+              </div>
+              <div>
+                <dt>Cambio</dt>
+                <dd>{{ sale.currency }} {{ sale.payment.change }}</dd>
+              </div>
+            </dl>
+            <h3>Líneas</h3>
+            <ul class="sale-lines">
+              @for (line of sale.lines; track line.product.id) {
+                <li>
+                  <span
+                    ><strong>{{ line.product.name }}</strong
+                    ><small>{{ line.product.sku }} · {{ line.quantity }}</small></span
+                  ><strong>{{ sale.currency }} {{ line.total }}</strong>
+                </li>
+              }
+            </ul>
+            <h3>Movimientos de inventario</h3>
+            <ul class="sale-lines movements">
+              @for (movement of sale.movements; track movement.id) {
+                <li>
+                  <span
+                    ><strong>{{ movement.location.name }}</strong
+                    ><small>{{ movement.reference }}</small></span
+                  ><strong>{{ movement.quantityChange }} → {{ movement.resultingQuantity }}</strong>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p>Selecciona una venta para revisar su detalle.</p>
+          }
+        </article>
+      </div>
+    }
+  </section>
+
+  <section
+    class="stock-overview audit-log"
+    aria-labelledby="audit-title"
+    [attr.aria-busy]="loadingAudit()"
+  >
+    <div class="overview-heading">
+      <div>
+        <p class="eyebrow">Administración</p>
+        <h2 id="audit-title">Auditoría Core</h2>
+        <p>Registro de sólo lectura del tenant activo.</p>
+      </div>
+      <strong>{{ auditEvents().length }} evento(s)</strong>
+    </div>
+    @if (auditError()) {
+      <div class="form-error" role="alert">{{ auditError() }}</div>
+    } @else if (loadingAudit()) {
+      <p class="catalog-state" role="status">Cargando auditoría…</p>
+    } @else if (auditEvents().length === 0) {
+      <div class="empty stock-empty">
+        <h3>Sin eventos para mostrar</h3>
+        <p>Las operaciones críticas aparecerán aquí.</p>
+      </div>
+    } @else {
+      <ol class="movement-list" aria-label="Eventos de auditoría">
+        @for (event of auditEvents(); track event.id) {
+          <li class="movement-row">
+            <span>
+              <strong>{{ auditActionLabel(event.action) }}</strong>
+              <small>{{ dateTime(event.createdAt) }}</small>
+            </span>
+            <span
+              ><strong>{{ event.actor.email }}</strong
+              ><small>Actor</small></span
+            >
+            <span
+              ><strong>{{ event.entityType }}</strong
+              ><small>{{ event.entityId }}</small></span
+            >
+            <span
+              ><strong>Correlación</strong><small>{{ event.correlationId }}</small></span
+            >
+          </li>
+        }
+      </ol>
+    }
+  </section>
+</main>
