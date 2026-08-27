@@ -24,6 +24,7 @@ export type AppPermission =
   | 'ACCESS_MANAGE'
   | 'AUDIT_VIEW'
   | 'AUDIT_EXPORT'
+  | 'SUPPLIERS_MANAGE'
   | InventoryPermission;
 
 export const OPERATIONAL_PERMISSIONS = [
@@ -37,6 +38,7 @@ export const OPERATIONAL_PERMISSIONS = [
   'CASH_REGISTER_MOVE',
   'AUDIT_VIEW',
   'AUDIT_EXPORT',
+  'SUPPLIERS_MANAGE',
 ] as const satisfies readonly AppPermission[];
 
 export interface AccessRoleData {

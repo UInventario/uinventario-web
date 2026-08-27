@@ -1,0 +1,175 @@
+<section class="supplier-panel" aria-labelledby="suppliers-title" [attr.aria-busy]="loading()">
+  <div class="heading">
+    <div>
+      <p>Compras</p>
+      <h2 id="suppliers-title">Proveedores y contactos</h2>
+      <span>Identificación validada según el país de la empresa.</span>
+    </div>
+    <strong>{{ total() }} proveedor(es)</strong>
+  </div>
+
+  <form class="filters" [formGroup]="searchForm" (ngSubmit)="filter()">
+    <label>
+      Buscar
+      <input
+        id="supplierSearch"
+        formControlName="q"
+        placeholder="Nombre, identificación o contacto"
+      />
+    </label>
+    <label>
+      Estado
+      <select id="supplierStatus" formControlName="status">
+        <option value="ACTIVE">Activos</option>
+        <option value="INACTIVE">Inactivos</option>
+        <option value="ALL">Todos</option>
+      </select>
+    </label>
+    <button type="submit">Filtrar</button>
+  </form>
+
+  @if (error()) {
+    <div class="message error" role="alert">{{ error() }}</div>
+  }
+  @if (success()) {
+    <div class="message success" role="status">{{ success() }}</div>
+  }
+
+  <div class="workspace">
+    <form class="editor" [formGroup]="form" (ngSubmit)="submit()">
+      <h3>{{ editing() ? 'Editar proveedor' : 'Nuevo proveedor' }}</h3>
+      <label>
+        Nombre fiscal
+        <input id="supplierLegalName" formControlName="legalName" maxlength="180" />
+      </label>
+      <label>
+        Nombre comercial
+        <input id="supplierTradeName" formControlName="tradeName" maxlength="180" />
+      </label>
+      <label>
+        Identificación fiscal
+        <input id="supplierTaxIdentifier" formControlName="taxIdentifier" maxlength="64" />
+      </label>
+
+      <div formArrayName="contacts" class="contacts">
+        <div class="contact-heading">
+          <h4>Contactos</h4>
+          <button type="button" class="secondary" (click)="addContact()">Agregar</button>
+        </div>
+        @for (contact of contacts.controls; track $index; let index = $index) {
+          <fieldset [formGroupName]="index">
+            <legend>Contacto {{ index + 1 }}</legend>
+            <label>
+              Nombre
+              <input [id]="'supplierContactName' + index" formControlName="name" maxlength="120" />
+            </label>
+            <label>
+              Correo
+              <input
+                [id]="'supplierContactEmail' + index"
+                type="email"
+                formControlName="email"
+                maxlength="254"
+              />
+            </label>
+            <label>
+              Teléfono
+              <input [id]="'supplierContactPhone' + index" formControlName="phone" maxlength="40" />
+            </label>
+            <label>
+              Cargo / área
+              <input [id]="'supplierContactRole' + index" formControlName="role" maxlength="80" />
+            </label>
+            <label class="check">
+              <input type="checkbox" formControlName="primary" /> Principal
+            </label>
+            <button
+              type="button"
+              class="danger"
+              (click)="removeContact(index)"
+              [disabled]="contacts.length === 1"
+            >
+              Quitar
+            </button>
+          </fieldset>
+        }
+      </div>
+
+      <div class="actions">
+        @if (editing()) {
+          <button type="button" class="secondary" (click)="cancelEditing()">Cancelar</button>
+        }
+        <button id="saveSupplier" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Guardando…' : editing() ? 'Guardar cambios' : 'Crear proveedor' }}
+        </button>
+      </div>
+    </form>
+
+    <div class="results">
+      @if (loading()) {
+        <p role="status">Cargando proveedores…</p>
+      } @else if (suppliers().length === 0) {
+        <div class="empty">
+          <h3>Sin proveedores</h3>
+          <p>Ajusta los filtros o registra el primero.</p>
+        </div>
+      } @else {
+        <ul aria-label="Proveedores">
+          @for (supplier of suppliers(); track supplier.id) {
+            <li [class.inactive]="!supplier.active">
+              <div>
+                <strong>{{ supplier.tradeName || supplier.legalName }}</strong>
+                <span
+                  >{{ supplier.legalName }} · {{ supplier.identifierType }}
+                  {{ supplier.taxIdentifier }}</span
+                >
+                @for (contact of supplier.contacts; track contact.id) {
+                  <small>
+                    {{ contact.primary ? 'Principal · ' : '' }}{{ contact.name }} ·
+                    {{ contact.email || contact.phone }}
+                  </small>
+                }
+              </div>
+              <div class="row-actions">
+                <button type="button" class="secondary" (click)="edit(supplier)">Editar</button>
+                @if (supplier.active) {
+                  <button
+                    type="button"
+                    class="danger"
+                    (click)="deactivate(supplier)"
+                    [disabled]="deactivatingId() === supplier.id"
+                  >
+                    {{ deactivatingId() === supplier.id ? 'Desactivando…' : 'Desactivar' }}
+                  </button>
+                } @else {
+                  <span>Inactivo</span>
+                }
+              </div>
+            </li>
+          }
+        </ul>
+        @if (totalPages() > 1) {
+          <div class="pagination">
+            <button
+              type="button"
+              class="secondary"
+              (click)="previousPage()"
+              [disabled]="page() === 1"
+            >
+              Anterior
+            </button>
+            <span>Página {{ page() }} de {{ totalPages() }}</span>
+            <button
+              type="button"
+              class="secondary"
+              (click)="nextPage()"
+              [disabled]="page() === totalPages()"
+            >
+              Siguiente
+            </button>
+          </div>
+        }
+      }
+    </div>
+  </div>
+</section>

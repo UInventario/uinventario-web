@@ -53,6 +53,7 @@ import {
   AppPermission,
   OPERATIONAL_PERMISSIONS,
 } from '../access/access-api.service';
+import { SupplierPanelComponent } from '../suppliers/supplier-panel.component';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const POSITIVE_MONEY_PATTERN = /^(?:[1-9]\d{0,11}(?:\.\d{1,2})?|0\.(?:0[1-9]|[1-9]\d?))$/;
@@ -70,7 +71,13 @@ interface CartEntry {
 
 @Component({
   selector: 'app-application-page',
-  imports: [DatePipe, ReactiveFormsModule, RouterLink, InventoryImportPanelComponent],
+  imports: [
+    DatePipe,
+    ReactiveFormsModule,
+    RouterLink,
+    InventoryImportPanelComponent,
+    SupplierPanelComponent,
+  ],
   templateUrl: './application.page.html',
   styleUrl: './application.page.scss',
 })
@@ -124,6 +131,9 @@ export class ApplicationPage implements OnInit {
   protected readonly canManageProducts = computed(
     () => this.session()?.user.permissions.includes('PRODUCTS_MANAGE') ?? false,
   );
+  protected readonly canManageSuppliers = computed(
+    () => this.session()?.user.permissions.includes('SUPPLIERS_MANAGE') ?? false,
+  );
   protected readonly canManageStock = computed(
     () => this.session()?.user.permissions.includes('INVENTORY_VIEW') ?? false,
   );
@@ -166,6 +176,7 @@ export class ApplicationPage implements OnInit {
     () =>
       !this.canManageTenant() &&
       !this.canManageProducts() &&
+      !this.canManageSuppliers() &&
       !this.canManageStock() &&
       !this.canManageSales() &&
       !this.canManageAccess() &&
@@ -1452,6 +1463,9 @@ export class ApplicationPage implements OnInit {
         ACCESS_USER_UPDATED: 'Acceso operativo actualizado',
         AUDIT_QUERY_EXECUTED: 'Consulta de auditoría ejecutada',
         AUDIT_EXPORT_CREATED: 'Exportación de auditoría creada',
+        SUPPLIER_CREATED: 'Proveedor creado',
+        SUPPLIER_UPDATED: 'Proveedor actualizado',
+        SUPPLIER_DEACTIVATED: 'Proveedor desactivado',
       }[action] ?? action
     );
   }
@@ -1841,6 +1855,7 @@ export class ApplicationPage implements OnInit {
       ACCESS_MANAGE: 'Administrar roles y usuarios',
       AUDIT_VIEW: 'Consultar auditoría',
       AUDIT_EXPORT: 'Exportar auditoría',
+      SUPPLIERS_MANAGE: 'Administrar proveedores',
       INVENTORY_VIEW: 'Consultar inventario e historial',
       INVENTORY_ADJUST: 'Registrar entradas, salidas y ajustes',
       INVENTORY_TRANSFER: 'Crear y recibir transferencias',

@@ -14,6 +14,9 @@
     @if (canManageProducts()) {
       <a routerLink="/app" fragment="products-title">Productos</a>
     }
+    @if (canManageSuppliers()) {
+      <a routerLink="/app" fragment="suppliers-title">Proveedores</a>
+    }
     @if (canManageStock()) {
       <a routerLink="/app" fragment="stock-overview-title">Inventario</a>
       <a routerLink="/app" fragment="transfers-title">Transferencias</a>
@@ -279,6 +282,10 @@
       </div>
     }
   </section>
+
+  @if (canManageSuppliers()) {
+    <app-supplier-panel />
+  }
 
   @if (hasNoCoreAccess()) {
     <section class="empty" role="status" aria-labelledby="no-access-title">
