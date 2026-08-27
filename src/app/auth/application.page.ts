@@ -24,9 +24,21 @@ export class ApplicationPage implements OnInit {
   protected readonly categories = signal<Array<{ id: string; name: string }>>([]);
   protected readonly brands = signal<Array<{ id: string; name: string }>>([]);
   protected readonly createdProduct = signal<ProductData | null>(null);
+  protected readonly productList = signal<ProductData[]>([]);
+  protected readonly selectedProduct = signal<ProductData | null>(null);
   protected readonly loadingOptions = signal(true);
+  protected readonly loadingCatalog = signal(true);
+  protected readonly loadingDetail = signal(false);
   protected readonly saving = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
+  protected readonly catalogError = signal<string | null>(null);
+  protected readonly page = signal(1);
+  protected readonly totalPages = signal(0);
+  protected readonly totalProducts = signal(0);
+  protected readonly pageSize = 5;
+  protected readonly searchForm = this.formBuilder.nonNullable.group({
+    q: ['', [Validators.maxLength(80)]],
+  });
   protected readonly form = this.formBuilder.nonNullable.group({
     name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
     sku: ['', [Validators.required, Validators.pattern(SKU_PATTERN)]],
@@ -39,6 +51,7 @@ export class ApplicationPage implements OnInit {
 
   ngOnInit(): void {
     this.loadOptions();
+    this.loadProducts(1);
   }
 
   protected submit(): void {
@@ -54,6 +67,7 @@ export class ApplicationPage implements OnInit {
       .subscribe({
         next: ({ data }) => {
           this.createdProduct.set(data);
+          this.selectedProduct.set(data);
           this.form.reset({
             name: '',
             sku: '',
@@ -64,6 +78,7 @@ export class ApplicationPage implements OnInit {
             price: '',
           });
           this.loadOptions();
+          this.loadProducts(1);
         },
         error: (error: HttpErrorResponse) => this.errorMessage.set(this.messageFor(error)),
       });
@@ -71,6 +86,37 @@ export class ApplicationPage implements OnInit {
 
   protected logout(): void {
     this.sessions.logout().subscribe({ error: () => undefined });
+  }
+
+  protected search(): void {
+    if (this.searchForm.invalid) {
+      this.searchForm.markAllAsTouched();
+      return;
+    }
+    this.loadProducts(1);
+  }
+
+  protected previousPage(): void {
+    if (this.page() > 1) this.loadProducts(this.page() - 1);
+  }
+
+  protected nextPage(): void {
+    if (this.page() < this.totalPages()) this.loadProducts(this.page() + 1);
+  }
+
+  protected selectProduct(id: string): void {
+    this.loadingDetail.set(true);
+    this.catalogError.set(null);
+    this.products
+      .get(id)
+      .pipe(finalize(() => this.loadingDetail.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.createdProduct.set(null);
+          this.selectedProduct.set(data);
+        },
+        error: () => this.catalogError.set('No fue posible consultar el producto.'),
+      });
   }
 
   private loadOptions(): void {
@@ -84,6 +130,24 @@ export class ApplicationPage implements OnInit {
           this.brands.set(data.brands);
         },
         error: () => this.errorMessage.set('No fue posible cargar categorías y marcas.'),
+      });
+  }
+
+  private loadProducts(page: number): void {
+    this.loadingCatalog.set(true);
+    this.catalogError.set(null);
+    const q = this.searchForm.controls.q.value.trim();
+    this.products
+      .list({ ...(q ? { q } : {}), page, pageSize: this.pageSize })
+      .pipe(finalize(() => this.loadingCatalog.set(false)))
+      .subscribe({
+        next: ({ data, meta }) => {
+          this.productList.set(data);
+          this.page.set(meta.pagination.page);
+          this.totalPages.set(meta.pagination.totalPages);
+          this.totalProducts.set(meta.pagination.total);
+        },
+        error: () => this.catalogError.set('No fue posible cargar el catálogo.'),
       });
   }
 

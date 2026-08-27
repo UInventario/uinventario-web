@@ -29,6 +29,8 @@ El tercero crea la caja inicial y entra al producto con empresa, sucursal, bodeg
 caja obtenidas de la sesión, sin IDs hardcodeados.
 El catálogo permite crear productos reales con SKU, barcode opcional, categoría,
 marca, costo y precio; los duplicados se muestran sin perder el formulario.
+El mismo espacio lista, pagina y busca por nombre, SKU o código, y permite consultar
+el detalle sin mezclar productos de otras empresas.
 
 ```bash
 npm run typecheck
