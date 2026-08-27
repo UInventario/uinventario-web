@@ -14,6 +14,9 @@ describe('PurchaseOrderPanelComponent', () => {
     list: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
+    approve: ReturnType<typeof vi.fn>;
+    send: ReturnType<typeof vi.fn>;
+    cancel: ReturnType<typeof vi.fn>;
   };
 
   const supplier: SupplierData = {
@@ -66,6 +69,11 @@ describe('PurchaseOrderPanelComponent', () => {
     subtotal: '200.00',
     total: '200.00',
     version: 1,
+    approvedAt: null,
+    sentAt: null,
+    cancelledAt: null,
+    cancellationReason: null,
+    transitions: [],
     lines: [
       {
         id: 'line',
@@ -97,6 +105,9 @@ describe('PurchaseOrderPanelComponent', () => {
       ),
       create: vi.fn(),
       update: vi.fn(),
+      approve: vi.fn(),
+      send: vi.fn(),
+      cancel: vi.fn(),
     };
     const suppliersApi = {
       list: vi.fn().mockReturnValue(
@@ -129,6 +140,7 @@ describe('PurchaseOrderPanelComponent', () => {
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(PurchaseOrderPanelComponent);
+    fixture.componentRef.setInput('canApprove', true);
     fixture.detectChanges();
   });
 
@@ -201,5 +213,82 @@ describe('PurchaseOrderPanelComponent', () => {
         lines: [expect.objectContaining({ quantity: '3.000' })],
       }),
     );
+  });
+
+  it('approves, simulates sending and requires a cancellation reason', () => {
+    const component = fixture.componentInstance as unknown as {
+      approve(value: PurchaseOrderData): void;
+      send(value: PurchaseOrderData): void;
+      requestCancellation(value: PurchaseOrderData): void;
+      confirmCancellation(): void;
+    };
+    const approved = {
+      ...order,
+      status: 'APPROVED' as const,
+      version: 2,
+      approvedAt: '2026-08-27T16:00:00.000Z',
+      transitions: [
+        {
+          id: 'transition-1',
+          fromStatus: 'DRAFT' as const,
+          toStatus: 'APPROVED' as const,
+          reason: null,
+          delivery: null,
+          createdAt: '2026-08-27T16:00:00.000Z',
+        },
+      ],
+    };
+    ordersApi.approve.mockReturnValue(of({ data: approved, meta: { apiVersion: '1' } }));
+    component.approve(order);
+    expect(ordersApi.approve).toHaveBeenCalledWith(
+      order.id,
+      { version: 1 },
+      expect.stringMatching(/^web-purchase-approve-/),
+    );
+
+    const sent = {
+      ...approved,
+      status: 'SENT' as const,
+      version: 3,
+      sentAt: '2026-08-27T16:01:00.000Z',
+    };
+    ordersApi.send.mockReturnValue(of({ data: sent, meta: { apiVersion: '1' } }));
+    component.send(approved);
+    expect(ordersApi.send).toHaveBeenCalledWith(
+      order.id,
+      2,
+      expect.stringMatching(/^web-purchase-send-/),
+    );
+
+    ordersApi.cancel.mockReturnValue(
+      of({
+        data: {
+          ...sent,
+          status: 'CANCELLED',
+          version: 4,
+          cancellationReason: 'Proveedor sin disponibilidad',
+        },
+        meta: { apiVersion: '1' },
+      }),
+    );
+    component.requestCancellation(sent);
+    fixture.detectChanges();
+    component.confirmCancellation();
+    expect(ordersApi.cancel).not.toHaveBeenCalled();
+    change('purchaseOrderCancellationReason', 'Proveedor sin disponibilidad');
+    component.confirmCancellation();
+    expect(ordersApi.cancel).toHaveBeenCalledWith(
+      order.id,
+      { version: 3, reason: 'Proveedor sin disponibilidad' },
+      expect.stringMatching(/^web-purchase-cancel-/),
+    );
+  });
+
+  it('gives an approver read and transition controls without draft editing', () => {
+    fixture.componentRef.setInput('canManage', false);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.editor')).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Aprobar');
+    expect(fixture.nativeElement.textContent).not.toContain('Editar');
   });
 });

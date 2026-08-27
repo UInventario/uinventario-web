@@ -139,6 +139,12 @@ export class ApplicationPage implements OnInit {
   protected readonly canManagePurchaseOrders = computed(
     () => this.session()?.user.permissions.includes('PURCHASE_ORDERS_MANAGE') ?? false,
   );
+  protected readonly canApprovePurchaseOrders = computed(
+    () => this.session()?.user.permissions.includes('PURCHASE_ORDERS_APPROVE') ?? false,
+  );
+  protected readonly canAccessPurchaseOrders = computed(
+    () => this.canManagePurchaseOrders() || this.canApprovePurchaseOrders(),
+  );
   protected readonly canManageStock = computed(
     () => this.session()?.user.permissions.includes('INVENTORY_VIEW') ?? false,
   );
@@ -182,7 +188,7 @@ export class ApplicationPage implements OnInit {
       !this.canManageTenant() &&
       !this.canManageProducts() &&
       !this.canManageSuppliers() &&
-      !this.canManagePurchaseOrders() &&
+      !this.canAccessPurchaseOrders() &&
       !this.canManageStock() &&
       !this.canManageSales() &&
       !this.canManageAccess() &&
@@ -1476,6 +1482,9 @@ export class ApplicationPage implements OnInit {
         SUPPLIER_PRICE_CHANGED: 'Precio de proveedor actualizado',
         PURCHASE_ORDER_CREATED: 'Orden de compra creada',
         PURCHASE_ORDER_UPDATED: 'Orden de compra actualizada',
+        PURCHASE_ORDER_APPROVED: 'Orden de compra aprobada',
+        PURCHASE_ORDER_SENT: 'Orden de compra enviada',
+        PURCHASE_ORDER_CANCELLED: 'Orden de compra cancelada',
       }[action] ?? action
     );
   }
@@ -1867,6 +1876,7 @@ export class ApplicationPage implements OnInit {
       AUDIT_EXPORT: 'Exportar auditoría',
       SUPPLIERS_MANAGE: 'Administrar proveedores',
       PURCHASE_ORDERS_MANAGE: 'Crear y editar órdenes de compra',
+      PURCHASE_ORDERS_APPROVE: 'Aprobar y cancelar órdenes de compra',
       INVENTORY_VIEW: 'Consultar inventario e historial',
       INVENTORY_ADJUST: 'Registrar entradas, salidas y ajustes',
       INVENTORY_TRANSFER: 'Crear y recibir transferencias',
