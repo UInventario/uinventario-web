@@ -421,5 +421,6 @@ describe('ApplicationPage', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Venta V-123456789012 completada');
     expect(fixture.nativeElement.textContent).toContain('Cambio MXN 10.20');
+    expect(inventory.listStock).toHaveBeenCalledTimes(2);
   });
 });
