@@ -22,6 +22,7 @@ import {
 } from '../inventory/inventory-api.service';
 import { SessionApiService } from './session-api.service';
 import {
+  CashRegisterClosureData,
   CashRegisterMovementData,
   CashRegisterShiftData,
   CashSaleData,
@@ -106,6 +107,14 @@ export class ApplicationPage implements OnInit {
     key: string;
   } | null = null;
   private pendingCashReversal: { movementId: string; reason: string; key: string } | null = null;
+  private pendingCashClosure: {
+    input: {
+      countedAmount: string;
+      differenceReason?: string;
+      denominations?: Array<{ denomination: string; quantity: number }>;
+    };
+    key: string;
+  } | null = null;
 
   protected readonly session = this.sessions.session;
   protected readonly canManageTenant = computed(
@@ -233,6 +242,11 @@ export class ApplicationPage implements OnInit {
   protected readonly cashMovementError = signal<string | null>(null);
   protected readonly cashMovementSuccess = signal<string | null>(null);
   protected readonly movementToReverse = signal<CashRegisterMovementData | null>(null);
+  protected readonly latestCashClosure = signal<CashRegisterClosureData | null>(null);
+  protected readonly loadingCashClosure = signal(false);
+  protected readonly closingCashRegister = signal(false);
+  protected readonly cashClosureError = signal<string | null>(null);
+  protected readonly cashClosureSuccess = signal<string | null>(null);
   protected readonly cart = signal<CartEntry[]>([]);
   protected readonly cartQuote = signal<PosCartQuote | null>(null);
   protected readonly completedSale = signal<CashSaleData | null>(null);
@@ -268,6 +282,7 @@ export class ApplicationPage implements OnInit {
     if (this.openingCashRegisterShift()) return 'Abriendo caja…';
     if (this.savingCashMovement()) return 'Registrando movimiento de caja…';
     if (this.reversingCashMovementId()) return 'Reversando movimiento de caja…';
+    if (this.closingCashRegister()) return 'Cerrando caja y generando arqueo…';
     if (this.savingSale()) return 'Confirmando venta y actualizando inventario…';
     if (this.quotingCart()) return 'Validando precios y existencias…';
     return null;
@@ -304,6 +319,11 @@ export class ApplicationPage implements OnInit {
   });
   protected readonly cashMovementReversalForm = this.formBuilder.nonNullable.group({
     reason: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
+  });
+  protected readonly cashClosureForm = this.formBuilder.nonNullable.group({
+    countedAmount: ['', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
+    differenceReason: ['', [Validators.maxLength(160)]],
+    denominations: ['', [Validators.maxLength(240)]],
   });
   protected readonly salesFilterForm = this.formBuilder.nonNullable.group({
     dateFrom: [''],
@@ -396,6 +416,7 @@ export class ApplicationPage implements OnInit {
     }
     if (this.canManageSales()) {
       this.loadCurrentCashRegisterShift();
+      this.loadLatestCashClosure();
       this.loadSales(1);
     }
     if (this.canViewAudit()) this.loadAuditEvents();
@@ -586,6 +607,10 @@ export class ApplicationPage implements OnInit {
           this.movementToReverse.set(null);
           this.pendingCashMovement = null;
           this.pendingCashReversal = null;
+          this.latestCashClosure.set(null);
+          this.cashClosureError.set(null);
+          this.cashClosureSuccess.set(null);
+          this.pendingCashClosure = null;
           this.selectedSale.set(null);
           this.salesHistory.set([]);
           if (this.canManageStock()) {
@@ -597,6 +622,7 @@ export class ApplicationPage implements OnInit {
           }
           if (this.canManageSales()) {
             this.loadCurrentCashRegisterShift();
+            this.loadLatestCashClosure();
             this.loadSales(1);
           }
         },
@@ -996,6 +1022,55 @@ export class ApplicationPage implements OnInit {
     if (movement.type === 'INCOME') return 'Ingreso';
     if (movement.type === 'WITHDRAWAL') return 'Egreso';
     return `Reversa de ${movement.reversalOf?.type === 'INCOME' ? 'ingreso' : 'egreso'}`;
+  }
+
+  protected closeCashRegisterShift(): void {
+    if (this.cashClosureForm.invalid || this.closingCashRegister()) {
+      this.cashClosureForm.markAllAsTouched();
+      return;
+    }
+    const value = this.cashClosureForm.getRawValue();
+    const denominations = this.parseCashDenominations(value.denominations);
+    if (denominations === null) {
+      this.cashClosureError.set('Usa denominaciones con formato 200x2, 50x1.');
+      return;
+    }
+    const input = {
+      countedAmount: value.countedAmount.trim(),
+      ...(value.differenceReason.trim() ? { differenceReason: value.differenceReason.trim() } : {}),
+      ...(denominations.length > 0 ? { denominations } : {}),
+    };
+    const pending = this.pendingCashClosure;
+    const key =
+      pending && JSON.stringify(pending.input) === JSON.stringify(input)
+        ? pending.key
+        : `web-cash-closure-${globalThis.crypto.randomUUID()}`;
+    this.pendingCashClosure = { input, key };
+    this.closingCashRegister.set(true);
+    this.cashClosureError.set(null);
+    this.cashClosureSuccess.set(null);
+    this.pos
+      .closeShift(input, key)
+      .pipe(finalize(() => this.closingCashRegister.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.pendingCashClosure = null;
+          this.latestCashClosure.set(data);
+          this.currentCashRegisterShift.set(null);
+          this.cashRegisterMovements.set([]);
+          this.expectedCash.set(null);
+          this.cart.set([]);
+          this.cartQuote.set(null);
+          this.completedSale.set(null);
+          this.cashClosureSuccess.set('Caja cerrada. El arqueo quedó guardado.');
+          this.loadSales(1);
+          this.loadAuditEvents();
+        },
+        error: (error: HttpErrorResponse) => {
+          if (error.status > 0 && error.status < 500) this.pendingCashClosure = null;
+          this.cashClosureError.set(this.cashClosureMessageFor(error));
+        },
+      });
   }
 
   protected searchPos(): void {
@@ -1955,12 +2030,29 @@ export class ApplicationPage implements OnInit {
         next: ({ data, meta }) => {
           this.cashRegisterMovements.set(data);
           this.expectedCash.set(meta.expectedCash);
+          if (this.cashClosureForm.controls.countedAmount.pristine) {
+            this.cashClosureForm.controls.countedAmount.setValue(meta.expectedCash);
+          }
         },
         error: (error: HttpErrorResponse) => {
           this.cashRegisterMovements.set([]);
           this.expectedCash.set(null);
           this.cashMovementError.set(this.cashMovementMessageFor(error));
         },
+      });
+  }
+
+  private loadLatestCashClosure(): void {
+    this.loadingCashClosure.set(true);
+    this.pos
+      .getLatestClosure()
+      .pipe(finalize(() => this.loadingCashClosure.set(false)))
+      .subscribe({
+        next: ({ data }) => this.latestCashClosure.set(data),
+        error: (error: HttpErrorResponse) =>
+          this.cashClosureError.set(
+            this.operationMessage(error, 'No fue posible consultar el último arqueo.'),
+          ),
       });
   }
 
@@ -2166,6 +2258,47 @@ export class ApplicationPage implements OnInit {
       return 'Abre la caja antes de registrar movimientos.';
     }
     return this.operationMessage(error, 'No fue posible procesar el movimiento de caja.');
+  }
+
+  private cashClosureMessageFor(error: HttpErrorResponse): string {
+    const code = (error.error as { code?: string } | null)?.code;
+    if (code === 'DENOMINATION_TOTAL_MISMATCH') {
+      return 'La suma de denominaciones no coincide con el efectivo contado.';
+    }
+    if (code === 'CASH_DIFFERENCE_REASON_REQUIRED') {
+      return 'Explica el sobrante o faltante antes de cerrar la caja.';
+    }
+    if (code === 'CASH_REGISTER_ALREADY_CLOSED') {
+      return 'Este turno ya fue cerrado. Consulta el último arqueo.';
+    }
+    if (code === 'IDEMPOTENCY_KEY_REUSED') {
+      return 'El conteo cambió durante el reintento. Revísalo e intenta nuevamente.';
+    }
+    return this.operationMessage(error, 'No fue posible cerrar la caja.');
+  }
+
+  private parseCashDenominations(
+    value: string,
+  ): Array<{ denomination: string; quantity: number }> | null {
+    const text = value.trim();
+    if (!text) return [];
+    const parsed: Array<{ denomination: string; quantity: number }> = [];
+    for (const token of text.split(',')) {
+      const match = token.trim().match(/^(.+?)\s*[xX]\s*(\d+)$/);
+      if (!match) return null;
+      const denomination = match[1].trim();
+      const quantity = Number(match[2]);
+      if (
+        !POSITIVE_MONEY_PATTERN.test(denomination) ||
+        !Number.isInteger(quantity) ||
+        quantity < 1 ||
+        quantity > 100_000
+      ) {
+        return null;
+      }
+      parsed.push({ denomination, quantity });
+    }
+    return parsed;
   }
 
   private assertOpenCashRegisterShift(): boolean {
