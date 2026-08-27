@@ -30,6 +30,7 @@ describe('ApplicationPage', () => {
     retire: ReturnType<typeof vi.fn>;
     list: ReturnType<typeof vi.fn>;
     get: ReturnType<typeof vi.fn>;
+    resolveCode: ReturnType<typeof vi.fn>;
     listClassifications: ReturnType<typeof vi.fn>;
     createClassification: ReturnType<typeof vi.fn>;
     updateClassification: ReturnType<typeof vi.fn>;
@@ -127,6 +128,7 @@ describe('ApplicationPage', () => {
         }),
       ),
       get: vi.fn(),
+      resolveCode: vi.fn(),
       listClassifications: vi.fn().mockReturnValue(of({ data: [] })),
       createClassification: vi.fn(),
       updateClassification: vi.fn(),

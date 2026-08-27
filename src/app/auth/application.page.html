@@ -1619,6 +1619,10 @@
 
         <div class="product-search-panel">
           <h2>Agregar productos</h2>
+          <app-product-code-scanner
+            [globalCapture]="!!currentCashRegisterShift()"
+            (resolved)="addToCart($event)"
+          />
           <form class="search" [formGroup]="posSearchForm" (ngSubmit)="searchPos()">
             <label for="posSearch">Buscar producto para venta por nombre, SKU o código</label>
             <div>
