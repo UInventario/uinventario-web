@@ -163,6 +163,7 @@ export class ApplicationPage implements OnInit {
   protected readonly stockPage = signal(1);
   protected readonly stockTotalPages = signal(0);
   protected readonly stockTotal = signal(0);
+  protected readonly negativeStockPolicy = signal<'DENY'>('DENY');
   protected readonly stockScope = signal<{
     branch: { id: string; name: string };
     warehouse: { id: string; name: string };
@@ -1308,6 +1309,7 @@ export class ApplicationPage implements OnInit {
       .subscribe({
         next: ({ data, meta }) => {
           this.stockList.set(data);
+          this.negativeStockPolicy.set(meta.policy.negativeStock);
           this.stockScope.set(meta.scope);
           this.stockPage.set(meta.pagination.page);
           this.stockTotalPages.set(meta.pagination.totalPages);
