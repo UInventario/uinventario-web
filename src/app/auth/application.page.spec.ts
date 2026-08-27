@@ -51,6 +51,7 @@ describe('ApplicationPage', () => {
     create: ReturnType<typeof vi.fn>;
     dispatch: ReturnType<typeof vi.fn>;
     cancel: ReturnType<typeof vi.fn>;
+    receive: ReturnType<typeof vi.fn>;
   };
   let sessions: {
     session: ReturnType<typeof signal<SessionData | null>>;
@@ -181,6 +182,7 @@ describe('ApplicationPage', () => {
       create: vi.fn(),
       dispatch: vi.fn(),
       cancel: vi.fn(),
+      receive: vi.fn(),
     };
     sessionState = signal<SessionData | null>({
       user: {
@@ -923,8 +925,12 @@ describe('ApplicationPage', () => {
             code: 'NORTE',
           },
           quantity: '3.000',
+          receivedQuantity: '0.000',
+          discrepancyQuantity: '0.000',
+          pendingQuantity: '3.000',
         },
       ],
+      receipts: [],
       createdBy: { id: 'user', email: 'admin@example.com' },
       dispatchedBy: null,
       cancelledBy: null,
@@ -936,14 +942,15 @@ describe('ApplicationPage', () => {
       of({ data: draft, meta: { apiVersion: '1', idempotentReplay: false } }),
     );
     transfers.list.mockReturnValue(of({ data: [draft], meta: { apiVersion: '1' } }));
+    const dispatched = {
+      ...draft,
+      status: 'DISPATCHED' as const,
+      dispatchedBy: { id: 'user', email: 'admin@example.com' },
+      dispatchedAt: new Date().toISOString(),
+    };
     transfers.dispatch.mockReturnValue(
       of({
-        data: {
-          ...draft,
-          status: 'DISPATCHED',
-          dispatchedBy: { id: 'user', email: 'admin@example.com' },
-          dispatchedAt: new Date().toISOString(),
-        },
+        data: dispatched,
         meta: { apiVersion: '1', idempotentReplay: false },
       }),
     );
@@ -989,6 +996,7 @@ describe('ApplicationPage', () => {
     ) as HTMLButtonElement | undefined;
     expect(dispatchButton).toBeTruthy();
     expect(fixture.nativeElement.textContent).toContain('Cancelar');
+    transfers.list.mockReturnValue(of({ data: [dispatched], meta: { apiVersion: '1' } }));
     dispatchButton!.click();
     fixture.detectChanges();
     expect(transfers.dispatch).toHaveBeenCalledWith(
@@ -996,6 +1004,81 @@ describe('ApplicationPage', () => {
       expect.stringMatching(/^web-transfer-dispatch-/),
     );
     expect(fixture.nativeElement.textContent).toContain('Transferencia TR-001 despachada.');
+
+    const received = {
+      ...dispatched,
+      status: 'RECEIVED' as const,
+      lines: [
+        {
+          ...dispatched.lines[0],
+          receivedQuantity: '3.000',
+          pendingQuantity: '0.000',
+        },
+      ],
+      receipts: [
+        {
+          id: 'receipt',
+          discrepancyReason: null,
+          receivedBy: { id: 'user', email: 'admin@example.com' },
+          createdAt: new Date().toISOString(),
+          lines: [
+            {
+              id: 'receipt-line',
+              lineNumber: 1,
+              transferLineId: 'line',
+              product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
+              receivedQuantity: '3.000',
+              discrepancyQuantity: '0.000',
+            },
+          ],
+        },
+      ],
+    };
+    transfers.receive.mockReturnValue(
+      of({ data: received, meta: { apiVersion: '1', idempotentReplay: false } }),
+    );
+    transfers.list.mockReturnValue(of({ data: [received], meta: { apiVersion: '1' } }));
+    sessionState.set({
+      ...sessionState()!,
+      context: {
+        ...sessionState()!.context,
+        branch: { id: 'branch-north', name: 'Sucursal Norte' },
+        warehouse: { id: 'warehouse-north', name: 'Bodega Norte' },
+      },
+    });
+    fixture.detectChanges();
+    const receivedInput = fixture.nativeElement.querySelector(
+      '[aria-label="Cantidad recibida"]',
+    ) as HTMLInputElement;
+    expect(receivedInput.value).toBe('3.000');
+    (
+      fixture.componentInstance as unknown as {
+        receiveTransferLine(
+          transfer: typeof dispatched,
+          line: (typeof dispatched.lines)[number],
+          receivedValue: string,
+          discrepancyValue: string,
+          reasonValue: string,
+        ): void;
+      }
+    ).receiveTransferLine(dispatched, dispatched.lines[0], receivedInput.value, '0', '');
+    fixture.detectChanges();
+    expect(transfers.receive).toHaveBeenCalledWith(
+      'transfer',
+      {
+        lines: [
+          {
+            transferLineId: 'line',
+            receivedQuantity: '3.000',
+            discrepancyQuantity: '0',
+          },
+        ],
+      },
+      expect.stringMatching(/^web-transfer-receipt-/),
+    );
+    expect(fixture.nativeElement.textContent).toContain(
+      'Transferencia TR-001 recibida por completo.',
+    );
   });
 
   it('shows an error when the stock overview cannot be loaded', () => {
