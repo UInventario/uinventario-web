@@ -3,11 +3,17 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs';
 import { ProductApiService, ProductData, ProductInput } from '../catalog/product-api.service';
+import {
+  InventoryApiService,
+  InventoryBalanceData,
+  InventoryMovementInput,
+} from '../inventory/inventory-api.service';
 import { SessionApiService } from './session-api.service';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
 const BARCODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{3,63}$/;
+const QUANTITY_PATTERN = /^-?(0|[1-9]\d{0,11})(\.\d{1,3})?$/;
 
 @Component({
   selector: 'app-application-page',
@@ -18,7 +24,9 @@ const BARCODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{3,63}$/;
 export class ApplicationPage implements OnInit {
   private readonly formBuilder = inject(FormBuilder);
   private readonly products = inject(ProductApiService);
+  private readonly inventory = inject(InventoryApiService);
   private readonly sessions = inject(SessionApiService);
+  private pendingMovement: { input: InventoryMovementInput; key: string } | null = null;
 
   protected readonly session = this.sessions.session;
   protected readonly categories = signal<Array<{ id: string; name: string }>>([]);
@@ -26,12 +34,17 @@ export class ApplicationPage implements OnInit {
   protected readonly createdProduct = signal<ProductData | null>(null);
   protected readonly productList = signal<ProductData[]>([]);
   protected readonly selectedProduct = signal<ProductData | null>(null);
+  protected readonly locations = signal<Array<{ id: string; name: string; code: string }>>([]);
+  protected readonly stockBalance = signal<InventoryBalanceData | null>(null);
   protected readonly loadingOptions = signal(true);
   protected readonly loadingCatalog = signal(true);
   protected readonly loadingDetail = signal(false);
   protected readonly saving = signal(false);
+  protected readonly savingStock = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly catalogError = signal<string | null>(null);
+  protected readonly stockError = signal<string | null>(null);
+  protected readonly stockSuccess = signal<string | null>(null);
   protected readonly page = signal(1);
   protected readonly totalPages = signal(0);
   protected readonly totalProducts = signal(0);
@@ -48,9 +61,17 @@ export class ApplicationPage implements OnInit {
     cost: ['', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
     price: ['', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
   });
+  protected readonly stockForm = this.formBuilder.nonNullable.group({
+    locationId: ['', [Validators.required]],
+    type: ['INITIAL' as InventoryMovementInput['type'], [Validators.required]],
+    quantity: ['', [Validators.required, Validators.pattern(QUANTITY_PATTERN)]],
+    reason: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
+    reference: ['', [Validators.maxLength(120)]],
+  });
 
   ngOnInit(): void {
     this.loadOptions();
+    this.loadLocations();
     this.loadProducts(1);
   }
 
@@ -79,6 +100,7 @@ export class ApplicationPage implements OnInit {
           });
           this.loadOptions();
           this.loadProducts(1);
+          this.loadBalance(data.id);
         },
         error: (error: HttpErrorResponse) => this.errorMessage.set(this.messageFor(error)),
       });
@@ -114,8 +136,74 @@ export class ApplicationPage implements OnInit {
         next: ({ data }) => {
           this.createdProduct.set(null);
           this.selectedProduct.set(data);
+          this.loadBalance(data.id);
         },
         error: () => this.catalogError.set('No fue posible consultar el producto.'),
+      });
+  }
+
+  protected locationChanged(): void {
+    const product = this.selectedProduct();
+    if (product) this.loadBalance(product.id);
+  }
+
+  protected recordMovement(): void {
+    const product = this.selectedProduct();
+    if (!product || this.stockForm.invalid || this.savingStock()) {
+      this.stockForm.markAllAsTouched();
+      return;
+    }
+    const value = this.stockForm.getRawValue();
+    if (
+      value.quantity === '0' ||
+      value.quantity === '0.0' ||
+      value.quantity === '0.00' ||
+      value.quantity === '0.000'
+    ) {
+      this.stockError.set('La cantidad debe ser distinta de cero.');
+      return;
+    }
+    if (value.type !== 'ADJUSTMENT' && value.quantity.startsWith('-')) {
+      this.stockError.set('El stock inicial y las entradas deben usar una cantidad positiva.');
+      return;
+    }
+    this.savingStock.set(true);
+    this.stockError.set(null);
+    this.stockSuccess.set(null);
+    const input: InventoryMovementInput = {
+      productId: product.id,
+      locationId: value.locationId,
+      type: value.type,
+      quantity: value.quantity.trim(),
+      reason: value.reason.trim(),
+      ...(value.reference.trim() ? { reference: value.reference.trim() } : {}),
+    };
+    const pending = this.pendingMovement;
+    const idempotencyKey =
+      pending && JSON.stringify(pending.input) === JSON.stringify(input)
+        ? pending.key
+        : `web-${globalThis.crypto.randomUUID()}`;
+    this.pendingMovement = { input, key: idempotencyKey };
+    this.inventory
+      .createMovement(input, idempotencyKey)
+      .pipe(finalize(() => this.savingStock.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.pendingMovement = null;
+          this.stockBalance.set(data);
+          this.stockSuccess.set(`Movimiento registrado. Existencia ${data.quantity}.`);
+          this.stockForm.reset({
+            locationId: data.location.id,
+            type: 'ENTRY',
+            quantity: '',
+            reason: '',
+            reference: '',
+          });
+        },
+        error: (error: HttpErrorResponse) => {
+          if (error.status > 0 && error.status < 500) this.pendingMovement = null;
+          this.stockError.set(this.stockMessageFor(error));
+        },
       });
   }
 
@@ -131,6 +219,32 @@ export class ApplicationPage implements OnInit {
         },
         error: () => this.errorMessage.set('No fue posible cargar categorías y marcas.'),
       });
+  }
+
+  private loadLocations(): void {
+    this.inventory.listLocations().subscribe({
+      next: ({ data }) => {
+        this.locations.set(data);
+        if (!this.stockForm.controls.locationId.value && data[0]) {
+          this.stockForm.controls.locationId.setValue(data[0].id);
+        }
+        const product = this.selectedProduct();
+        if (product) this.loadBalance(product.id);
+      },
+      error: () => this.stockError.set('No fue posible cargar las ubicaciones.'),
+    });
+  }
+
+  private loadBalance(productId: string): void {
+    const locationId = this.stockForm.controls.locationId.value;
+    this.stockSuccess.set(null);
+    this.stockError.set(null);
+    this.stockBalance.set(null);
+    if (!locationId) return;
+    this.inventory.getBalance(productId, locationId).subscribe({
+      next: ({ data }) => this.stockBalance.set(data),
+      error: () => this.stockError.set('No fue posible consultar la existencia.'),
+    });
   }
 
   private loadProducts(page: number): void {
@@ -172,5 +286,17 @@ export class ApplicationPage implements OnInit {
     }
     if (error.status === 0) return 'No pudimos conectar con el servicio. Intenta nuevamente.';
     return 'No fue posible crear el producto con esos datos.';
+  }
+
+  private stockMessageFor(error: HttpErrorResponse): string {
+    const code = (error.error as { code?: string } | null)?.code;
+    if (code === 'INITIAL_STOCK_ALREADY_EXISTS') {
+      return 'El stock inicial ya fue registrado; usa entrada o ajuste.';
+    }
+    if (code === 'INVALID_STOCK_QUANTITY') {
+      return 'La cantidad es inválida o dejaría la existencia negativa.';
+    }
+    if (error.status === 0) return 'No pudimos conectar con el servicio. Intenta nuevamente.';
+    return 'No fue posible registrar el movimiento.';
   }
 }

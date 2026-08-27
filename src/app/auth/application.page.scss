@@ -147,7 +147,8 @@ label span {
   font-weight: 500;
 }
 
-input {
+input,
+select {
   width: 100%;
   min-height: 2.8rem;
   padding: 0.65rem 0.8rem;
@@ -158,7 +159,8 @@ input {
   font: inherit;
 }
 
-input:focus {
+input:focus,
+select:focus {
   border-color: #0b5cab;
   outline: 3px solid rgba(11, 92, 171, 0.16);
 }
@@ -312,6 +314,56 @@ dd {
   font-size: 1.25rem;
 }
 
+.stock-card {
+  margin-top: 1.2rem;
+  padding: 1rem;
+  border: 1px solid #dbe3ea;
+  border-radius: 0.8rem;
+  background: #f8fbfd;
+}
+
+.stock-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.stock-heading h4 {
+  margin: 0.2rem 0 0;
+  font-size: 1rem;
+}
+
+.balance {
+  display: grid;
+  min-width: 6.5rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: 0.7rem;
+  background: #e9f1f8;
+  color: #0b5cab;
+  text-align: right;
+}
+
+.balance span {
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.balance strong {
+  font-size: 1.25rem;
+}
+
+.stock-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem 0.7rem;
+  margin-top: 0.65rem;
+}
+
+.stock-success {
+  margin-top: 0.8rem;
+}
+
 @media (max-width: 48rem) {
   .workspace {
     grid-template-columns: 1fr;
@@ -338,5 +390,11 @@ dd {
     grid-template-columns: 1fr;
   }
 
-  .wide { grid-column: auto; }
+  .stock-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .wide {
+    grid-column: auto;
+  }
 }
