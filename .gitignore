@@ -2,6 +2,8 @@
 
 # Compiled output
 /dist
+/playwright-report
+/test-results
 /tmp
 /out-tsc
 /bazel-out
