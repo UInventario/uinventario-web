@@ -17,6 +17,9 @@
     @if (canManageSuppliers()) {
       <a routerLink="/app" fragment="suppliers-title">Proveedores</a>
     }
+    @if (canManagePurchaseOrders()) {
+      <a routerLink="/app" fragment="purchase-orders-title">Órdenes de compra</a>
+    }
     @if (canManageStock()) {
       <a routerLink="/app" fragment="stock-overview-title">Inventario</a>
       <a routerLink="/app" fragment="transfers-title">Transferencias</a>
@@ -285,6 +288,10 @@
 
   @if (canManageSuppliers()) {
     <app-supplier-panel />
+  }
+
+  @if (canManagePurchaseOrders()) {
+    <app-purchase-order-panel />
   }
 
   @if (hasNoCoreAccess()) {

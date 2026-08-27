@@ -54,6 +54,7 @@ import {
   OPERATIONAL_PERMISSIONS,
 } from '../access/access-api.service';
 import { SupplierPanelComponent } from '../suppliers/supplier-panel.component';
+import { PurchaseOrderPanelComponent } from '../procurement/purchase-order-panel.component';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const POSITIVE_MONEY_PATTERN = /^(?:[1-9]\d{0,11}(?:\.\d{1,2})?|0\.(?:0[1-9]|[1-9]\d?))$/;
@@ -77,6 +78,7 @@ interface CartEntry {
     RouterLink,
     InventoryImportPanelComponent,
     SupplierPanelComponent,
+    PurchaseOrderPanelComponent,
   ],
   templateUrl: './application.page.html',
   styleUrl: './application.page.scss',
@@ -134,6 +136,9 @@ export class ApplicationPage implements OnInit {
   protected readonly canManageSuppliers = computed(
     () => this.session()?.user.permissions.includes('SUPPLIERS_MANAGE') ?? false,
   );
+  protected readonly canManagePurchaseOrders = computed(
+    () => this.session()?.user.permissions.includes('PURCHASE_ORDERS_MANAGE') ?? false,
+  );
   protected readonly canManageStock = computed(
     () => this.session()?.user.permissions.includes('INVENTORY_VIEW') ?? false,
   );
@@ -177,6 +182,7 @@ export class ApplicationPage implements OnInit {
       !this.canManageTenant() &&
       !this.canManageProducts() &&
       !this.canManageSuppliers() &&
+      !this.canManagePurchaseOrders() &&
       !this.canManageStock() &&
       !this.canManageSales() &&
       !this.canManageAccess() &&
@@ -1468,6 +1474,8 @@ export class ApplicationPage implements OnInit {
         SUPPLIER_DEACTIVATED: 'Proveedor desactivado',
         SUPPLIER_PRODUCT_LINKED: 'Producto relacionado con proveedor',
         SUPPLIER_PRICE_CHANGED: 'Precio de proveedor actualizado',
+        PURCHASE_ORDER_CREATED: 'Orden de compra creada',
+        PURCHASE_ORDER_UPDATED: 'Orden de compra actualizada',
       }[action] ?? action
     );
   }
@@ -1858,6 +1866,7 @@ export class ApplicationPage implements OnInit {
       AUDIT_VIEW: 'Consultar auditoría',
       AUDIT_EXPORT: 'Exportar auditoría',
       SUPPLIERS_MANAGE: 'Administrar proveedores',
+      PURCHASE_ORDERS_MANAGE: 'Crear y editar órdenes de compra',
       INVENTORY_VIEW: 'Consultar inventario e historial',
       INVENTORY_ADJUST: 'Registrar entradas, salidas y ajustes',
       INVENTORY_TRANSFER: 'Crear y recibir transferencias',
