@@ -13,6 +13,8 @@ export type InventoryMovementType =
   | 'STATE_TRANSITION'
   | 'TRANSFER_OUT'
   | 'TRANSFER_IN'
+  | 'TRANSFER_RECEIPT'
+  | 'TRANSFER_DISCREPANCY'
   | 'SALE';
 
 export type InventoryStockState = 'AVAILABLE' | 'RESERVED' | 'DAMAGED' | 'IN_TRANSIT';
@@ -42,7 +44,12 @@ export interface InventoryMovementInput {
   locationId: string;
   type: Exclude<
     InventoryMovementType,
-    'STATE_TRANSITION' | 'TRANSFER_OUT' | 'TRANSFER_IN' | 'SALE'
+    | 'STATE_TRANSITION'
+    | 'TRANSFER_OUT'
+    | 'TRANSFER_IN'
+    | 'TRANSFER_RECEIPT'
+    | 'TRANSFER_DISCREPANCY'
+    | 'SALE'
   >;
   quantity: string;
   reason: string;

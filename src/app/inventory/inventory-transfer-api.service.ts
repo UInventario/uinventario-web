@@ -2,7 +2,8 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { RuntimeConfigService } from '../core/runtime-config.service';
 
-export type InventoryTransferStatus = 'DRAFT' | 'DISPATCHED' | 'CANCELLED';
+export type InventoryTransferStatus =
+  'DRAFT' | 'DISPATCHED' | 'PARTIALLY_RECEIVED' | 'RECEIVED' | 'CANCELLED';
 
 export interface InventoryTransferLineData {
   id: string;
@@ -11,6 +12,24 @@ export interface InventoryTransferLineData {
   sourceLocation: { id: string; name: string; code: string };
   destinationLocation: { id: string; name: string; code: string };
   quantity: string;
+  receivedQuantity: string;
+  discrepancyQuantity: string;
+  pendingQuantity: string;
+}
+
+export interface InventoryTransferReceiptData {
+  id: string;
+  discrepancyReason: string | null;
+  receivedBy: { id: string; email: string };
+  createdAt: string;
+  lines: Array<{
+    id: string;
+    lineNumber: number;
+    transferLineId: string;
+    product: { id: string; name: string; sku: string };
+    receivedQuantity: string;
+    discrepancyQuantity: string;
+  }>;
 }
 
 export interface InventoryTransferData {
@@ -29,6 +48,7 @@ export interface InventoryTransferData {
     branch: { id: string; name: string };
   };
   lines: InventoryTransferLineData[];
+  receipts: InventoryTransferReceiptData[];
   createdBy: { id: string; email: string };
   dispatchedBy: { id: string; email: string } | null;
   cancelledBy: { id: string; email: string } | null;
@@ -46,6 +66,15 @@ export interface InventoryTransferInput {
     sourceLocationId: string;
     destinationLocationId: string;
     quantity: string;
+  }>;
+}
+
+export interface InventoryTransferReceiptInput {
+  discrepancyReason?: string;
+  lines: Array<{
+    transferLineId: string;
+    receivedQuantity: string;
+    discrepancyQuantity: string;
   }>;
 }
 
@@ -94,6 +123,15 @@ export class InventoryTransferApiService {
       `${this.config.apiBaseUrl()}/inventory/transfers/${id}/cancel`,
       {},
       { withCredentials: true },
+    );
+  }
+
+  receive(id: string, input: InventoryTransferReceiptInput, idempotencyKey: string) {
+    const headers = new HttpHeaders().set('Idempotency-Key', idempotencyKey);
+    return this.http.post<InventoryTransferResponse>(
+      `${this.config.apiBaseUrl()}/inventory/transfers/${id}/receipts`,
+      input,
+      { headers, withCredentials: true },
     );
   }
 }

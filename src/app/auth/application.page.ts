@@ -37,6 +37,8 @@ import {
   InventoryTransferApiService,
   InventoryTransferData,
   InventoryTransferInput,
+  InventoryTransferLineData,
+  InventoryTransferReceiptInput,
   InventoryTransferStatus,
 } from '../inventory/inventory-transfer-api.service';
 
@@ -75,6 +77,12 @@ export class ApplicationPage implements OnInit {
   } | null = null;
   private pendingTransfer: { input: InventoryTransferInput; key: string } | null = null;
   private pendingTransferDispatch: { id: string; key: string } | null = null;
+  private pendingTransferReceipt: {
+    transferId: string;
+    lineId: string;
+    input: InventoryTransferReceiptInput;
+    key: string;
+  } | null = null;
   private pendingSale: {
     input: { lines: Array<{ productId: string; quantity: string }>; cashReceived: string };
     key: string;
@@ -691,6 +699,8 @@ export class ApplicationPage implements OnInit {
       SALE: 'Venta',
       TRANSFER_OUT: 'Transferencia despachada',
       TRANSFER_IN: 'Transferencia en tránsito',
+      TRANSFER_RECEIPT: 'Transferencia recibida',
+      TRANSFER_DISCREPANCY: 'Diferencia de transferencia',
     }[type];
   }
 
@@ -698,6 +708,8 @@ export class ApplicationPage implements OnInit {
     return {
       DRAFT: 'Borrador',
       DISPATCHED: 'Despachada',
+      PARTIALLY_RECEIVED: 'Recibida parcialmente',
+      RECEIVED: 'Recibida',
       CANCELLED: 'Cancelada',
     }[status];
   }
@@ -925,6 +937,7 @@ export class ApplicationPage implements OnInit {
         INVENTORY_STATE_TRANSITION_CREATED: 'Estado de inventario actualizado',
         INVENTORY_TRANSFER_CREATED: 'Transferencia creada',
         INVENTORY_TRANSFER_DISPATCHED: 'Transferencia despachada',
+        INVENTORY_TRANSFER_RECEIVED: 'Transferencia recibida',
         INVENTORY_TRANSFER_CANCELLED: 'Transferencia cancelada',
         SESSION_CONTEXT_CHANGED: 'Contexto operativo actualizado',
         BRANCH_CREATED: 'Sucursal creada',
@@ -1182,6 +1195,83 @@ export class ApplicationPage implements OnInit {
           this.loadAuditEvents();
         },
         error: (error: HttpErrorResponse) => this.transferError.set(this.transferMessageFor(error)),
+      });
+  }
+
+  protected canReceiveTransfer(transfer: InventoryTransferData): boolean {
+    return (
+      ['DISPATCHED', 'PARTIALLY_RECEIVED'].includes(transfer.status) &&
+      transfer.destinationWarehouse.id === this.session()?.context.warehouse?.id
+    );
+  }
+
+  protected receiveTransferLine(
+    transfer: InventoryTransferData,
+    line: InventoryTransferLineData,
+    receivedValue: string,
+    discrepancyValue: string,
+    reasonValue: string,
+  ): void {
+    if (this.transferActionId()) return;
+    const received = receivedValue.trim();
+    const discrepancy = discrepancyValue.trim();
+    const reason = reasonValue.trim();
+    if (
+      !POSITIVE_QUANTITY_PATTERN.test(received) ||
+      !POSITIVE_QUANTITY_PATTERN.test(discrepancy) ||
+      Number(received) + Number(discrepancy) <= 0 ||
+      Number(received) + Number(discrepancy) > Number(line.pendingQuantity)
+    ) {
+      this.transferError.set('La recepción debe ser positiva y no superar lo pendiente.');
+      return;
+    }
+    if (Number(discrepancy) > 0 && reason.length < 2) {
+      this.transferError.set('Describe el motivo de la diferencia de recepción.');
+      return;
+    }
+    const input: InventoryTransferReceiptInput = {
+      ...(Number(discrepancy) > 0 ? { discrepancyReason: reason } : {}),
+      lines: [
+        {
+          transferLineId: line.id,
+          receivedQuantity: received,
+          discrepancyQuantity: discrepancy,
+        },
+      ],
+    };
+    const pending = this.pendingTransferReceipt;
+    const key =
+      pending?.transferId === transfer.id &&
+      pending.lineId === line.id &&
+      JSON.stringify(pending.input) === JSON.stringify(input)
+        ? pending.key
+        : `web-transfer-receipt-${globalThis.crypto.randomUUID()}`;
+    this.pendingTransferReceipt = {
+      transferId: transfer.id,
+      lineId: line.id,
+      input,
+      key,
+    };
+    this.transferActionId.set(transfer.id);
+    this.transferError.set(null);
+    this.transferSuccess.set(null);
+    this.transfers
+      .receive(transfer.id, input, key)
+      .pipe(finalize(() => this.transferActionId.set(null)))
+      .subscribe({
+        next: ({ data }) => {
+          this.pendingTransferReceipt = null;
+          this.transferSuccess.set(
+            data.status === 'RECEIVED'
+              ? `Transferencia ${data.reference} recibida por completo.`
+              : `Recepción parcial registrada para ${data.reference}.`,
+          );
+          this.refreshInventoryAfterTransfer();
+        },
+        error: (error: HttpErrorResponse) => {
+          if (error.status > 0 && error.status < 500) this.pendingTransferReceipt = null;
+          this.transferError.set(this.transferMessageFor(error));
+        },
       });
   }
 
@@ -1559,6 +1649,15 @@ export class ApplicationPage implements OnInit {
     }
     if (code === 'TRANSFER_STATUS_CONFLICT') {
       return 'La transferencia ya no permite esta operación. Actualiza la lista.';
+    }
+    if (code === 'TRANSFER_RECEIPT_EXCEEDS_PENDING') {
+      return 'La cantidad supera lo pendiente de recibir. Actualiza la lista.';
+    }
+    if (code === 'TRANSFER_DISCREPANCY_REASON_REQUIRED') {
+      return 'Describe el motivo de la diferencia de recepción.';
+    }
+    if (code === 'INVALID_TRANSFER_RECEIPT') {
+      return 'Revisa las cantidades de la recepción.';
     }
     if (code === 'IDEMPOTENCY_KEY_REUSED') {
       return 'La transferencia cambió durante el reintento. Revísala e intenta nuevamente.';

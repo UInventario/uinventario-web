@@ -922,6 +922,10 @@
                   <small
                     >{{ line.sourceLocation.code }} → {{ line.destinationLocation.code }}</small
                   >
+                  <small>
+                    Recibido {{ line.receivedQuantity }} · Diferencia
+                    {{ line.discrepancyQuantity }} · Pendiente {{ line.pendingQuantity }}
+                  </small>
                 }
               </span>
               <span>
@@ -942,6 +946,45 @@
                   >
                     Cancelar
                   </button>
+                } @else if (canReceiveTransfer(transfer)) {
+                  @for (line of transfer.lines; track line.id) {
+                    @if (line.pendingQuantity !== '0.000') {
+                      <form
+                        (ngSubmit)="
+                          receiveTransferLine(
+                            transfer,
+                            line,
+                            receivedQuantity.value,
+                            discrepancyQuantity.value,
+                            discrepancyReason.value
+                          )
+                        "
+                      >
+                        <small>{{ line.product.sku }} · pendiente {{ line.pendingQuantity }}</small>
+                        <input
+                          #receivedQuantity
+                          aria-label="Cantidad recibida"
+                          inputmode="decimal"
+                          [value]="line.pendingQuantity"
+                        />
+                        <input
+                          #discrepancyQuantity
+                          aria-label="Cantidad con diferencia"
+                          inputmode="decimal"
+                          value="0"
+                        />
+                        <input
+                          #discrepancyReason
+                          aria-label="Motivo de diferencia"
+                          maxlength="160"
+                          placeholder="Motivo si hay diferencia"
+                        />
+                        <button class="primary" type="submit" [disabled]="transferActionId()">
+                          Recibir línea
+                        </button>
+                      </form>
+                    }
+                  }
                 } @else {
                   <small>
                     {{
@@ -952,6 +995,14 @@
                           : ''
                     }}
                   </small>
+                  @for (receipt of transfer.receipts; track receipt.id) {
+                    <small>
+                      {{ dateTime(receipt.createdAt) }} · {{ receipt.receivedBy.email }}
+                      @if (receipt.discrepancyReason) {
+                        · {{ receipt.discrepancyReason }}
+                      }
+                    </small>
+                  }
                 }
               </span>
             </li>
@@ -998,6 +1049,8 @@
             <option value="STATE_TRANSITION">Cambio de estado</option>
             <option value="TRANSFER_OUT">Transferencia despachada</option>
             <option value="TRANSFER_IN">Transferencia en tránsito</option>
+            <option value="TRANSFER_RECEIPT">Transferencia recibida</option>
+            <option value="TRANSFER_DISCREPANCY">Diferencia de transferencia</option>
             <option value="SALE">Venta</option>
           </select>
         </div>
