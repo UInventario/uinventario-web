@@ -1,0 +1,66 @@
+<main class="onboarding-shell">
+  <section class="onboarding-card" aria-labelledby="onboarding-title">
+    <header>
+      <div class="brand" aria-hidden="true">UI</div>
+      <button class="logout" type="button" (click)="logout()" [disabled]="closingSession()">
+        {{ closingSession() ? 'Cerrando…' : 'Cerrar sesión' }}
+      </button>
+    </header>
+
+    <p class="eyebrow">Paso 1 de 2 · Empresa</p>
+    <h1 id="onboarding-title">Prepara {{ session()?.tenant?.name }}</h1>
+    <p class="intro">
+      Sólo necesitamos la información mínima para comenzar a operar como
+      <strong>{{ session()?.user?.email }}</strong
+      >.
+    </p>
+
+    @if (progress()?.currentStep === 'BRANCH') {
+      <div class="success" role="status">
+        Empresa configurada. El siguiente paso es crear la sucursal inicial.
+      </div>
+    }
+
+    @if (loading()) {
+      <p role="status">Cargando configuración…</p>
+    } @else {
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        <label for="legalName">Nombre legal</label>
+        <input
+          id="legalName"
+          formControlName="legalName"
+          autocomplete="organization"
+          maxlength="160"
+        />
+        @if (form.controls.legalName.touched && form.controls.legalName.invalid) {
+          <p class="field-error">Escribe el nombre legal de la empresa.</p>
+        }
+
+        <label for="tradeName">Nombre comercial</label>
+        <input id="tradeName" formControlName="tradeName" maxlength="120" />
+        @if (form.controls.tradeName.touched && form.controls.tradeName.invalid) {
+          <p class="field-error">Escribe el nombre que verán tus usuarios.</p>
+        }
+
+        <label for="countryCode">País</label>
+        <select id="countryCode" formControlName="countryCode">
+          <option value="">Selecciona un país</option>
+          @for (country of countries; track country.code) {
+            <option [value]="country.code">{{ country.name }}</option>
+          }
+        </select>
+        @if (form.controls.countryCode.touched && form.controls.countryCode.invalid) {
+          <p class="field-error">Selecciona el país de operación.</p>
+        }
+
+        @if (errorMessage()) {
+          <div class="form-error" role="alert">{{ errorMessage() }}</div>
+        }
+
+        <button class="primary" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Guardando…' : 'Guardar y continuar' }}
+        </button>
+      </form>
+    }
+  </section>
+</main>
