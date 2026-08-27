@@ -17,6 +17,9 @@ La URL de la API se carga en tiempo de ejecución desde `public/config.json`. Pa
 
 ## Gates
 
+Registro e inicio de sesión forman un recorrido real hasta `/onboarding`. La cookie
+queda bajo control del API y las rutas privadas validan la sesión al recargar.
+
 ```bash
 npm run typecheck
 npx ng test --watch=false

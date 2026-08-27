@@ -7,7 +7,7 @@ export default defineConfig({
   workers: 1,
   reporter: 'line',
   use: {
-    baseURL: 'http://127.0.0.1:4200',
+    baseURL: 'http://localhost:4200',
     trace: 'retain-on-failure',
   },
   projects: [
@@ -29,9 +29,9 @@ export default defineConfig({
       timeout: 30_000,
     },
     {
-      command: 'npx ng serve --host 127.0.0.1 --port 4200',
+      command: 'npx ng serve --host localhost --port 4200',
       cwd: __dirname,
-      url: 'http://127.0.0.1:4200/registro',
+      url: 'http://localhost:4200/registro',
       reuseExistingServer: true,
       timeout: 60_000,
     },
