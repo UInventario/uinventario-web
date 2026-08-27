@@ -61,8 +61,8 @@ npm run build
 ```
 
 El workflow `CI` ejecuta esta secuencia en cada PR y push a `develop` o `master`.
-El job requerido se llama `verify`; cualquier paso fallido detiene el job y, por
-contrato, ningún pipeline de despliegue puede omitirlo.
+El job se llama `verify`; cualquier paso fallido detiene el job y, por contrato,
+el pipeline de despliegue debe ejecutar este gate antes de publicar.
 
 El E2E requiere MySQL local sano y el build actual de `uinventario-api`; Playwright levanta temporalmente API y Web.
 
