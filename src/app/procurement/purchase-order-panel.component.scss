@@ -48,7 +48,8 @@ h4 {
 }
 
 .cancel-form,
-.receipt-form {
+.receipt-form,
+.return-form {
   background: #fff7f5;
   border: 1px solid #e3aaa6;
   display: grid;
@@ -60,6 +61,11 @@ h4 {
 .receipt-form {
   background: #f4f8fd;
   border-color: #9bb8dc;
+}
+
+.return-form {
+  background: #fff9ed;
+  border-color: #d9b76e;
 }
 
 .receipt-lines {

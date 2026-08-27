@@ -101,6 +101,56 @@
       </div>
     </form>
   }
+  @if (returning(); as context) {
+    <form class="return-form" [formGroup]="returnForm" (ngSubmit)="submitReturn()">
+      <div>
+        <strong>Devolver productos de {{ context.order.folio }}</strong>
+        <span>
+          Recepción {{ context.receipt.documentReference }} ·
+          {{ context.receipt.location.code }}
+        </span>
+      </div>
+      <div class="form-row">
+        <label>
+          Documento de devolución
+          <input id="purchaseReturnDocument" formControlName="documentReference" maxlength="160" />
+        </label>
+        <label>
+          Motivo
+          <input id="purchaseReturnReason" formControlName="reason" maxlength="500" />
+        </label>
+      </div>
+      <div class="receipt-lines" formArrayName="lines">
+        @for (lineForm of returnLines.controls; track lineForm; let index = $index) {
+          <label [formGroupName]="index">
+            <span>
+              {{ receiptLineSku(context.order, context.receipt.lines[index].purchaseOrderLineId) }}
+              <small>
+                Recibido {{ context.receipt.lines[index].receivedQuantity }} · Devuelto
+                {{ context.receipt.lines[index].returnedQuantity }} · Disponible
+                {{ context.receipt.lines[index].returnableQuantity }}
+              </small>
+            </span>
+            Cantidad a devolver
+            <input
+              [id]="'purchaseReturnQuantity' + index"
+              inputmode="decimal"
+              formControlName="returnedQuantity"
+            />
+          </label>
+        }
+      </div>
+      <small class="hint">
+        El crédito esperado se calculará al costo de recepción y quedará pendiente de documento.
+      </small>
+      <div class="actions">
+        <button type="button" class="secondary" (click)="dismissReturn()">Volver</button>
+        <button id="savePurchaseReturn" type="submit" [disabled]="savingReturn()">
+          {{ savingReturn() ? 'Registrando…' : 'Confirmar devolución' }}
+        </button>
+      </div>
+    </form>
+  }
 
   <div class="workspace">
     @if (canManage()) {
@@ -278,6 +328,46 @@
                               {{ line.receivedQuantity }} × {{ line.unitCost }} =
                               {{ line.totalCost }} · costo catálogo {{ line.previousCatalogCost }} →
                               {{ line.resultingCatalogCost }}
+                              · devuelto {{ line.returnedQuantity }} · disponible
+                              {{ line.returnableQuantity }}
+                            </small>
+                          }
+                          @if (canManage() && canReturnReceipt(receipt)) {
+                            <button
+                              type="button"
+                              class="secondary"
+                              (click)="requestReturn(order, receipt)"
+                              [disabled]="savingReturn()"
+                            >
+                              Devolver al proveedor
+                            </button>
+                          }
+                        </li>
+                      }
+                    </ol>
+                  </details>
+                }
+                @if (order.returns.length > 0) {
+                  <details>
+                    <summary>Devoluciones a proveedor ({{ order.returns.length }})</summary>
+                    <ol>
+                      @for (purchaseReturn of order.returns; track purchaseReturn.id) {
+                        <li>
+                          {{ purchaseReturn.documentReference }} ·
+                          {{ purchaseReturn.location.code }} ·
+                          {{ purchaseReturn.responsible.email }} · crédito esperado
+                          {{ order.currency }} {{ purchaseReturn.expectedCreditTotal }} ·
+                          {{
+                            purchaseReturn.status === 'CREDIT_PENDING'
+                              ? 'Crédito pendiente'
+                              : 'Crédito recibido'
+                          }}
+                          <small>Motivo: {{ purchaseReturn.reason }}</small>
+                          @for (line of purchaseReturn.lines; track line.id) {
+                            <small>
+                              {{ purchaseReturnLineSku(order, line.productId) }} ·
+                              {{ line.returnedQuantity }} × {{ line.unitCost }} =
+                              {{ line.totalCost }}
                             </small>
                           }
                         </li>

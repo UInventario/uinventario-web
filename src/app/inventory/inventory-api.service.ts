@@ -18,7 +18,8 @@ export type InventoryMovementType =
   | 'TRANSFER_DISCREPANCY'
   | 'SALE'
   | 'SALE_VOID'
-  | 'PURCHASE_RECEIPT';
+  | 'PURCHASE_RECEIPT'
+  | 'SUPPLIER_RETURN';
 
 export type InventoryStockState = 'AVAILABLE' | 'RESERVED' | 'DAMAGED' | 'IN_TRANSIT';
 
@@ -56,6 +57,7 @@ export interface InventoryMovementInput {
     | 'SALE'
     | 'SALE_VOID'
     | 'PURCHASE_RECEIPT'
+    | 'SUPPLIER_RETURN'
   >;
   quantity: string;
   reason: string;
@@ -100,7 +102,14 @@ export interface InventoryMovementHistoryItem {
   correlationId: string;
   idempotencyKey: string;
   document: {
-    type: 'MOVEMENT' | 'IMPORT' | 'SALE' | 'TRANSFER' | 'RECEIPT' | 'PURCHASE_RECEIPT';
+    type:
+      | 'MOVEMENT'
+      | 'IMPORT'
+      | 'SALE'
+      | 'TRANSFER'
+      | 'RECEIPT'
+      | 'PURCHASE_RECEIPT'
+      | 'SUPPLIER_RETURN';
     id: string;
     reference: string | null;
   };
