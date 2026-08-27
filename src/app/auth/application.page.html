@@ -1680,12 +1680,20 @@
           @if (loadingSaleDetail()) {
             <p class="catalog-state" role="status">Cargando detalle…</p>
           } @else if (selectedSale(); as sale) {
-            <p class="eyebrow">Venta confirmada</p>
+            <p class="eyebrow">
+              {{ sale.status === 'VOIDED' ? 'Venta anulada' : 'Venta confirmada' }}
+            </p>
             <h2>{{ sale.receiptNumber }}</h2>
             <p>
               {{ sale.user.email }} · {{ sale.context.cashRegister.name }} ·
               {{ dateTime(sale.createdAt) }}
             </p>
+            @if (sale.void; as voidData) {
+              <div class="success" role="status">
+                <strong>Anulada por {{ voidData.user.email }}</strong>
+                <p>{{ dateTime(voidData.voidedAt) }} · {{ voidData.reason }}</p>
+              </div>
+            }
             <dl class="sale-payment">
               <div>
                 <dt>Total</dt>
@@ -1699,6 +1707,10 @@
                 <dt>Cambio</dt>
                 <dd>{{ sale.currency }} {{ sale.payment.change }}</dd>
               </div>
+              <div>
+                <dt>Pago</dt>
+                <dd>{{ sale.payment.status === 'REVERSED' ? 'Revertido' : 'Aplicado' }}</dd>
+              </div>
             </dl>
             <h3>Líneas</h3>
             <ul class="sale-lines">
@@ -1711,13 +1723,43 @@
                 </li>
               }
             </ul>
+            @if (sale.status === 'COMPLETED' && canVoidSales() && currentCashRegisterShift()) {
+              <form
+                class="cash-payment sale-void-form"
+                [formGroup]="saleVoidForm"
+                (ngSubmit)="voidSelectedSale()"
+              >
+                <label for="saleVoidReason">Motivo obligatorio de anulación</label>
+                <textarea
+                  id="saleVoidReason"
+                  formControlName="reason"
+                  rows="2"
+                  placeholder="Ej. Error de captura confirmado"
+                ></textarea>
+                <button
+                  type="submit"
+                  [disabled]="saleVoidForm.invalid || voidingSaleId() === sale.id"
+                >
+                  {{ voidingSaleId() === sale.id ? 'Anulando…' : 'Anular venta' }}
+                </button>
+              </form>
+            }
+            @if (saleVoidError()) {
+              <div class="form-error" role="alert">{{ saleVoidError() }}</div>
+            }
+            @if (saleVoidSuccess()) {
+              <div class="success" role="status">{{ saleVoidSuccess() }}</div>
+            }
             <h3>Movimientos de inventario</h3>
             <ul class="sale-lines movements">
               @for (movement of sale.movements; track movement.id) {
                 <li>
                   <span
                     ><strong>{{ movement.location.name }}</strong
-                    ><small>{{ movement.reference }}</small></span
+                    ><small
+                      >{{ movement.type === 'SALE_VOID' ? 'Anulación' : 'Venta' }} ·
+                      {{ movement.reference }}</small
+                    ></span
                   ><strong>{{ movement.quantityChange }} → {{ movement.resultingQuantity }}</strong>
                 </li>
               }
@@ -1756,7 +1798,7 @@
       <form class="product-form" [formGroup]="accessRoleForm" (ngSubmit)="createAccessRole()">
         <div class="form-heading">
           <div>
-            <h3>Nuevo rol de inventario</h3>
+            <h3>Nuevo rol operativo</h3>
             <p>Combina permisos pequeños para evitar acceso innecesario.</p>
           </div>
         </div>
@@ -1766,7 +1808,7 @@
         </div>
         <fieldset>
           <legend>Permisos</legend>
-          @for (permission of inventoryPermissions; track permission) {
+          @for (permission of rolePermissions; track permission) {
             <label>
               <input
                 #permissionInput

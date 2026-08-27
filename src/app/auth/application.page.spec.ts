@@ -5,7 +5,12 @@ import { of, Subject, throwError } from 'rxjs';
 import { provideRouter } from '@angular/router';
 import { ProductApiService } from '../catalog/product-api.service';
 import { InventoryApiService } from '../inventory/inventory-api.service';
-import { CashRegisterClosureData, CashSaleData, PosApiService } from '../pos/pos-api.service';
+import {
+  CashRegisterClosureData,
+  CashSaleData,
+  PosApiService,
+  SaleDetailData,
+} from '../pos/pos-api.service';
 import { ApplicationPage } from './application.page';
 import { SessionApiService, SessionData } from './session-api.service';
 import { AuditApiService } from '../audit/audit-api.service';
@@ -41,6 +46,7 @@ describe('ApplicationPage', () => {
     closeShift: ReturnType<typeof vi.fn>;
     quote: ReturnType<typeof vi.fn>;
     createCashSale: ReturnType<typeof vi.fn>;
+    voidSale: ReturnType<typeof vi.fn>;
     listSales: ReturnType<typeof vi.fn>;
     getSale: ReturnType<typeof vi.fn>;
   };
@@ -172,6 +178,7 @@ describe('ApplicationPage', () => {
       closeShift: vi.fn(),
       quote: vi.fn(),
       createCashSale: vi.fn(),
+      voidSale: vi.fn(),
       listSales: vi.fn().mockReturnValue(
         of({
           data: [],
@@ -246,6 +253,7 @@ describe('ApplicationPage', () => {
           'TENANT_MANAGE',
           'PRODUCTS_MANAGE',
           'SALES_MANAGE',
+          'SALES_VOID',
           'ACCESS_MANAGE',
           'INVENTORY_VIEW',
           'INVENTORY_ADJUST',
@@ -1430,11 +1438,13 @@ describe('ApplicationPage', () => {
         totals: { subtotal: '206.72', tax: '33.08', total: '239.80' },
         payment: {
           method: 'CASH',
+          status: 'COMPLETED',
           amountReceived: '250.00',
           amountApplied: '239.80',
           change: '10.20',
         },
         createdAt: new Date().toISOString(),
+        void: null,
       },
       meta: { apiVersion: '1', idempotentReplay: false },
     });
@@ -1443,6 +1453,137 @@ describe('ApplicationPage', () => {
     expect(fixture.nativeElement.textContent).toContain('Cambio MXN 10.20');
     expect(inventory.listStock).toHaveBeenCalledTimes(2);
     expect(pos.listSales).toHaveBeenCalledTimes(2);
+  });
+
+  it('voids a completed sale once and exposes the compensation result', () => {
+    const completed: SaleDetailData = {
+      id: 'sale-to-void',
+      receiptNumber: 'V-VOID12345678',
+      status: 'COMPLETED',
+      context: {
+        branch: { id: 'branch', name: 'Sucursal' },
+        warehouse: { id: 'warehouse', name: 'Bodega' },
+        cashRegister: { id: 'register', name: 'Caja', code: 'MAIN' },
+      },
+      user: { id: 'user', email: 'admin@example.com' },
+      currency: 'MXN',
+      taxRate: '0.1600',
+      lines: [
+        {
+          product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
+          quantity: '1.000',
+          unitPrice: '119.90',
+          subtotal: '103.36',
+          tax: '16.54',
+          total: '119.90',
+        },
+      ],
+      totals: { subtotal: '103.36', tax: '16.54', total: '119.90' },
+      payment: {
+        method: 'CASH',
+        status: 'COMPLETED',
+        amountReceived: '120.00',
+        amountApplied: '119.90',
+        change: '0.10',
+      },
+      createdAt: '2026-08-27T14:30:00.000Z',
+      void: null,
+      movements: [
+        {
+          id: 'sale-movement',
+          type: 'SALE',
+          saleLineId: 'line',
+          product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
+          location: { id: 'location', name: 'General', code: 'GENERAL' },
+          quantityChange: '-1.000',
+          resultingQuantity: '4.000',
+          reference: 'V-VOID12345678',
+          createdAt: '2026-08-27T14:30:00.000Z',
+        },
+      ],
+    };
+    pos.getSale.mockReturnValue(of({ data: completed, meta: { apiVersion: '1' } }));
+    pos.listSales.mockReturnValue(
+      of({
+        data: [
+          {
+            id: completed.id,
+            receiptNumber: completed.receiptNumber,
+            status: completed.status,
+            user: completed.user,
+            cashRegister: completed.context.cashRegister,
+            currency: completed.currency,
+            total: completed.totals.total,
+            paymentMethod: 'CASH',
+            createdAt: completed.createdAt,
+          },
+        ],
+        meta: {
+          apiVersion: '1',
+          pagination: { page: 1, pageSize: 10, total: 1, totalPages: 1 },
+        },
+      }),
+    );
+    fixture.destroy();
+    inventory.listStock.mockClear();
+    inventory.listMovements.mockClear();
+    pos.listCashMovements.mockClear();
+    audit.list.mockClear();
+    fixture = TestBed.createComponent(ApplicationPage);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.sale-void-form')).toBeTruthy();
+    const response = new Subject<{
+      data: SaleDetailData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>();
+    pos.voidSale.mockReturnValue(response);
+    fill('saleVoidReason', 'Error de captura confirmado');
+    (fixture.componentInstance as unknown as { voidSelectedSale(): void }).voidSelectedSale();
+    (fixture.componentInstance as unknown as { voidSelectedSale(): void }).voidSelectedSale();
+
+    expect(pos.voidSale).toHaveBeenCalledTimes(1);
+    expect(pos.voidSale).toHaveBeenCalledWith(
+      completed.id,
+      'Error de captura confirmado',
+      expect.stringMatching(/^web-sale-void-/),
+    );
+    response.next({
+      data: {
+        ...completed,
+        status: 'VOIDED',
+        payment: { ...completed.payment, status: 'REVERSED' },
+        void: {
+          reason: 'Error de captura confirmado',
+          user: { id: 'user', email: 'admin@example.com' },
+          voidedAt: '2026-08-27T14:35:00.000Z',
+        },
+        movements: [
+          ...completed.movements,
+          {
+            ...completed.movements[0],
+            id: 'void-movement',
+            type: 'SALE_VOID',
+            quantityChange: '1.000',
+            resultingQuantity: '5.000',
+          },
+        ],
+      },
+      meta: { apiVersion: '1', idempotentReplay: false },
+    });
+    response.complete();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Venta anulada');
+    expect(fixture.nativeElement.textContent).toContain('Error de captura confirmado');
+    expect(fixture.nativeElement.textContent).toContain('Pago');
+    expect(fixture.nativeElement.textContent).toContain('Revertido');
+    expect(fixture.nativeElement.textContent).toContain('Anulación');
+    expect(fixture.nativeElement.querySelector('.sale-void-form')).toBeNull();
+    expect(inventory.listStock).toHaveBeenCalledTimes(2);
+    expect(inventory.listMovements).toHaveBeenCalledTimes(2);
+    expect(pos.listCashMovements).toHaveBeenCalledTimes(2);
+    expect(audit.list).toHaveBeenCalledTimes(2);
   });
 
   it('requires and opens the active cash register before exposing POS operations', () => {

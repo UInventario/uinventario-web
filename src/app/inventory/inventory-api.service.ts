@@ -15,7 +15,8 @@ export type InventoryMovementType =
   | 'TRANSFER_IN'
   | 'TRANSFER_RECEIPT'
   | 'TRANSFER_DISCREPANCY'
-  | 'SALE';
+  | 'SALE'
+  | 'SALE_VOID';
 
 export type InventoryStockState = 'AVAILABLE' | 'RESERVED' | 'DAMAGED' | 'IN_TRANSIT';
 
@@ -50,6 +51,7 @@ export interface InventoryMovementInput {
     | 'TRANSFER_RECEIPT'
     | 'TRANSFER_DISCREPANCY'
     | 'SALE'
+    | 'SALE_VOID'
   >;
   quantity: string;
   reason: string;

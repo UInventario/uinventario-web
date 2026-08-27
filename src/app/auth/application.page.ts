@@ -50,8 +50,7 @@ import {
   AccessRoleData,
   AccessUserData,
   AppPermission,
-  INVENTORY_PERMISSIONS,
-  InventoryPermission,
+  OPERATIONAL_PERMISSIONS,
 } from '../access/access-api.service';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
@@ -101,6 +100,7 @@ export class ApplicationPage implements OnInit {
     input: { lines: Array<{ productId: string; quantity: string }>; cashReceived: string };
     key: string;
   } | null = null;
+  private pendingSaleVoid: { saleId: string; reason: string; key: string } | null = null;
   private pendingShiftOpening: { openingAmount: string; key: string } | null = null;
   private pendingCashMovement: {
     input: { type: 'INCOME' | 'WITHDRAWAL'; amount: string; reason: string };
@@ -143,6 +143,9 @@ export class ApplicationPage implements OnInit {
       Boolean(this.session()?.context.cashRegister) &&
       (this.session()?.user.permissions.includes('SALES_MANAGE') ?? false),
   );
+  protected readonly canVoidSales = computed(
+    () => this.session()?.user.permissions.includes('SALES_VOID') ?? false,
+  );
   protected readonly canViewAudit = computed(
     () => this.session()?.user.roles.includes('ADMIN') ?? false,
   );
@@ -155,13 +158,13 @@ export class ApplicationPage implements OnInit {
       !this.canManageAccess() &&
       !this.canViewAudit(),
   );
-  protected readonly inventoryPermissions = INVENTORY_PERMISSIONS;
+  protected readonly rolePermissions = OPERATIONAL_PERMISSIONS;
   protected readonly accessRoles = signal<AccessRoleData[]>([]);
   protected readonly accessUsers = signal<AccessUserData[]>([]);
   protected readonly manageableAccessUsers = computed(() =>
     this.accessUsers().filter(({ manageable }) => manageable),
   );
-  protected readonly selectedRolePermissions = signal<InventoryPermission[]>(['INVENTORY_VIEW']);
+  protected readonly selectedRolePermissions = signal<AppPermission[]>(['INVENTORY_VIEW']);
   protected readonly loadingAccess = signal(false);
   protected readonly savingAccess = signal(false);
   protected readonly accessError = signal<string | null>(null);
@@ -259,6 +262,9 @@ export class ApplicationPage implements OnInit {
   protected readonly loadingSales = signal(true);
   protected readonly loadingSaleDetail = signal(false);
   protected readonly salesError = signal<string | null>(null);
+  protected readonly voidingSaleId = signal<string | null>(null);
+  protected readonly saleVoidError = signal<string | null>(null);
+  protected readonly saleVoidSuccess = signal<string | null>(null);
   protected readonly salesPage = signal(1);
   protected readonly salesTotalPages = signal(0);
   protected readonly salesTotal = signal(0);
@@ -284,6 +290,7 @@ export class ApplicationPage implements OnInit {
     if (this.reversingCashMovementId()) return 'Reversando movimiento de caja…';
     if (this.closingCashRegister()) return 'Cerrando caja y generando arqueo…';
     if (this.savingSale()) return 'Confirmando venta y actualizando inventario…';
+    if (this.voidingSaleId()) return 'Anulando venta y restaurando inventario…';
     if (this.quotingCart()) return 'Validando precios y existencias…';
     return null;
   });
@@ -330,6 +337,9 @@ export class ApplicationPage implements OnInit {
     dateTo: [''],
     cashRegisterId: [''],
     userId: [''],
+  });
+  protected readonly saleVoidForm = this.formBuilder.nonNullable.group({
+    reason: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(240)]],
   });
   protected readonly form = this.formBuilder.nonNullable.group({
     name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
@@ -837,6 +847,7 @@ export class ApplicationPage implements OnInit {
       ADJUSTMENT: 'Ajuste',
       STATE_TRANSITION: 'Cambio de estado',
       SALE: 'Venta',
+      SALE_VOID: 'Anulación de venta',
       TRANSFER_OUT: 'Transferencia despachada',
       TRANSFER_IN: 'Transferencia en tránsito',
       TRANSFER_RECEIPT: 'Transferencia recibida',
@@ -1234,6 +1245,9 @@ export class ApplicationPage implements OnInit {
   protected selectSale(id: string): void {
     this.loadingSaleDetail.set(true);
     this.salesError.set(null);
+    this.saleVoidError.set(null);
+    this.saleVoidSuccess.set(null);
+    this.saleVoidForm.reset({ reason: '' });
     this.pos
       .getSale(id)
       .pipe(finalize(() => this.loadingSaleDetail.set(false)))
@@ -1244,6 +1258,55 @@ export class ApplicationPage implements OnInit {
           this.salesError.set(
             this.operationMessage(error, 'No fue posible consultar el detalle de la venta.'),
           );
+        },
+      });
+  }
+
+  protected voidSelectedSale(): void {
+    const sale = this.selectedSale();
+    if (
+      !sale ||
+      sale.status !== 'COMPLETED' ||
+      !this.canVoidSales() ||
+      !this.currentCashRegisterShift() ||
+      this.saleVoidForm.invalid ||
+      this.voidingSaleId()
+    ) {
+      this.saleVoidForm.markAllAsTouched();
+      return;
+    }
+    const reason = this.saleVoidForm.controls.reason.value.trim();
+    const pending = this.pendingSaleVoid;
+    const key =
+      pending?.saleId === sale.id && pending.reason === reason
+        ? pending.key
+        : `web-sale-void-${globalThis.crypto.randomUUID()}`;
+    this.pendingSaleVoid = { saleId: sale.id, reason, key };
+    this.voidingSaleId.set(sale.id);
+    this.saleVoidError.set(null);
+    this.saleVoidSuccess.set(null);
+    this.pos
+      .voidSale(sale.id, reason, key)
+      .pipe(finalize(() => this.voidingSaleId.set(null)))
+      .subscribe({
+        next: ({ data }) => {
+          this.pendingSaleVoid = null;
+          this.selectedSale.set(data);
+          this.salesHistory.update((items) =>
+            items.map((item) => (item.id === data.id ? { ...item, status: data.status } : item)),
+          );
+          this.saleVoidForm.reset({ reason: '' });
+          this.saleVoidSuccess.set(`Venta ${data.receiptNumber} anulada y stock restaurado.`);
+          this.loadStockList(this.stockPage());
+          this.loadMovementHistory(1);
+          this.loadCashMovements();
+          this.loadAuditEvents();
+          const product = this.selectedProduct();
+          if (product) this.loadBalance(product.id);
+        },
+        error: (error: HttpErrorResponse) => {
+          if (error.status > 0 && error.status < 500) this.pendingSaleVoid = null;
+          this.saleVoidError.set(this.saleVoidMessageFor(error));
         },
       });
   }
@@ -1274,6 +1337,7 @@ export class ApplicationPage implements OnInit {
         WAREHOUSE_UPDATED: 'Bodega actualizada',
         WAREHOUSE_RETIRED: 'Bodega desactivada',
         SALE_COMPLETED: 'Venta completada',
+        SALE_VOIDED: 'Venta anulada',
         ACCESS_ROLE_CREATED: 'Rol operativo creado',
         ACCESS_USER_CREATED: 'Usuario operativo creado',
         ACCESS_USER_UPDATED: 'Acceso operativo actualizado',
@@ -1614,6 +1678,7 @@ export class ApplicationPage implements OnInit {
       TENANT_MANAGE: 'Administrar empresa y sucursales',
       PRODUCTS_MANAGE: 'Administrar productos',
       SALES_MANAGE: 'Operar ventas',
+      SALES_VOID: 'Anular ventas',
       ACCESS_MANAGE: 'Administrar roles y usuarios',
       INVENTORY_VIEW: 'Consultar inventario e historial',
       INVENTORY_ADJUST: 'Registrar entradas, salidas y ajustes',
@@ -1623,7 +1688,7 @@ export class ApplicationPage implements OnInit {
     }[permission];
   }
 
-  protected toggleRolePermission(permission: InventoryPermission, checked: boolean): void {
+  protected toggleRolePermission(permission: AppPermission, checked: boolean): void {
     const current = this.selectedRolePermissions();
     this.selectedRolePermissions.set(
       checked
@@ -2229,6 +2294,20 @@ export class ApplicationPage implements OnInit {
     if (error.status === 403) return this.permissionMessage();
     if (error.status === 0) return 'No pudimos conectar con el servicio. Intenta nuevamente.';
     return 'No fue posible completar la venta.';
+  }
+
+  private saleVoidMessageFor(error: HttpErrorResponse): string {
+    const code = (error.error as { code?: string } | null)?.code;
+    if (code === 'SALE_ALREADY_VOIDED') {
+      return 'La venta ya fue anulada. Actualiza el historial.';
+    }
+    if (code === 'SALE_VOID_NOT_ALLOWED') {
+      return 'La venta no puede anularse porque su turno de caja ya fue cerrado.';
+    }
+    if (code === 'IDEMPOTENCY_KEY_REUSED') {
+      return 'El motivo cambió durante el reintento. Revísalo e intenta nuevamente.';
+    }
+    return this.operationMessage(error, 'No fue posible anular la venta.');
   }
 
   private cashRegisterShiftMessageFor(error: HttpErrorResponse): string {
