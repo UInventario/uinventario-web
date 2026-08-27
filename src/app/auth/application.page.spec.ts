@@ -17,6 +17,7 @@ import { AuditApiService } from '../audit/audit-api.service';
 import { OrganizationApiService } from '../organization/organization-api.service';
 import { InventoryTransferApiService } from '../inventory/inventory-transfer-api.service';
 import { AccessApiService } from '../access/access-api.service';
+import { CustomerApiService } from '../customers/customer-api.service';
 
 describe('ApplicationPage', () => {
   let fixture: ComponentFixture<ApplicationPage>;
@@ -79,6 +80,12 @@ describe('ApplicationPage', () => {
     listUsers: ReturnType<typeof vi.fn>;
     createUser: ReturnType<typeof vi.fn>;
     updateUser: ReturnType<typeof vi.fn>;
+  };
+  let customers: {
+    list: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+    deactivate: ReturnType<typeof vi.fn>;
   };
   let sessions: {
     session: ReturnType<typeof signal<SessionData | null>>;
@@ -257,6 +264,20 @@ describe('ApplicationPage', () => {
       createUser: vi.fn(),
       updateUser: vi.fn(),
     };
+    customers = {
+      list: vi.fn().mockReturnValue(
+        of({
+          data: [],
+          meta: {
+            apiVersion: '1',
+            pagination: { page: 1, pageSize: 50, total: 0, totalPages: 0 },
+          },
+        }),
+      ),
+      create: vi.fn(),
+      update: vi.fn(),
+      deactivate: vi.fn(),
+    };
     sessionState = signal<SessionData | null>({
       user: {
         id: 'user',
@@ -306,6 +327,7 @@ describe('ApplicationPage', () => {
         { provide: OrganizationApiService, useValue: organization },
         { provide: InventoryTransferApiService, useValue: transfers },
         { provide: AccessApiService, useValue: access },
+        { provide: CustomerApiService, useValue: customers },
         { provide: SessionApiService, useValue: sessions },
       ],
     }).compileComponents();
@@ -1476,6 +1498,30 @@ describe('ApplicationPage', () => {
   });
 
   it('quotes a cart and prevents duplicate cash sale submission', () => {
+    customers.list.mockReturnValue(
+      of({
+        data: [
+          {
+            id: 'customer',
+            name: 'Ana Pérez',
+            identifier: 'ANA-1',
+            email: 'ana@example.com',
+            phone: null,
+            dataProcessingConsent: true,
+            active: true,
+            version: 1,
+            createdAt: '2026-08-27T13:00:00.000Z',
+            updatedAt: '2026-08-27T13:00:00.000Z',
+          },
+        ],
+        meta: {
+          apiVersion: '1',
+          pagination: { page: 1, pageSize: 50, total: 1, totalPages: 1 },
+        },
+      }),
+    );
+    (fixture.componentInstance as unknown as { searchCustomers(): void }).searchCustomers();
+    fixture.detectChanges();
     const product = {
       id: 'product',
       name: 'Café',
@@ -1530,7 +1576,11 @@ describe('ApplicationPage', () => {
     fill('posSearch', 'cafe-1');
     (fixture.componentInstance as unknown as { searchPos(): void }).searchPos();
     fixture.detectChanges();
-    (fixture.nativeElement.querySelector('.pos-results button') as HTMLButtonElement).click();
+    (
+      fixture.nativeElement.querySelector(
+        '.product-search-panel .pos-results button',
+      ) as HTMLButtonElement
+    ).click();
     fixture.detectChanges();
 
     expect(pos.quote).toHaveBeenLastCalledWith([{ productId: 'product', quantity: '1' }]);
@@ -1550,6 +1600,9 @@ describe('ApplicationPage', () => {
       meta: { apiVersion: '1'; idempotentReplay: boolean };
     }>();
     pos.createCashSale.mockReturnValue(saleResponse);
+    const customerSelect = fixture.nativeElement.querySelector('#posCustomer') as HTMLSelectElement;
+    customerSelect.value = 'customer';
+    customerSelect.dispatchEvent(new Event('change', { bubbles: true }));
     fill('cashReceived', '250.00');
     (fixture.componentInstance as unknown as { completeCashSale(): void }).completeCashSale();
     (fixture.componentInstance as unknown as { completeCashSale(): void }).completeCashSale();
@@ -1559,6 +1612,7 @@ describe('ApplicationPage', () => {
       {
         lines: [{ productId: 'product', quantity: '2' }],
         cashReceived: '250.00',
+        customerId: 'customer',
       },
       expect.stringMatching(/^web-sale-/),
     );
@@ -1603,6 +1657,57 @@ describe('ApplicationPage', () => {
     expect(fixture.nativeElement.textContent).toContain('Cambio MXN 10.20');
     expect(inventory.listStock).toHaveBeenCalledTimes(2);
     expect(pos.listSales).toHaveBeenCalledTimes(2);
+  });
+
+  it('creates a customer only after contact consent and selects it for the sale', () => {
+    const customer = {
+      id: 'customer',
+      name: 'Ana Pérez',
+      identifier: 'ANA-1',
+      email: 'ana@example.com',
+      phone: null,
+      dataProcessingConsent: true,
+      active: true,
+      version: 1,
+      createdAt: '2026-08-27T13:00:00.000Z',
+      updatedAt: '2026-08-27T13:00:00.000Z',
+    };
+    customers.create.mockReturnValue(of({ data: customer, meta: { apiVersion: '1' } }));
+
+    fill('customerName', ' Ana Pérez ');
+    fill('customerIdentifier', 'ANA-1');
+    fill('customerEmail', 'ANA@EXAMPLE.COM');
+    (fixture.nativeElement.querySelector('#customerName') as HTMLElement)
+      .closest('form')
+      ?.dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+
+    expect(customers.create).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('Autoriza el tratamiento de datos');
+
+    const consent = fixture.nativeElement.querySelector(
+      '[formControlName="dataProcessingConsent"]',
+    ) as HTMLInputElement;
+    consent.click();
+    (fixture.nativeElement.querySelector('#customerName') as HTMLElement)
+      .closest('form')
+      ?.dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+
+    expect(customers.create).toHaveBeenCalledWith({
+      name: 'Ana Pérez',
+      identifier: 'ANA-1',
+      email: 'ana@example.com',
+      dataProcessingConsent: true,
+      active: true,
+    });
+    expect(
+      (
+        fixture.componentInstance as unknown as {
+          cashForm: { controls: { customerId: { value: string } } };
+        }
+      ).cashForm.controls.customerId.value,
+    ).toBe('customer');
   });
 
   it('voids a completed sale once and exposes the compensation result', () => {

@@ -1519,41 +1519,120 @@
 
     <div class="pos-grid" [hidden]="!currentCashRegisterShift()">
       <div class="pos-search-panel">
-        <h2>Agregar productos</h2>
-        <form class="search" [formGroup]="posSearchForm" (ngSubmit)="searchPos()">
-          <label for="posSearch">Buscar producto para venta por nombre, SKU o código</label>
-          <div>
-            <input id="posSearch" formControlName="q" maxlength="80" autocomplete="off" />
-            <button class="secondary" type="submit" [disabled]="searchingPos()">
-              {{ searchingPos() ? 'Buscando…' : 'Buscar' }}
+        <div class="customer-panel">
+          <div class="cart-heading">
+            <div>
+              <p class="eyebrow">Venta identificada</p>
+              <h2>Clientes</h2>
+            </div>
+            <button class="secondary" type="button" (click)="cancelCustomerEdit()">Nuevo</button>
+          </div>
+          <form class="search" [formGroup]="customerSearchForm" (ngSubmit)="searchCustomers()">
+            <label for="customerSearch">Buscar por nombre, identificador, email o teléfono</label>
+            <div>
+              <input id="customerSearch" formControlName="q" maxlength="160" autocomplete="off" />
+              <button class="secondary" type="submit">Buscar</button>
+            </div>
+          </form>
+          @if (customerError()) {
+            <div class="form-error" role="alert">{{ customerError() }}</div>
+          }
+          @if (customerSuccess()) {
+            <div class="success" role="status">{{ customerSuccess() }}</div>
+          }
+          <form class="customer-form" [formGroup]="customerForm" (ngSubmit)="saveCustomer()">
+            <label for="customerName">Nombre</label>
+            <input id="customerName" formControlName="name" maxlength="160" autocomplete="name" />
+            <label for="customerIdentifier">Identificador</label>
+            <input id="customerIdentifier" formControlName="identifier" maxlength="80" />
+            <label for="customerEmail">Email</label>
+            <input
+              id="customerEmail"
+              formControlName="email"
+              type="email"
+              maxlength="254"
+              autocomplete="email"
+            />
+            <label for="customerPhone">Teléfono</label>
+            <input id="customerPhone" formControlName="phone" maxlength="32" autocomplete="tel" />
+            <label class="customer-consent">
+              <input type="checkbox" formControlName="dataProcessingConsent" />
+              Autorizó guardar sus datos de contacto
+            </label>
+            <button type="submit" [disabled]="savingCustomer()">
+              {{
+                savingCustomer()
+                  ? 'Guardando…'
+                  : editingCustomer()
+                    ? 'Actualizar cliente'
+                    : 'Crear cliente'
+              }}
             </button>
-          </div>
-        </form>
-        @if (posResults().length === 0) {
-          <div class="empty pos-empty">
-            <h3>Busca el primer producto</h3>
-            <p>Usa nombre, SKU o lector de código de barras.</p>
-          </div>
-        } @else {
-          <ul class="pos-results">
-            @for (product of posResults(); track product.id) {
-              <li>
-                <div>
-                  <strong>{{ product.name }}</strong
-                  ><small>{{ product.sku }} · {{ product.price }}</small>
-                </div>
-                <button
-                  class="secondary"
-                  type="button"
-                  (click)="addToCart(product)"
-                  [disabled]="!product.active"
-                >
-                  {{ product.active ? 'Agregar' : 'Inactivo' }}
-                </button>
-              </li>
-            }
-          </ul>
-        }
+          </form>
+          @if (customers().length > 0) {
+            <ul class="pos-results customer-results">
+              @for (customer of customers(); track customer.id) {
+                <li>
+                  <div>
+                    <strong>{{ customer.name }}</strong>
+                    <small>{{
+                      customer.identifier ||
+                        customer.email ||
+                        customer.phone ||
+                        'Sin datos adicionales'
+                    }}</small>
+                  </div>
+                  <div class="customer-actions">
+                    <button class="secondary" type="button" (click)="editCustomer(customer)">
+                      Editar
+                    </button>
+                    <button class="remove" type="button" (click)="deactivateCustomer(customer)">
+                      Desactivar
+                    </button>
+                  </div>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+
+        <div class="product-search-panel">
+          <h2>Agregar productos</h2>
+          <form class="search" [formGroup]="posSearchForm" (ngSubmit)="searchPos()">
+            <label for="posSearch">Buscar producto para venta por nombre, SKU o código</label>
+            <div>
+              <input id="posSearch" formControlName="q" maxlength="80" autocomplete="off" />
+              <button class="secondary" type="submit" [disabled]="searchingPos()">
+                {{ searchingPos() ? 'Buscando…' : 'Buscar' }}
+              </button>
+            </div>
+          </form>
+          @if (posResults().length === 0) {
+            <div class="empty pos-empty">
+              <h3>Busca el primer producto</h3>
+              <p>Usa nombre, SKU o lector de código de barras.</p>
+            </div>
+          } @else {
+            <ul class="pos-results">
+              @for (product of posResults(); track product.id) {
+                <li>
+                  <div>
+                    <strong>{{ product.name }}</strong
+                    ><small>{{ product.sku }} · {{ product.price }}</small>
+                  </div>
+                  <button
+                    class="secondary"
+                    type="button"
+                    (click)="addToCart(product)"
+                    [disabled]="!product.active"
+                  >
+                    {{ product.active ? 'Agregar' : 'Inactivo' }}
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        </div>
       </div>
 
       <div class="cart-panel" aria-live="polite">
@@ -1574,6 +1653,7 @@
               Total {{ sale.currency }} {{ sale.totals.total }} · Cambio {{ sale.currency }}
               {{ sale.payment.change }}
             </span>
+            <span>Cliente: {{ sale.customer?.name || 'Venta anónima' }}</span>
           </div>
         }
         @if (cart().length === 0) {
@@ -1627,6 +1707,13 @@
             </dl>
             <div class="success cart-ready" role="status">Carrito validado y listo para cobrar</div>
             <form class="cash-payment" [formGroup]="cashForm" (ngSubmit)="completeCashSale()">
+              <label for="posCustomer">Cliente (opcional)</label>
+              <select id="posCustomer" formControlName="customerId">
+                <option value="">Venta anónima</option>
+                @for (customer of customers(); track customer.id) {
+                  <option [value]="customer.id">{{ customer.name }}</option>
+                }
+              </select>
               <label for="cashReceived">Efectivo recibido</label>
               <input
                 id="cashReceived"
@@ -1719,7 +1806,8 @@
                 ><small>{{ dateTime(sale.createdAt) }}</small></span
               >
               <span
-                >{{ sale.cashRegister.name }}<small>{{ sale.user.email }}</small></span
+                >{{ sale.cashRegister.name
+                }}<small>{{ sale.customer?.name || 'Venta anónima' }}</small></span
               >
               <span
                 ><strong>{{ sale.currency }} {{ sale.total }}</strong
@@ -1762,6 +1850,7 @@
               {{ sale.user.email }} · {{ sale.context.cashRegister.name }} ·
               {{ dateTime(sale.createdAt) }}
             </p>
+            <p><strong>Cliente:</strong> {{ sale.customer?.name || 'Venta anónima' }}</p>
             @if (sale.void; as voidData) {
               <div class="success" role="status">
                 <strong>Anulada por {{ voidData.user.email }}</strong>

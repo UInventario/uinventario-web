@@ -81,6 +81,7 @@ export interface CashSaleData {
   status: 'COMPLETED' | 'VOIDED';
   context: PosCartQuote['context'];
   userId: string;
+  customer?: { id: string; name: string; identifier: string | null } | null;
   currency: string;
   taxRate: string;
   lines: Array<Omit<PosCartQuote['lines'][number], 'availableQuantity'>>;
@@ -110,6 +111,7 @@ export interface SaleSummaryData {
   receiptNumber: string;
   status: 'COMPLETED' | 'VOIDED';
   user: { id: string; email: string };
+  customer?: { id: string; name: string; identifier: string | null } | null;
   cashRegister: { id: string; name: string; code: string };
   currency: string;
   total: string;
@@ -239,6 +241,7 @@ export class PosApiService {
     input: {
       lines: Array<{ productId: string; quantity: string }>;
       cashReceived: string;
+      customerId?: string;
     },
     idempotencyKey: string,
   ) {
