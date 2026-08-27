@@ -41,6 +41,12 @@
       {{ prepared.entities }} registros autorizados.
     </p>
   }
+  @if (rejectedCommands()) {
+    <p class="error" role="alert">
+      {{ rejectedCommands() }} operación(es) offline no se aplicaron y requieren conciliación.
+      Revisa precio, stock, caja o permisos antes de repetirlas.
+    </p>
+  }
   @if (error()) {
     <p class="error" role="alert">{{ error() }}</p>
   }

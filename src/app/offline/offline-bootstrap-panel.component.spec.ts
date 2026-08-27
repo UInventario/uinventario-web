@@ -188,15 +188,19 @@ describe('OfflineBootstrapPanelComponent', () => {
       user: { id: 'user-1' },
       context: { branch: { id: 'branch-1' }, cashRegister: null },
     };
-    store.outbox.mockResolvedValue([]);
+    store.outbox.mockResolvedValue([{ status: 'ERROR', retryable: false }]);
     const component = fixture.componentInstance as unknown as {
       sendPending(): Promise<void>;
       pendingCommands(): number;
+      rejectedCommands(): number;
     };
 
     await component.sendPending();
+    fixture.detectChanges();
 
     expect(outbox.flush).toHaveBeenCalledWith(scope);
     expect(component.pendingCommands()).toBe(0);
+    expect(component.rejectedCommands()).toBe(1);
+    expect(fixture.nativeElement.textContent).toContain('requieren conciliación');
   });
 });

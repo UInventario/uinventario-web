@@ -21,6 +21,7 @@ export class OfflineBootstrapPanelComponent implements OnInit {
   protected readonly syncing = signal(false);
   protected readonly sendingCommands = signal(false);
   protected readonly pendingCommands = signal(0);
+  protected readonly rejectedCommands = signal(0);
   protected readonly downloaded = signal(0);
   protected readonly result = signal<{
     entities: number;
@@ -183,6 +184,9 @@ export class OfflineBootstrapPanelComponent implements OnInit {
         ({ status, retryable }) =>
           status === 'PENDING' || status === 'SENT' || (status === 'ERROR' && retryable),
       ).length,
+    );
+    this.rejectedCommands.set(
+      commands.filter(({ status, retryable }) => status === 'ERROR' && !retryable).length,
     );
   }
 

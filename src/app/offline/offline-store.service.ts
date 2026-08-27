@@ -120,7 +120,8 @@ export class OfflineStoreService {
         current.continue();
         return;
       }
-      for (const entity of entities) {
+      const storedEntities = bootstrap.posPolicy ? [...entities, bootstrap.posPolicy] : entities;
+      for (const entity of storedEntities) {
         entityStore.put({
           storageKey: `${scopeKey}:${entity.kind}:${entity.id}`,
           scopeKey,
@@ -200,6 +201,7 @@ export class OfflineStoreService {
     scope: OfflineScopeIdentity,
     kind: OfflineOutboxCommand['kind'],
     payload: Readonly<Record<string, unknown>>,
+    options: { idempotencyKey?: string } = {},
   ): Promise<OfflineOutboxCommand> {
     if (this.containsCredential(payload)) {
       throw new OfflineStorageError(
@@ -226,7 +228,7 @@ export class OfflineStoreService {
         commandId,
         scopeKey,
         scope,
-        idempotencyKey: `offline-${commandId}`,
+        idempotencyKey: options.idempotencyKey ?? `offline-${commandId}`,
         sequence,
         kind,
         payload,
@@ -281,6 +283,18 @@ export class OfflineStoreService {
         .getAll(IDBKeyRange.only(this.scopeKey(scope))),
     );
     return commands.sort((left, right) => left.sequence - right.sequence);
+  }
+
+  async entities<T extends OfflineBootstrapEntity>(scope: OfflineScopeIdentity, kind: string) {
+    const database = await this.open();
+    const records = await this.request<EntityRecord[]>(
+      database
+        .transaction('entities')
+        .objectStore('entities')
+        .index('scopeKey')
+        .getAll(IDBKeyRange.only(this.scopeKey(scope))),
+    );
+    return records.map(({ value }) => value).filter((entity): entity is T => entity.kind === kind);
   }
 
   async markSent(commandIds: string[]): Promise<void> {

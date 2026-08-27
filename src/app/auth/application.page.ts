@@ -58,6 +58,7 @@ import { PurchaseOrderPanelComponent } from '../procurement/purchase-order-panel
 import { CustomerApiService, CustomerData, CustomerInput } from '../customers/customer-api.service';
 import { ProductReservationPanelComponent } from '../reservations/product-reservation-panel.component';
 import { OfflineBootstrapPanelComponent } from '../offline/offline-bootstrap-panel.component';
+import { OfflinePosService } from '../offline/offline-pos.service';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const POSITIVE_MONEY_PATTERN = /^(?:[1-9]\d{0,11}(?:\.\d{1,2})?|0\.(?:0[1-9]|[1-9]\d?))$/;
@@ -99,6 +100,7 @@ export class ApplicationPage implements OnInit {
   private readonly transfers = inject(InventoryTransferApiService);
   private readonly access = inject(AccessApiService);
   private readonly customersApi = inject(CustomerApiService);
+  private readonly offlinePos = inject(OfflinePosService);
   private pendingMovement: { input: InventoryMovementInput; key: string } | null = null;
   private pendingStateTransition: {
     input: InventoryStateTransitionInput;
@@ -305,6 +307,8 @@ export class ApplicationPage implements OnInit {
   protected readonly searchingPos = signal(false);
   protected readonly quotingCart = signal(false);
   protected readonly savingSale = signal(false);
+  protected readonly offlinePosActive = signal(false);
+  protected readonly queuedOfflineSale = signal<{ commandId: string; total: string } | null>(null);
   protected readonly posError = signal<string | null>(null);
   protected readonly customers = signal<CustomerData[]>([]);
   protected readonly editingCustomer = signal<CustomerData | null>(null);
@@ -1251,17 +1255,29 @@ export class ApplicationPage implements OnInit {
       this.posSearchForm.markAllAsTouched();
       return;
     }
+    if (this.browserOffline()) {
+      void this.searchPosOffline();
+      return;
+    }
     this.searchingPos.set(true);
     this.posError.set(null);
     this.products
       .list({ q: this.posSearchForm.controls.q.value.trim(), page: 1, pageSize: 5 })
       .pipe(finalize(() => this.searchingPos.set(false)))
       .subscribe({
-        next: ({ data }) => this.posResults.set(data),
-        error: (error: HttpErrorResponse) =>
+        next: ({ data }) => {
+          this.offlinePosActive.set(false);
+          this.posResults.set(data);
+        },
+        error: (error: HttpErrorResponse) => {
+          if (error.status === 0) {
+            void this.searchPosOffline();
+            return;
+          }
           this.posError.set(
             this.operationMessage(error, 'No fue posible buscar productos para la venta.'),
-          ),
+          );
+        },
       });
   }
 
@@ -1429,31 +1445,38 @@ export class ApplicationPage implements OnInit {
         ? pending.key
         : `web-sale-${globalThis.crypto.randomUUID()}`;
     this.pendingSale = { input, key: idempotencyKey };
+    if (this.browserOffline()) {
+      void this.queueOfflineCashSale(input, idempotencyKey, quote);
+      return;
+    }
     this.savingSale.set(true);
     this.posError.set(null);
-    this.pos
-      .createCashSale(input, idempotencyKey)
-      .pipe(finalize(() => this.savingSale.set(false)))
-      .subscribe({
-        next: ({ data }) => {
-          this.pendingSale = null;
-          this.completedSale.set(data);
-          this.cart.set([]);
-          this.cartQuote.set(null);
-          this.cashForm.reset({ cashReceived: '', customerId: '' });
-          this.loadStockList(this.stockPage());
-          this.loadMovementHistory(1);
-          this.loadSales(1);
-          this.loadCashMovements();
-          this.loadAuditEvents();
-          const selected = this.selectedProduct();
-          if (selected) this.loadBalance(selected.id);
-        },
-        error: (error: HttpErrorResponse) => {
-          if (error.status > 0 && error.status < 500) this.pendingSale = null;
-          this.posError.set(this.posMessageFor(error));
-        },
-      });
+    this.pos.createCashSale(input, idempotencyKey).subscribe({
+      next: ({ data }) => {
+        this.savingSale.set(false);
+        this.pendingSale = null;
+        this.completedSale.set(data);
+        this.cart.set([]);
+        this.cartQuote.set(null);
+        this.cashForm.reset({ cashReceived: '', customerId: '' });
+        this.loadStockList(this.stockPage());
+        this.loadMovementHistory(1);
+        this.loadSales(1);
+        this.loadCashMovements();
+        this.loadAuditEvents();
+        const selected = this.selectedProduct();
+        if (selected) this.loadBalance(selected.id);
+      },
+      error: (error: HttpErrorResponse) => {
+        if (error.status === 0) {
+          void this.queueOfflineCashSale(input, idempotencyKey, quote);
+          return;
+        }
+        this.savingSale.set(false);
+        if (error.status > 0 && error.status < 500) this.pendingSale = null;
+        this.posError.set(this.posMessageFor(error));
+      },
+    });
   }
 
   protected selectProduct(id: string): void {
@@ -2542,6 +2565,10 @@ export class ApplicationPage implements OnInit {
   private quoteCart(): void {
     if (!this.assertOpenCashRegisterShift()) return;
     if (this.cart().length === 0) return;
+    if (this.browserOffline()) {
+      void this.quoteCartOffline();
+      return;
+    }
     this.quotingCart.set(true);
     this.posError.set(null);
     this.pos
@@ -2554,14 +2581,91 @@ export class ApplicationPage implements OnInit {
       .pipe(finalize(() => this.quotingCart.set(false)))
       .subscribe({
         next: ({ data }) => {
+          this.offlinePosActive.set(false);
           this.cartQuote.set(data);
           this.cashForm.controls.cashReceived.setValue(data.totals.total);
         },
         error: (error: HttpErrorResponse) => {
+          if (error.status === 0) {
+            void this.quoteCartOffline();
+            return;
+          }
           this.cartQuote.set(null);
           this.posError.set(this.posMessageFor(error));
         },
       });
+  }
+
+  private async searchPosOffline(): Promise<void> {
+    this.searchingPos.set(true);
+    this.posError.set(null);
+    try {
+      this.posResults.set(await this.offlinePos.search(this.posSearchForm.controls.q.value));
+      this.offlinePosActive.set(true);
+    } catch (error) {
+      this.posResults.set([]);
+      this.posError.set(
+        error instanceof Error ? error.message : 'No fue posible consultar el catálogo offline.',
+      );
+    } finally {
+      this.searchingPos.set(false);
+    }
+  }
+
+  private async quoteCartOffline(): Promise<void> {
+    this.quotingCart.set(true);
+    this.posError.set(null);
+    try {
+      const quote = await this.offlinePos.quote(
+        this.cart().map((entry) => ({
+          productId: entry.product.id,
+          quantity: entry.quantity,
+        })),
+      );
+      this.cartQuote.set(quote);
+      this.cashForm.controls.cashReceived.setValue(quote.totals.total);
+      this.offlinePosActive.set(true);
+    } catch (error) {
+      this.cartQuote.set(null);
+      this.posError.set(
+        error instanceof Error ? error.message : 'No fue posible cotizar el carrito offline.',
+      );
+    } finally {
+      this.quotingCart.set(false);
+    }
+  }
+
+  private async queueOfflineCashSale(
+    input: {
+      lines: Array<{ productId: string; quantity: string }>;
+      cashReceived: string;
+      customerId?: string;
+    },
+    idempotencyKey: string,
+    quote: PosCartQuote,
+  ): Promise<void> {
+    this.savingSale.set(true);
+    this.posError.set(null);
+    try {
+      const command = await this.offlinePos.queueCashSale(quote, input, idempotencyKey);
+      this.pendingSale = null;
+      this.completedSale.set(null);
+      this.queuedOfflineSale.set({ commandId: command.commandId, total: quote.totals.total });
+      this.cart.set([]);
+      this.cartQuote.set(null);
+      this.cashForm.reset({ cashReceived: '', customerId: '' });
+      this.offlinePosActive.set(true);
+    } catch (error) {
+      this.posError.set(
+        error instanceof Error ? error.message : 'No fue posible guardar la venta offline.',
+      );
+    } finally {
+      this.savingSale.set(false);
+    }
+  }
+
+  private browserOffline(): boolean {
+    return typeof navigator !== 'undefined' && navigator.onLine === false;
   }
 
   private toInput(): ProductInput {
@@ -2801,6 +2905,7 @@ export class ApplicationPage implements OnInit {
 
   private resetCompletedSale(): void {
     this.completedSale.set(null);
+    this.queuedOfflineSale.set(null);
     this.pendingSale = null;
   }
 }

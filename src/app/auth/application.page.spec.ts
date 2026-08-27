@@ -19,6 +19,7 @@ import { InventoryTransferApiService } from '../inventory/inventory-transfer-api
 import { AccessApiService } from '../access/access-api.service';
 import { CustomerApiService } from '../customers/customer-api.service';
 import { ProductReservationApiService } from '../reservations/product-reservation-api.service';
+import { OfflinePosService } from '../offline/offline-pos.service';
 
 describe('ApplicationPage', () => {
   let fixture: ComponentFixture<ApplicationPage>;
@@ -91,6 +92,11 @@ describe('ApplicationPage', () => {
   let productReservations: {
     list: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
+  };
+  let offlinePos: {
+    search: ReturnType<typeof vi.fn>;
+    quote: ReturnType<typeof vi.fn>;
+    queueCashSale: ReturnType<typeof vi.fn>;
   };
   let sessions: {
     session: ReturnType<typeof signal<SessionData | null>>;
@@ -209,6 +215,11 @@ describe('ApplicationPage', () => {
         }),
       ),
       getSale: vi.fn(),
+    };
+    offlinePos = {
+      search: vi.fn(),
+      quote: vi.fn(),
+      queueCashSale: vi.fn(),
     };
     audit = {
       list: vi.fn().mockReturnValue(
@@ -338,6 +349,7 @@ describe('ApplicationPage', () => {
         { provide: AccessApiService, useValue: access },
         { provide: CustomerApiService, useValue: customers },
         { provide: ProductReservationApiService, useValue: productReservations },
+        { provide: OfflinePosService, useValue: offlinePos },
         { provide: SessionApiService, useValue: sessions },
       ],
     }).compileComponents();
@@ -1667,6 +1679,68 @@ describe('ApplicationPage', () => {
     expect(fixture.nativeElement.textContent).toContain('Cambio MXN 10.20');
     expect(inventory.listStock).toHaveBeenCalledTimes(2);
     expect(pos.listSales).toHaveBeenCalledTimes(2);
+  });
+
+  it('queues a cash sale with the original idempotency key when the response is lost', async () => {
+    const product = {
+      id: 'product',
+      name: 'Café',
+      sku: 'CAFE-1',
+      barcode: '7501',
+      category: null,
+      brand: null,
+      cost: '1.20',
+      price: '116.00',
+      active: true,
+      version: 1,
+    };
+    const quote = {
+      context: {
+        branch: { id: 'branch', name: 'Sucursal' },
+        warehouse: { id: 'warehouse', name: 'Bodega' },
+        cashRegister: { id: 'register', name: 'Caja', code: 'MAIN' },
+      },
+      currency: 'MXN',
+      taxRate: '0.1600',
+      lines: [
+        {
+          product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
+          quantity: '1.000',
+          availableQuantity: '5.000',
+          unitPrice: '116.00',
+          subtotal: '100.00',
+          tax: '16.00',
+          total: '116.00',
+        },
+      ],
+      totals: { subtotal: '100.00', tax: '16.00', total: '116.00' },
+    };
+    const component = fixture.componentInstance as unknown as {
+      cart: { set(value: Array<{ product: typeof product; quantity: string }>): void };
+      cartQuote: { set(value: typeof quote): void };
+      cashForm: { controls: { cashReceived: { setValue(value: string): void } } };
+      completeCashSale(): void;
+    };
+    component.cart.set([{ product, quantity: '1' }]);
+    component.cartQuote.set(quote);
+    component.cashForm.controls.cashReceived.setValue('120.00');
+    pos.createCashSale.mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 0, statusText: 'Offline' })),
+    );
+    offlinePos.queueCashSale.mockResolvedValue({ commandId: 'offline-command-1' });
+
+    component.completeCashSale();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const idempotencyKey = pos.createCashSale.mock.calls[0][1] as string;
+    expect(offlinePos.queueCashSale).toHaveBeenCalledWith(
+      quote,
+      { lines: [{ productId: 'product', quantity: '1' }], cashReceived: '120.00' },
+      idempotencyKey,
+    );
+    expect(fixture.nativeElement.textContent).toContain('Venta guardada para sincronizar');
+    expect(fixture.nativeElement.textContent).toContain('Sólo efectivo, sin sobreventa');
   });
 
   it('creates a customer only after contact consent and selects it for the sale', () => {

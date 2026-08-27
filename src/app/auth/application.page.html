@@ -1648,6 +1648,22 @@
         @if (posError()) {
           <div class="form-error" role="alert">{{ posError() }}</div>
         }
+        @if (offlinePosActive()) {
+          <div class="catalog-state" role="status">
+            Modo offline: se usan precios e impuestos del snapshot. Sólo efectivo, sin sobreventa;
+            la venta queda pendiente hasta que el servidor la concilie.
+          </div>
+        }
+        @if (queuedOfflineSale(); as queued) {
+          <div class="success sale-complete" role="status">
+            <strong>Venta guardada para sincronizar</strong>
+            <span
+              >Total {{ cartQuote()?.currency || currentCashRegisterShift()?.currency }}
+              {{ queued.total }}</span
+            >
+            <span>Comando {{ queued.commandId }}</span>
+          </div>
+        }
         @if (completedSale(); as sale) {
           <div class="success sale-complete" role="status">
             <strong>Venta {{ sale.receiptNumber }} completada</strong>
@@ -1729,7 +1745,13 @@
                 <small class="field-error">Escribe un importe válido con máximo 2 decimales.</small>
               }
               <button type="submit" [disabled]="savingSale() || quotingCart()">
-                {{ savingSale() ? 'Registrando venta…' : 'Cobrar en efectivo' }}
+                {{
+                  savingSale()
+                    ? 'Registrando venta…'
+                    : offlinePosActive()
+                      ? 'Guardar venta offline'
+                      : 'Cobrar en efectivo'
+                }}
               </button>
             </form>
           }

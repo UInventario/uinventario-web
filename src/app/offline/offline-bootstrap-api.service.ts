@@ -10,6 +10,19 @@ export interface OfflineBootstrapEntity {
   updatedAt: string;
 }
 
+export interface OfflinePosPolicyData extends OfflineBootstrapEntity {
+  kind: 'POS_POLICY';
+  branchId: string;
+  warehouseId: string;
+  cashRegisterId: string;
+  shiftId: string;
+  shiftOpenedAt: string;
+  currency: string;
+  taxRate: string;
+  paymentMethods: ['CASH'];
+  negativeStock: 'DENY';
+}
+
 export interface OfflineBootstrapData {
   protocolVersion: '1.0';
   generatedAt: string;
@@ -20,6 +33,7 @@ export interface OfflineBootstrapData {
     branchId: string | null;
     cashRegisterId: string | null;
   };
+  posPolicy?: OfflinePosPolicyData | null;
   page: {
     initialSyncCursor: string;
     cursor: string;
