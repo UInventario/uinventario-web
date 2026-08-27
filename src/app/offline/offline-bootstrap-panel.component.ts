@@ -3,7 +3,7 @@ import { Component, HostListener, inject, OnInit, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { SessionApiService } from '../auth/session-api.service';
 import { OfflineBootstrapApiService, OfflineBootstrapData } from './offline-bootstrap-api.service';
-import { OfflineStoreService } from './offline-store.service';
+import { OfflineOutboxCommand, OfflineStoreService } from './offline-store.service';
 import { OfflineOutboxService } from './offline-outbox.service';
 
 @Component({
@@ -22,6 +22,7 @@ export class OfflineBootstrapPanelComponent implements OnInit {
   protected readonly sendingCommands = signal(false);
   protected readonly pendingCommands = signal(0);
   protected readonly rejectedCommands = signal(0);
+  protected readonly commands = signal<OfflineOutboxCommand[]>([]);
   protected readonly downloaded = signal(0);
   protected readonly result = signal<{
     entities: number;
@@ -146,6 +147,30 @@ export class OfflineBootstrapPanelComponent implements OnInit {
     }
   }
 
+  protected async retryCommand(commandId: string): Promise<void> {
+    const scope = await this.currentScope();
+    await this.store.retryNow(scope, commandId);
+    await this.sendPending();
+  }
+
+  protected async rejectCommand(commandId: string): Promise<void> {
+    const scope = await this.currentScope();
+    await this.store.rejectPending(scope, commandId);
+    await this.refreshOutbox(scope);
+  }
+
+  protected commandError(command: OfflineOutboxCommand): string {
+    if (command.status === 'PENDING') return 'Pendiente de envío';
+    if (command.status === 'SENT') return 'Confirmación pendiente';
+    const error = command.lastError as {
+      details?: { message?: string; code?: string };
+      message?: string;
+    } | null;
+    return (
+      error?.details?.message ?? error?.details?.code ?? error?.message ?? 'Revisión requerida'
+    );
+  }
+
   private async restore(): Promise<void> {
     try {
       if (!this.sessions.session()) return;
@@ -179,6 +204,7 @@ export class OfflineBootstrapPanelComponent implements OnInit {
 
   private async refreshOutbox(scope: Awaited<ReturnType<typeof this.currentScope>>): Promise<void> {
     const commands = await this.store.outbox(scope);
+    this.commands.set(commands.filter(({ status }) => status !== 'CONFIRMED').slice(-10));
     this.pendingCommands.set(
       commands.filter(
         ({ status, retryable }) =>

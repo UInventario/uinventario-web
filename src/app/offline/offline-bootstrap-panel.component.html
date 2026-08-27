@@ -47,6 +47,31 @@
       Revisa precio, stock, caja o permisos antes de repetirlas.
     </p>
   }
+  @if (commands().length) {
+    <div class="command-review" aria-labelledby="offline-command-review-title">
+      <h3 id="offline-command-review-title">Operaciones por conciliar</h3>
+      @for (command of commands(); track command.commandId) {
+        <article>
+          <div>
+            <strong>#{{ command.sequence }} · {{ command.kind }}</strong>
+            <span>{{ command.status }} · {{ commandError(command) }}</span>
+          </div>
+          <div class="command-actions">
+            @if (command.status === 'ERROR' && command.retryable) {
+              <button type="button" class="secondary" (click)="retryCommand(command.commandId)">
+                Reintentar
+              </button>
+            }
+            @if (command.status === 'PENDING' && command.attempts === 0) {
+              <button type="button" class="danger" (click)="rejectCommand(command.commandId)">
+                Rechazar
+              </button>
+            }
+          </div>
+        </article>
+      }
+    </div>
+  }
   @if (error()) {
     <p class="error" role="alert">{{ error() }}</p>
   }

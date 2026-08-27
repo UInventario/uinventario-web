@@ -111,6 +111,30 @@ describe('OfflineStoreService', () => {
     ]);
   });
 
+  it('retries transport failures and safely rejects commands never sent', async () => {
+    const store = new OfflineStoreService();
+    const failed = await store.queue(firstScope, 'INVENTORY_MOVEMENT', { quantity: '2' });
+    await store.markSent([failed.commandId]);
+    await store.retry([failed.commandId], new Error('network down'));
+    await store.retryNow(firstScope, failed.commandId);
+    expect(await store.pending(firstScope)).toEqual([
+      expect.objectContaining({ commandId: failed.commandId, status: 'PENDING' }),
+    ]);
+
+    await store.settle([
+      { commandId: failed.commandId, sequence: 1, status: 'CONFIRMED', replay: false },
+    ]);
+    const rejected = await store.queue(firstScope, 'INVENTORY_COUNT', { quantity: '3' });
+    const following = await store.queue(firstScope, 'INVENTORY_MOVEMENT', { quantity: '1' });
+    await store.rejectPending(firstScope, rejected.commandId);
+
+    const commands = await store.outbox(firstScope);
+    expect(commands.map(({ commandId, sequence }) => ({ commandId, sequence }))).toEqual([
+      { commandId: failed.commandId, sequence: 1 },
+      { commandId: following.commandId, sequence: 2 },
+    ]);
+  });
+
   it('advances the cursor atomically with upserts and tombstones', async () => {
     const store = new OfflineStoreService();
     const bootstrap = response(firstScope);

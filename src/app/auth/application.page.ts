@@ -59,6 +59,7 @@ import { CustomerApiService, CustomerData, CustomerInput } from '../customers/cu
 import { ProductReservationPanelComponent } from '../reservations/product-reservation-panel.component';
 import { OfflineBootstrapPanelComponent } from '../offline/offline-bootstrap-panel.component';
 import { OfflinePosService } from '../offline/offline-pos.service';
+import { OfflineInventoryPanelComponent } from '../offline/offline-inventory-panel.component';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const POSITIVE_MONEY_PATTERN = /^(?:[1-9]\d{0,11}(?:\.\d{1,2})?|0\.(?:0[1-9]|[1-9]\d?))$/;
@@ -85,6 +86,7 @@ interface CartEntry {
     PurchaseOrderPanelComponent,
     ProductReservationPanelComponent,
     OfflineBootstrapPanelComponent,
+    OfflineInventoryPanelComponent,
   ],
   templateUrl: './application.page.html',
   styleUrl: './application.page.scss',
@@ -165,6 +167,9 @@ export class ApplicationPage implements OnInit {
   );
   protected readonly canAdjustInventory = computed(
     () => this.session()?.user.permissions.includes('INVENTORY_ADJUST') ?? false,
+  );
+  protected readonly canCountInventory = computed(
+    () => this.session()?.user.permissions.includes('INVENTORY_COUNT') ?? false,
   );
   protected readonly canTransferInventory = computed(
     () => this.session()?.user.permissions.includes('INVENTORY_TRANSFER') ?? false,
