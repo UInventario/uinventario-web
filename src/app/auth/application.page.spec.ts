@@ -52,7 +52,10 @@ describe('ApplicationPage', () => {
     listSales: ReturnType<typeof vi.fn>;
     getSale: ReturnType<typeof vi.fn>;
   };
-  let audit: { list: ReturnType<typeof vi.fn> };
+  let audit: {
+    list: ReturnType<typeof vi.fn>;
+    export: ReturnType<typeof vi.fn>;
+  };
   let organization: {
     list: ReturnType<typeof vi.fn>;
     createBranch: ReturnType<typeof vi.fn>;
@@ -201,10 +204,13 @@ describe('ApplicationPage', () => {
           data: [],
           meta: {
             apiVersion: '1',
+            retention: { minimumDays: 365, policy: 'APPEND_ONLY' },
+            integrity: { valid: true },
             pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 },
           },
         }),
       ),
+      export: vi.fn(),
     };
     organization = {
       list: vi.fn().mockReturnValue(
@@ -267,6 +273,8 @@ describe('ApplicationPage', () => {
           'CASH_REGISTER_CLOSE',
           'CASH_REGISTER_MOVE',
           'ACCESS_MANAGE',
+          'AUDIT_VIEW',
+          'AUDIT_EXPORT',
           'INVENTORY_VIEW',
           'INVENTORY_ADJUST',
           'INVENTORY_TRANSFER',
@@ -1947,5 +1955,108 @@ describe('ApplicationPage', () => {
     expect(fixture.nativeElement.textContent).toContain('Último arqueo');
     expect(fixture.nativeElement.textContent).toContain('Diferencia MXN 0.00');
     expect(fixture.nativeElement.textContent).toContain('Abrir caja');
+  });
+
+  it('filters, pages and exports the immutable audit trail', () => {
+    const event = {
+      id: 'audit-event',
+      tenantId: 'tenant',
+      sequence: 21,
+      action: 'INVENTORY_IMPORT_CONFIRMED',
+      entityType: 'inventory_import_batch',
+      entityId: 'batch',
+      correlationId: 'correlation',
+      origin: 'WEB' as const,
+      metadata: { importedRows: 5 },
+      retentionUntil: '2027-08-27T14:00:00.000Z',
+      createdAt: '2026-08-27T14:00:00.000Z',
+      actor: { id: 'user', email: 'admin@example.com' },
+      impersonator: null,
+      integrity: {
+        valid: true,
+        payloadHash: 'payload-hash',
+        previousHash: 'previous-hash',
+        hash: 'integrity-hash',
+      },
+    };
+    audit.list.mockReturnValue(
+      of({
+        data: [event],
+        meta: {
+          apiVersion: '1',
+          retention: { minimumDays: 365, policy: 'APPEND_ONLY' },
+          integrity: { valid: true },
+          pagination: { page: 1, pageSize: 20, total: 21, totalPages: 2 },
+        },
+      }),
+    );
+    audit.list.mockClear();
+
+    fill('auditSearch', '  correlation  ');
+    fill('auditAction', 'INVENTORY_IMPORT_CONFIRMED');
+    fill('auditEntity', 'inventory_import_batch');
+    fill('auditDateFrom', '2026-08-01');
+    fill('auditDateTo', '2026-08-31');
+    (fixture.componentInstance as unknown as { filterAuditEvents(): void }).filterAuditEvents();
+    fixture.detectChanges();
+
+    expect(audit.list).toHaveBeenCalledWith({
+      q: 'correlation',
+      action: 'INVENTORY_IMPORT_CONFIRMED',
+      entityType: 'inventory_import_batch',
+      dateFrom: '2026-08-01',
+      dateTo: '2026-08-31',
+      page: 1,
+      pageSize: 20,
+    });
+    expect(fixture.nativeElement.textContent).toContain('21 evento(s)');
+    expect(fixture.nativeElement.textContent).toContain('Integridad verificada');
+    expect(fixture.nativeElement.textContent).toContain(
+      '#21 · Importación de inventario confirmada',
+    );
+
+    (fixture.componentInstance as unknown as { nextAuditPage(): void }).nextAuditPage();
+    expect(audit.list).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, pageSize: 20 }));
+
+    const createObjectUrlDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
+    const revokeObjectUrlDescriptor = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL');
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn().mockReturnValue('blob:audit'),
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn(),
+    });
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
+    audit.export.mockReturnValue(of(new Blob(['sequence,action'], { type: 'text/csv' })));
+
+    (fixture.componentInstance as unknown as { exportAuditEvents(): void }).exportAuditEvents();
+
+    expect(audit.export).toHaveBeenCalledWith(
+      expect.objectContaining({
+        q: 'correlation',
+        action: 'INVENTORY_IMPORT_CONFIRMED',
+        entityType: 'inventory_import_batch',
+        page: 1,
+        pageSize: 20,
+      }),
+    );
+    expect(click).toHaveBeenCalledOnce();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:audit');
+
+    click.mockRestore();
+    if (createObjectUrlDescriptor) {
+      Object.defineProperty(URL, 'createObjectURL', createObjectUrlDescriptor);
+    } else {
+      Reflect.deleteProperty(URL, 'createObjectURL');
+    }
+    if (revokeObjectUrlDescriptor) {
+      Object.defineProperty(URL, 'revokeObjectURL', revokeObjectUrlDescriptor);
+    } else {
+      Reflect.deleteProperty(URL, 'revokeObjectURL');
+    }
   });
 });

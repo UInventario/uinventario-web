@@ -2056,11 +2056,56 @@
     <div class="overview-heading">
       <div>
         <p class="eyebrow">Administración</p>
-        <h2 id="audit-title">Auditoría Core</h2>
-        <p>Registro de sólo lectura del tenant activo.</p>
+        <h2 id="audit-title">Auditoría administrativa</h2>
+        <p>
+          Registro inmutable del tenant activo · retención mínima
+          {{ auditRetentionDays() }} días.
+        </p>
       </div>
-      <strong>{{ auditEvents().length }} evento(s)</strong>
+      <div class="audit-status">
+        <strong>{{ auditTotal() }} evento(s)</strong>
+        <span>
+          {{ auditIntegrity() ? 'Integridad verificada' : 'Alteración detectada' }}
+        </span>
+      </div>
     </div>
+    <form class="movement-filters" [formGroup]="auditFilterForm" (ngSubmit)="filterAuditEvents()">
+      <div class="field">
+        <label for="auditSearch">Buscar</label>
+        <input
+          id="auditSearch"
+          formControlName="q"
+          placeholder="Acción, entidad, actor o correlación"
+        />
+      </div>
+      <div class="field">
+        <label for="auditAction">Acción exacta</label>
+        <input id="auditAction" formControlName="action" />
+      </div>
+      <div class="field">
+        <label for="auditEntity">Tipo de entidad</label>
+        <input id="auditEntity" formControlName="entityType" />
+      </div>
+      <div class="field">
+        <label for="auditDateFrom">Desde</label>
+        <input id="auditDateFrom" type="date" formControlName="dateFrom" />
+      </div>
+      <div class="field">
+        <label for="auditDateTo">Hasta</label>
+        <input id="auditDateTo" type="date" formControlName="dateTo" />
+      </div>
+      <button class="secondary" type="submit">Filtrar</button>
+      @if (canExportAudit()) {
+        <button
+          class="secondary"
+          type="button"
+          (click)="exportAuditEvents()"
+          [disabled]="exportingAudit()"
+        >
+          {{ exportingAudit() ? 'Exportando…' : 'Exportar CSV' }}
+        </button>
+      }
+    </form>
     @if (auditError()) {
       <div class="form-error" role="alert">{{ auditError() }}</div>
     } @else if (loadingAudit()) {
@@ -2075,23 +2120,53 @@
         @for (event of auditEvents(); track event.id) {
           <li class="movement-row">
             <span>
-              <strong>{{ auditActionLabel(event.action) }}</strong>
-              <small>{{ dateTime(event.createdAt) }}</small>
+              <strong>#{{ event.sequence }} · {{ auditActionLabel(event.action) }}</strong>
+              <small>
+                {{ dateTime(event.createdAt) }} ·
+                {{ event.integrity.valid ? 'íntegro' : 'alterado' }}
+              </small>
             </span>
             <span
               ><strong>{{ event.actor.email }}</strong
-              ><small>Actor</small></span
+              ><small>
+                Actor
+                @if (event.impersonator) {
+                  · impersonado por {{ event.impersonator.email }}
+                }
+              </small></span
             >
             <span
               ><strong>{{ event.entityType }}</strong
               ><small>{{ event.entityId }}</small></span
             >
             <span
-              ><strong>Correlación</strong><small>{{ event.correlationId }}</small></span
+              ><strong>{{ event.origin }}</strong
+              ><small>{{ event.correlationId }}</small></span
             >
           </li>
         }
       </ol>
+      @if (auditTotalPages() > 1) {
+        <div class="pagination">
+          <button
+            class="secondary"
+            type="button"
+            (click)="previousAuditPage()"
+            [disabled]="auditPage() === 1"
+          >
+            Anterior
+          </button>
+          <span>Página {{ auditPage() }} de {{ auditTotalPages() }}</span>
+          <button
+            class="secondary"
+            type="button"
+            (click)="nextAuditPage()"
+            [disabled]="auditPage() === auditTotalPages()"
+          >
+            Siguiente
+          </button>
+        </div>
+      }
     }
   </section>
 </main>

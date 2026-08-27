@@ -157,7 +157,10 @@ export class ApplicationPage implements OnInit {
     () => this.session()?.user.permissions.includes('CASH_REGISTER_MOVE') ?? false,
   );
   protected readonly canViewAudit = computed(
-    () => this.session()?.user.roles.includes('ADMIN') ?? false,
+    () => this.session()?.user.permissions.includes('AUDIT_VIEW') ?? false,
+  );
+  protected readonly canExportAudit = computed(
+    () => this.session()?.user.permissions.includes('AUDIT_EXPORT') ?? false,
   );
   protected readonly hasNoCoreAccess = computed(
     () =>
@@ -280,7 +283,13 @@ export class ApplicationPage implements OnInit {
   protected readonly salesTotal = signal(0);
   protected readonly auditEvents = signal<AuditEventData[]>([]);
   protected readonly loadingAudit = signal(true);
+  protected readonly exportingAudit = signal(false);
   protected readonly auditError = signal<string | null>(null);
+  protected readonly auditPage = signal(1);
+  protected readonly auditTotalPages = signal(0);
+  protected readonly auditTotal = signal(0);
+  protected readonly auditIntegrity = signal(true);
+  protected readonly auditRetentionDays = signal(365);
   protected readonly page = signal(1);
   protected readonly totalPages = signal(0);
   protected readonly totalProducts = signal(0);
@@ -347,6 +356,13 @@ export class ApplicationPage implements OnInit {
     dateTo: [''],
     cashRegisterId: [''],
     userId: [''],
+  });
+  protected readonly auditFilterForm = this.formBuilder.nonNullable.group({
+    q: ['', [Validators.maxLength(100)]],
+    action: ['', [Validators.maxLength(64)]],
+    entityType: ['', [Validators.maxLength(48)]],
+    dateFrom: [''],
+    dateTo: [''],
   });
   protected readonly saleVoidForm = this.formBuilder.nonNullable.group({
     reason: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(240)]],
@@ -1427,15 +1443,60 @@ export class ApplicationPage implements OnInit {
         WAREHOUSE_UPDATED: 'Bodega actualizada',
         WAREHOUSE_RETIRED: 'Bodega desactivada',
         CASH_REGISTER_CREATED: 'Caja creada',
-        INVENTORY_IMPORT_PREVIEWED: 'ImportaciÃ³n de inventario previsualizada',
-        INVENTORY_IMPORT_CONFIRMED: 'ImportaciÃ³n de inventario confirmada',
+        INVENTORY_IMPORT_PREVIEWED: 'Importación de inventario previsualizada',
+        INVENTORY_IMPORT_CONFIRMED: 'Importación de inventario confirmada',
         SALE_COMPLETED: 'Venta completada',
         SALE_VOIDED: 'Venta anulada',
         ACCESS_ROLE_CREATED: 'Rol operativo creado',
         ACCESS_USER_CREATED: 'Usuario operativo creado',
         ACCESS_USER_UPDATED: 'Acceso operativo actualizado',
+        AUDIT_QUERY_EXECUTED: 'Consulta de auditoría ejecutada',
+        AUDIT_EXPORT_CREATED: 'Exportación de auditoría creada',
       }[action] ?? action
     );
+  }
+
+  protected filterAuditEvents(): void {
+    const value = this.auditFilterForm.getRawValue();
+    if (value.dateFrom && value.dateTo && value.dateFrom > value.dateTo) {
+      this.auditError.set('La fecha inicial no puede ser posterior a la fecha final.');
+      return;
+    }
+    this.loadAuditEvents(1);
+  }
+
+  protected previousAuditPage(): void {
+    if (this.auditPage() > 1) this.loadAuditEvents(this.auditPage() - 1);
+  }
+
+  protected nextAuditPage(): void {
+    if (this.auditPage() < this.auditTotalPages()) {
+      this.loadAuditEvents(this.auditPage() + 1);
+    }
+  }
+
+  protected exportAuditEvents(): void {
+    if (!this.canExportAudit() || this.exportingAudit()) return;
+    this.exportingAudit.set(true);
+    this.auditError.set(null);
+    this.audit
+      .export(this.auditQuery(this.auditPage()))
+      .pipe(finalize(() => this.exportingAudit.set(false)))
+      .subscribe({
+        next: (file) => {
+          const url = URL.createObjectURL(file);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `auditoria-${new Date().toISOString().slice(0, 10)}.csv`;
+          link.click();
+          URL.revokeObjectURL(url);
+          this.loadAuditEvents(1);
+        },
+        error: (error: HttpErrorResponse) =>
+          this.auditError.set(
+            this.operationMessage(error, 'No fue posible exportar la auditoría.'),
+          ),
+      });
   }
 
   protected locationChanged(): void {
@@ -1778,6 +1839,8 @@ export class ApplicationPage implements OnInit {
       CASH_REGISTER_CLOSE: 'Cerrar caja y realizar arqueo',
       CASH_REGISTER_MOVE: 'Registrar y reversar movimientos de caja',
       ACCESS_MANAGE: 'Administrar roles y usuarios',
+      AUDIT_VIEW: 'Consultar auditoría',
+      AUDIT_EXPORT: 'Exportar auditoría',
       INVENTORY_VIEW: 'Consultar inventario e historial',
       INVENTORY_ADJUST: 'Registrar entradas, salidas y ajustes',
       INVENTORY_TRANSFER: 'Crear y recibir transferencias',
@@ -2266,19 +2329,39 @@ export class ApplicationPage implements OnInit {
       });
   }
 
-  private loadAuditEvents(): void {
+  private loadAuditEvents(page = 1): void {
     this.loadingAudit.set(true);
     this.auditError.set(null);
     this.audit
-      .list()
+      .list(this.auditQuery(page))
       .pipe(finalize(() => this.loadingAudit.set(false)))
       .subscribe({
-        next: ({ data }) => this.auditEvents.set(data),
+        next: ({ data, meta }) => {
+          this.auditEvents.set(data);
+          this.auditPage.set(meta.pagination.page);
+          this.auditTotalPages.set(meta.pagination.totalPages);
+          this.auditTotal.set(meta.pagination.total);
+          this.auditIntegrity.set(meta.integrity.valid);
+          this.auditRetentionDays.set(meta.retention.minimumDays);
+        },
         error: (error: HttpErrorResponse) => {
           this.auditEvents.set([]);
           this.auditError.set(this.operationMessage(error, 'No fue posible cargar la auditoría.'));
         },
       });
+  }
+
+  private auditQuery(page: number) {
+    const value = this.auditFilterForm.getRawValue();
+    return {
+      ...(value.q.trim() ? { q: value.q.trim() } : {}),
+      ...(value.action.trim() ? { action: value.action.trim() } : {}),
+      ...(value.entityType.trim() ? { entityType: value.entityType.trim() } : {}),
+      ...(value.dateFrom ? { dateFrom: value.dateFrom } : {}),
+      ...(value.dateTo ? { dateTo: value.dateTo } : {}),
+      page,
+      pageSize: 20,
+    };
   }
 
   private quoteCart(): void {
