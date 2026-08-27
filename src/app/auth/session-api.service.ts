@@ -83,11 +83,11 @@ export class SessionApiService {
       );
   }
 
-  changeContext(branchId: string, warehouseId: string) {
+  changeContext(branchId: string, warehouseId: string, cashRegisterId?: string) {
     return this.http
       .patch<SessionResponse>(
         `${this.config.apiBaseUrl()}/auth/sessions/current/context`,
-        { branchId, warehouseId },
+        { branchId, warehouseId, ...(cashRegisterId ? { cashRegisterId } : {}) },
         { withCredentials: true },
       )
       .pipe(tap((response) => this.acceptSession(response)));

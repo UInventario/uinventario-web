@@ -62,6 +62,15 @@
           }
         </select>
       </div>
+      <div class="field">
+        <label for="contextCashRegister">Caja activa</label>
+        <select id="contextCashRegister" formControlName="cashRegisterId">
+          <option value="">Sin caja</option>
+          @for (register of contextCashRegisters(); track register.id) {
+            <option [value]="register.id">{{ register.name }} · {{ register.code }}</option>
+          }
+        </select>
+      </div>
       <button class="secondary" type="submit" [disabled]="switchingContext()">
         {{ switchingContext() ? 'Cambiando…' : 'Usar contexto' }}
       </button>
@@ -161,6 +170,36 @@
             </button>
           </div>
         </form>
+
+        <form class="product-form" [formGroup]="cashRegisterForm" (ngSubmit)="submitCashRegister()">
+          <div class="form-heading">
+            <div>
+              <h3>Nueva caja</h3>
+              <p>Agrega una caja física u operativa a una sucursal.</p>
+            </div>
+          </div>
+          <div class="fields">
+            <div class="field wide">
+              <label for="cashRegisterBranch">Sucursal</label>
+              <select id="cashRegisterBranch" formControlName="branchId">
+                @for (branch of activeBranches(); track branch.id) {
+                  <option [value]="branch.id">{{ branch.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="field">
+              <label for="cashRegisterName">Nombre</label>
+              <input id="cashRegisterName" formControlName="name" maxlength="120" />
+            </div>
+            <div class="field">
+              <label for="cashRegisterCode">Código</label>
+              <input id="cashRegisterCode" formControlName="code" maxlength="40" />
+            </div>
+          </div>
+          <button class="primary" type="submit" [disabled]="savingOrganization()">
+            Crear caja
+          </button>
+        </form>
       </div>
 
       @if (organizationRetirement()) {
@@ -177,7 +216,7 @@
         </div>
       }
 
-      <div class="stock-table" role="table" aria-label="Sucursales, bodegas y ubicaciones">
+      <div class="stock-table" role="table" aria-label="Sucursales, bodegas, ubicaciones y cajas">
         <div class="stock-row stock-header" role="row">
           <span role="columnheader">Sucursal</span>
           <span role="columnheader">Bodega</span>
@@ -190,6 +229,11 @@
               <span role="cell">
                 <strong>{{ branch.name }}</strong>
                 <small>{{ branch.active ? branch.timezone : 'Inactiva' }}</small>
+                @for (register of branch.cashRegisters; track register.id) {
+                  <small>Caja: {{ register.name }} · {{ register.code }}</small>
+                } @empty {
+                  <small>Sin cajas</small>
+                }
               </span>
               <span role="cell">
                 <strong>{{ warehouse.name }}</strong>
@@ -1223,6 +1267,7 @@
     } @else {
       <form
         class="cash-payment cash-shift-opening"
+        [hidden]="!canOpenCashRegister()"
         [formGroup]="cashRegisterShiftForm"
         (ngSubmit)="openCashRegisterShift()"
       >
@@ -1272,7 +1317,12 @@
           <div class="success" role="status">{{ cashMovementSuccess() }}</div>
         }
 
-        <form class="cash-payment" [formGroup]="cashMovementForm" (ngSubmit)="submitCashMovement()">
+        <form
+          class="cash-payment"
+          [hidden]="!canMoveCash()"
+          [formGroup]="cashMovementForm"
+          (ngSubmit)="submitCashMovement()"
+        >
           <label for="cashMovementType">Tipo</label>
           <select id="cashMovementType" formControlName="type">
             <option value="INCOME">Ingreso</option>
@@ -1338,7 +1388,7 @@
                     }
                   </small>
                 </div>
-                @if (movement.type !== 'REVERSAL' && !movement.reversed) {
+                @if (canMoveCash() && movement.type !== 'REVERSAL' && !movement.reversed) {
                   <button
                     class="secondary"
                     type="button"
@@ -1354,6 +1404,7 @@
 
         <form
           class="cash-payment cash-closure-form"
+          [hidden]="!canCloseCashRegister()"
           [formGroup]="cashClosureForm"
           (ngSubmit)="closeCashRegisterShift()"
         >
@@ -1827,7 +1878,7 @@
         <div class="form-heading">
           <div>
             <h3>Nuevo usuario operativo</h3>
-            <p>La cuenta inicia limitada al rol y la sucursal seleccionados.</p>
+            <p>La cuenta inicia limitada al rol, sucursales y cajas seleccionadas.</p>
           </div>
         </div>
         <div class="fields">
@@ -1861,12 +1912,26 @@
             </select>
           </div>
           <div class="field">
-            <label for="accessUserBranch">Sucursal</label>
-            <select id="accessUserBranch" formControlName="branchId">
+            <label for="accessUserBranch">Sucursales</label>
+            <select
+              id="accessUserBranch"
+              formControlName="branchIds"
+              multiple
+              (change)="accessUserBranchesChanged()"
+            >
               @for (branch of activeBranches(); track branch.id) {
                 <option [value]="branch.id">{{ branch.name }}</option>
               }
             </select>
+          </div>
+          <div class="field">
+            <label for="accessUserCashRegister">Cajas</label>
+            <select id="accessUserCashRegister" formControlName="cashRegisterIds" multiple>
+              @for (register of accessUserCashRegisters(); track register.id) {
+                <option [value]="register.id">{{ register.name }} · {{ register.code }}</option>
+              }
+            </select>
+            <small>Obligatoria para roles que operan ventas.</small>
           </div>
         </div>
         <button
@@ -1908,10 +1973,23 @@
           </select>
         </div>
         <div class="field">
-          <label for="accessAssignmentBranch">Sucursal</label>
-          <select id="accessAssignmentBranch" formControlName="branchId">
+          <label for="accessAssignmentBranch">Sucursales</label>
+          <select
+            id="accessAssignmentBranch"
+            formControlName="branchIds"
+            multiple
+            (change)="accessAssignmentBranchesChanged()"
+          >
             @for (branch of activeBranches(); track branch.id) {
               <option [value]="branch.id">{{ branch.name }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="accessAssignmentCashRegister">Cajas</label>
+          <select id="accessAssignmentCashRegister" formControlName="cashRegisterIds" multiple>
+            @for (register of accessAssignmentCashRegisters(); track register.id) {
+              <option [value]="register.id">{{ register.name }} · {{ register.code }}</option>
             }
           </select>
         </div>
@@ -1926,7 +2004,7 @@
         <span role="columnheader">Usuario</span>
         <span role="columnheader">Roles</span>
         <span role="columnheader">Permisos</span>
-        <span role="columnheader">Sucursales</span>
+        <span role="columnheader">Sucursales y cajas</span>
       </div>
       @for (user of accessUsers(); track user.id) {
         <div class="stock-row" role="row">
@@ -1951,6 +2029,11 @@
             } @else {
               @for (branch of user.branches; track branch.id) {
                 <strong>{{ branch.name }}</strong>
+              }
+              @for (register of user.cashRegisters; track register.id) {
+                <small>Caja: {{ register.name }} · {{ register.code }}</small>
+              } @empty {
+                <small>Sin caja</small>
               }
             }
           </span>

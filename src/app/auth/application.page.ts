@@ -146,6 +146,15 @@ export class ApplicationPage implements OnInit {
   protected readonly canVoidSales = computed(
     () => this.session()?.user.permissions.includes('SALES_VOID') ?? false,
   );
+  protected readonly canOpenCashRegister = computed(
+    () => this.session()?.user.permissions.includes('CASH_REGISTER_OPEN') ?? false,
+  );
+  protected readonly canCloseCashRegister = computed(
+    () => this.session()?.user.permissions.includes('CASH_REGISTER_CLOSE') ?? false,
+  );
+  protected readonly canMoveCash = computed(
+    () => this.session()?.user.permissions.includes('CASH_REGISTER_MOVE') ?? false,
+  );
   protected readonly canViewAudit = computed(
     () => this.session()?.user.roles.includes('ADMIN') ?? false,
   );
@@ -367,6 +376,7 @@ export class ApplicationPage implements OnInit {
   protected readonly contextForm = this.formBuilder.nonNullable.group({
     branchId: ['', [Validators.required]],
     warehouseId: ['', [Validators.required]],
+    cashRegisterId: [''],
   });
   protected readonly transferForm = this.formBuilder.nonNullable.group({
     destinationWarehouseId: ['', [Validators.required]],
@@ -389,6 +399,11 @@ export class ApplicationPage implements OnInit {
     locationName: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
     locationCode: ['', [Validators.required, Validators.pattern(LOCATION_CODE_PATTERN)]],
   });
+  protected readonly cashRegisterForm = this.formBuilder.nonNullable.group({
+    branchId: ['', [Validators.required]],
+    name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
+    code: ['', [Validators.required, Validators.pattern(LOCATION_CODE_PATTERN)]],
+  });
   protected readonly accessRoleForm = this.formBuilder.nonNullable.group({
     name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(80)]],
   });
@@ -404,12 +419,14 @@ export class ApplicationPage implements OnInit {
       ],
     ],
     roleId: ['', [Validators.required]],
-    branchId: ['', [Validators.required]],
+    branchIds: this.formBuilder.nonNullable.control<string[]>([], Validators.required),
+    cashRegisterIds: this.formBuilder.nonNullable.control<string[]>([]),
   });
   protected readonly accessAssignmentForm = this.formBuilder.nonNullable.group({
     userId: ['', [Validators.required]],
     roleId: ['', [Validators.required]],
-    branchId: ['', [Validators.required]],
+    branchIds: this.formBuilder.nonNullable.control<string[]>([], Validators.required),
+    cashRegisterIds: this.formBuilder.nonNullable.control<string[]>([]),
   });
 
   ngOnInit(): void {
@@ -542,12 +559,46 @@ export class ApplicationPage implements OnInit {
     ).filter(({ active }) => active);
   }
 
+  protected contextCashRegisters() {
+    return (
+      this.organizations().find(({ id }) => id === this.contextForm.controls.branchId.value)
+        ?.cashRegisters ?? []
+    );
+  }
+
+  protected accessUserCashRegisters() {
+    return this.cashRegistersForBranches(this.accessUserForm.controls.branchIds.value);
+  }
+
+  protected accessAssignmentCashRegisters() {
+    return this.cashRegistersForBranches(this.accessAssignmentForm.controls.branchIds.value);
+  }
+
   protected contextBranchChanged(): void {
     const currentWarehouse = this.contextForm.controls.warehouseId.value;
     const warehouses = this.contextWarehouses();
     if (!warehouses.some(({ id }) => id === currentWarehouse)) {
       this.contextForm.controls.warehouseId.setValue(warehouses[0]?.id ?? '');
     }
+    const registers = this.contextCashRegisters();
+    const currentRegister = this.contextForm.controls.cashRegisterId.value;
+    if (!registers.some(({ id }) => id === currentRegister)) {
+      this.contextForm.controls.cashRegisterId.setValue(registers[0]?.id ?? '');
+    }
+  }
+
+  protected accessUserBranchesChanged(): void {
+    const available = new Set(this.accessUserCashRegisters().map(({ id }) => id));
+    this.accessUserForm.controls.cashRegisterIds.setValue(
+      this.accessUserForm.controls.cashRegisterIds.value.filter((id) => available.has(id)),
+    );
+  }
+
+  protected accessAssignmentBranchesChanged(): void {
+    const available = new Set(this.accessAssignmentCashRegisters().map(({ id }) => id));
+    this.accessAssignmentForm.controls.cashRegisterIds.setValue(
+      this.accessAssignmentForm.controls.cashRegisterIds.value.filter((id) => available.has(id)),
+    );
   }
 
   protected transferDestinations(): Array<{
@@ -583,10 +634,11 @@ export class ApplicationPage implements OnInit {
       this.contextForm.markAllAsTouched();
       return;
     }
-    const { branchId, warehouseId } = this.contextForm.getRawValue();
+    const { branchId, warehouseId, cashRegisterId } = this.contextForm.getRawValue();
     if (
       branchId === this.session()?.context.branch?.id &&
-      warehouseId === this.session()?.context.warehouse?.id
+      warehouseId === this.session()?.context.warehouse?.id &&
+      cashRegisterId === (this.session()?.context.cashRegister?.id ?? '')
     ) {
       return;
     }
@@ -594,7 +646,7 @@ export class ApplicationPage implements OnInit {
     this.organizationError.set(null);
     this.organizationSuccess.set(null);
     this.sessions
-      .changeContext(branchId, warehouseId)
+      .changeContext(branchId, warehouseId, cashRegisterId || undefined)
       .pipe(finalize(() => this.switchingContext.set(false)))
       .subscribe({
         next: () => {
@@ -730,6 +782,33 @@ export class ApplicationPage implements OnInit {
       error: (error: HttpErrorResponse) =>
         this.organizationError.set(this.organizationMessageFor(error)),
     });
+  }
+
+  protected submitCashRegister(): void {
+    if (this.cashRegisterForm.invalid || this.savingOrganization()) {
+      this.cashRegisterForm.markAllAsTouched();
+      return;
+    }
+    const value = this.cashRegisterForm.getRawValue();
+    this.savingOrganization.set(true);
+    this.organizationError.set(null);
+    this.organizationSuccess.set(null);
+    this.organization
+      .createCashRegister(value.branchId, {
+        name: value.name.trim(),
+        code: value.code.trim().toUpperCase(),
+      })
+      .pipe(finalize(() => this.savingOrganization.set(false)))
+      .subscribe({
+        next: () => {
+          this.organizationSuccess.set('Caja creada y disponible para asignar.');
+          this.cashRegisterForm.patchValue({ name: '', code: '' });
+          this.loadOrganization();
+          this.loadAuditEvents();
+        },
+        error: (error: HttpErrorResponse) =>
+          this.organizationError.set(this.organizationMessageFor(error)),
+      });
   }
 
   protected editWarehouse(branchId: string, warehouse: OrganizationWarehouseData): void {
@@ -1336,6 +1415,7 @@ export class ApplicationPage implements OnInit {
         WAREHOUSE_CREATED: 'Bodega creada',
         WAREHOUSE_UPDATED: 'Bodega actualizada',
         WAREHOUSE_RETIRED: 'Bodega desactivada',
+        CASH_REGISTER_CREATED: 'Caja creada',
         SALE_COMPLETED: 'Venta completada',
         SALE_VOIDED: 'Venta anulada',
         ACCESS_ROLE_CREATED: 'Rol operativo creado',
@@ -1679,6 +1759,11 @@ export class ApplicationPage implements OnInit {
       PRODUCTS_MANAGE: 'Administrar productos',
       SALES_MANAGE: 'Operar ventas',
       SALES_VOID: 'Anular ventas',
+      SALES_DISCOUNT: 'Aplicar descuentos',
+      SALE_REPRINT: 'Reimprimir comprobantes',
+      CASH_REGISTER_OPEN: 'Abrir caja',
+      CASH_REGISTER_CLOSE: 'Cerrar caja y realizar arqueo',
+      CASH_REGISTER_MOVE: 'Registrar y reversar movimientos de caja',
       ACCESS_MANAGE: 'Administrar roles y usuarios',
       INVENTORY_VIEW: 'Consultar inventario e historial',
       INVENTORY_ADJUST: 'Registrar entradas, salidas y ajustes',
@@ -1734,11 +1819,21 @@ export class ApplicationPage implements OnInit {
       return;
     }
     const value = this.accessUserForm.getRawValue();
+    if (this.roleRequiresCashRegister(value.roleId) && value.cashRegisterIds.length === 0) {
+      this.accessError.set('Selecciona al menos una caja para un rol de ventas.');
+      return;
+    }
     this.savingAccess.set(true);
     this.accessError.set(null);
     this.accessSuccess.set(null);
     this.access
-      .createUser(value.email.trim(), value.password, [value.roleId], [value.branchId])
+      .createUser(
+        value.email.trim(),
+        value.password,
+        [value.roleId],
+        value.branchIds,
+        value.cashRegisterIds,
+      )
       .pipe(finalize(() => this.savingAccess.set(false)))
       .subscribe({
         next: ({ data }) => {
@@ -1758,7 +1853,10 @@ export class ApplicationPage implements OnInit {
       ({ id }) => id === this.accessAssignmentForm.controls.userId.value,
     );
     this.accessAssignmentForm.controls.roleId.setValue(user?.roles[0]?.id ?? '');
-    this.accessAssignmentForm.controls.branchId.setValue(user?.branches[0]?.id ?? '');
+    this.accessAssignmentForm.controls.branchIds.setValue(user?.branches.map(({ id }) => id) ?? []);
+    this.accessAssignmentForm.controls.cashRegisterIds.setValue(
+      user?.cashRegisters?.map(({ id }) => id) ?? [],
+    );
   }
 
   protected updateAccessUser(): void {
@@ -1767,11 +1865,15 @@ export class ApplicationPage implements OnInit {
       return;
     }
     const value = this.accessAssignmentForm.getRawValue();
+    if (this.roleRequiresCashRegister(value.roleId) && value.cashRegisterIds.length === 0) {
+      this.accessError.set('Selecciona al menos una caja para un rol de ventas.');
+      return;
+    }
     this.savingAccess.set(true);
     this.accessError.set(null);
     this.accessSuccess.set(null);
     this.access
-      .updateUser(value.userId, [value.roleId], [value.branchId])
+      .updateUser(value.userId, [value.roleId], value.branchIds, value.cashRegisterIds)
       .pipe(finalize(() => this.savingAccess.set(false)))
       .subscribe({
         next: ({ data }) => {
@@ -1802,8 +1904,8 @@ export class ApplicationPage implements OnInit {
           if (!this.accessUserForm.controls.roleId.value) {
             this.accessUserForm.controls.roleId.setValue(firstRoleId);
           }
-          if (!this.accessUserForm.controls.branchId.value) {
-            this.accessUserForm.controls.branchId.setValue(firstBranchId);
+          if (this.accessUserForm.controls.branchIds.value.length === 0 && firstBranchId) {
+            this.accessUserForm.controls.branchIds.setValue([firstBranchId]);
           }
           const manageable = users.data.find(({ manageable }) => manageable);
           if (!this.accessAssignmentForm.controls.userId.value && manageable) {
@@ -1854,13 +1956,26 @@ export class ApplicationPage implements OnInit {
           this.contextForm.setValue({
             branchId: branch?.id ?? '',
             warehouseId: warehouse?.id ?? '',
+            cashRegisterId:
+              branch?.cashRegisters?.find(
+                ({ id }) => id === this.session()?.context.cashRegister?.id,
+              )?.id ??
+              branch?.cashRegisters?.[0]?.id ??
+              '',
           });
           if (!this.warehouseForm.controls.branchId.value) {
             this.warehouseForm.controls.branchId.setValue(branch?.id ?? '');
           }
+          if (!this.cashRegisterForm.controls.branchId.value) {
+            this.cashRegisterForm.controls.branchId.setValue(branch?.id ?? '');
+          }
           this.syncTransferTargets();
-          if (this.canManageAccess() && !this.accessUserForm.controls.branchId.value) {
-            this.accessUserForm.controls.branchId.setValue(branch?.id ?? '');
+          if (
+            this.canManageAccess() &&
+            this.accessUserForm.controls.branchIds.value.length === 0 &&
+            branch
+          ) {
+            this.accessUserForm.controls.branchIds.setValue([branch.id]);
           }
         },
         error: (error: HttpErrorResponse) =>
@@ -1868,6 +1983,23 @@ export class ApplicationPage implements OnInit {
             this.operationMessage(error, 'No fue posible cargar sucursales y bodegas.'),
           ),
       });
+  }
+
+  private cashRegistersForBranches(branchIds: string[]) {
+    const selected = new Set(branchIds);
+    return this.activeBranches().flatMap((branch) =>
+      selected.has(branch.id)
+        ? (branch.cashRegisters ?? []).map((register) => ({ ...register, branchId: branch.id }))
+        : [],
+    );
+  }
+
+  private roleRequiresCashRegister(roleId: string): boolean {
+    return (
+      this.accessRoles()
+        .find(({ id }) => id === roleId)
+        ?.permissions.includes('SALES_MANAGE') ?? false
+    );
   }
 
   private loadLocations(): void {

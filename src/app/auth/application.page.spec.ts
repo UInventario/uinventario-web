@@ -57,6 +57,7 @@ describe('ApplicationPage', () => {
     updateBranch: ReturnType<typeof vi.fn>;
     retireBranch: ReturnType<typeof vi.fn>;
     createWarehouse: ReturnType<typeof vi.fn>;
+    createCashRegister: ReturnType<typeof vi.fn>;
     updateWarehouse: ReturnType<typeof vi.fn>;
     retireWarehouse: ReturnType<typeof vi.fn>;
   };
@@ -210,6 +211,7 @@ describe('ApplicationPage', () => {
               name: 'Sucursal',
               timezone: 'America/Mexico_City',
               active: true,
+              cashRegisters: [{ id: 'register', name: 'Caja', code: 'MAIN' }],
               warehouses: [
                 {
                   id: 'warehouse',
@@ -227,6 +229,7 @@ describe('ApplicationPage', () => {
       updateBranch: vi.fn(),
       retireBranch: vi.fn(),
       createWarehouse: vi.fn(),
+      createCashRegister: vi.fn(),
       updateWarehouse: vi.fn(),
       retireWarehouse: vi.fn(),
     };
@@ -254,6 +257,11 @@ describe('ApplicationPage', () => {
           'PRODUCTS_MANAGE',
           'SALES_MANAGE',
           'SALES_VOID',
+          'SALES_DISCOUNT',
+          'SALE_REPRINT',
+          'CASH_REGISTER_OPEN',
+          'CASH_REGISTER_CLOSE',
+          'CASH_REGISTER_MOVE',
           'ACCESS_MANAGE',
           'INVENTORY_VIEW',
           'INVENTORY_ADJUST',
@@ -474,7 +482,11 @@ describe('ApplicationPage', () => {
     ).dispatchEvent(new Event('submit'));
     fixture.detectChanges();
 
-    expect(sessions.changeContext).toHaveBeenCalledWith('branch-north', 'warehouse-north');
+    expect(sessions.changeContext).toHaveBeenCalledWith(
+      'branch-north',
+      'warehouse-north',
+      undefined,
+    );
     expect(sessionState()?.context.branch?.id).toBe('branch-north');
     expect(fixture.nativeElement.textContent).toContain('Contexto operativo actualizado.');
   });
@@ -539,6 +551,29 @@ describe('ApplicationPage', () => {
       'Producto desactivado; su stock e historial se conservaron.',
     );
     expect(fixture.nativeElement.textContent).not.toContain('Confirmar retiro');
+  });
+
+  it('creates an additional cash register for a selected branch', () => {
+    organization.createCashRegister.mockReturnValue(
+      of({
+        data: { id: 'register-2', branchId: 'branch', name: 'Caja 2', code: 'POS-2' },
+        meta: { apiVersion: '1' },
+      }),
+    );
+    fill('cashRegisterName', 'Caja 2');
+    fill('cashRegisterCode', 'pos-2');
+    (
+      (fixture.nativeElement.querySelector('#cashRegisterName') as HTMLInputElement).closest(
+        'form',
+      ) as HTMLFormElement
+    ).dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+
+    expect(organization.createCashRegister).toHaveBeenCalledWith('branch', {
+      name: 'Caja 2',
+      code: 'POS-2',
+    });
+    expect(fixture.nativeElement.textContent).toContain('Caja creada y disponible para asignar.');
   });
 
   it('loads real data and updates a product with its current version', () => {
@@ -1273,6 +1308,35 @@ describe('ApplicationPage', () => {
     ).toBe(true);
   });
 
+  it('shows only cash actions granted to the cashier role', () => {
+    sessionState.set({
+      user: {
+        id: 'cashier',
+        email: 'cashier@example.com',
+        roles: ['CASHIER'],
+        permissions: ['SALES_MANAGE', 'CASH_REGISTER_OPEN'],
+      },
+      tenant: { id: 'tenant', name: 'Tienda' },
+      context: {
+        branch: { id: 'branch', name: 'Sucursal' },
+        warehouse: { id: 'warehouse', name: 'Bodega' },
+        cashRegister: { id: 'register', name: 'Caja', code: 'MAIN' },
+      },
+      nextStep: 'APPLICATION',
+    });
+    fixture.destroy();
+    fixture = TestBed.createComponent(ApplicationPage);
+    fixture.detectChanges();
+
+    expect(
+      (fixture.nativeElement.querySelector('.cash-movements form') as HTMLFormElement).hidden,
+    ).toBe(true);
+    expect(
+      (fixture.nativeElement.querySelector('.cash-closure-form') as HTMLFormElement).hidden,
+    ).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Punto de venta');
+  });
+
   it('creates a granular role and delegates it to one branch', () => {
     const role = {
       id: 'role-id',
@@ -1322,6 +1386,7 @@ describe('ApplicationPage', () => {
       'SecurePass1!',
       ['role-id'],
       ['branch'],
+      [],
     );
   });
 
