@@ -21,6 +21,15 @@ export interface InitialLocationData {
   progress: { currentStep: 'REGISTER'; completedSteps: ['COMPANY', 'BRANCH'] };
 }
 
+export interface InitialCashRegisterData {
+  cashRegister: { id: string; name: string; code: string };
+  branch: { id: string; name: string };
+  progress: {
+    currentStep: 'COMPLETE';
+    completedSteps: ['COMPANY', 'BRANCH', 'REGISTER'];
+  };
+}
+
 interface CompanyOnboardingResponse {
   data: CompanyOnboardingData;
   meta: { apiVersion: '1' };
@@ -28,6 +37,11 @@ interface CompanyOnboardingResponse {
 
 interface InitialLocationResponse {
   data: InitialLocationData | null;
+  meta: { apiVersion: '1' };
+}
+
+interface InitialCashRegisterResponse {
+  data: InitialCashRegisterData | null;
   meta: { apiVersion: '1' };
 }
 
@@ -66,6 +80,21 @@ export class OnboardingApiService {
   }) {
     return this.http.put<InitialLocationResponse>(
       `${this.config.apiBaseUrl()}/onboarding/initial-location`,
+      input,
+      { withCredentials: true },
+    );
+  }
+
+  getInitialCashRegister() {
+    return this.http.get<InitialCashRegisterResponse>(
+      `${this.config.apiBaseUrl()}/onboarding/initial-cash-register`,
+      { withCredentials: true },
+    );
+  }
+
+  configureInitialCashRegister(input: { name: string }) {
+    return this.http.put<InitialCashRegisterResponse>(
+      `${this.config.apiBaseUrl()}/onboarding/initial-cash-register`,
       input,
       { withCredentials: true },
     );

@@ -8,7 +8,15 @@ export const sessionGuard: CanActivateFn = (_route, state) => {
   const router = inject(Router);
 
   return sessions.loadCurrent().pipe(
-    map(() => true),
+    map(({ data }) => {
+      if (state.url.startsWith('/app') && data.nextStep === 'ONBOARDING') {
+        return router.createUrlTree(['/onboarding']);
+      }
+      if (state.url === '/onboarding' && data.nextStep === 'APPLICATION') {
+        return router.createUrlTree(['/app']);
+      }
+      return true;
+    }),
     catchError(() =>
       of(
         router.createUrlTree(['/login'], {

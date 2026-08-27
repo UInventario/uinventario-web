@@ -25,6 +25,8 @@ El primer paso de onboarding permite configurar y reanudar la empresa mínima an
 de crear la sucursal inicial.
 El segundo crea en una sola operación la sucursal, bodega y ubicación general, y
 mantiene ese contexto activo en la sesión.
+El tercero crea la caja inicial y entra al producto con empresa, sucursal, bodega y
+caja obtenidas de la sesión, sin IDs hardcodeados.
 
 ```bash
 npm run typecheck
