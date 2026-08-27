@@ -57,6 +57,18 @@ npm run build
 
 El E2E requiere MySQL local sano y el build actual de `uinventario-api`; Playwright levanta temporalmente API y Web.
 
+## Smoke de v0.1.0
+
+Con MySQL sano, migraciones aplicadas y la API compilada, ejecutar `npm run test:e2e`.
+El recorrido automatizado crea una cuenta desde la interfaz, inicia sesión, configura
+empresa/sucursal/bodega/caja, crea y edita un producto, registra stock, cobra una venta
+en efectivo y consulta inventario, movimientos, ventas y auditoría en escritorio y móvil.
+Las suites API complementan el smoke con reinicio real de la aplicación, reintentos,
+concurrencia e aislamiento entre dos tenants. No se requieren datos demo ni IDs manuales.
+
+Dev y Prod usarán bases separadas mediante `DATABASE_URL`; su URL pública y health
+quedan pendientes únicamente de la acción externa Jira UIN-27 y del despliegue asociado.
+
 ## Ramas
 
 - `master`: última versión estable publicada.

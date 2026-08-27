@@ -117,7 +117,7 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await page.getByLabel('Motivo').fill('Conteo inicial');
   await page.getByLabel('Referencia').fill('CONTEO-001');
   await page.getByRole('button', { name: 'Registrar movimiento' }).click();
-  await expect(page.getByRole('status')).toContainText('Existencia 10.500');
+  await expect(page.locator('.stock-success')).toContainText('Existencia 10.500');
   await expect(page.locator('.balance').getByText('10.500')).toBeVisible();
   const stockOverview = page.locator('.stock-overview:not(.movement-history)');
   await expect(stockOverview.getByRole('heading', { name: 'Existencias reales' })).toBeVisible();
