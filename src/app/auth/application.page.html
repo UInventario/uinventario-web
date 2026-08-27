@@ -1192,7 +1192,13 @@
     class="pos-workspace"
     aria-labelledby="pos-title"
     [hidden]="!canManageSales()"
-    [attr.aria-busy]="searchingPos() || quotingCart() || savingSale()"
+    [attr.aria-busy]="
+      loadingCashRegisterShift() ||
+      openingCashRegisterShift() ||
+      searchingPos() ||
+      quotingCart() ||
+      savingSale()
+    "
   >
     <p class="eyebrow">Caja</p>
     <h2 id="pos-title">Punto de venta</h2>
@@ -1201,7 +1207,50 @@
       {{ session()?.context?.cashRegister?.name }}
     </p>
 
-    <div class="pos-grid">
+    @if (loadingCashRegisterShift()) {
+      <p class="catalog-state" role="status">Consultando estado de la caja…</p>
+    } @else if (currentCashRegisterShift(); as shift) {
+      <div class="success" role="status">
+        <strong>Caja abierta</strong>
+        <span>
+          Fondo {{ shift.currency }} {{ shift.openingAmount }} · Responsable
+          {{ shift.openedBy.email }} · {{ shift.openedAt | date: 'short' }}
+        </span>
+      </div>
+      @if (cashRegisterShiftSuccess()) {
+        <div class="success" role="status">{{ cashRegisterShiftSuccess() }}</div>
+      }
+    } @else {
+      <form
+        class="cash-payment cash-shift-opening"
+        [formGroup]="cashRegisterShiftForm"
+        (ngSubmit)="openCashRegisterShift()"
+      >
+        <h3>Abrir caja</h3>
+        <p>Registra el fondo inicial para comenzar a vender en esta caja.</p>
+        <label for="openingAmount">Fondo de apertura</label>
+        <input
+          id="openingAmount"
+          formControlName="openingAmount"
+          inputmode="decimal"
+          autocomplete="off"
+        />
+        @if (
+          cashRegisterShiftForm.controls.openingAmount.touched &&
+          cashRegisterShiftForm.controls.openingAmount.invalid
+        ) {
+          <small class="field-error">Escribe un importe no negativo con máximo 2 decimales.</small>
+        }
+        @if (cashRegisterShiftError()) {
+          <div class="form-error" role="alert">{{ cashRegisterShiftError() }}</div>
+        }
+        <button type="submit" [disabled]="openingCashRegisterShift()">
+          {{ openingCashRegisterShift() ? 'Abriendo caja…' : 'Abrir caja' }}
+        </button>
+      </form>
+    }
+
+    <div class="pos-grid" [hidden]="!currentCashRegisterShift()">
       <div class="pos-search-panel">
         <h2>Agregar productos</h2>
         <form class="search" [formGroup]="posSearchForm" (ngSubmit)="searchPos()">
