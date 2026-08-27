@@ -55,6 +55,7 @@ import {
 } from '../access/access-api.service';
 import { SupplierPanelComponent } from '../suppliers/supplier-panel.component';
 import { PurchaseOrderPanelComponent } from '../procurement/purchase-order-panel.component';
+import { CustomerApiService, CustomerData, CustomerInput } from '../customers/customer-api.service';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const POSITIVE_MONEY_PATTERN = /^(?:[1-9]\d{0,11}(?:\.\d{1,2})?|0\.(?:0[1-9]|[1-9]\d?))$/;
@@ -93,6 +94,7 @@ export class ApplicationPage implements OnInit {
   private readonly organization = inject(OrganizationApiService);
   private readonly transfers = inject(InventoryTransferApiService);
   private readonly access = inject(AccessApiService);
+  private readonly customersApi = inject(CustomerApiService);
   private pendingMovement: { input: InventoryMovementInput; key: string } | null = null;
   private pendingStateTransition: {
     input: InventoryStateTransitionInput;
@@ -107,7 +109,11 @@ export class ApplicationPage implements OnInit {
     key: string;
   } | null = null;
   private pendingSale: {
-    input: { lines: Array<{ productId: string; quantity: string }>; cashReceived: string };
+    input: {
+      lines: Array<{ productId: string; quantity: string }>;
+      cashReceived: string;
+      customerId?: string;
+    };
     key: string;
   } | null = null;
   private pendingSaleVoid: { saleId: string; reason: string; key: string } | null = null;
@@ -296,6 +302,11 @@ export class ApplicationPage implements OnInit {
   protected readonly quotingCart = signal(false);
   protected readonly savingSale = signal(false);
   protected readonly posError = signal<string | null>(null);
+  protected readonly customers = signal<CustomerData[]>([]);
+  protected readonly editingCustomer = signal<CustomerData | null>(null);
+  protected readonly savingCustomer = signal(false);
+  protected readonly customerError = signal<string | null>(null);
+  protected readonly customerSuccess = signal<string | null>(null);
   protected readonly salesHistory = signal<SaleSummaryData[]>([]);
   protected readonly selectedSale = signal<SaleDetailData | null>(null);
   protected readonly loadingSales = signal(true);
@@ -360,6 +371,15 @@ export class ApplicationPage implements OnInit {
   });
   protected readonly cashForm = this.formBuilder.nonNullable.group({
     cashReceived: ['', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
+    customerId: [''],
+  });
+  protected readonly customerSearchForm = this.formBuilder.nonNullable.group({ q: [''] });
+  protected readonly customerForm = this.formBuilder.nonNullable.group({
+    name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
+    identifier: ['', [Validators.maxLength(80)]],
+    email: ['', [Validators.email, Validators.maxLength(254)]],
+    phone: ['', [Validators.pattern(/^\+?[0-9 ()-]{7,32}$/)]],
+    dataProcessingConsent: [false],
   });
   protected readonly cashRegisterShiftForm = this.formBuilder.nonNullable.group({
     openingAmount: ['0.00', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
@@ -488,6 +508,7 @@ export class ApplicationPage implements OnInit {
       this.loadCurrentCashRegisterShift();
       this.loadLatestCashClosure();
       this.loadSales(1);
+      this.loadCustomers();
     }
     if (this.canViewAudit()) this.loadAuditEvents();
     if (this.canManageAccess()) this.loadAccess();
@@ -1240,6 +1261,93 @@ export class ApplicationPage implements OnInit {
       });
   }
 
+  protected searchCustomers(): void {
+    this.loadCustomers();
+  }
+
+  protected editCustomer(customer: CustomerData): void {
+    this.editingCustomer.set(customer);
+    this.customerForm.setValue({
+      name: customer.name,
+      identifier: customer.identifier ?? '',
+      email: customer.email ?? '',
+      phone: customer.phone ?? '',
+      dataProcessingConsent: customer.dataProcessingConsent,
+    });
+    this.customerError.set(null);
+  }
+
+  protected cancelCustomerEdit(): void {
+    this.editingCustomer.set(null);
+    this.customerForm.reset({
+      name: '',
+      identifier: '',
+      email: '',
+      phone: '',
+      dataProcessingConsent: false,
+    });
+  }
+
+  protected saveCustomer(): void {
+    if (this.customerForm.invalid || this.savingCustomer()) {
+      this.customerForm.markAllAsTouched();
+      return;
+    }
+    const raw = this.customerForm.getRawValue();
+    if ((raw.email.trim() || raw.phone.trim()) && !raw.dataProcessingConsent) {
+      this.customerError.set('Autoriza el tratamiento de datos para guardar email o teléfono.');
+      return;
+    }
+    const input: CustomerInput = {
+      name: raw.name.trim(),
+      ...(raw.identifier.trim() ? { identifier: raw.identifier.trim() } : {}),
+      ...(raw.email.trim() ? { email: raw.email.trim().toLowerCase() } : {}),
+      ...(raw.phone.trim() ? { phone: raw.phone.trim() } : {}),
+      dataProcessingConsent: raw.dataProcessingConsent,
+      active: true,
+    };
+    const current = this.editingCustomer();
+    this.savingCustomer.set(true);
+    this.customerError.set(null);
+    this.customerSuccess.set(null);
+    const operation = current
+      ? this.customersApi.update(current.id, { ...input, version: current.version })
+      : this.customersApi.create(input);
+    operation.pipe(finalize(() => this.savingCustomer.set(false))).subscribe({
+      next: ({ data }) => {
+        this.customerSuccess.set(current ? 'Cliente actualizado.' : 'Cliente creado.');
+        this.cancelCustomerEdit();
+        this.loadCustomers();
+        this.cashForm.controls.customerId.setValue(data.id);
+      },
+      error: (error: HttpErrorResponse) => {
+        this.customerError.set(
+          typeof error.error?.message === 'string'
+            ? error.error.message
+            : 'No fue posible guardar el cliente.',
+        );
+      },
+    });
+  }
+
+  protected deactivateCustomer(customer: CustomerData): void {
+    this.customersApi.deactivate(customer.id).subscribe({
+      next: () => {
+        if (this.cashForm.controls.customerId.value === customer.id)
+          this.cashForm.controls.customerId.setValue('');
+        this.customerSuccess.set('Cliente desactivado; su historial se conserva.');
+        this.loadCustomers();
+      },
+      error: (error: HttpErrorResponse) => {
+        this.customerError.set(
+          typeof error.error?.message === 'string'
+            ? error.error.message
+            : 'No fue posible desactivar el cliente.',
+        );
+      },
+    });
+  }
+
   protected addToCart(product: ProductData): void {
     if (!this.assertOpenCashRegisterShift()) return;
     if (!product.active) {
@@ -1307,6 +1415,9 @@ export class ApplicationPage implements OnInit {
         quantity: entry.quantity,
       })),
       cashReceived: this.cashForm.controls.cashReceived.value.trim(),
+      ...(this.cashForm.controls.customerId.value
+        ? { customerId: this.cashForm.controls.customerId.value }
+        : {}),
     };
     const pending = this.pendingSale;
     const idempotencyKey =
@@ -1325,7 +1436,7 @@ export class ApplicationPage implements OnInit {
           this.completedSale.set(data);
           this.cart.set([]);
           this.cartQuote.set(null);
-          this.cashForm.reset({ cashReceived: '' });
+          this.cashForm.reset({ cashReceived: '', customerId: '' });
           this.loadStockList(this.stockPage());
           this.loadMovementHistory(1);
           this.loadSales(1);
@@ -2309,6 +2420,22 @@ export class ApplicationPage implements OnInit {
           this.selectedSale.set(null);
           this.salesError.set(
             this.operationMessage(error, 'No fue posible cargar el historial de ventas.'),
+          );
+        },
+      });
+  }
+
+  private loadCustomers(): void {
+    const q = this.customerSearchForm.controls.q.value.trim();
+    this.customerError.set(null);
+    this.customersApi
+      .list({ ...(q ? { q } : {}), status: 'ACTIVE', page: 1, pageSize: 50 })
+      .subscribe({
+        next: ({ data }) => this.customers.set(data),
+        error: (error: HttpErrorResponse) => {
+          this.customers.set([]);
+          this.customerError.set(
+            this.operationMessage(error, 'No fue posible cargar los clientes.'),
           );
         },
       });
