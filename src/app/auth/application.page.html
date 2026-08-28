@@ -1721,8 +1721,11 @@
           <div class="success sale-complete" role="status">
             <strong>Venta {{ sale.receiptNumber }} completada</strong>
             <span>
-              Total {{ sale.currency }} {{ sale.totals.total }} · Cambio {{ sale.currency }}
-              {{ sale.payment.change }}
+              Total {{ sale.currency }} {{ sale.totals.total }} ·
+              {{ paymentMethodLabel(sale.payment.method) }}
+              @if (sale.payment.method === 'CASH') {
+                · Cambio {{ sale.currency }} {{ sale.payment.change }}
+              }
             </span>
             <span>Cliente: {{ sale.customer?.name || 'Venta anónima' }}</span>
           </div>
@@ -1785,17 +1788,38 @@
                   <option [value]="customer.id">{{ customer.name }}</option>
                 }
               </select>
-              <label for="cashReceived">Efectivo recibido</label>
-              <input
-                id="cashReceived"
-                formControlName="cashReceived"
-                inputmode="decimal"
-                autocomplete="off"
-              />
-              @if (
-                cashForm.controls.cashReceived.touched && cashForm.controls.cashReceived.invalid
-              ) {
-                <small class="field-error">Escribe un importe válido con máximo 2 decimales.</small>
+              <label for="paymentMethod">Método de pago</label>
+              <select id="paymentMethod" formControlName="method" (change)="changePaymentMethod()">
+                @for (method of paymentMethods(); track method) {
+                  <option [value]="method">{{ paymentMethodLabel(method) }}</option>
+                }
+              </select>
+              @if (cashForm.controls.method.value === 'CASH') {
+                <label for="cashReceived">Efectivo recibido</label>
+                <input
+                  id="cashReceived"
+                  formControlName="cashReceived"
+                  inputmode="decimal"
+                  autocomplete="off"
+                />
+                @if (
+                  cashForm.controls.cashReceived.touched && cashForm.controls.cashReceived.invalid
+                ) {
+                  <small class="field-error"
+                    >Escribe un importe válido con máximo 2 decimales.</small
+                  >
+                }
+              } @else {
+                <label for="paymentReference">Referencia de autorización</label>
+                <input id="paymentReference" formControlName="reference" autocomplete="off" />
+                @if (cashForm.controls.reference.touched && cashForm.controls.reference.invalid) {
+                  <small class="field-error"
+                    >Usa de 4 a 120 letras, números o los caracteres . _ : / -</small
+                  >
+                }
+                @if (nonCashProvider() === 'SIMULATOR') {
+                  <small role="status">Autorización simulada para este ambiente.</small>
+                }
               }
               <button type="submit" [disabled]="savingSale() || quotingCart()">
                 {{
@@ -1803,7 +1827,7 @@
                     ? 'Registrando venta…'
                     : offlinePosActive()
                       ? 'Guardar venta offline'
-                      : 'Cobrar en efectivo'
+                      : 'Confirmar pago'
                 }}
               </button>
             </form>
@@ -1944,13 +1968,30 @@
                 <dd>{{ sale.currency }} {{ sale.totals.total }}</dd>
               </div>
               <div>
-                <dt>Efectivo</dt>
-                <dd>{{ sale.currency }} {{ sale.payment.amountReceived }}</dd>
+                <dt>Método</dt>
+                <dd>{{ paymentMethodLabel(sale.payment.method) }}</dd>
               </div>
-              <div>
-                <dt>Cambio</dt>
-                <dd>{{ sale.currency }} {{ sale.payment.change }}</dd>
-              </div>
+              @if (sale.payment.method === 'CASH') {
+                <div>
+                  <dt>Efectivo</dt>
+                  <dd>{{ sale.currency }} {{ sale.payment.amountReceived }}</dd>
+                </div>
+                <div>
+                  <dt>Cambio</dt>
+                  <dd>{{ sale.currency }} {{ sale.payment.change }}</dd>
+                </div>
+              } @else {
+                <div>
+                  <dt>Referencia</dt>
+                  <dd>{{ sale.payment.reference }}</dd>
+                </div>
+                @if (sale.payment.authorizationCode) {
+                  <div>
+                    <dt>Autorización</dt>
+                    <dd>{{ sale.payment.authorizationCode }}</dd>
+                  </div>
+                }
+              }
               <div>
                 <dt>Pago</dt>
                 <dd>{{ sale.payment.status === 'REVERSED' ? 'Revertido' : 'Aplicado' }}</dd>

@@ -28,6 +28,7 @@ import {
   CashRegisterMovementData,
   CashRegisterShiftData,
   CashSaleData,
+  PaymentMethod,
   PosApiService,
   PosCartQuote,
   SaleDetailData,
@@ -73,6 +74,7 @@ const QUANTITY_PATTERN = /^-?(0|[1-9]\d{0,11})(\.\d{1,3})?$/;
 const POSITIVE_QUANTITY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,3})?$/;
 const CART_QUANTITY_PATTERN = /^(0|[1-9]\d{0,8})(\.\d{1,3})?$/;
 const LOCATION_CODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{1,39}$/;
+const PAYMENT_REFERENCE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]{3,119}$/;
 
 interface CartEntry {
   product: ProductData;
@@ -127,8 +129,8 @@ export class ApplicationPage implements OnInit {
   private pendingSale: {
     input: {
       lines: Array<{ productId: string; quantity: string }>;
-      cashReceived: string;
       customerId?: string;
+      payment: { method: PaymentMethod; amountReceived?: string; reference?: string };
     };
     key: string;
   } | null = null;
@@ -323,6 +325,8 @@ export class ApplicationPage implements OnInit {
   protected readonly offlinePosActive = signal(false);
   protected readonly queuedOfflineSale = signal<{ commandId: string; total: string } | null>(null);
   protected readonly posError = signal<string | null>(null);
+  protected readonly paymentMethods = signal<PaymentMethod[]>(['CASH']);
+  protected readonly nonCashProvider = signal<'SIMULATOR' | 'DISABLED'>('DISABLED');
   protected readonly customers = signal<CustomerData[]>([]);
   protected readonly customerHistoryCustomer = signal<CustomerData | null>(null);
   protected readonly editingCustomer = signal<CustomerData | null>(null);
@@ -396,7 +400,9 @@ export class ApplicationPage implements OnInit {
     brandId: [''],
   });
   protected readonly cashForm = this.formBuilder.nonNullable.group({
+    method: ['CASH' as PaymentMethod, [Validators.required]],
     cashReceived: ['', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
+    reference: [''],
     customerId: [''],
   });
   protected readonly customerSearchForm = this.formBuilder.nonNullable.group({ q: [''] });
@@ -531,6 +537,7 @@ export class ApplicationPage implements OnInit {
       this.loadTransfers();
     }
     if (this.canManageSales()) {
+      this.loadPaymentOptions();
       this.loadCurrentCashRegisterShift();
       this.loadLatestCashClosure();
       this.loadSales(1);
@@ -1480,15 +1487,22 @@ export class ApplicationPage implements OnInit {
       this.cashForm.markAllAsTouched();
       return;
     }
+    const method = this.cashForm.controls.method.value;
     const input = {
       lines: this.cart().map((entry) => ({
         productId: entry.product.id,
         quantity: entry.quantity,
       })),
-      cashReceived: this.cashForm.controls.cashReceived.value.trim(),
       ...(this.cashForm.controls.customerId.value
         ? { customerId: this.cashForm.controls.customerId.value }
         : {}),
+      payment:
+        method === 'CASH'
+          ? {
+              method,
+              amountReceived: this.cashForm.controls.cashReceived.value.trim(),
+            }
+          : { method, reference: this.cashForm.controls.reference.value.trim() },
     };
     const pending = this.pendingSale;
     const idempotencyKey =
@@ -1497,19 +1511,32 @@ export class ApplicationPage implements OnInit {
         : `web-sale-${globalThis.crypto.randomUUID()}`;
     this.pendingSale = { input, key: idempotencyKey };
     if (this.browserOffline()) {
-      void this.queueOfflineCashSale(input, idempotencyKey, quote);
+      if (method !== 'CASH') {
+        this.pendingSale = null;
+        this.posError.set('Los pagos distintos de efectivo requieren conexión al servidor.');
+        return;
+      }
+      void this.queueOfflineCashSale(
+        {
+          lines: input.lines,
+          cashReceived: input.payment.amountReceived!,
+          ...(input.customerId ? { customerId: input.customerId } : {}),
+        },
+        idempotencyKey,
+        quote,
+      );
       return;
     }
     this.savingSale.set(true);
     this.posError.set(null);
-    this.pos.createCashSale(input, idempotencyKey).subscribe({
+    this.pos.createSale(input, idempotencyKey).subscribe({
       next: ({ data }) => {
         this.savingSale.set(false);
         this.pendingSale = null;
         this.completedSale.set(data);
         this.cart.set([]);
         this.cartQuote.set(null);
-        this.cashForm.reset({ cashReceived: '', customerId: '' });
+        this.resetPaymentForm();
         this.loadStockList(this.stockPage());
         this.loadMovementHistory(1);
         this.loadSales(1);
@@ -1520,7 +1547,21 @@ export class ApplicationPage implements OnInit {
       },
       error: (error: HttpErrorResponse) => {
         if (error.status === 0) {
-          void this.queueOfflineCashSale(input, idempotencyKey, quote);
+          if (method === 'CASH') {
+            void this.queueOfflineCashSale(
+              {
+                lines: input.lines,
+                cashReceived: input.payment.amountReceived!,
+                ...(input.customerId ? { customerId: input.customerId } : {}),
+              },
+              idempotencyKey,
+              quote,
+            );
+          } else {
+            this.savingSale.set(false);
+            this.pendingSale = null;
+            this.posError.set('Los pagos distintos de efectivo requieren conexión al servidor.');
+          }
           return;
         }
         this.savingSale.set(false);
@@ -1528,6 +1569,36 @@ export class ApplicationPage implements OnInit {
         this.posError.set(this.posMessageFor(error));
       },
     });
+  }
+
+  protected changePaymentMethod(): void {
+    const method = this.cashForm.controls.method.value;
+    const cash = this.cashForm.controls.cashReceived;
+    const reference = this.cashForm.controls.reference;
+    if (method === 'CASH') {
+      cash.setValidators([Validators.required, Validators.pattern(MONEY_PATTERN)]);
+      reference.clearValidators();
+      reference.setValue('');
+      if (this.cartQuote()) cash.setValue(this.cartQuote()!.totals.total);
+    } else {
+      cash.clearValidators();
+      cash.setValue('');
+      reference.setValidators([
+        Validators.required,
+        Validators.minLength(4),
+        Validators.maxLength(120),
+        Validators.pattern(PAYMENT_REFERENCE_PATTERN),
+      ]);
+    }
+    cash.updateValueAndValidity();
+    reference.updateValueAndValidity();
+    this.posError.set(null);
+  }
+
+  protected paymentMethodLabel(method: PaymentMethod): string {
+    return { CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', VOUCHER: 'Vale' }[
+      method
+    ];
   }
 
   protected selectProduct(id: string): void {
@@ -2638,7 +2709,9 @@ export class ApplicationPage implements OnInit {
         next: ({ data }) => {
           this.offlinePosActive.set(false);
           this.cartQuote.set(data);
-          this.cashForm.controls.cashReceived.setValue(data.totals.total);
+          if (this.cashForm.controls.method.value === 'CASH') {
+            this.cashForm.controls.cashReceived.setValue(data.totals.total);
+          }
         },
         error: (error: HttpErrorResponse) => {
           if (error.status === 0) {
@@ -2687,7 +2760,9 @@ export class ApplicationPage implements OnInit {
         })),
       );
       this.cartQuote.set(quote);
-      this.cashForm.controls.cashReceived.setValue(quote.totals.total);
+      if (this.cashForm.controls.method.value === 'CASH') {
+        this.cashForm.controls.cashReceived.setValue(quote.totals.total);
+      }
       this.offlinePosActive.set(true);
     } catch (error) {
       this.cartQuote.set(null);
@@ -2717,7 +2792,7 @@ export class ApplicationPage implements OnInit {
       this.queuedOfflineSale.set({ commandId: command.commandId, total: quote.totals.total });
       this.cart.set([]);
       this.cartQuote.set(null);
-      this.cashForm.reset({ cashReceived: '', customerId: '' });
+      this.resetPaymentForm();
       this.offlinePosActive.set(true);
     } catch (error) {
       this.posError.set(
@@ -2730,6 +2805,28 @@ export class ApplicationPage implements OnInit {
 
   private browserOffline(): boolean {
     return typeof navigator !== 'undefined' && navigator.onLine === false;
+  }
+
+  private loadPaymentOptions(): void {
+    this.pos.getPaymentOptions().subscribe({
+      next: ({ data }) => {
+        this.paymentMethods.set(data.methods);
+        this.nonCashProvider.set(data.nonCashProvider);
+        if (!data.methods.includes(this.cashForm.controls.method.value)) {
+          this.cashForm.controls.method.setValue(data.methods[0] ?? 'CASH');
+          this.changePaymentMethod();
+        }
+      },
+      error: () => {
+        this.paymentMethods.set(['CASH']);
+        this.nonCashProvider.set('DISABLED');
+      },
+    });
+  }
+
+  private resetPaymentForm(): void {
+    this.cashForm.reset({ method: 'CASH', cashReceived: '', reference: '', customerId: '' });
+    this.changePaymentMethod();
   }
 
   private toInput(): ProductInput {
@@ -2854,6 +2951,13 @@ export class ApplicationPage implements OnInit {
     if (code === 'PRODUCT_NOT_FOUND') return 'Uno de los productos ya no existe.';
     if (code === 'INSUFFICIENT_CASH_RECEIVED') {
       return 'El efectivo recibido no cubre el total de la venta.';
+    }
+    if (code === 'PAYMENT_DECLINED') return 'El pago fue rechazado. Usa otra referencia o método.';
+    if (code === 'PAYMENT_REFERENCE_REUSED') {
+      return 'La referencia de pago ya fue utilizada.';
+    }
+    if (code === 'PAYMENT_METHOD_UNAVAILABLE') {
+      return 'Ese método de pago no está disponible en este ambiente.';
     }
     if (code === 'CASH_REGISTER_SHIFT_REQUIRED') {
       this.currentCashRegisterShift.set(null);

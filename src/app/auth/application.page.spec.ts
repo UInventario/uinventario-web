@@ -60,6 +60,8 @@ describe('ApplicationPage', () => {
     getLatestClosure: ReturnType<typeof vi.fn>;
     closeShift: ReturnType<typeof vi.fn>;
     quote: ReturnType<typeof vi.fn>;
+    getPaymentOptions: ReturnType<typeof vi.fn>;
+    createSale: ReturnType<typeof vi.fn>;
     createCashSale: ReturnType<typeof vi.fn>;
     voidSale: ReturnType<typeof vi.fn>;
     listSales: ReturnType<typeof vi.fn>;
@@ -224,6 +226,16 @@ describe('ApplicationPage', () => {
       getLatestClosure: vi.fn().mockReturnValue(of({ data: null, meta: { apiVersion: '1' } })),
       closeShift: vi.fn(),
       quote: vi.fn(),
+      getPaymentOptions: vi.fn().mockReturnValue(
+        of({
+          data: {
+            methods: ['CASH', 'CARD', 'TRANSFER', 'VOUCHER'],
+            nonCashProvider: 'SIMULATOR',
+          },
+          meta: { apiVersion: '1' },
+        }),
+      ),
+      createSale: vi.fn(),
       createCashSale: vi.fn(),
       voidSale: vi.fn(),
       listSales: vi.fn().mockReturnValue(
@@ -1643,7 +1655,7 @@ describe('ApplicationPage', () => {
       data: CashSaleData;
       meta: { apiVersion: '1'; idempotentReplay: boolean };
     }>();
-    pos.createCashSale.mockReturnValue(saleResponse);
+    pos.createSale.mockReturnValue(saleResponse);
     const customerSelect = fixture.nativeElement.querySelector('#posCustomer') as HTMLSelectElement;
     customerSelect.value = 'customer';
     customerSelect.dispatchEvent(new Event('change', { bubbles: true }));
@@ -1651,12 +1663,12 @@ describe('ApplicationPage', () => {
     (fixture.componentInstance as unknown as { completeCashSale(): void }).completeCashSale();
     (fixture.componentInstance as unknown as { completeCashSale(): void }).completeCashSale();
 
-    expect(pos.createCashSale).toHaveBeenCalledTimes(1);
-    expect(pos.createCashSale).toHaveBeenCalledWith(
+    expect(pos.createSale).toHaveBeenCalledTimes(1);
+    expect(pos.createSale).toHaveBeenCalledWith(
       {
         lines: [{ productId: 'product', quantity: '2' }],
-        cashReceived: '250.00',
         customerId: 'customer',
+        payment: { method: 'CASH', amountReceived: '250.00' },
       },
       expect.stringMatching(/^web-sale-/),
     );
@@ -1690,6 +1702,9 @@ describe('ApplicationPage', () => {
           amountReceived: '250.00',
           amountApplied: '239.80',
           change: '10.20',
+          reference: null,
+          provider: 'INTERNAL',
+          authorizationCode: null,
         },
         createdAt: new Date().toISOString(),
         void: null,
@@ -1746,7 +1761,7 @@ describe('ApplicationPage', () => {
     component.cart.set([{ product, quantity: '1' }]);
     component.cartQuote.set(quote);
     component.cashForm.controls.cashReceived.setValue('120.00');
-    pos.createCashSale.mockReturnValue(
+    pos.createSale.mockReturnValue(
       throwError(() => new HttpErrorResponse({ status: 0, statusText: 'Offline' })),
     );
     offlinePos.queueCashSale.mockResolvedValue({ commandId: 'offline-command-1' });
@@ -1755,7 +1770,7 @@ describe('ApplicationPage', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    const idempotencyKey = pos.createCashSale.mock.calls[0][1] as string;
+    const idempotencyKey = pos.createSale.mock.calls[0][1] as string;
     expect(offlinePos.queueCashSale).toHaveBeenCalledWith(
       quote,
       { lines: [{ productId: 'product', quantity: '1' }], cashReceived: '120.00' },
@@ -1763,6 +1778,82 @@ describe('ApplicationPage', () => {
     );
     expect(fixture.nativeElement.textContent).toContain('Venta pendiente de confirmación');
     expect(fixture.nativeElement.textContent).toContain('Sólo efectivo, sin sobreventa');
+  });
+
+  it('submits a referenced card payment and explains a simulated rejection', () => {
+    const product = {
+      id: 'product',
+      name: 'Café',
+      sku: 'CAFE-1',
+      barcode: '7501',
+      category: null,
+      brand: null,
+      cost: '1.20',
+      price: '116.00',
+      active: true,
+      version: 1,
+    };
+    const quote = {
+      context: {
+        branch: { id: 'branch', name: 'Sucursal' },
+        warehouse: { id: 'warehouse', name: 'Bodega' },
+        cashRegister: { id: 'register', name: 'Caja', code: 'MAIN' },
+      },
+      currency: 'MXN',
+      taxRate: '0.1600',
+      lines: [
+        {
+          product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
+          quantity: '1.000',
+          availableQuantity: '5.000',
+          unitPrice: '116.00',
+          subtotal: '100.00',
+          tax: '16.00',
+          total: '116.00',
+        },
+      ],
+      totals: { subtotal: '100.00', tax: '16.00', total: '116.00' },
+    };
+    const component = fixture.componentInstance as unknown as {
+      cart: { set(value: Array<{ product: typeof product; quantity: string }>): void };
+      cartQuote: { set(value: typeof quote): void };
+      cashForm: {
+        controls: {
+          method: { setValue(value: 'CARD'): void };
+          reference: { setValue(value: string): void };
+        };
+      };
+      changePaymentMethod(): void;
+      completeCashSale(): void;
+    };
+    component.cart.set([{ product, quantity: '1' }]);
+    component.cartQuote.set(quote);
+    component.cashForm.controls.method.setValue('CARD');
+    component.changePaymentMethod();
+    component.cashForm.controls.reference.setValue('DECLINE-001');
+    pos.createSale.mockReturnValue(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 409,
+            error: { code: 'PAYMENT_DECLINED' },
+          }),
+      ),
+    );
+
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Autorización simulada');
+    component.completeCashSale();
+    fixture.detectChanges();
+
+    expect(pos.createSale).toHaveBeenCalledWith(
+      {
+        lines: [{ productId: 'product', quantity: '1' }],
+        payment: { method: 'CARD', reference: 'DECLINE-001' },
+      },
+      expect.stringMatching(/^web-sale-/),
+    );
+    expect(fixture.nativeElement.textContent).toContain('El pago fue rechazado');
   });
 
   it('creates a customer only after contact consent and selects it for the sale', () => {
@@ -1846,6 +1937,9 @@ describe('ApplicationPage', () => {
         amountReceived: '120.00',
         amountApplied: '119.90',
         change: '0.10',
+        reference: null,
+        provider: 'INTERNAL',
+        authorizationCode: null,
       },
       createdAt: '2026-08-27T14:30:00.000Z',
       void: null,
