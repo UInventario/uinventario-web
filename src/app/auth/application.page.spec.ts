@@ -962,7 +962,11 @@ describe('ApplicationPage', () => {
     Object.defineProperty(fileInput, 'files', { configurable: true, value: [file] });
     fileInput.dispatchEvent(new Event('change', { bubbles: true }));
     fixture.detectChanges();
-    (fixture.nativeElement.querySelector('.import-controls button') as HTMLButtonElement).click();
+    (
+      fixture.nativeElement.querySelector(
+        'section[aria-labelledby="inventory-import-title"] .import-controls button',
+      ) as HTMLButtonElement
+    ).click();
     fixture.detectChanges();
 
     expect(inventory.previewImport).toHaveBeenCalledWith(file, 'COUNT');

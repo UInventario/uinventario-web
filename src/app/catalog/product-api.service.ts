@@ -56,6 +56,30 @@ export interface ProductRetirementResponse {
   meta: { apiVersion: '1' };
 }
 
+export interface ProductImportData {
+  id: string;
+  status: 'PREVIEWED' | 'CONFIRMED';
+  policy: 'ATOMIC';
+  templateVersion: string;
+  sourceFilename: string;
+  summary: { rows: number; creates: number; updates: number; unchanged: number; errors: number };
+  canConfirm: boolean;
+  rows: Array<{
+    id: string;
+    rowNumber: number;
+    action: 'CREATE' | 'UPDATE' | 'UNCHANGED' | 'ERROR';
+    name: string;
+    sku: string;
+    barcode: string | null;
+    category: string | null;
+    brand: string | null;
+    cost: string | null;
+    price: string | null;
+    active: boolean;
+    errors: Array<{ code: string; message: string }>;
+  }>;
+}
+
 interface CatalogOptionsResponse {
   data: {
     categories: Array<{ id: string; name: string }>;
@@ -125,6 +149,31 @@ export class ProductApiService {
       `${this.config.apiBaseUrl()}/products/${id}`,
       { withCredentials: true },
     );
+  }
+
+  previewImport(file: File) {
+    const body = new FormData();
+    body.append('file', file, file.name);
+    return this.http.post<{ data: ProductImportData }>(
+      `${this.config.apiBaseUrl()}/products/imports/preview`,
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  confirmImport(id: string, idempotencyKey: string) {
+    return this.http.post<{ data: ProductImportData }>(
+      `${this.config.apiBaseUrl()}/products/imports/${id}/confirm`,
+      {},
+      { headers: { 'Idempotency-Key': idempotencyKey }, withCredentials: true },
+    );
+  }
+
+  importResult(id: string) {
+    return this.http.get(`${this.config.apiBaseUrl()}/products/imports/${id}/result`, {
+      responseType: 'blob',
+      withCredentials: true,
+    });
   }
 
   listClassifications(kind: CatalogClassificationKind, includeInactive = false) {
