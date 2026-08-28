@@ -2,10 +2,7 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { SessionApiService, SessionData } from '../auth/session-api.service';
-import {
-  InventoryApiService,
-  InventoryReconciliationRunData,
-} from './inventory-api.service';
+import { InventoryApiService, InventoryReconciliationRunData } from './inventory-api.service';
 import { InventoryReconciliationPanelComponent } from './inventory-reconciliation-panel.component';
 
 describe('InventoryReconciliationPanelComponent', () => {
@@ -60,9 +57,9 @@ describe('InventoryReconciliationPanelComponent', () => {
       ],
     };
     inventory = {
-      latestReconciliation: vi.fn().mockReturnValue(
-        of({ data: null, meta: { apiVersion: '1' as const } }),
-      ),
+      latestReconciliation: vi
+        .fn()
+        .mockReturnValue(of({ data: null, meta: { apiVersion: '1' as const } })),
       runReconciliation: vi.fn().mockReturnValue(
         of({
           data: critical,
@@ -94,8 +91,6 @@ describe('InventoryReconciliationPanelComponent', () => {
       'operaciones de inventario están bloqueadas',
     );
     expect(fixture.nativeElement.textContent).toContain('SERIAL_STATE_MISMATCH');
-    expect(fixture.nativeElement.textContent).toContain(
-      'esperado 2.0000 · actual 1.0000',
-    );
+    expect(fixture.nativeElement.textContent).toContain('esperado 2.0000 · actual 1.0000');
   });
 });

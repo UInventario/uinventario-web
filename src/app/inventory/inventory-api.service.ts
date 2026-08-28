@@ -500,10 +500,14 @@ export class InventoryApiService {
     return this.http.post<{
       data: InventoryReconciliationRunData;
       meta: { apiVersion: '1'; idempotentReplay: boolean };
-    }>(`${this.config.apiBaseUrl()}/inventory/reconciliations`, {}, {
-      headers,
-      withCredentials: true,
-    });
+    }>(
+      `${this.config.apiBaseUrl()}/inventory/reconciliations`,
+      {},
+      {
+        headers,
+        withCredentials: true,
+      },
+    );
   }
 
   listStock(query: {

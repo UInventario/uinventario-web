@@ -3,10 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { finalize } from 'rxjs';
 import { SessionApiService } from '../auth/session-api.service';
-import {
-  InventoryApiService,
-  InventoryReconciliationRunData,
-} from './inventory-api.service';
+import { InventoryApiService, InventoryReconciliationRunData } from './inventory-api.service';
 
 @Component({
   selector: 'app-inventory-reconciliation-panel',

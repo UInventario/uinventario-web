@@ -252,9 +252,7 @@ describe('ApplicationPage', () => {
       ),
       previewValuationPolicy: vi.fn(),
       changeValuationPolicy: vi.fn(),
-      latestReconciliation: vi.fn().mockReturnValue(
-        of({ data: null, meta: { apiVersion: '1' } }),
-      ),
+      latestReconciliation: vi.fn().mockReturnValue(of({ data: null, meta: { apiVersion: '1' } })),
       runReconciliation: vi.fn(),
     };
     pos = {

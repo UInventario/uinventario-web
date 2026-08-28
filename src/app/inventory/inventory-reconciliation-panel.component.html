@@ -7,7 +7,9 @@
     <div>
       <p class="eyebrow">Integridad operativa</p>
       <h2 id="inventory-reconciliation-title">Reconciliación de inventario</h2>
-      <p>Compara saldos, movimientos, valorización, capas FIFO, lotes y series sin corregir datos.</p>
+      <p>
+        Compara saldos, movimientos, valorización, capas FIFO, lotes y series sin corregir datos.
+      </p>
     </div>
     @if (canRun()) {
       <button type="button" (click)="reconcile()" [disabled]="running()">
@@ -26,9 +28,18 @@
         <span>{{ current.finishedAt | date: 'medium' }}</span>
       </div>
       <dl>
-        <div><dt>Hallazgos</dt><dd>{{ current.summary.findings }}</dd></div>
-        <div><dt>Críticos</dt><dd>{{ current.summary.critical }}</dd></div>
-        <div><dt>Advertencias</dt><dd>{{ current.summary.warnings }}</dd></div>
+        <div>
+          <dt>Hallazgos</dt>
+          <dd>{{ current.summary.findings }}</dd>
+        </div>
+        <div>
+          <dt>Críticos</dt>
+          <dd>{{ current.summary.critical }}</dd>
+        </div>
+        <div>
+          <dt>Advertencias</dt>
+          <dd>{{ current.summary.warnings }}</dd>
+        </div>
       </dl>
     </div>
 
@@ -52,7 +63,9 @@
             <p>{{ finding.recommendedAction }}</p>
             <small>
               {{ finding.code }}
-              @if (finding.subjectReference) { · {{ finding.subjectReference }} }
+              @if (finding.subjectReference) {
+                · {{ finding.subjectReference }}
+              }
               @if (finding.expectedValue !== null) {
                 · esperado {{ finding.expectedValue }} · actual {{ finding.actualValue }}
               }
