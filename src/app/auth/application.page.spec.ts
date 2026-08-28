@@ -39,6 +39,7 @@ describe('ApplicationPage', () => {
   let inventory: {
     listLocations: ReturnType<typeof vi.fn>;
     listStock: ReturnType<typeof vi.fn>;
+    listLots: ReturnType<typeof vi.fn>;
     listMovements: ReturnType<typeof vi.fn>;
     getBalance: ReturnType<typeof vi.fn>;
     createMovement: ReturnType<typeof vi.fn>;
@@ -161,6 +162,18 @@ describe('ApplicationPage', () => {
               warehouse: { id: 'warehouse', name: 'Bodega' },
             },
             pagination: { page: 1, pageSize: 10, total: 0, totalPages: 0 },
+          },
+        }),
+      ),
+      listLots: vi.fn().mockReturnValue(
+        of({
+          data: [],
+          meta: {
+            apiVersion: '1',
+            tracked: false,
+            totalQuantity: '0.000',
+            lotQuantity: '0.000',
+            reconciled: true,
           },
         }),
       ),
@@ -481,6 +494,7 @@ describe('ApplicationPage', () => {
       brandName: 'Casa',
       cost: '1.20',
       price: '2.50',
+      trackLots: false,
     });
     expect(fixture.nativeElement.textContent).toContain('Producto creado');
     expect(products.list).toHaveBeenLastCalledWith({ page: 1, pageSize: 5 });
@@ -749,6 +763,7 @@ describe('ApplicationPage', () => {
       brandName: 'Casa',
       cost: '1.20',
       price: '3.00',
+      trackLots: false,
       version: 1,
     });
     expect(fixture.nativeElement.textContent).toContain('Producto actualizado');

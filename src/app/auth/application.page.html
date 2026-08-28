@@ -417,6 +417,15 @@
               <p class="field-error">Escribe un precio no negativo, con máximo 2 decimales.</p>
             }
           </div>
+          <div class="field wide">
+            <label>
+              <input type="checkbox" formControlName="trackLots" />
+              Controlar existencias por lote
+            </label>
+            <small
+              >Las entradas solicitarán un código y cada salida conservará su trazabilidad.</small
+            >
+          </div>
         </div>
 
         @if (errorMessage()) {
@@ -587,6 +596,10 @@
                 <dt>Marca</dt>
                 <dd>{{ product.brand?.name || 'Sin marca' }}</dd>
               </div>
+              <div>
+                <dt>Lotes</dt>
+                <dd>{{ product.trackLots ? 'Controlados' : 'No controlados' }}</dd>
+              </div>
             </dl>
 
             <section class="stock-card" aria-labelledby="stock-title" [hidden]="!canManageStock()">
@@ -607,6 +620,18 @@
                     <strong>{{ stockStateLabel(state.code) }}:</strong> {{ state.quantity }}
                   }
                 </p>
+              }
+
+              @if (product.trackLots) {
+                <div class="catalog-state" [class.form-error]="!lotReconciled()">
+                  <strong>{{ selectedProductLots().length }} lote(s)</strong>
+                  @for (lot of selectedProductLots(); track lot.id) {
+                    <span>{{ lot.code }} · {{ lot.quantity }}</span>
+                  }
+                  @if (!lotReconciled()) {
+                    <span>La suma por lote no coincide con la existencia total.</span>
+                  }
+                </div>
               }
 
               <form
@@ -682,6 +707,20 @@
                       <p class="field-error">La referencia es obligatoria para este tipo.</p>
                     }
                   </div>
+                  @if (product.trackLots) {
+                    <div class="field wide">
+                      <label for="stockLotCode">Lote</label>
+                      <input
+                        id="stockLotCode"
+                        formControlName="lotCode"
+                        maxlength="64"
+                        placeholder="Ej. LOT-2026-001"
+                      />
+                      <small
+                        >En entradas crea o reutiliza el lote; en salidas permite elegirlo.</small
+                      >
+                    </div>
+                  }
                 </div>
                 @if (stockError()) {
                   <div class="form-error" role="alert">{{ stockError() }}</div>
@@ -870,6 +909,12 @@
                 <small>Valor bodega {{ item.inventoryValue ?? '0.0000' }}</small>
                 @if (item.valuation && !item.valuation.reconciled) {
                   <small class="valuation-warning">Valorización por reconciliar</small>
+                }
+                @if (item.lotTracking; as tracking) {
+                  <small>
+                    Lotes {{ tracking.lotQuantity }} ·
+                    {{ tracking.reconciled ? 'conciliados' : 'por conciliar' }}
+                  </small>
                 }
               </span>
             </div>
@@ -1259,6 +1304,11 @@
                     Costo {{ valuation.unitCost }} · valor {{ valuation.valueChange }} · promedio
                     {{ valuation.averageUnitCost ?? 'histórico' }}
                   </small>
+                }
+                @for (lot of movement.lots ?? []; track lot.id) {
+                  <small
+                    >Lote {{ lot.code }} · {{ lot.quantityChange }} · {{ lot.selectionMode }}</small
+                  >
                 }
               </span>
               <span>
@@ -1781,6 +1831,21 @@
                     (change)="updateCartQuantity(entry.product.id, $any($event.target).value)"
                   />
                 </label>
+                @if (entry.product.trackLots) {
+                  <label>
+                    Lote
+                    <select
+                      [attr.aria-label]="'Lote de ' + entry.product.name"
+                      [value]="entry.lotId"
+                      (change)="updateCartLot(entry.product.id, $any($event.target).value)"
+                    >
+                      <option value="">Automático (primero recibido)</option>
+                      @for (lot of entry.lots; track lot.id) {
+                        <option [value]="lot.id">{{ lot.code }} · {{ lot.quantity }}</option>
+                      }
+                    </select>
+                  </label>
+                }
                 <div class="line-total">
                   <small>Total validado</small
                   ><strong>{{ quotedLine(entry.product.id)?.total || '—' }}</strong>

@@ -345,6 +345,7 @@ export class PurchaseOrderPanelComponent implements OnInit {
       .map((line) => ({
         purchaseOrderLineId: line.purchaseOrderLineId,
         receivedQuantity: line.receivedQuantity.trim(),
+        ...(line.lotCode.trim() ? { lotCode: line.lotCode.trim() } : {}),
       }));
     if (lines.length === 0) {
       this.error.set('Captura al menos una cantidad recibida.');
@@ -594,6 +595,7 @@ export class PurchaseOrderPanelComponent implements OnInit {
         receivedQuantity,
         [Validators.required, Validators.pattern(RECEIPT_QUANTITY_PATTERN)],
       ],
+      lotCode: ['', [Validators.maxLength(64)]],
     });
   }
 

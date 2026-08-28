@@ -62,6 +62,7 @@ export interface InventoryMovementInput {
   quantity: string;
   reason: string;
   reference?: string;
+  lotCode?: string;
 }
 
 export interface InventoryStateTransitionInput {
@@ -75,7 +76,7 @@ export interface InventoryStateTransitionInput {
 }
 
 export interface InventoryStockItem {
-  product: { id: string; name: string; sku: string; active: boolean };
+  product: { id: string; name: string; sku: string; active: boolean; trackLots: boolean };
   availableQuantity: string;
   totalQuantity: string;
   states: InventoryStateQuantity[];
@@ -88,6 +89,16 @@ export interface InventoryStockItem {
     valueReconciled?: boolean;
     reconciled: boolean;
   };
+  lotTracking?: { lotQuantity: string; reconciled: boolean } | null;
+}
+
+export interface InventoryLotData {
+  id: string;
+  code: string;
+  product: { id: string; name: string; sku: string };
+  quantity: string;
+  createdAt: string;
+  balances: Array<{ location: InventoryLocationData; quantity: string }>;
 }
 
 export interface InventoryMovementHistoryItem {
@@ -133,6 +144,12 @@ export interface InventoryMovementHistoryItem {
     resultingInventoryValue: string | null;
     averageUnitCost: string | null;
   } | null;
+  lots?: Array<{
+    id: string;
+    code: string;
+    quantityChange: string;
+    selectionMode: 'ORIGIN' | 'MANUAL' | 'AUTOMATIC' | 'RESTORE' | 'TRANSFER';
+  }>;
 }
 
 interface LocationsResponse {
@@ -288,6 +305,21 @@ export class InventoryApiService {
     if (query.q) params = params.set('q', query.q);
     return this.http.get<StockListResponse>(`${this.config.apiBaseUrl()}/inventory/stock`, {
       params,
+      withCredentials: true,
+    });
+  }
+
+  listLots(productId: string) {
+    return this.http.get<{
+      data: InventoryLotData[];
+      meta: {
+        apiVersion: '1';
+        tracked: boolean;
+        totalQuantity: string;
+        lotQuantity: string;
+        reconciled: boolean;
+      };
+    }>(`${this.config.apiBaseUrl()}/inventory/products/${productId}/lots`, {
       withCredentials: true,
     });
   }
