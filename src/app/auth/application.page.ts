@@ -45,6 +45,8 @@ import {
   SaleDetailData,
   SaleSummaryData,
   SalesCashReportData,
+  SuspendedSaleConflict,
+  SuspendedSaleData,
 } from '../pos/pos-api.service';
 import { AuditApiService, AuditEventData } from '../audit/audit-api.service';
 import {
@@ -161,6 +163,7 @@ export class ApplicationPage implements OnInit {
         serialNumbers?: string[];
       }>;
       customerId?: string;
+      suspendedSaleId?: string;
       payments: Array<{
         method: PaymentMethod;
         amount: string;
@@ -396,6 +399,14 @@ export class ApplicationPage implements OnInit {
   protected readonly offlinePosActive = signal(false);
   protected readonly queuedOfflineSale = signal<{ commandId: string; total: string } | null>(null);
   protected readonly posError = signal<string | null>(null);
+  protected readonly suspendedSales = signal<SuspendedSaleData[]>([]);
+  protected readonly loadingSuspendedSales = signal(false);
+  protected readonly savingSuspendedSale = signal(false);
+  protected readonly suspendedSaleActionId = signal<string | null>(null);
+  protected readonly suspendedSaleError = signal<string | null>(null);
+  protected readonly suspendedSaleSuccess = signal<string | null>(null);
+  protected readonly resumedSuspendedSaleId = signal<string | null>(null);
+  protected readonly suspendedSaleConflicts = signal<SuspendedSaleConflict[]>([]);
   protected readonly paymentMethods = signal<PaymentMethod[]>(['CASH']);
   protected readonly nonCashProvider = signal<'SIMULATOR' | 'DISABLED'>('DISABLED');
   protected readonly customers = signal<CustomerData[]>([]);
@@ -478,6 +489,7 @@ export class ApplicationPage implements OnInit {
   protected readonly paymentRows = this.formBuilder.array([this.createPaymentRow()]);
   protected readonly cashForm = this.formBuilder.nonNullable.group({
     customerId: [''],
+    notes: ['', [Validators.maxLength(500)]],
   });
   protected readonly customerSearchForm = this.formBuilder.nonNullable.group({ q: [''] });
   protected readonly customerForm = this.formBuilder.nonNullable.group({
@@ -632,6 +644,7 @@ export class ApplicationPage implements OnInit {
       this.loadSales(1);
       this.loadSalesCashReport(1);
       this.loadCustomers();
+      this.loadSuspendedSales();
     }
     if (this.canViewAudit()) this.loadAuditEvents();
     if (this.canManageAccess()) this.loadAccess();
@@ -849,6 +862,10 @@ export class ApplicationPage implements OnInit {
           this.cart.set([]);
           this.cartQuote.set(null);
           this.completedSale.set(null);
+          this.resumedSuspendedSaleId.set(null);
+          this.suspendedSaleConflicts.set([]);
+          this.suspendedSales.set([]);
+          this.resetPaymentForm();
           this.currentCashRegisterShift.set(null);
           this.pendingShiftOpening = null;
           this.cashRegisterShiftError.set(null);
@@ -877,6 +894,7 @@ export class ApplicationPage implements OnInit {
             this.loadCurrentCashRegisterShift();
             this.loadLatestCashClosure();
             this.loadSales(1);
+            this.loadSuspendedSales();
           }
         },
         error: (error: HttpErrorResponse) =>
@@ -1645,6 +1663,9 @@ export class ApplicationPage implements OnInit {
       ...(this.cashForm.controls.customerId.value
         ? { customerId: this.cashForm.controls.customerId.value }
         : {}),
+      ...(this.resumedSuspendedSaleId()
+        ? { suspendedSaleId: this.resumedSuspendedSaleId()! }
+        : {}),
       payments: this.paymentRows.controls.map((row) => {
         const value = row.getRawValue();
         return {
@@ -1689,7 +1710,10 @@ export class ApplicationPage implements OnInit {
         this.completedSale.set(data);
         this.cart.set([]);
         this.cartQuote.set(null);
+        this.resumedSuspendedSaleId.set(null);
+        this.suspendedSaleConflicts.set([]);
         this.resetPaymentForm();
+        this.loadSuspendedSales();
         this.loadStockList(this.stockPage());
         this.loadMovementHistory(1);
         this.loadSales(1);
@@ -1727,6 +1751,145 @@ export class ApplicationPage implements OnInit {
         this.posError.set(this.posMessageFor(error));
       },
     });
+  }
+
+  protected suspendCurrentSale(): void {
+    if (!this.assertOpenCashRegisterShift() || !this.cartQuote() || this.browserOffline()) {
+      if (this.browserOffline()) this.posError.set('Suspender ventas requiere conexión al servidor.');
+      return;
+    }
+    if (this.resumedSuspendedSaleId()) {
+      this.posError.set('Esta venta ya proviene de una suspensión. Confírmala o cancela la suspensión original.');
+      return;
+    }
+    const input = {
+      lines: this.cart().map((entry) => ({
+        productId: entry.product.id,
+        quantity: entry.quantity,
+        ...(entry.lotId ? { lotId: entry.lotId } : {}),
+        ...((entry.serialNumbers ?? '').trim()
+          ? {
+              serialNumbers: entry.serialNumbers
+                .split(/\r?\n/)
+                .map((value) => value.trim())
+                .filter(Boolean),
+            }
+          : {}),
+      })),
+      ...(this.cashForm.controls.customerId.value
+        ? { customerId: this.cashForm.controls.customerId.value }
+        : {}),
+      ...(this.cashForm.controls.notes.value.trim()
+        ? { notes: this.cashForm.controls.notes.value.trim() }
+        : {}),
+    };
+    this.savingSuspendedSale.set(true);
+    this.suspendedSaleError.set(null);
+    this.suspendedSaleSuccess.set(null);
+    this.pos
+      .suspendSale(input, `web-suspend-${globalThis.crypto.randomUUID()}`)
+      .pipe(finalize(() => this.savingSuspendedSale.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.suspendedSaleSuccess.set(`Venta suspendida hasta ${this.dateTime(data.expiresAt)}.`);
+          this.cart.set([]);
+          this.cartQuote.set(null);
+          this.resetPaymentForm();
+          this.loadSuspendedSales();
+          this.loadAuditEvents();
+        },
+        error: (error: HttpErrorResponse) => this.suspendedSaleError.set(this.posMessageFor(error)),
+      });
+  }
+
+  protected resumeSuspendedSale(sale: SuspendedSaleData): void {
+    if (this.suspendedSaleActionId()) return;
+    this.suspendedSaleActionId.set(sale.id);
+    this.suspendedSaleError.set(null);
+    this.suspendedSaleSuccess.set(null);
+    this.pos
+      .resumeSuspendedSale(sale.id)
+      .pipe(finalize(() => this.suspendedSaleActionId.set(null)))
+      .subscribe({
+        next: ({ data }) => {
+          const suspended = data.suspendedSale;
+          this.cart.set(
+            suspended.lines.map((line) => ({
+              product: {
+                id: line.product.id,
+                name: line.product.name,
+                sku: line.product.sku,
+                barcode: null,
+                trackLots: Boolean(line.lotId),
+                trackSerials: line.serialNumbers.length > 0,
+                category: null,
+                brand: null,
+                cost: '0.00',
+                price: line.unitPriceSnapshot,
+                active: true,
+                version: 0,
+              },
+              quantity: line.quantity,
+              lotId: line.lotId ?? '',
+              lots: [],
+              serialNumbers: line.serialNumbers.join('\n'),
+            })),
+          );
+          this.cashForm.patchValue({
+            customerId: suspended.customer?.id ?? '',
+            notes: suspended.notes ?? '',
+          });
+          this.resumedSuspendedSaleId.set(suspended.id);
+          this.suspendedSaleConflicts.set(data.conflicts);
+          this.cartQuote.set(data.quote);
+          if (data.quote) this.syncSinglePaymentAmount();
+          this.posError.set(
+            data.conflicts.length
+              ? 'La venta cambió desde que se suspendió. Revisa los conflictos antes de cobrar.'
+              : null,
+          );
+          this.suspendedSaleSuccess.set('Carrito reanudado y recalculado con datos actuales.');
+          document.getElementById('pos-title')?.scrollIntoView?.({ behavior: 'smooth' });
+          this.loadAuditEvents();
+        },
+        error: (error: HttpErrorResponse) => this.suspendedSaleError.set(this.posMessageFor(error)),
+      });
+  }
+
+  protected cancelSuspendedSale(sale: SuspendedSaleData): void {
+    if (this.suspendedSaleActionId()) return;
+    this.suspendedSaleActionId.set(sale.id);
+    this.suspendedSaleError.set(null);
+    this.suspendedSaleSuccess.set(null);
+    this.pos
+      .cancelSuspendedSale(sale.id)
+      .pipe(finalize(() => this.suspendedSaleActionId.set(null)))
+      .subscribe({
+        next: () => {
+          if (this.resumedSuspendedSaleId() === sale.id) {
+            this.cart.set([]);
+            this.cartQuote.set(null);
+            this.resumedSuspendedSaleId.set(null);
+            this.suspendedSaleConflicts.set([]);
+            this.resetPaymentForm();
+          }
+          this.suspendedSaleSuccess.set('Venta suspendida cancelada sin afectar stock ni caja.');
+          this.loadSuspendedSales();
+          this.loadAuditEvents();
+        },
+        error: (error: HttpErrorResponse) => this.suspendedSaleError.set(this.posMessageFor(error)),
+      });
+  }
+
+  protected suspendedConflictLabel(conflict: SuspendedSaleConflict): string {
+    const product = this.cart().find((entry) => entry.product.id === conflict.productId)?.product;
+    const name = product?.name ?? conflict.productId;
+    if (conflict.code === 'PRICE_CHANGED')
+      return `${name}: precio ${conflict.previous} → ${conflict.current}`;
+    if (conflict.code === 'AVAILABILITY_CHANGED')
+      return `${name}: existencia ${conflict.previous} → ${conflict.current}`;
+    if (conflict.code === 'INSUFFICIENT_STOCK') return `${name}: existencia insuficiente`;
+    return `${name}: producto no disponible`;
   }
 
   protected changePaymentMethod(index: number): void {
@@ -3210,8 +3373,23 @@ export class ApplicationPage implements OnInit {
     });
   }
 
+  private loadSuspendedSales(): void {
+    this.loadingSuspendedSales.set(true);
+    this.suspendedSaleError.set(null);
+    this.pos
+      .listSuspendedSales()
+      .pipe(finalize(() => this.loadingSuspendedSales.set(false)))
+      .subscribe({
+        next: ({ data }) => this.suspendedSales.set(data),
+        error: (error: HttpErrorResponse) => {
+          this.suspendedSales.set([]);
+          this.suspendedSaleError.set(this.posMessageFor(error));
+        },
+      });
+  }
+
   private resetPaymentForm(): void {
-    this.cashForm.reset({ customerId: '' });
+    this.cashForm.reset({ customerId: '', notes: '' });
     this.paymentRows.clear();
     this.paymentRows.push(this.createPaymentRow());
     this.syncSinglePaymentAmount();
@@ -3388,6 +3566,12 @@ export class ApplicationPage implements OnInit {
 
   private posMessageFor(error: HttpErrorResponse): string {
     const code = (error.error as { code?: string } | null)?.code;
+    if (code === 'SUSPENDED_SALE_EXPIRED') {
+      return 'La venta suspendida expiró. Crea una nueva cotización.';
+    }
+    if (code === 'SUSPENDED_SALE_NOT_ACTIVE') {
+      return 'La venta suspendida ya fue cancelada o cobrada.';
+    }
     if (code === 'INSUFFICIENT_STOCK') return 'No hay existencia suficiente para esa cantidad.';
     if (code === 'PRODUCT_NOT_AVAILABLE') return 'Uno de los productos ya no está disponible.';
     if (code === 'PRODUCT_NOT_FOUND') return 'Uno de los productos ya no existe.';
@@ -3516,6 +3700,7 @@ export class ApplicationPage implements OnInit {
   private resetCompletedSale(): void {
     this.completedSale.set(null);
     this.queuedOfflineSale.set(null);
+    this.suspendedSaleConflicts.set([]);
     this.pendingSale = null;
   }
 }

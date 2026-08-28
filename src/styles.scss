@@ -41,3 +41,64 @@ button {
     margin: 4mm;
   }
 }
+app-application-page .suspended-conflicts {
+  margin-top: 1rem;
+}
+
+app-application-page .suspended-conflicts ul {
+  margin: 0.5rem 0 0;
+}
+
+app-application-page .suspended-sales {
+  margin-top: 1.2rem;
+  padding: 1.25rem;
+  border: 1px solid #dbe3ea;
+  border-radius: 1rem;
+  background: #fff;
+}
+
+app-application-page .suspended-sales h3,
+app-application-page .suspended-sales p {
+  margin: 0.2rem 0 0;
+}
+
+app-application-page .suspended-sale-list {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0;
+  list-style: none;
+}
+
+app-application-page .suspended-sale-list li,
+app-application-page .suspended-sale-list span {
+  display: flex;
+  gap: 0.6rem;
+}
+
+app-application-page .suspended-sale-list li {
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.8rem;
+  border: 1px solid #dbe3ea;
+  border-radius: 0.7rem;
+}
+
+app-application-page .suspended-sale-list span {
+  flex-direction: column;
+}
+
+app-application-page .suspended-sale-list small {
+  color: #6d7f90;
+}
+
+app-application-page .suspended-sale-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+@media (max-width: 48rem) {
+  app-application-page .suspended-sale-list li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

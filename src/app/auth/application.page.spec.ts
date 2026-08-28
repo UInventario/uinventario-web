@@ -79,6 +79,10 @@ describe('ApplicationPage', () => {
     sendSaleReceipt: ReturnType<typeof vi.fn>;
     listSaleReturns: ReturnType<typeof vi.fn>;
     createSaleReturn: ReturnType<typeof vi.fn>;
+    listSuspendedSales: ReturnType<typeof vi.fn>;
+    suspendSale: ReturnType<typeof vi.fn>;
+    resumeSuspendedSale: ReturnType<typeof vi.fn>;
+    cancelSuspendedSale: ReturnType<typeof vi.fn>;
     salesCashReport: ReturnType<typeof vi.fn>;
   };
   let audit: {
@@ -335,6 +339,12 @@ describe('ApplicationPage', () => {
       sendSaleReceipt: vi.fn(),
       listSaleReturns: vi.fn().mockReturnValue(of({ data: [], meta: { apiVersion: '1' } })),
       createSaleReturn: vi.fn(),
+      listSuspendedSales: vi.fn().mockReturnValue(
+        of({ data: [], meta: { apiVersion: '1', expirationHours: 24 } }),
+      ),
+      suspendSale: vi.fn(),
+      resumeSuspendedSale: vi.fn(),
+      cancelSuspendedSale: vi.fn(),
       salesCashReport: vi.fn().mockReturnValue(
         of({
           data: {
@@ -1875,6 +1885,125 @@ describe('ApplicationPage', () => {
     expect(fixture.nativeElement.textContent).toContain('Cambio MXN 10.20');
     expect(inventory.listStock).toHaveBeenCalledTimes(2);
     expect(pos.listSales).toHaveBeenCalledTimes(2);
+  });
+
+  it('suspends a cart and presents recalculation conflicts when it is resumed', () => {
+    const product = {
+      id: 'product',
+      name: 'Café',
+      sku: 'CAFE-1',
+      barcode: '7501',
+      trackLots: false,
+      trackSerials: false,
+      category: null,
+      brand: null,
+      cost: '80.00',
+      price: '119.90',
+      active: true,
+      version: 1,
+    };
+    const quote = {
+      context: {
+        branch: { id: 'branch', name: 'Sucursal' },
+        warehouse: { id: 'warehouse', name: 'Bodega' },
+        cashRegister: { id: 'register', name: 'Caja', code: 'MAIN' },
+      },
+      currency: 'MXN',
+      taxRate: '0.1600',
+      lines: [
+        {
+          product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
+          quantity: '1.000',
+          lotId: null,
+          serialNumbers: [],
+          availableQuantity: '5.000',
+          unitPrice: '119.90',
+          subtotal: '103.36',
+          tax: '16.54',
+          total: '119.90',
+        },
+      ],
+      totals: { subtotal: '103.36', tax: '16.54', total: '119.90' },
+    };
+    const suspended = {
+      id: '11111111-1111-4111-8111-111111111111',
+      status: 'ACTIVE' as const,
+      context: quote.context,
+      author: { id: 'user', email: 'admin@example.com' },
+      customer: null,
+      notes: 'Cliente regresa',
+      lines: [
+        {
+          product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
+          quantity: '1.000',
+          lotId: null,
+          serialNumbers: [],
+          unitPriceSnapshot: '119.90',
+          availableQuantitySnapshot: '5.000',
+        },
+      ],
+      completedSaleId: null,
+      expiresAt: '2026-08-29T18:00:00.000Z',
+      createdAt: '2026-08-28T18:00:00.000Z',
+      cancelledAt: null,
+      resumedAt: null,
+    };
+    const component = fixture.componentInstance as unknown as {
+      cart: { set(value: unknown[]): void };
+      cartQuote: { set(value: typeof quote | null): void };
+      cashForm: { controls: { notes: { setValue(value: string): void } } };
+      suspendCurrentSale(): void;
+      resumeSuspendedSale(value: typeof suspended): void;
+    };
+    component.cart.set([
+      { product, quantity: '1', lotId: '', lots: [], serialNumbers: '' },
+    ]);
+    component.cartQuote.set(quote);
+    component.cashForm.controls.notes.setValue('Cliente regresa');
+    pos.suspendSale.mockReturnValue(
+      of({ data: suspended, meta: { apiVersion: '1', idempotentReplay: false } }),
+    );
+
+    component.suspendCurrentSale();
+    fixture.detectChanges();
+
+    expect(pos.suspendSale).toHaveBeenCalledWith(
+      {
+        lines: [{ productId: 'product', quantity: '1' }],
+        notes: 'Cliente regresa',
+      },
+      expect.stringMatching(/^web-suspend-/),
+    );
+    expect(fixture.nativeElement.textContent).toContain('Venta suspendida hasta');
+
+    const currentQuote = {
+      ...quote,
+      lines: [{ ...quote.lines[0], unitPrice: '129.90', total: '129.90' }],
+      totals: { subtotal: '112.00', tax: '17.90', total: '129.90' },
+    };
+    pos.resumeSuspendedSale.mockReturnValue(
+      of({
+        data: {
+          suspendedSale: suspended,
+          quote: currentQuote,
+          conflicts: [
+            {
+              code: 'PRICE_CHANGED',
+              productId: 'product',
+              previous: '119.90',
+              current: '129.90',
+            },
+          ],
+        },
+        meta: { apiVersion: '1', recalculatedAt: '2026-08-28T18:05:00.000Z' },
+      }),
+    );
+
+    component.resumeSuspendedSale(suspended);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Carrito reanudado y recalculado');
+    expect(fixture.nativeElement.textContent).toContain('precio 119.90 → 129.90');
   });
 
   it('queues a cash sale with the original idempotency key when the response is lost', async () => {
