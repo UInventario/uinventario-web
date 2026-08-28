@@ -114,7 +114,42 @@
   font-weight: 700;
 }
 
+.peripheral-profile {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--line, #d8dee8);
+  border-radius: 0.75rem;
+  background: #f8fafc;
+}
+
+.peripheral-profile h4,
+.peripheral-profile p {
+  margin: 0;
+}
+
+.peripheral-profile form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.peripheral-profile label:not(.check) {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.peripheral-profile .check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
 @media (max-width: 720px) {
+  .peripheral-profile form {
+    grid-template-columns: 1fr;
+  }
+
   .receipt-actions button,
   .receipt-actions form,
   .receipt-actions label,
@@ -136,6 +171,10 @@
   .receipt-actions,
   .form-error,
   .simulation {
+    display: none !important;
+  }
+
+  .peripheral-profile {
     display: none !important;
   }
 

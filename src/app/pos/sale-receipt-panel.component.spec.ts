@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
-import { PosApiService, SaleReceiptData } from './pos-api.service';
+import { PosApiService, PosPeripheralProfileData, SaleReceiptData } from './pos-api.service';
 import { SaleReceiptPanelComponent } from './sale-receipt-panel.component';
 
 describe('SaleReceiptPanelComponent', () => {
@@ -8,6 +8,10 @@ describe('SaleReceiptPanelComponent', () => {
   let pos: {
     reprintSaleReceipt: ReturnType<typeof vi.fn>;
     sendSaleReceipt: ReturnType<typeof vi.fn>;
+    getPeripheralProfile: ReturnType<typeof vi.fn>;
+    updatePeripheralProfile: ReturnType<typeof vi.fn>;
+    printSaleReceipt: ReturnType<typeof vi.fn>;
+    openCashDrawer: ReturnType<typeof vi.fn>;
   };
 
   const receipt: SaleReceiptData = {
@@ -50,6 +54,17 @@ describe('SaleReceiptPanelComponent', () => {
     saleStatus: 'COMPLETED',
     void: null,
   };
+  const profile: PosPeripheralProfileData = {
+    id: 'profile-1',
+    cashRegister: { id: 'register-1', name: 'Caja 1', code: 'MAIN' },
+    deviceId: 'SIM-register-1',
+    label: 'Simulador Caja 1',
+    adapter: 'SIMULATOR',
+    printerEnabled: true,
+    drawerEnabled: true,
+    autoOpenCashSale: true,
+    updatedAt: '2026-08-28T12:00:00.000Z',
+  };
 
   beforeEach(async () => {
     pos = {
@@ -71,6 +86,49 @@ describe('SaleReceiptPanelComponent', () => {
           meta: { apiVersion: '1' as const },
         }),
       ),
+      getPeripheralProfile: vi
+        .fn()
+        .mockReturnValue(of({ data: profile, meta: { apiVersion: '1' as const } })),
+      updatePeripheralProfile: vi
+        .fn()
+        .mockReturnValue(of({ data: profile, meta: { apiVersion: '1' as const } })),
+      printSaleReceipt: vi.fn().mockReturnValue(
+        of({
+          data: {
+            receipt,
+            operation: {
+              id: 'operation-1',
+              action: 'PRINT_RECEIPT' as const,
+              trigger: 'MANUAL' as const,
+              status: 'COMPLETED' as const,
+              attemptCount: 1,
+              errorCode: null,
+              saleId: 'sale-1',
+              deviceId: profile.deviceId,
+              createdAt: '2026-08-28T12:02:00.000Z',
+              completedAt: '2026-08-28T12:02:00.000Z',
+            },
+          },
+          meta: { apiVersion: '1' as const, idempotentReplay: false },
+        }),
+      ),
+      openCashDrawer: vi.fn().mockReturnValue(
+        of({
+          data: {
+            id: 'operation-2',
+            action: 'OPEN_DRAWER' as const,
+            trigger: 'MANUAL' as const,
+            status: 'COMPLETED' as const,
+            attemptCount: 1,
+            errorCode: null,
+            saleId: null,
+            deviceId: profile.deviceId,
+            createdAt: '2026-08-28T12:03:00.000Z',
+            completedAt: '2026-08-28T12:03:00.000Z',
+          },
+          meta: { apiVersion: '1' as const, idempotentReplay: false },
+        }),
+      ),
     };
     await TestBed.configureTestingModule({
       imports: [SaleReceiptPanelComponent],
@@ -78,6 +136,8 @@ describe('SaleReceiptPanelComponent', () => {
     }).compileComponents();
     fixture = TestBed.createComponent(SaleReceiptPanelComponent);
     fixture.componentRef.setInput('saleId', 'sale-1');
+    fixture.componentRef.setInput('canConfigure', true);
+    fixture.componentRef.setInput('canOpenDrawer', true);
     fixture.detectChanges();
   });
 
@@ -104,10 +164,39 @@ describe('SaleReceiptPanelComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('No se envió correo real');
 
     (fixture.nativeElement.querySelector('.receipt-actions > button') as HTMLButtonElement).click();
+    expect(pos.printSaleReceipt).toHaveBeenCalledWith(
+      'sale-1',
+      expect.stringMatching(/^web-receipt-print-/),
+    );
     expect(print).toHaveBeenCalledOnce();
     expect(document.body.classList.contains('printing-sale-receipt')).toBe(true);
     globalThis.dispatchEvent(new Event('afterprint'));
     expect(document.body.classList.contains('printing-sale-receipt')).toBe(false);
     print.mockRestore();
+  });
+
+  it('configures the simulated device and opens the drawer independently from the sale', () => {
+    (fixture.nativeElement.querySelector('.receipt-launch button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    const form = fixture.nativeElement.querySelector('.peripheral-profile form') as HTMLFormElement;
+    form.dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+    expect(pos.updatePeripheralProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ deviceId: profile.deviceId, adapter: 'SIMULATOR' }),
+    );
+
+    const drawer = Array.from(
+      fixture.nativeElement.querySelectorAll('.receipt-actions > button'),
+    ).find((button) =>
+      (button as HTMLButtonElement).textContent?.includes('Abrir'),
+    ) as HTMLButtonElement;
+    drawer.click();
+    fixture.detectChanges();
+    expect(pos.openCashDrawer).toHaveBeenCalledWith(
+      { trigger: 'MANUAL' },
+      expect.stringMatching(/^web-drawer-manual-/),
+    );
+    expect(fixture.nativeElement.textContent).toContain('Pulso de cajon enviado');
   });
 });

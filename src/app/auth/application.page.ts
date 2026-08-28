@@ -243,6 +243,9 @@ export class ApplicationPage implements OnInit {
   protected readonly canReprintSales = computed(
     () => this.session()?.user.permissions.includes('SALE_REPRINT') ?? false,
   );
+  protected readonly canOpenCashDrawer = computed(
+    () => this.session()?.user.permissions.includes('CASH_DRAWER_OPEN') ?? false,
+  );
   protected readonly canOpenCashRegister = computed(
     () => this.session()?.user.permissions.includes('CASH_REGISTER_OPEN') ?? false,
   );
@@ -399,6 +402,7 @@ export class ApplicationPage implements OnInit {
   protected readonly offlinePosActive = signal(false);
   protected readonly queuedOfflineSale = signal<{ commandId: string; total: string } | null>(null);
   protected readonly posError = signal<string | null>(null);
+  protected readonly peripheralNotice = signal<string | null>(null);
   protected readonly suspendedSales = signal<SuspendedSaleData[]>([]);
   protected readonly loadingSuspendedSales = signal(false);
   protected readonly savingSuspendedSale = signal(false);
@@ -1706,6 +1710,7 @@ export class ApplicationPage implements OnInit {
         this.savingSale.set(false);
         this.pendingSale = null;
         this.completedSale.set(data);
+        this.openDrawerAfterCashSale(data);
         this.cart.set([]);
         this.cartQuote.set(null);
         this.resumedSuspendedSaleId.set(null);
@@ -1749,6 +1754,33 @@ export class ApplicationPage implements OnInit {
         this.posError.set(this.posMessageFor(error));
       },
     });
+  }
+
+  private openDrawerAfterCashSale(sale: CashSaleData): void {
+    if (!this.canOpenCashDrawer() || !sale.payments.some((payment) => payment.method === 'CASH')) {
+      return;
+    }
+    this.peripheralNotice.set(null);
+    this.pos
+      .openCashDrawer(
+        { trigger: 'CASH_SALE_COMPLETED', saleId: sale.id },
+        `web-drawer-sale-${sale.id}`,
+      )
+      .subscribe({
+        next: ({ data }) =>
+          this.peripheralNotice.set(
+            data.status === 'COMPLETED'
+              ? `Cajon abierto en ${data.deviceId}.`
+              : 'El cajon no respondio; abrelo manualmente. La venta ya quedo registrada una sola vez.',
+          ),
+        error: (error: HttpErrorResponse) => {
+          const code = (error.error as { code?: string } | null)?.code;
+          if (code === 'PERIPHERAL_AUTO_OPEN_DISABLED') return;
+          this.peripheralNotice.set(
+            'No fue posible abrir el cajon; usa el procedimiento manual. La venta permanece registrada.',
+          );
+        },
+      });
   }
 
   protected suspendCurrentSale(): void {
@@ -2587,6 +2619,7 @@ export class ApplicationPage implements OnInit {
       SALES_RETURN: 'Registrar devoluciones y cambios',
       SALES_DISCOUNT: 'Aplicar descuentos',
       SALE_REPRINT: 'Reimprimir comprobantes',
+      CASH_DRAWER_OPEN: 'Abrir cajon de dinero',
       CASH_REGISTER_OPEN: 'Abrir caja',
       CASH_REGISTER_CLOSE: 'Cerrar caja y realizar arqueo',
       CASH_REGISTER_MOVE: 'Registrar y reversar movimientos de caja',

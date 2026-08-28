@@ -77,6 +77,10 @@ describe('ApplicationPage', () => {
     getSale: ReturnType<typeof vi.fn>;
     reprintSaleReceipt: ReturnType<typeof vi.fn>;
     sendSaleReceipt: ReturnType<typeof vi.fn>;
+    getPeripheralProfile: ReturnType<typeof vi.fn>;
+    updatePeripheralProfile: ReturnType<typeof vi.fn>;
+    printSaleReceipt: ReturnType<typeof vi.fn>;
+    openCashDrawer: ReturnType<typeof vi.fn>;
     listSaleReturns: ReturnType<typeof vi.fn>;
     createSaleReturn: ReturnType<typeof vi.fn>;
     listSuspendedSales: ReturnType<typeof vi.fn>;
@@ -337,6 +341,26 @@ describe('ApplicationPage', () => {
       getSale: vi.fn(),
       reprintSaleReceipt: vi.fn(),
       sendSaleReceipt: vi.fn(),
+      getPeripheralProfile: vi.fn(),
+      updatePeripheralProfile: vi.fn(),
+      printSaleReceipt: vi.fn(),
+      openCashDrawer: vi.fn().mockReturnValue(
+        of({
+          data: {
+            id: 'drawer-operation',
+            action: 'OPEN_DRAWER',
+            trigger: 'CASH_SALE_COMPLETED',
+            status: 'COMPLETED',
+            attemptCount: 1,
+            errorCode: null,
+            saleId: 'sale',
+            deviceId: 'SIM-register',
+            createdAt: '2026-08-28T12:00:00.000Z',
+            completedAt: '2026-08-28T12:00:00.000Z',
+          },
+          meta: { apiVersion: '1', idempotentReplay: false },
+        }),
+      ),
       listSaleReturns: vi.fn().mockReturnValue(of({ data: [], meta: { apiVersion: '1' } })),
       createSaleReturn: vi.fn(),
       listSuspendedSales: vi
@@ -475,6 +499,7 @@ describe('ApplicationPage', () => {
           'SALES_RETURN',
           'SALES_DISCOUNT',
           'SALE_REPRINT',
+          'CASH_DRAWER_OPEN',
           'CASH_REGISTER_OPEN',
           'CASH_REGISTER_CLOSE',
           'CASH_REGISTER_MOVE',
@@ -1885,6 +1910,11 @@ describe('ApplicationPage', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Venta V-123456789012 completada');
     expect(fixture.nativeElement.textContent).toContain('Cambio MXN 10.20');
+    expect(pos.openCashDrawer).toHaveBeenCalledWith(
+      { trigger: 'CASH_SALE_COMPLETED', saleId: 'sale' },
+      'web-drawer-sale-sale',
+    );
+    expect(fixture.nativeElement.textContent).toContain('Cajon abierto en SIM-register');
     expect(inventory.listStock).toHaveBeenCalledTimes(2);
     expect(pos.listSales).toHaveBeenCalledTimes(2);
   });

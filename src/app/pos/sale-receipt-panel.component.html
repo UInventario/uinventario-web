@@ -112,7 +112,15 @@
     </article>
 
     <div class="receipt-actions">
-      <button type="button" (click)="printReceipt()">Imprimir 80 mm</button>
+      <button type="button" (click)="printReceipt()" [disabled]="printing()">
+        {{ printing() ? 'Enviando a impresora...' : 'Imprimir 80 mm' }}
+      </button>
+      <button type="button" class="secondary" (click)="printManually()">Impresion manual</button>
+      @if (canOpenDrawer()) {
+        <button type="button" class="secondary" (click)="openDrawer()" [disabled]="openingDrawer()">
+          {{ openingDrawer() ? 'Abriendo...' : 'Abrir cajon' }}
+        </button>
+      }
       <form [formGroup]="emailForm" (ngSubmit)="sendReceipt()">
         <label>
           Correo del destinatario
@@ -131,6 +139,46 @@
         Simulación completada para {{ sent.recipient }}. No se envió correo real porque aún no hay
         proveedor externo configurado.
       </p>
+    }
+    @if (peripheralMessage()) {
+      <p class="simulation" role="status">{{ peripheralMessage() }}</p>
+    }
+    @if (profile(); as device) {
+      <section class="peripheral-profile" aria-labelledby="peripheral-profile-title">
+        <div>
+          <h4 id="peripheral-profile-title">Periferico de {{ device.cashRegister.name }}</h4>
+          <p>{{ device.label }} - {{ device.deviceId }} - Adaptador simulado</p>
+        </div>
+        @if (canConfigure()) {
+          <form [formGroup]="profileForm" (ngSubmit)="saveProfile()">
+            <label>
+              Identificador del dispositivo
+              <input formControlName="deviceId" maxlength="80" />
+            </label>
+            <label>
+              Nombre operativo
+              <input formControlName="label" maxlength="120" />
+            </label>
+            <label class="check">
+              <input type="checkbox" formControlName="printerEnabled" /> Impresora habilitada
+            </label>
+            <label class="check">
+              <input type="checkbox" formControlName="drawerEnabled" /> Cajon habilitado
+            </label>
+            <label class="check">
+              <input type="checkbox" formControlName="autoOpenCashSale" /> Abrir tras venta en
+              efectivo
+            </label>
+            <button type="submit" class="secondary" [disabled]="savingProfile()">
+              {{ savingProfile() ? 'Guardando...' : 'Guardar dispositivo' }}
+            </button>
+          </form>
+        }
+        <small>
+          Si el dispositivo falla, la venta no se repite: reintenta la impresion o usa la apertura
+          manual.
+        </small>
+      </section>
     }
   }
 </section>
