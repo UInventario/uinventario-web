@@ -15,6 +15,7 @@ export interface InventoryTransferLineData {
   receivedQuantity: string;
   discrepancyQuantity: string;
   pendingQuantity: string;
+  serialNumbers?: string[];
 }
 
 export interface InventoryTransferReceiptData {
@@ -66,6 +67,7 @@ export interface InventoryTransferInput {
     sourceLocationId: string;
     destinationLocationId: string;
     quantity: string;
+    serialNumbers?: string[];
   }>;
 }
 
@@ -75,6 +77,8 @@ export interface InventoryTransferReceiptInput {
     transferLineId: string;
     receivedQuantity: string;
     discrepancyQuantity: string;
+    receivedSerialNumbers?: string[];
+    discrepancySerialNumbers?: string[];
   }>;
 }
 

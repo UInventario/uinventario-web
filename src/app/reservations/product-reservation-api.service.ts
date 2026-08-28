@@ -22,6 +22,7 @@ export interface ProductReservationData {
     id: string;
     product: { id: string; name: string; sku: string };
     quantity: string;
+    serialNumbers?: string[];
   }>;
 }
 
@@ -29,7 +30,7 @@ export interface ProductReservationInput {
   customerId: string;
   locationId: string;
   expiresInHours: number;
-  lines: Array<{ productId: string; quantity: string }>;
+  lines: Array<{ productId: string; quantity: string; serialNumbers?: string[] }>;
 }
 
 @Injectable({ providedIn: 'root' })

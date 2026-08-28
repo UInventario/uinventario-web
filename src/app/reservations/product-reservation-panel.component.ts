@@ -81,6 +81,14 @@ export class ProductReservationPanelComponent implements OnInit {
       lines: raw.lines.map((line) => ({
         productId: line.productId,
         quantity: line.quantity.trim(),
+        ...(line.serialNumbers.trim()
+          ? {
+              serialNumbers: line.serialNumbers
+                .split(/\r?\n/)
+                .map((value) => value.trim())
+                .filter(Boolean),
+            }
+          : {}),
       })),
     };
     const signature = JSON.stringify(input);
@@ -140,6 +148,7 @@ export class ProductReservationPanelComponent implements OnInit {
         reservation.lines.map((line) => ({
           productId: line.product.id,
           quantity: line.quantity,
+          serialNumbers: line.serialNumbers ?? [],
         })),
         reservation.id,
       )
@@ -167,6 +176,7 @@ export class ProductReservationPanelComponent implements OnInit {
           lines: reservation.lines.map((line) => ({
             productId: line.product.id,
             quantity: line.quantity,
+            serialNumbers: line.serialNumbers ?? [],
           })),
           cashReceived: this.cashReceived.value,
         },
@@ -220,6 +230,7 @@ export class ProductReservationPanelComponent implements OnInit {
     return this.formBuilder.nonNullable.group({
       productId: ['', Validators.required],
       quantity: ['1', [Validators.required, Validators.pattern(QUANTITY_PATTERN)]],
+      serialNumbers: [''],
     });
   }
 
