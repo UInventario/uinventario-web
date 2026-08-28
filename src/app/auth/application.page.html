@@ -946,6 +946,12 @@
     @if (canManageStock()) {
       <app-inventory-valuation-policy-panel />
       <app-inventory-reconciliation-panel />
+      <app-stock-alert-panel
+        [products]="stockList()"
+        [locations]="locations()"
+        [refreshToken]="stockAlertRefreshToken()"
+        (viewStock)="viewAlertStock($event)"
+      />
     }
 
     <section
