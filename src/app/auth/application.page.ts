@@ -76,6 +76,7 @@ import { CatalogClassificationPanelComponent } from '../catalog/catalog-classifi
 import { ProductCodeScannerComponent } from '../catalog/product-code-scanner.component';
 import { DataExportPanelComponent } from '../exports/data-export-panel.component';
 import { ProductImportPanelComponent } from '../catalog/product-import-panel.component';
+import { PrivacyPanelComponent } from '../privacy/privacy-panel.component';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const POSITIVE_MONEY_PATTERN = /^(?:[1-9]\d{0,11}(?:\.\d{1,2})?|0\.(?:0[1-9]|[1-9]\d?))$/;
@@ -115,6 +116,7 @@ interface CartEntry {
     ProductCodeScannerComponent,
     DataExportPanelComponent,
     ProductImportPanelComponent,
+    PrivacyPanelComponent,
   ],
   templateUrl: './application.page.html',
   styleUrl: './application.page.scss',
@@ -241,6 +243,9 @@ export class ApplicationPage implements OnInit {
   protected readonly canExportAudit = computed(
     () => this.session()?.user.permissions.includes('AUDIT_EXPORT') ?? false,
   );
+  protected readonly canManagePrivacy = computed(
+    () => this.session()?.user.permissions.includes('PRIVACY_MANAGE') ?? false,
+  );
   protected readonly hasNoCoreAccess = computed(
     () =>
       !this.canManageTenant() &&
@@ -250,7 +255,8 @@ export class ApplicationPage implements OnInit {
       !this.canManageStock() &&
       !this.canManageSales() &&
       !this.canManageAccess() &&
-      !this.canViewAudit(),
+      !this.canViewAudit() &&
+      !this.canManagePrivacy(),
   );
   protected readonly rolePermissions = OPERATIONAL_PERMISSIONS;
   protected readonly accessRoles = signal<AccessRoleData[]>([]);
@@ -2391,6 +2397,7 @@ export class ApplicationPage implements OnInit {
       ACCESS_MANAGE: 'Administrar roles y usuarios',
       AUDIT_VIEW: 'Consultar auditoría',
       AUDIT_EXPORT: 'Exportar auditoría',
+      PRIVACY_MANAGE: 'Administrar privacidad y retención',
       SUPPLIERS_MANAGE: 'Administrar proveedores',
       PURCHASE_ORDERS_MANAGE: 'Crear y editar órdenes de compra',
       PURCHASE_ORDERS_APPROVE: 'Aprobar y cancelar órdenes de compra',
