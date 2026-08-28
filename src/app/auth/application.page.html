@@ -368,6 +368,13 @@
               <p class="field-error">Escribe un nombre de al menos 2 caracteres.</p>
             }
           </div>
+          <div class="field wide">
+            <label>
+              <input type="checkbox" formControlName="trackSerials" />
+              Controlar cada unidad por nÃºmero de serie
+            </label>
+            <small>Las entradas, traslados y ventas exigirÃ¡n una serie Ãºnica por unidad.</small>
+          </div>
 
           <div class="field">
             <label for="sku">SKU</label>
@@ -600,6 +607,10 @@
                 <dt>Lotes</dt>
                 <dd>{{ product.trackLots ? 'Controlados' : 'No controlados' }}</dd>
               </div>
+              <div>
+                <dt>Series</dt>
+                <dd>{{ product.trackSerials ? 'Controladas' : 'No controladas' }}</dd>
+              </div>
             </dl>
 
             <section class="stock-card" aria-labelledby="stock-title" [hidden]="!canManageStock()">
@@ -645,6 +656,28 @@
                   }
                   @if (!lotReconciled()) {
                     <span>La suma por lote no coincide con la existencia total.</span>
+                  }
+                </div>
+              }
+
+              @if (product.trackSerials) {
+                <div class="catalog-state">
+                  <strong>{{ selectedProductSerials().length }} serie(s)</strong>
+                  @for (serial of selectedProductSerials(); track serial.id) {
+                    <button type="button" class="secondary" (click)="viewSerialHistory(serial.id)">
+                      {{ serial.serialNumber }} Â· {{ serial.status }} Â·
+                      {{ serial.currentLocation?.code || 'sin ubicaciÃ³n' }}
+                    </button>
+                  }
+                  @if (selectedSerialHistory(); as history) {
+                    <strong>Custodia de {{ history.serial.serialNumber }}</strong>
+                    @for (event of history.events; track event.id) {
+                      <small>
+                        {{ event.createdAt | date: 'short' }} Â· {{ event.movement.type }} Â·
+                        {{ event.fromStatus || 'ALTA' }} â†’ {{ event.toStatus }} Â·
+                        {{ event.responsible.email }}
+                      </small>
+                    }
                   }
                 </div>
               }
@@ -769,6 +802,20 @@
                       >
                     </div>
                   }
+                  @if (product.trackSerials) {
+                    <div class="field wide">
+                      <label for="stockSerialNumbers">NÃºmeros de serie</label>
+                      <textarea
+                        id="stockSerialNumbers"
+                        formControlName="serialNumbers"
+                        rows="5"
+                        placeholder="Escanea o escribe una serie por lÃ­nea"
+                      ></textarea>
+                      <small
+                        >La cantidad debe coincidir exactamente con el nÃºmero de series.</small
+                      >
+                    </div>
+                  }
                 </div>
                 @if (stockError()) {
                   <div class="form-error" role="alert">{{ stockError() }}</div>
@@ -856,6 +903,17 @@
                       <p class="field-error">Agrega una referencia o evidencia.</p>
                     }
                   </div>
+                  @if (product.trackSerials) {
+                    <div class="field wide">
+                      <label for="stateSerialNumbers">Series a cambiar</label>
+                      <textarea
+                        id="stateSerialNumbers"
+                        formControlName="serialNumbers"
+                        rows="4"
+                        placeholder="Una serie por lÃ­nea"
+                      ></textarea>
+                    </div>
+                  }
                 </div>
                 @if (stateTransitionError()) {
                   <div class="form-error" role="alert">{{ stateTransitionError() }}</div>
@@ -1106,6 +1164,17 @@
           <label for="transferReason">Motivo</label>
           <input id="transferReason" formControlName="reason" maxlength="160" />
         </div>
+        @if (selectedProduct()?.trackSerials) {
+          <div class="field wide">
+            <label for="transferSerials">Series a trasladar</label>
+            <textarea
+              id="transferSerials"
+              formControlName="serialNumbers"
+              rows="4"
+              placeholder="Una serie por lÃ­nea"
+            ></textarea>
+          </div>
+        }
         <button
           class="primary"
           type="submit"
@@ -1202,7 +1271,9 @@
                             line,
                             receivedQuantity.value,
                             discrepancyQuantity.value,
-                            discrepancyReason.value
+                            discrepancyReason.value,
+                            receivedSerials.value,
+                            discrepancySerials.value
                           )
                         "
                       >
@@ -1225,6 +1296,20 @@
                           maxlength="160"
                           placeholder="Motivo si hay diferencia"
                         />
+                        <textarea
+                          #receivedSerials
+                          aria-label="Series recibidas"
+                          rows="3"
+                          placeholder="Series recibidas, una por lÃ­nea"
+                          [hidden]="(line.serialNumbers?.length ?? 0) === 0"
+                        ></textarea>
+                        <textarea
+                          #discrepancySerials
+                          aria-label="Series con diferencia"
+                          rows="3"
+                          placeholder="Series faltantes, una por lÃ­nea"
+                          [hidden]="(line.serialNumbers?.length ?? 0) === 0"
+                        ></textarea>
                         <button class="primary" type="submit" [disabled]="transferActionId()">
                           Recibir línea
                         </button>
@@ -1933,6 +2018,18 @@
                         <option [value]="lot.id">{{ lot.code }} · {{ lot.quantity }}</option>
                       }
                     </select>
+                  </label>
+                }
+                @if (entry.product.trackSerials) {
+                  <label>
+                    Series
+                    <textarea
+                      [attr.aria-label]="'Series de ' + entry.product.name"
+                      [value]="entry.serialNumbers"
+                      rows="3"
+                      placeholder="Una serie por lÃ­nea"
+                      (change)="updateCartSerials(entry.product.id, $any($event.target).value)"
+                    ></textarea>
                   </label>
                 }
                 <div class="line-total">

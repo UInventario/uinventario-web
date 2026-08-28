@@ -86,6 +86,12 @@
               maxlength="64"
               placeholder="Ej. LOT-2026-001"
             />
+            NÃºmeros de serie (uno por lÃ­nea si aplica)
+            <textarea
+              [id]="'purchaseReceiptSerials' + index"
+              formControlName="serialNumbers"
+              rows="3"
+            ></textarea>
           </label>
         }
       </div>
@@ -147,6 +153,8 @@
               inputmode="decimal"
               formControlName="returnedQuantity"
             />
+            Series a devolver (una por lÃ­nea si aplica)
+            <textarea formControlName="serialNumbers" rows="3"></textarea>
           </label>
         }
       </div>

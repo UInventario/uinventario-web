@@ -87,6 +87,7 @@ export interface InventoryMovementInput {
   reason: string;
   reference?: string;
   lotCode?: string;
+  serialNumbers?: string[];
 }
 
 export interface InventoryStateTransitionInput {
@@ -97,6 +98,7 @@ export interface InventoryStateTransitionInput {
   quantity: string;
   reason: string;
   reference: string;
+  serialNumbers?: string[];
 }
 
 export interface InventoryStockItem {
@@ -180,6 +182,30 @@ export interface InventoryFifoLayerData {
     layerId: string | null;
     purchaseReceiptLineId: string | null;
   };
+}
+
+export type InventorySerialStatus =
+  'AVAILABLE' | 'RESERVED' | 'DAMAGED' | 'IN_TRANSIT' | 'SOLD' | 'RETURNED_TO_SUPPLIER' | 'REMOVED';
+
+export interface InventorySerialData {
+  id: string;
+  serialNumber: string;
+  status: InventorySerialStatus;
+  product: { id: string; name: string; sku: string };
+  currentLocation: InventoryLocationData | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InventorySerialEventData {
+  id: string;
+  movement: { id: string; type: InventoryMovementType; reference: string | null; reason: string };
+  fromStatus: InventorySerialStatus | null;
+  toStatus: InventorySerialStatus;
+  fromLocation: InventoryLocationData | null;
+  toLocation: InventoryLocationData | null;
+  responsible: { id: string; email: string };
+  createdAt: string;
 }
 
 export interface InventoryMovementHistoryItem {
@@ -461,6 +487,24 @@ export class InventoryApiService {
         inventoryValue: string;
       };
     }>(`${this.config.apiBaseUrl()}/inventory/products/${productId}/lots`, {
+      withCredentials: true,
+    });
+  }
+
+  listSerials(productId: string) {
+    return this.http.get<{
+      data: InventorySerialData[];
+      meta: { apiVersion: '1'; tracked: boolean };
+    }>(`${this.config.apiBaseUrl()}/inventory/products/${productId}/serials`, {
+      withCredentials: true,
+    });
+  }
+
+  serialHistory(serialId: string) {
+    return this.http.get<{
+      data: { serial: InventorySerialData; events: InventorySerialEventData[] };
+      meta: { apiVersion: '1' };
+    }>(`${this.config.apiBaseUrl()}/inventory/serials/${serialId}/history`, {
       withCredentials: true,
     });
   }

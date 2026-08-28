@@ -71,6 +71,13 @@
                 inputmode="decimal"
                 formControlName="quantity"
             /></label>
+            <label
+              >Series (una por lÃ­nea si aplica)<textarea
+                [id]="'reservationSerials' + index"
+                formControlName="serialNumbers"
+                rows="3"
+              ></textarea>
+            </label>
             <button
               type="button"
               class="secondary"

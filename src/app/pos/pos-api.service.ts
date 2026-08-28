@@ -14,6 +14,7 @@ export interface PosCartQuote {
     product: { id: string; name: string; sku: string };
     quantity: string;
     lotId?: string | null;
+    serialNumbers?: string[];
     availableQuantity: string;
     unitPrice: string;
     subtotal: string;
@@ -306,7 +307,12 @@ export class PosApiService {
   }
 
   quote(
-    lines: Array<{ productId: string; quantity: string; lotId?: string }>,
+    lines: Array<{
+      productId: string;
+      quantity: string;
+      lotId?: string;
+      serialNumbers?: string[];
+    }>,
     reservationId?: string,
   ) {
     return this.http.post<PosCartQuoteResponse>(
@@ -325,7 +331,12 @@ export class PosApiService {
 
   createSale(
     input: {
-      lines: Array<{ productId: string; quantity: string; lotId?: string }>;
+      lines: Array<{
+        productId: string;
+        quantity: string;
+        lotId?: string;
+        serialNumbers?: string[];
+      }>;
       customerId?: string;
       reservationId?: string;
       payment?: { method: PaymentMethod; amountReceived?: string; reference?: string };

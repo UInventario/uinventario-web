@@ -91,14 +91,23 @@ export interface PurchaseReceiptInput {
   locationId: string;
   documentReference: string;
   overageReason?: string;
-  lines: Array<{ purchaseOrderLineId: string; receivedQuantity: string; lotCode?: string }>;
+  lines: Array<{
+    purchaseOrderLineId: string;
+    receivedQuantity: string;
+    lotCode?: string;
+    serialNumbers?: string[];
+  }>;
 }
 
 export interface PurchaseReturnInput {
   purchaseReceiptId: string;
   documentReference: string;
   reason: string;
-  lines: Array<{ purchaseReceiptLineId: string; returnedQuantity: string }>;
+  lines: Array<{
+    purchaseReceiptLineId: string;
+    returnedQuantity: string;
+    serialNumbers?: string[];
+  }>;
 }
 
 export interface PurchaseOrderTransitionData {
