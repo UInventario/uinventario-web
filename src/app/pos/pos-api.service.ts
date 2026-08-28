@@ -474,7 +474,12 @@ export class PosApiService {
 
   suspendSale(
     input: {
-      lines: Array<{ productId: string; quantity: string; lotId?: string; serialNumbers?: string[] }>;
+      lines: Array<{
+        productId: string;
+        quantity: string;
+        lotId?: string;
+        serialNumbers?: string[];
+      }>;
       customerId?: string;
       notes?: string;
     },
@@ -497,14 +502,22 @@ export class PosApiService {
         conflicts: SuspendedSaleConflict[];
       };
       meta: { apiVersion: '1'; recalculatedAt: string };
-    }>(`${this.config.apiBaseUrl()}/pos/suspended-sales/${id}/resume`, {}, { withCredentials: true });
+    }>(
+      `${this.config.apiBaseUrl()}/pos/suspended-sales/${id}/resume`,
+      {},
+      { withCredentials: true },
+    );
   }
 
   cancelSuspendedSale(id: string) {
     return this.http.post<{
       data: SuspendedSaleData;
       meta: { apiVersion: '1'; idempotentReplay: boolean };
-    }>(`${this.config.apiBaseUrl()}/pos/suspended-sales/${id}/cancel`, {}, { withCredentials: true });
+    }>(
+      `${this.config.apiBaseUrl()}/pos/suspended-sales/${id}/cancel`,
+      {},
+      { withCredentials: true },
+    );
   }
 
   createCashSale(

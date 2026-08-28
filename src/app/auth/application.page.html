@@ -2216,9 +2216,20 @@
                 <strong>{{ sale.notes || 'Venta sin nota' }}</strong>
                 <small>
                   {{ sale.lines.length }} línea(s) · {{ sale.customer?.name || 'Sin cliente' }} ·
-                  {{ sale.status === 'ACTIVE' ? 'Activa' : sale.status === 'EXPIRED' ? 'Expirada' : sale.status === 'CANCELLED' ? 'Cancelada' : 'Cobrada' }}
+                  {{
+                    sale.status === 'ACTIVE'
+                      ? 'Activa'
+                      : sale.status === 'EXPIRED'
+                        ? 'Expirada'
+                        : sale.status === 'CANCELLED'
+                          ? 'Cancelada'
+                          : 'Cobrada'
+                  }}
                 </small>
-                <small>Creada {{ dateTime(sale.createdAt) }} · vence {{ dateTime(sale.expiresAt) }}</small>
+                <small
+                  >Creada {{ dateTime(sale.createdAt) }} · vence
+                  {{ dateTime(sale.expiresAt) }}</small
+                >
               </span>
               @if (sale.status === 'ACTIVE') {
                 <div class="suspended-sale-actions">
@@ -2226,13 +2237,17 @@
                     type="button"
                     (click)="resumeSuspendedSale(sale)"
                     [disabled]="!!suspendedSaleActionId()"
-                  >Reanudar</button>
+                  >
+                    Reanudar
+                  </button>
                   <button
                     type="button"
                     class="remove"
                     (click)="cancelSuspendedSale(sale)"
                     [disabled]="!!suspendedSaleActionId()"
-                  >Cancelar</button>
+                  >
+                    Cancelar
+                  </button>
                 </div>
               }
             </li>

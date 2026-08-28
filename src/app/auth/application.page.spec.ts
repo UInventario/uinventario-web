@@ -339,9 +339,9 @@ describe('ApplicationPage', () => {
       sendSaleReceipt: vi.fn(),
       listSaleReturns: vi.fn().mockReturnValue(of({ data: [], meta: { apiVersion: '1' } })),
       createSaleReturn: vi.fn(),
-      listSuspendedSales: vi.fn().mockReturnValue(
-        of({ data: [], meta: { apiVersion: '1', expirationHours: 24 } }),
-      ),
+      listSuspendedSales: vi
+        .fn()
+        .mockReturnValue(of({ data: [], meta: { apiVersion: '1', expirationHours: 24 } })),
       suspendSale: vi.fn(),
       resumeSuspendedSale: vi.fn(),
       cancelSuspendedSale: vi.fn(),
@@ -1955,9 +1955,7 @@ describe('ApplicationPage', () => {
       suspendCurrentSale(): void;
       resumeSuspendedSale(value: typeof suspended): void;
     };
-    component.cart.set([
-      { product, quantity: '1', lotId: '', lots: [], serialNumbers: '' },
-    ]);
+    component.cart.set([{ product, quantity: '1', lotId: '', lots: [], serialNumbers: '' }]);
     component.cartQuote.set(quote);
     component.cashForm.controls.notes.setValue('Cliente regresa');
     pos.suspendSale.mockReturnValue(

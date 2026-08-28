@@ -1663,9 +1663,7 @@ export class ApplicationPage implements OnInit {
       ...(this.cashForm.controls.customerId.value
         ? { customerId: this.cashForm.controls.customerId.value }
         : {}),
-      ...(this.resumedSuspendedSaleId()
-        ? { suspendedSaleId: this.resumedSuspendedSaleId()! }
-        : {}),
+      ...(this.resumedSuspendedSaleId() ? { suspendedSaleId: this.resumedSuspendedSaleId()! } : {}),
       payments: this.paymentRows.controls.map((row) => {
         const value = row.getRawValue();
         return {
@@ -1755,11 +1753,14 @@ export class ApplicationPage implements OnInit {
 
   protected suspendCurrentSale(): void {
     if (!this.assertOpenCashRegisterShift() || !this.cartQuote() || this.browserOffline()) {
-      if (this.browserOffline()) this.posError.set('Suspender ventas requiere conexión al servidor.');
+      if (this.browserOffline())
+        this.posError.set('Suspender ventas requiere conexión al servidor.');
       return;
     }
     if (this.resumedSuspendedSaleId()) {
-      this.posError.set('Esta venta ya proviene de una suspensión. Confírmala o cancela la suspensión original.');
+      this.posError.set(
+        'Esta venta ya proviene de una suspensión. Confírmala o cancela la suspensión original.',
+      );
       return;
     }
     const input = {
