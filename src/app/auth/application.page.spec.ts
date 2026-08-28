@@ -66,6 +66,7 @@ describe('ApplicationPage', () => {
     voidSale: ReturnType<typeof vi.fn>;
     listSales: ReturnType<typeof vi.fn>;
     getSale: ReturnType<typeof vi.fn>;
+    salesCashReport: ReturnType<typeof vi.fn>;
   };
   let audit: {
     list: ReturnType<typeof vi.fn>;
@@ -248,6 +249,39 @@ describe('ApplicationPage', () => {
         }),
       ),
       getSale: vi.fn(),
+      salesCashReport: vi.fn().mockReturnValue(
+        of({
+          data: {
+            scope: [{ id: 'branch', name: 'Sucursal', timezone: 'America/Mexico_City' }],
+            options: {
+              branches: [{ id: 'branch', name: 'Sucursal', timezone: 'America/Mexico_City' }],
+              registers: [{ id: 'register', name: 'Caja', code: 'MAIN', branch_id: 'branch' }],
+              users: [{ id: 'user', email: 'admin@example.com' }],
+            },
+            summary: {
+              sales: { total: 0, completed: 0, voided: 0, net: '0.00', voidedAmount: '0.00' },
+              payments: [],
+              cash: {
+                shifts: 1,
+                open: 1,
+                closed: 0,
+                expected: '100.00',
+                counted: '0.00',
+                difference: '0.00',
+              },
+              reconciliation: { salesNet: '0.00', paymentsApplied: '0.00', matches: true },
+            },
+            sales: [],
+            shifts: [],
+            total: 0,
+          },
+          meta: {
+            apiVersion: '1',
+            pagination: { page: 1, pageSize: 10, total: 0, totalPages: 0 },
+            periodTimezone: 'BRANCH_LOCAL',
+          },
+        }),
+      ),
     };
     offlinePos = {
       search: vi.fn(),
@@ -1899,6 +1933,128 @@ describe('ApplicationPage', () => {
       },
       expect.stringMatching(/^web-sale-/),
     );
+  });
+
+  it('filters and reconciles the sales and cash report', () => {
+    pos.salesCashReport.mockReturnValue(
+      of({
+        data: {
+          scope: [{ id: 'branch', name: 'Sucursal', timezone: 'America/Mexico_City' }],
+          options: {
+            branches: [{ id: 'branch', name: 'Sucursal', timezone: 'America/Mexico_City' }],
+            registers: [{ id: 'register', name: 'Caja', code: 'MAIN', branch_id: 'branch' }],
+            users: [{ id: 'user', email: 'admin@example.com' }],
+          },
+          summary: {
+            sales: {
+              total: 2,
+              completed: 1,
+              voided: 1,
+              net: '119.90',
+              voidedAmount: '119.90',
+            },
+            payments: [
+              { method: 'CASH', status: 'COMPLETED', count: 1, amount: '60.00' },
+              { method: 'CARD', status: 'COMPLETED', count: 1, amount: '59.90' },
+            ],
+            cash: {
+              shifts: 1,
+              open: 0,
+              closed: 1,
+              expected: '310.00',
+              counted: '310.00',
+              difference: '0.00',
+            },
+            reconciliation: {
+              salesNet: '119.90',
+              paymentsApplied: '119.90',
+              matches: true,
+            },
+          },
+          sales: [
+            {
+              id: 'sale-report',
+              receiptNumber: 'V-REPORT000001',
+              status: 'COMPLETED',
+              branch: { id: 'branch', name: 'Sucursal' },
+              cashRegister: { id: 'register', name: 'Caja', code: 'MAIN' },
+              user: { id: 'user', email: 'admin@example.com' },
+              currency: 'MXN',
+              total: '119.90',
+              payments: [
+                {
+                  method: 'CASH',
+                  status: 'COMPLETED',
+                  amount: '60.00',
+                  change: '10.00',
+                  reference: null,
+                },
+                {
+                  method: 'CARD',
+                  status: 'COMPLETED',
+                  amount: '59.90',
+                  change: '0.00',
+                  reference: 'CARD-001',
+                },
+              ],
+              createdAt: '2026-08-27T14:00:00.000Z',
+              voidedAt: null,
+            },
+          ],
+          shifts: [
+            {
+              id: 'shift-report',
+              status: 'CLOSED',
+              branch: { id: 'branch', name: 'Sucursal' },
+              cashRegister: { id: 'register', name: 'Caja', code: 'MAIN' },
+              openedByEmail: 'admin@example.com',
+              currency: 'MXN',
+              opening: '250.00',
+              expected: '310.00',
+              counted: '310.00',
+              difference: '0.00',
+              openedAt: '2026-08-27T13:00:00.000Z',
+              closedAt: '2026-08-27T15:00:00.000Z',
+            },
+          ],
+          total: 2,
+        },
+        meta: {
+          apiVersion: '1',
+          pagination: { page: 1, pageSize: 10, total: 2, totalPages: 1 },
+          periodTimezone: 'BRANCH_LOCAL',
+        },
+      }),
+    );
+    const component = fixture.componentInstance as unknown as {
+      salesCashReportForm: {
+        controls: {
+          dateFrom: { setValue(value: string): void };
+          dateTo: { setValue(value: string): void };
+          branchId: { setValue(value: string): void };
+          status: { setValue(value: 'ALL' | 'COMPLETED' | 'VOIDED'): void };
+        };
+      };
+      filterSalesCashReport(): void;
+    };
+    component.salesCashReportForm.controls.dateFrom.setValue('2026-08-27');
+    component.salesCashReportForm.controls.dateTo.setValue('2026-08-27');
+    component.salesCashReportForm.controls.branchId.setValue('branch');
+    component.salesCashReportForm.controls.status.setValue('ALL');
+    component.filterSalesCashReport();
+    fixture.detectChanges();
+
+    expect(pos.salesCashReport).toHaveBeenLastCalledWith({
+      dateFrom: '2026-08-27',
+      dateTo: '2026-08-27',
+      branchId: 'branch',
+      status: 'ALL',
+      page: 1,
+      pageSize: 10,
+    });
+    expect(fixture.nativeElement.textContent).toContain('Conciliación correcta');
+    expect(fixture.nativeElement.textContent).toContain('V-REPORT000001');
+    expect(fixture.nativeElement.textContent).toContain('Diferencia 0.00');
   });
 
   it('creates a customer only after contact consent and selects it for the sale', () => {

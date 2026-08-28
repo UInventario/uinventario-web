@@ -1885,6 +1885,194 @@
 
   <section
     class="sales-workspace"
+    aria-labelledby="sales-cash-report-title"
+    [hidden]="!canManageSales()"
+    [attr.aria-busy]="loadingSalesCashReport()"
+  >
+    <p class="eyebrow">Supervisión operativa</p>
+    <div class="sales-heading">
+      <div>
+        <h2 id="sales-cash-report-title">Reporte de ventas y caja</h2>
+        <p class="context">Los periodos se interpretan en la zona horaria de cada sucursal.</p>
+      </div>
+    </div>
+    <form
+      class="sales-filters"
+      [formGroup]="salesCashReportForm"
+      (ngSubmit)="filterSalesCashReport()"
+    >
+      <label>Desde <input type="date" formControlName="dateFrom" /></label>
+      <label>Hasta <input type="date" formControlName="dateTo" /></label>
+      <label>
+        Sucursal
+        <select formControlName="branchId">
+          <option value="">Todas las autorizadas</option>
+          @for (branch of salesCashReport()?.options?.branches || []; track branch.id) {
+            <option [value]="branch.id">{{ branch.name }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        Caja
+        <select formControlName="cashRegisterId">
+          <option value="">Todas</option>
+          @for (register of salesCashReport()?.options?.registers || []; track register.id) {
+            <option [value]="register.id">{{ register.name }} · {{ register.code }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        Usuario
+        <select formControlName="userId">
+          <option value="">Todos</option>
+          @for (user of salesCashReport()?.options?.users || []; track user.id) {
+            <option [value]="user.id">{{ user.email }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        Estado
+        <select formControlName="status">
+          <option value="ALL">Completadas y anuladas</option>
+          <option value="COMPLETED">Completadas</option>
+          <option value="VOIDED">Anuladas</option>
+        </select>
+      </label>
+      <button class="secondary" type="submit" [disabled]="loadingSalesCashReport()">
+        Actualizar reporte
+      </button>
+    </form>
+    @if (salesCashReportError()) {
+      <div class="form-error" role="alert">{{ salesCashReportError() }}</div>
+    }
+    @if (loadingSalesCashReport()) {
+      <p class="catalog-state" role="status">Conciliando ventas, pagos y cajas…</p>
+    } @else if (salesCashReport(); as report) {
+      <div class="cart-totals">
+        <div>
+          <dt>Ventas netas</dt>
+          <dd>{{ report.summary.sales.net }}</dd>
+        </div>
+        <div>
+          <dt>Completadas</dt>
+          <dd>{{ report.summary.sales.completed }}</dd>
+        </div>
+        <div>
+          <dt>Anuladas</dt>
+          <dd>{{ report.summary.sales.voided }}</dd>
+        </div>
+        <div>
+          <dt>Importe anulado</dt>
+          <dd>{{ report.summary.sales.voidedAmount }}</dd>
+        </div>
+        <div>
+          <dt>Cajas abiertas / cerradas</dt>
+          <dd>{{ report.summary.cash.open }} / {{ report.summary.cash.closed }}</dd>
+        </div>
+        <div>
+          <dt>Diferencia de caja</dt>
+          <dd>{{ report.summary.cash.difference }}</dd>
+        </div>
+      </div>
+      <div
+        class="success"
+        [class.form-error]="!report.summary.reconciliation.matches"
+        role="status"
+      >
+        <strong>
+          {{
+            report.summary.reconciliation.matches ? 'Conciliación correcta' : 'Diferencia detectada'
+          }}
+        </strong>
+        <span>
+          Ventas {{ report.summary.reconciliation.salesNet }} · Pagos
+          {{ report.summary.reconciliation.paymentsApplied }}
+        </span>
+      </div>
+      <h3>Pagos</h3>
+      <ul class="sale-lines">
+        @for (payment of report.summary.payments; track payment.method + payment.status) {
+          <li>
+            <span>
+              <strong>{{ paymentMethodLabel(payment.method) }}</strong>
+              <small
+                >{{ payment.status === 'REVERSED' ? 'Revertido' : 'Aplicado' }} ·
+                {{ payment.count }}</small
+              >
+            </span>
+            <strong>{{ payment.amount }}</strong>
+          </li>
+        }
+      </ul>
+      <h3>Turnos de caja</h3>
+      @if (report.shifts.length === 0) {
+        <p class="catalog-state">Sin turnos en el periodo.</p>
+      } @else {
+        <ul class="sale-lines">
+          @for (shift of report.shifts; track shift.id) {
+            <li>
+              <span>
+                <strong>{{ shift.branch.name }} · {{ shift.cashRegister.name }}</strong>
+                <small>{{ shift.openedByEmail }} · {{ dateTime(shift.openedAt) }}</small>
+              </span>
+              <span>
+                Esperado {{ shift.expected }} · Contado {{ shift.counted || '—' }} · Diferencia
+                {{ shift.difference || '—' }}
+              </span>
+            </li>
+          }
+        </ul>
+      }
+      <h3>Ventas del periodo</h3>
+      @if (report.sales.length === 0) {
+        <p class="catalog-state">Sin ventas para los filtros seleccionados.</p>
+      } @else {
+        <ul class="sale-lines">
+          @for (sale of report.sales; track sale.id) {
+            <li>
+              <span>
+                <strong>{{ sale.receiptNumber }} · {{ sale.branch.name }}</strong>
+                <small>{{ sale.user.email }} · {{ dateTime(sale.createdAt) }}</small>
+                <small>
+                  @for (payment of sale.payments; track $index) {
+                    {{ paymentMethodLabel(payment.method) }} {{ payment.amount }}
+                  }
+                </small>
+              </span>
+              <strong
+                >{{ sale.total }} ·
+                {{ sale.status === 'VOIDED' ? 'Anulada' : 'Completada' }}</strong
+              >
+            </li>
+          }
+        </ul>
+      }
+      <div class="pagination" aria-label="Paginación del reporte">
+        <button
+          type="button"
+          class="secondary"
+          (click)="previousSalesCashReportPage()"
+          [disabled]="salesCashReportPage() <= 1 || loadingSalesCashReport()"
+        >
+          Anterior
+        </button>
+        <span>Página {{ salesCashReportPage() }} de {{ salesCashReportTotalPages() || 1 }}</span>
+        <button
+          type="button"
+          class="secondary"
+          (click)="nextSalesCashReportPage()"
+          [disabled]="
+            salesCashReportPage() >= salesCashReportTotalPages() || loadingSalesCashReport()
+          "
+        >
+          Siguiente
+        </button>
+      </div>
+    }
+  </section>
+
+  <section
+    class="sales-workspace"
     aria-labelledby="sales-title"
     [hidden]="!canManageSales()"
     [attr.aria-busy]="loadingSales() || loadingSaleDetail()"

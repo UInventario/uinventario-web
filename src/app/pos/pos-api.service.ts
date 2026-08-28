@@ -142,6 +142,73 @@ export interface SaleDetailData extends Omit<CashSaleData, 'userId'> {
   }>;
 }
 
+export interface SalesCashReportData {
+  scope: Array<{ id: string; name: string; timezone: string }>;
+  options: {
+    branches: Array<{ id: string; name: string; timezone: string }>;
+    registers: Array<{ id: string; name: string; code: string; branch_id: string }>;
+    users: Array<{ id: string; email: string }>;
+  };
+  summary: {
+    sales: {
+      total: number;
+      completed: number;
+      voided: number;
+      net: string;
+      voidedAmount: string;
+    };
+    payments: Array<{
+      method: PaymentMethod;
+      status: 'COMPLETED' | 'REVERSED';
+      count: number;
+      amount: string;
+    }>;
+    cash: {
+      shifts: number;
+      open: number;
+      closed: number;
+      expected: string;
+      counted: string;
+      difference: string;
+    };
+    reconciliation: { salesNet: string; paymentsApplied: string; matches: boolean };
+  };
+  sales: Array<{
+    id: string;
+    receiptNumber: string;
+    status: 'COMPLETED' | 'VOIDED';
+    branch: { id: string; name: string };
+    cashRegister: { id: string; name: string; code: string };
+    user: { id: string; email: string };
+    currency: string;
+    total: string;
+    payments: Array<{
+      method: PaymentMethod;
+      status: 'COMPLETED' | 'REVERSED';
+      amount: string;
+      change: string;
+      reference: string | null;
+    }>;
+    createdAt: string;
+    voidedAt: string | null;
+  }>;
+  shifts: Array<{
+    id: string;
+    status: 'OPEN' | 'CLOSED';
+    branch: { id: string; name: string };
+    cashRegister: { id: string; name: string; code: string };
+    openedByEmail: string;
+    currency: string;
+    opening: string;
+    expected: string;
+    counted: string | null;
+    difference: string | null;
+    openedAt: string;
+    closedAt: string | null;
+  }>;
+  total: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class PosApiService {
   private readonly http = inject(HttpClient);
@@ -324,6 +391,33 @@ export class PosApiService {
       data: SaleDetailData;
       meta: { apiVersion: '1' };
     }>(`${this.config.apiBaseUrl()}/pos/sales/${id}`, {
+      withCredentials: true,
+    });
+  }
+
+  salesCashReport(query: {
+    dateFrom?: string;
+    dateTo?: string;
+    branchId?: string;
+    cashRegisterId?: string;
+    userId?: string;
+    status?: 'ALL' | 'COMPLETED' | 'VOIDED';
+    page: number;
+    pageSize: number;
+  }) {
+    let params = new HttpParams().set('page', query.page).set('pageSize', query.pageSize);
+    for (const [key, value] of Object.entries(query)) {
+      if (key !== 'page' && key !== 'pageSize' && value) params = params.set(key, value);
+    }
+    return this.http.get<{
+      data: SalesCashReportData;
+      meta: {
+        apiVersion: '1';
+        pagination: { page: number; pageSize: number; total: number; totalPages: number };
+        periodTimezone: 'BRANCH_LOCAL';
+      };
+    }>(`${this.config.apiBaseUrl()}/pos/reports/sales-cash`, {
+      params,
       withCredentials: true,
     });
   }
