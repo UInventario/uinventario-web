@@ -1,0 +1,94 @@
+<section class="export-panel" aria-labelledby="data-exports-title" [attr.aria-busy]="creating()">
+  <div class="overview-heading">
+    <div>
+      <p class="eyebrow">Datos operativos</p>
+      <h2 id="data-exports-title">Exportaciones</h2>
+      <p>Genera archivos seguros en segundo plano usando el contexto y los permisos actuales.</p>
+    </div>
+  </div>
+
+  <form class="movement-filters" [formGroup]="form" (ngSubmit)="create()">
+    <div class="field">
+      <label for="exportDataset">Datos</label>
+      <select id="exportDataset" formControlName="dataset" (change)="datasetChanged()">
+        <option value="PRODUCTS">Productos</option>
+        <option value="STOCK">Existencias</option>
+        <option value="SALES">Ventas</option>
+        <option value="MOVEMENTS">Movimientos</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="exportFormat">Formato</label>
+      <select id="exportFormat" formControlName="format">
+        <option value="CSV">CSV</option>
+        <option value="XLSX">Excel</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="exportSearch">Buscar</label>
+      <input id="exportSearch" formControlName="q" placeholder="Nombre, SKU o referencia" />
+    </div>
+    @if (form.controls.dataset.value === 'PRODUCTS') {
+      <div class="field">
+        <label for="exportProductStatus">Estado</label>
+        <select id="exportProductStatus" formControlName="productStatus">
+          <option value="ALL">Todos</option>
+          <option value="ACTIVE">Activos</option>
+          <option value="INACTIVE">Inactivos</option>
+        </select>
+      </div>
+    }
+    @if (form.controls.dataset.value === 'SALES') {
+      <div class="field">
+        <label for="exportSaleStatus">Estado</label>
+        <select id="exportSaleStatus" formControlName="saleStatus">
+          <option value="ALL">Todas</option>
+          <option value="COMPLETED">Completadas</option>
+          <option value="VOIDED">Anuladas</option>
+        </select>
+      </div>
+    }
+    @if (form.controls.dataset.value === 'SALES' || form.controls.dataset.value === 'MOVEMENTS') {
+      <div class="field">
+        <label for="exportDateFrom">Desde</label>
+        <input id="exportDateFrom" type="date" formControlName="dateFrom" />
+      </div>
+      <div class="field">
+        <label for="exportDateTo">Hasta</label>
+        <input id="exportDateTo" type="date" formControlName="dateTo" />
+      </div>
+    }
+    @if (canIncludeSensitive()) {
+      <label class="checkbox">
+        <input type="checkbox" formControlName="includeSensitive" />
+        Incluir datos personales autorizados
+      </label>
+    }
+    <button type="submit" [disabled]="creating()">
+      {{ creating() ? 'Preparando…' : 'Generar exportación' }}
+    </button>
+  </form>
+
+  @if (error()) {
+    <p class="form-error" role="alert">{{ error() }}</p>
+  }
+  @if (job(); as current) {
+    <div class="export-status" role="status">
+      <strong>Estado: {{ current.status }}</strong>
+      @if (current.rowCount !== null) {
+        <span>{{ current.rowCount }} fila(s)</span>
+      }
+      @if (current.excludedColumns.length) {
+        <span>Campos omitidos por permisos: {{ current.excludedColumns.join(', ') }}</span>
+      }
+      @if (current.downloadReady) {
+        <button type="button" (click)="download()" [disabled]="downloading()">
+          {{ downloading() ? 'Descargando…' : 'Descargar archivo' }}
+        </button>
+      }
+      @if (current.status === 'FAILED') {
+        <button type="button" class="secondary" (click)="retry()">Reintentar</button>
+      }
+    </div>
+  }
+</section>

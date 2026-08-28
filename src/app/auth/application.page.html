@@ -35,9 +35,15 @@
     @if (canViewAudit()) {
       <a routerLink="/app" fragment="audit-title">Auditoría</a>
     }
+    @if (canExportAudit()) {
+      <a routerLink="/app" fragment="data-exports-title">Exportar</a>
+    }
   </nav>
 
   <app-offline-bootstrap-panel />
+  @if (canExportAudit()) {
+    <app-data-export-panel />
+  }
   @if (canAdjustInventory() || canCountInventory()) {
     <app-offline-inventory-panel />
   }
