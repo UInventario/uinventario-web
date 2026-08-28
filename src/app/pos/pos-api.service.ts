@@ -144,6 +144,51 @@ export interface SaleDetailData extends Omit<CashSaleData, 'userId'> {
   }>;
 }
 
+export interface SaleReceiptData {
+  saleId: string;
+  receiptNumber: string;
+  documentType: 'NON_FISCAL_SALE_RECEIPT';
+  fiscalNotice: 'COMPROBANTE NO FISCAL';
+  merchant: { name: string; legalName: string | null; countryCode: string | null };
+  branchName: string;
+  cashRegister: { name: string; code: string };
+  sellerEmail: string;
+  customer: { name: string; identifier: string | null } | null;
+  currency: string;
+  taxRate: string;
+  lines: Array<{
+    lineNumber: number;
+    productName: string;
+    productSku: string;
+    quantity: string;
+    unitPrice: string;
+    subtotal: string;
+    tax: string;
+    total: string;
+  }>;
+  payments: Array<{
+    method: PaymentMethod;
+    amountReceived: string;
+    amountApplied: string;
+    change: string;
+    reference: string | null;
+    provider: string;
+    authorizationCode: string | null;
+  }>;
+  totals: { subtotal: string; tax: string; total: string };
+  issuedAt: string;
+  saleStatus: 'COMPLETED' | 'VOIDED';
+  void: { reason: string; voidedAt: string } | null;
+}
+
+export interface SaleReceiptDeliveryData {
+  mode: 'SIMULATED';
+  channel: 'EMAIL';
+  recipient: string;
+  messageId: string;
+  acceptedAt: string;
+}
+
 export interface SalesCashReportData {
   scope: Array<{ id: string; name: string; timezone: string }>;
   options: {
@@ -408,6 +453,28 @@ export class PosApiService {
     }>(`${this.config.apiBaseUrl()}/pos/sales/${id}`, {
       withCredentials: true,
     });
+  }
+
+  reprintSaleReceipt(id: string) {
+    return this.http.post<{
+      data: SaleReceiptData;
+      meta: { apiVersion: '1' };
+    }>(
+      `${this.config.apiBaseUrl()}/pos/sales/${id}/receipt/reprints`,
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  sendSaleReceipt(id: string, email: string) {
+    return this.http.post<{
+      data: { receipt: SaleReceiptData; delivery: SaleReceiptDeliveryData };
+      meta: { apiVersion: '1' };
+    }>(
+      `${this.config.apiBaseUrl()}/pos/sales/${id}/receipt/deliveries`,
+      { email },
+      { withCredentials: true },
+    );
   }
 
   salesCashReport(query: {

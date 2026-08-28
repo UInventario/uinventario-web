@@ -75,6 +75,8 @@ describe('ApplicationPage', () => {
     voidSale: ReturnType<typeof vi.fn>;
     listSales: ReturnType<typeof vi.fn>;
     getSale: ReturnType<typeof vi.fn>;
+    reprintSaleReceipt: ReturnType<typeof vi.fn>;
+    sendSaleReceipt: ReturnType<typeof vi.fn>;
     salesCashReport: ReturnType<typeof vi.fn>;
   };
   let audit: {
@@ -327,6 +329,8 @@ describe('ApplicationPage', () => {
         }),
       ),
       getSale: vi.fn(),
+      reprintSaleReceipt: vi.fn(),
+      sendSaleReceipt: vi.fn(),
       salesCashReport: vi.fn().mockReturnValue(
         of({
           data: {

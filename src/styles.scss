@@ -25,3 +25,19 @@ body {
 button {
   font: inherit;
 }
+
+@media print {
+  body.printing-sale-receipt app-root {
+    visibility: hidden;
+  }
+
+  body.printing-sale-receipt app-sale-receipt-panel,
+  body.printing-sale-receipt app-sale-receipt-panel * {
+    visibility: visible;
+  }
+
+  @page {
+    size: 80mm auto;
+    margin: 4mm;
+  }
+}
