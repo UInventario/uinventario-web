@@ -47,11 +47,18 @@ function validateConfiguration(environment, apiUpstream) {
   return parsed;
 }
 
-function setSecurityHeaders(response) {
+function setSecurityHeaders(response, environment) {
+  response.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; base-uri 'self'; connect-src 'self'; font-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data:; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'",
+  );
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('X-Frame-Options', 'DENY');
   response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  if (environment !== 'local') {
+    response.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
 }
 
 function sendJson(response, statusCode, body) {
@@ -106,7 +113,7 @@ export function createApplicationServer({
   const normalizedRoot = resolve(rootDirectory);
 
   return createServer(async (request, response) => {
-    setSecurityHeaders(response);
+    setSecurityHeaders(response, environment);
 
     const requestUrl = new URL(request.url ?? '/', 'http://localhost');
     if (requestUrl.pathname === '/health/live') {
