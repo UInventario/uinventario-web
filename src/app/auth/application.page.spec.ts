@@ -40,6 +40,7 @@ describe('ApplicationPage', () => {
     listLocations: ReturnType<typeof vi.fn>;
     listStock: ReturnType<typeof vi.fn>;
     listLots: ReturnType<typeof vi.fn>;
+    listFifoLayers: ReturnType<typeof vi.fn>;
     listMovements: ReturnType<typeof vi.fn>;
     getBalance: ReturnType<typeof vi.fn>;
     createMovement: ReturnType<typeof vi.fn>;
@@ -173,6 +174,24 @@ describe('ApplicationPage', () => {
             tracked: false,
             totalQuantity: '0.000',
             lotQuantity: '0.000',
+            reconciled: true,
+            currency: null,
+            inventoryValue: '0.0000',
+          },
+        }),
+      ),
+      listFifoLayers: vi.fn().mockReturnValue(
+        of({
+          data: [],
+          meta: {
+            apiVersion: '1',
+            method: 'FIFO',
+            cutover: {
+              effectiveAt: '2026-08-28T00:00:00.000Z',
+              migrationRule: 'OPENING_BALANCE_AT_MOVING_AVERAGE',
+            },
+            totalQuantity: '0.000',
+            layerQuantity: '0.000',
             reconciled: true,
             currency: null,
             inventoryValue: '0.0000',

@@ -15,6 +15,7 @@ import {
   InventoryBalanceData,
   InventoryMovementInput,
   InventoryLotData,
+  InventoryFifoLayerData,
   InventoryMovementHistoryItem,
   InventoryMovementType,
   InventoryStateTransitionInput,
@@ -299,6 +300,18 @@ export class ApplicationPage implements OnInit {
     currency: string | null;
     inventoryValue: string;
   }>({ currency: null, inventoryValue: '0.0000' });
+  protected readonly selectedProductFifoLayers = signal<InventoryFifoLayerData[]>([]);
+  protected readonly selectedProductFifoValuation = signal<{
+    currency: string | null;
+    inventoryValue: string;
+    reconciled: boolean;
+    cutoverAt: string | null;
+  }>({
+    currency: null,
+    inventoryValue: '0.0000',
+    reconciled: true,
+    cutoverAt: null,
+  });
   protected readonly stockListError = signal<string | null>(null);
   protected readonly loadingStockList = signal(true);
   protected readonly movementHistory = signal<InventoryMovementHistoryItem[]>([]);
@@ -2553,6 +2566,28 @@ export class ApplicationPage implements OnInit {
       },
       error: (error: HttpErrorResponse) =>
         this.stockError.set(this.operationMessage(error, 'No fue posible consultar los lotes.')),
+    });
+    this.selectedProductFifoLayers.set([]);
+    this.selectedProductFifoValuation.set({
+      currency: null,
+      inventoryValue: '0.0000',
+      reconciled: true,
+      cutoverAt: null,
+    });
+    this.inventory.listFifoLayers(productId).subscribe({
+      next: ({ data, meta }) => {
+        this.selectedProductFifoLayers.set(data);
+        this.selectedProductFifoValuation.set({
+          currency: meta.currency,
+          inventoryValue: meta.inventoryValue,
+          reconciled: meta.reconciled,
+          cutoverAt: meta.cutover.effectiveAt,
+        });
+      },
+      error: (error: HttpErrorResponse) =>
+        this.stockError.set(
+          this.operationMessage(error, 'No fue posible consultar las capas FIFO.'),
+        ),
     });
   }
 

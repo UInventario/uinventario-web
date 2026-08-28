@@ -95,6 +95,12 @@ export interface InventoryStockItem {
     currency: string | null;
     inventoryValue: string;
   } | null;
+  fifoValuation?: {
+    quantity: string;
+    inventoryValue: string;
+    currency: string | null;
+    reconciled: boolean;
+  };
 }
 
 export interface InventoryLotData {
@@ -115,6 +121,26 @@ export interface InventoryLotData {
     purchaseOrder: { id: string; folio: string };
   }>;
   balances: Array<{ location: InventoryLocationData; quantity: string }>;
+}
+
+export interface InventoryFifoLayerData {
+  id: string;
+  product: { id: string; name: string; sku: string };
+  location: InventoryLocationData;
+  originType: 'MIGRATION_CUT' | 'ENTRY' | 'PURCHASE_RECEIPT' | 'RETURN' | 'TRANSFER';
+  originalQuantity: string;
+  remainingQuantity: string;
+  unitCost: string;
+  currency: string;
+  inventoryValue: string;
+  acquiredAt: string;
+  source: {
+    movementId: string | null;
+    movementType: InventoryMovementType | null;
+    reference: string | null;
+    layerId: string | null;
+    purchaseReceiptLineId: string | null;
+  };
 }
 
 export interface InventoryMovementHistoryItem {
@@ -168,6 +194,21 @@ export interface InventoryMovementHistoryItem {
     currency: string;
     valueChange: string;
     selectionMode: 'ORIGIN' | 'MANUAL' | 'AUTOMATIC' | 'RESTORE' | 'TRANSFER';
+  }>;
+  fifoValuation?: {
+    unitCost: string;
+    valueChange: string;
+    resultingInventoryValue: string;
+  } | null;
+  fifoLayers?: Array<{
+    allocationId: string;
+    layerId: string;
+    sourceAllocationId: string | null;
+    quantityChange: string;
+    unitCost: string;
+    currency: string;
+    valueChange: string;
+    selectionMode: 'ENTRY' | 'FIFO' | 'RESTORE' | 'TRANSFER' | 'ORIGIN_RETURN';
   }>;
 }
 
@@ -341,6 +382,27 @@ export class InventoryApiService {
         inventoryValue: string;
       };
     }>(`${this.config.apiBaseUrl()}/inventory/products/${productId}/lots`, {
+      withCredentials: true,
+    });
+  }
+
+  listFifoLayers(productId: string) {
+    return this.http.get<{
+      data: InventoryFifoLayerData[];
+      meta: {
+        apiVersion: '1';
+        method: 'FIFO';
+        cutover: {
+          effectiveAt: string;
+          migrationRule: 'OPENING_BALANCE_AT_MOVING_AVERAGE';
+        };
+        totalQuantity: string;
+        layerQuantity: string;
+        reconciled: boolean;
+        currency: string | null;
+        inventoryValue: string;
+      };
+    }>(`${this.config.apiBaseUrl()}/inventory/products/${productId}/fifo-layers`, {
       withCredentials: true,
     });
   }
