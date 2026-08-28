@@ -1542,6 +1542,10 @@
     </section>
   </section>
 
+  @if (canManageProducts()) {
+    <app-price-list-panel />
+  }
+
   <section
     class="pos-workspace"
     aria-labelledby="pos-title"
@@ -2011,6 +2015,12 @@
                 <div class="cart-product">
                   <strong>{{ entry.product.name }}</strong
                   ><small>{{ entry.product.sku }}</small>
+                  @if (quotedLine(entry.product.id); as priced) {
+                    <small>
+                      {{ priced.unitPrice }} ·
+                      {{ priced.priceList?.name || 'Precio base' }}
+                    </small>
+                  }
                 </div>
                 <label>
                   Cantidad
@@ -2078,7 +2088,7 @@
             <div class="success cart-ready" role="status">Carrito validado y listo para cobrar</div>
             <form class="cash-payment" [formGroup]="cashForm" (ngSubmit)="completeCashSale()">
               <label for="posCustomer">Cliente (opcional)</label>
-              <select id="posCustomer" formControlName="customerId">
+              <select id="posCustomer" formControlName="customerId" (change)="quoteForCustomer()">
                 <option value="">Venta anónima</option>
                 @for (customer of customers(); track customer.id) {
                   <option [value]="customer.id">{{ customer.name }}</option>
