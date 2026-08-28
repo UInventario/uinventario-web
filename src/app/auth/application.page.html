@@ -888,6 +888,14 @@
       <app-inventory-import-panel (confirmed)="inventoryImportConfirmed()" />
     }
 
+    @if (canCountInventory() || canApproveInventory()) {
+      <app-inventory-count-panel
+        [canCount]="canCountInventory()"
+        [canApprove]="canApproveInventory()"
+        (closed)="inventoryCountClosed()"
+      />
+    }
+
     <section
       class="stock-overview movement-history"
       aria-labelledby="transfers-title"

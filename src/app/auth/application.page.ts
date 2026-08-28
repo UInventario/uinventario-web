@@ -21,6 +21,7 @@ import {
   InventoryStockItem,
 } from '../inventory/inventory-api.service';
 import { InventoryImportPanelComponent } from '../inventory/inventory-import-panel.component';
+import { InventoryCountPanelComponent } from '../inventory/inventory-count-panel.component';
 import { SessionApiService } from './session-api.service';
 import {
   CashRegisterClosureData,
@@ -84,6 +85,7 @@ interface CartEntry {
     ReactiveFormsModule,
     RouterLink,
     InventoryImportPanelComponent,
+    InventoryCountPanelComponent,
     SupplierPanelComponent,
     PurchaseOrderPanelComponent,
     ProductReservationPanelComponent,
@@ -1093,6 +1095,10 @@ export class ApplicationPage implements OnInit {
     this.loadAuditEvents();
     const selected = this.selectedProduct();
     if (selected) this.loadBalance(selected.id);
+  }
+
+  protected inventoryCountClosed(): void {
+    this.inventoryImportConfirmed();
   }
 
   protected openCashRegisterShift(): void {
