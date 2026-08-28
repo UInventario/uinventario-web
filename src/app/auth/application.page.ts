@@ -57,6 +57,7 @@ import {
 import { SupplierPanelComponent } from '../suppliers/supplier-panel.component';
 import { PurchaseOrderPanelComponent } from '../procurement/purchase-order-panel.component';
 import { CustomerApiService, CustomerData, CustomerInput } from '../customers/customer-api.service';
+import { CustomerHistoryPanelComponent } from '../customers/customer-history-panel.component';
 import { ProductReservationPanelComponent } from '../reservations/product-reservation-panel.component';
 import { OfflineBootstrapPanelComponent } from '../offline/offline-bootstrap-panel.component';
 import { OfflinePosService } from '../offline/offline-pos.service';
@@ -86,6 +87,7 @@ interface CartEntry {
     RouterLink,
     InventoryImportPanelComponent,
     InventoryCountPanelComponent,
+    CustomerHistoryPanelComponent,
     SupplierPanelComponent,
     PurchaseOrderPanelComponent,
     ProductReservationPanelComponent,
@@ -322,6 +324,7 @@ export class ApplicationPage implements OnInit {
   protected readonly queuedOfflineSale = signal<{ commandId: string; total: string } | null>(null);
   protected readonly posError = signal<string | null>(null);
   protected readonly customers = signal<CustomerData[]>([]);
+  protected readonly customerHistoryCustomer = signal<CustomerData | null>(null);
   protected readonly editingCustomer = signal<CustomerData | null>(null);
   protected readonly savingCustomer = signal(false);
   protected readonly customerError = signal<string | null>(null);
@@ -1372,6 +1375,9 @@ export class ApplicationPage implements OnInit {
     operation.pipe(finalize(() => this.savingCustomer.set(false))).subscribe({
       next: ({ data }) => {
         this.customerSuccess.set(current ? 'Cliente actualizado.' : 'Cliente creado.');
+        if (this.customerHistoryCustomer()?.id === data.id) {
+          this.customerHistoryCustomer.set(data);
+        }
         this.cancelCustomerEdit();
         this.loadCustomers();
         this.cashForm.controls.customerId.setValue(data.id);
@@ -1402,6 +1408,15 @@ export class ApplicationPage implements OnInit {
         );
       },
     });
+  }
+
+  protected openCustomerHistory(customer: CustomerData): void {
+    this.customerHistoryCustomer.set(customer);
+  }
+
+  protected openCustomerSale(saleId: string): void {
+    this.selectSale(saleId);
+    document.getElementById('sales-title')?.scrollIntoView({ behavior: 'smooth' });
   }
 
   protected addToCart(product: ProductData): void {
