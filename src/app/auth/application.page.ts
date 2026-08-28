@@ -82,6 +82,7 @@ import { ProductCodeScannerComponent } from '../catalog/product-code-scanner.com
 import { DataExportPanelComponent } from '../exports/data-export-panel.component';
 import { ProductImportPanelComponent } from '../catalog/product-import-panel.component';
 import { PrivacyPanelComponent } from '../privacy/privacy-panel.component';
+import { PriceListPanelComponent } from '../pricing/price-list-panel.component';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const POSITIVE_MONEY_PATTERN = /^(?:[1-9]\d{0,11}(?:\.\d{1,2})?|0\.(?:0[1-9]|[1-9]\d?))$/;
@@ -125,6 +126,7 @@ interface CartEntry {
     DataExportPanelComponent,
     ProductImportPanelComponent,
     PrivacyPanelComponent,
+    PriceListPanelComponent,
   ],
   templateUrl: './application.page.html',
   styleUrl: './application.page.scss',
@@ -1632,6 +1634,11 @@ export class ApplicationPage implements OnInit {
 
   protected quotedLine(productId: string) {
     return this.cartQuote()?.lines.find((line) => line.product.id === productId) ?? null;
+  }
+
+  protected quoteForCustomer(): void {
+    this.resetCompletedSale();
+    if (this.cart().length > 0) this.quoteCart();
   }
 
   protected taxPercent(rate: string): string {
@@ -3288,6 +3295,8 @@ export class ApplicationPage implements OnInit {
               }
             : {}),
         })),
+        undefined,
+        this.cashForm.controls.customerId.value || undefined,
       )
       .pipe(finalize(() => this.quotingCart.set(false)))
       .subscribe({
@@ -3341,6 +3350,7 @@ export class ApplicationPage implements OnInit {
           productId: entry.product.id,
           quantity: entry.quantity,
         })),
+        this.cashForm.controls.customerId.value || undefined,
       );
       this.cartQuote.set(quote);
       this.syncSinglePaymentAmount();

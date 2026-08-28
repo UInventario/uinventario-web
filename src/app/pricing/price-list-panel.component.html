@@ -1,0 +1,146 @@
+<section
+  class="price-lists"
+  aria-labelledby="price-lists-title"
+  [attr.aria-busy]="loading() || saving()"
+>
+  <div class="heading">
+    <div>
+      <p>Catalogo comercial</p>
+      <h2 id="price-lists-title">Listas de precios</h2>
+      <span
+        >Gana la mayor prioridad; en empate, el alcance mas especifico. Sin coincidencia se usa el
+        precio base.</span
+      >
+    </div>
+    <strong>{{ lists().length }} lista(s)</strong>
+  </div>
+  @if (error()) {
+    <div class="message error" role="alert">{{ error() }}</div>
+  }
+  @if (success()) {
+    <div class="message success" role="status">{{ success() }}</div>
+  }
+  <div class="workspace">
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <h3>{{ editing() ? 'Editar lista' : 'Nueva lista' }}</h3>
+      <label>Nombre <input id="priceListName" formControlName="name" maxlength="120" /></label>
+      <div class="grid">
+        <label
+          >Moneda <input id="priceListCurrency" formControlName="currency" maxlength="3"
+        /></label>
+        <label
+          >Prioridad <input id="priceListPriority" type="number" formControlName="priority"
+        /></label>
+        <label
+          >Sucursal
+          <select id="priceListBranch" formControlName="branchId">
+            <option value="">Todas</option>
+            @for (branch of branches(); track branch.id) {
+              <option [value]="branch.id">{{ branch.name }}</option>
+            }
+          </select>
+        </label>
+        <label
+          >Cliente
+          <select id="priceListCustomer" formControlName="customerId">
+            <option value="">Todos</option>
+            @for (customer of customers(); track customer.id) {
+              <option [value]="customer.id">{{ customer.name }}</option>
+            }
+          </select>
+        </label>
+        <label
+          >Canal
+          <select id="priceListChannel" formControlName="channel">
+            <option value="">Todos</option>
+            <option value="POS">POS</option>
+            <option value="WEB">Web</option>
+            <option value="MOBILE">Mobile</option>
+            <option value="DESKTOP">Desktop</option>
+          </select>
+        </label>
+        <label
+          >Inicio <input id="priceListValidFrom" type="datetime-local" formControlName="validFrom"
+        /></label>
+        <label
+          >Fin opcional
+          <input id="priceListValidTo" type="datetime-local" formControlName="validTo"
+        /></label>
+        <label class="check"
+          ><input id="priceListActive" type="checkbox" formControlName="active" /> Activa</label
+        >
+      </div>
+      <div formArrayName="items" class="items">
+        <div class="items-heading">
+          <h4>Productos y precios</h4>
+          <button type="button" class="secondary" (click)="addItem()">Agregar producto</button>
+        </div>
+        @for (item of items.controls; track item; let index = $index) {
+          <div class="item" [formGroupName]="index">
+            <label
+              >Producto
+              <select [id]="'priceListProduct' + index" formControlName="productId">
+                <option value="">Selecciona</option>
+                @for (product of products(); track product.id) {
+                  <option [value]="product.id">{{ product.name }} ({{ product.sku }})</option>
+                }
+              </select>
+            </label>
+            <label
+              >Precio
+              <input [id]="'priceListPrice' + index" formControlName="price" inputmode="decimal"
+            /></label>
+            <button
+              type="button"
+              class="danger"
+              (click)="removeItem(index)"
+              [disabled]="items.length === 1"
+            >
+              Quitar
+            </button>
+          </div>
+        }
+      </div>
+      <div class="actions">
+        @if (editing()) {
+          <button type="button" class="secondary" (click)="cancel()">Cancelar</button>
+        }
+        <button id="savePriceList" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Guardando...' : 'Guardar lista' }}
+        </button>
+      </div>
+    </form>
+    <div class="results">
+      @if (loading()) {
+        <p role="status">Cargando listas...</p>
+      } @else if (lists().length === 0) {
+        <p>No hay listas; el POS usa el precio base del producto.</p>
+      } @else {
+        <ul aria-label="Listas de precios">
+          @for (list of lists(); track list.id) {
+            <li [class.inactive]="!list.active">
+              <div>
+                <strong>{{ list.name }}</strong
+                ><span
+                  >{{ list.currency }} · prioridad {{ list.priority }} ·
+                  {{ list.items.length }} producto(s)</span
+                >
+              </div>
+              <small>
+                {{ list.scope.branch?.name || 'Todas las sucursales' }} ·
+                {{ list.scope.customer?.name || 'Todos los clientes' }} ·
+                {{ list.scope.channel || 'Todos los canales' }}
+              </small>
+              <small
+                >Desde {{ list.validFrom
+                }}{{ list.validTo ? ' hasta ' + list.validTo : ' sin fin' }} ·
+                {{ list.active ? 'Activa' : 'Inactiva' }}</small
+              >
+              <button type="button" class="secondary" (click)="edit(list)">Editar</button>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  </div>
+</section>

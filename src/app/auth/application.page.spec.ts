@@ -1796,6 +1796,8 @@ describe('ApplicationPage', () => {
               quantity: doubled ? '2.000' : '1.000',
               availableQuantity: '5.000',
               unitPrice: '119.90',
+              priceSource: 'BASE' as const,
+              priceList: null,
               subtotal: doubled ? '206.72' : '103.36',
               tax: doubled ? '33.08' : '16.54',
               total: doubled ? '239.80' : '119.90',
@@ -1820,7 +1822,11 @@ describe('ApplicationPage', () => {
     ).click();
     fixture.detectChanges();
 
-    expect(pos.quote).toHaveBeenLastCalledWith([{ productId: 'product', quantity: '1' }]);
+    expect(pos.quote).toHaveBeenLastCalledWith(
+      [{ productId: 'product', quantity: '1' }],
+      undefined,
+      undefined,
+    );
     expect(fixture.nativeElement.querySelector('.cart-panel').textContent).toContain('MXN 119.90');
 
     const quantity = fixture.nativeElement.querySelector(
@@ -1829,7 +1835,11 @@ describe('ApplicationPage', () => {
     quantity.value = '2';
     quantity.dispatchEvent(new Event('change', { bubbles: true }));
     fixture.detectChanges();
-    expect(pos.quote).toHaveBeenLastCalledWith([{ productId: 'product', quantity: '2' }]);
+    expect(pos.quote).toHaveBeenLastCalledWith(
+      [{ productId: 'product', quantity: '2' }],
+      undefined,
+      undefined,
+    );
     expect(fixture.nativeElement.querySelector('.cart-panel').textContent).toContain('MXN 239.80');
 
     const saleResponse = new Subject<{
@@ -1840,6 +1850,11 @@ describe('ApplicationPage', () => {
     const customerSelect = fixture.nativeElement.querySelector('#posCustomer') as HTMLSelectElement;
     customerSelect.value = 'customer';
     customerSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(pos.quote).toHaveBeenLastCalledWith(
+      [{ productId: 'product', quantity: '2' }],
+      undefined,
+      'customer',
+    );
     fill('cashReceived', '250.00');
     (fixture.componentInstance as unknown as { completeCashSale(): void }).completeCashSale();
     (fixture.componentInstance as unknown as { completeCashSale(): void }).completeCashSale();
@@ -1872,6 +1887,8 @@ describe('ApplicationPage', () => {
             product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
             quantity: '2.000',
             unitPrice: '119.90',
+            priceSource: 'BASE',
+            priceList: null,
             subtotal: '206.72',
             tax: '33.08',
             total: '239.80',
@@ -2400,6 +2417,8 @@ describe('ApplicationPage', () => {
           product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
           quantity: '1.000',
           unitPrice: '119.90',
+          priceSource: 'BASE',
+          priceList: null,
           subtotal: '103.36',
           tax: '16.54',
           total: '119.90',

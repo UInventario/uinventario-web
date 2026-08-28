@@ -30,6 +30,8 @@ describe('SaleReturnPanelComponent', () => {
         product: { id: 'product-1', name: 'Café molido', sku: 'CAFE-1' },
         quantity: '2.000',
         unitPrice: '116.00',
+        priceSource: 'BASE',
+        priceList: null,
         subtotal: '200.00',
         tax: '32.00',
         total: '232.00',

@@ -17,6 +17,8 @@ export interface PosCartQuote {
     serialNumbers?: string[];
     availableQuantity: string;
     unitPrice: string;
+    priceSource: 'BASE' | 'PRICE_LIST';
+    priceList: { id: string; name: string } | null;
     subtotal: string;
     tax: string;
     total: string;
@@ -466,10 +468,16 @@ export class PosApiService {
       serialNumbers?: string[];
     }>,
     reservationId?: string,
+    customerId?: string,
   ) {
     return this.http.post<PosCartQuoteResponse>(
       `${this.config.apiBaseUrl()}/pos/cart/quote`,
-      { lines, ...(reservationId ? { reservationId } : {}) },
+      {
+        lines,
+        channel: 'POS',
+        ...(reservationId ? { reservationId } : {}),
+        ...(customerId ? { customerId } : {}),
+      },
       { withCredentials: true },
     );
   }
@@ -502,10 +510,14 @@ export class PosApiService {
     },
     idempotencyKey: string,
   ) {
-    return this.http.post<CashSaleResponse>(`${this.config.apiBaseUrl()}/pos/sales`, input, {
-      headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
-      withCredentials: true,
-    });
+    return this.http.post<CashSaleResponse>(
+      `${this.config.apiBaseUrl()}/pos/sales`,
+      { ...input, channel: 'POS' },
+      {
+        headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+        withCredentials: true,
+      },
+    );
   }
 
   listSuspendedSales() {
