@@ -106,6 +106,13 @@ export interface InventoryStockItem {
   states: InventoryStateQuantity[];
   averageUnitCost?: string;
   inventoryValue?: string;
+  costing: {
+    method: InventoryValuationMethod;
+    currency: string;
+    quantity: string;
+    inventoryValue: string;
+    reconciled: boolean;
+  };
   valuation?: {
     quantity: string;
     inventoryValue: string;
@@ -125,6 +132,14 @@ export interface InventoryStockItem {
     currency: string | null;
     reconciled: boolean;
   };
+}
+
+export interface InventoryStockValuationReport {
+  method: InventoryValuationMethod;
+  policyVersion: number;
+  effectiveAt: string;
+  currency: string;
+  asOf: string;
 }
 
 export interface InventoryLotData {
@@ -275,6 +290,7 @@ export interface StockListResponse {
       branch: { id: string; name: string };
       warehouse: { id: string; name: string };
     };
+    valuation: InventoryStockValuationReport;
     pagination: { page: number; pageSize: number; total: number; totalPages: number };
   };
 }

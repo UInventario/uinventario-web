@@ -22,6 +22,7 @@ import {
   InventoryStateTransitionInput,
   InventoryStockState,
   InventoryStockItem,
+  InventoryStockValuationReport,
 } from '../inventory/inventory-api.service';
 import { InventoryImportPanelComponent } from '../inventory/inventory-import-panel.component';
 import { InventoryCountPanelComponent } from '../inventory/inventory-count-panel.component';
@@ -332,6 +333,7 @@ export class ApplicationPage implements OnInit {
     branch: { id: string; name: string };
     warehouse: { id: string; name: string };
   } | null>(null);
+  protected readonly stockValuationReport = signal<InventoryStockValuationReport | null>(null);
   protected readonly posResults = signal<ProductData[]>([]);
   protected readonly currentCashRegisterShift = signal<CashRegisterShiftData | null>(null);
   protected readonly loadingCashRegisterShift = signal(true);
@@ -2651,6 +2653,7 @@ export class ApplicationPage implements OnInit {
           this.stockList.set(data);
           this.negativeStockPolicy.set(meta.policy.negativeStock);
           this.stockScope.set(meta.scope);
+          this.stockValuationReport.set(meta.valuation);
           this.stockPage.set(meta.pagination.page);
           this.stockTotalPages.set(meta.pagination.totalPages);
           this.stockTotal.set(meta.pagination.total);

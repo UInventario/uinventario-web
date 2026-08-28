@@ -902,6 +902,12 @@
             {{ negativeStockPolicy() === 'DENY' ? 'stock negativo bloqueado' : '' }} para todas las
             operaciones.
           </small>
+          @if (stockValuationReport(); as report) {
+            <small>
+              Valorización: {{ valuationMethodLabel(report.method) }} v{{ report.policyVersion }} ·
+              {{ report.currency }} · corte {{ report.asOf | date: 'short' }}
+            </small>
+          }
         </div>
         <strong>{{ stockTotal() }} producto(s)</strong>
       </div>
@@ -957,9 +963,13 @@
                 <small>Total</small><strong>{{ item.totalQuantity }}</strong>
               </span>
               <span class="stock-quantity" role="cell">
-                <small>Costo promedio</small><strong>{{ item.averageUnitCost ?? '0.0000' }}</strong>
-                <small>Valor bodega {{ item.inventoryValue ?? '0.0000' }}</small>
-                @if (item.valuation && !item.valuation.reconciled) {
+                <small
+                  >{{ valuationMethodLabel(item.costing.method) }} ·
+                  {{ item.costing.currency }}</small
+                >
+                <strong>{{ item.costing.inventoryValue }}</strong>
+                <small>Cantidad valorizada {{ item.costing.quantity }}</small>
+                @if (!item.costing.reconciled) {
                   <small class="valuation-warning">Valorización por reconciliar</small>
                 }
                 @if (item.lotTracking; as tracking) {
