@@ -130,7 +130,12 @@ export class ApplicationPage implements OnInit {
     input: {
       lines: Array<{ productId: string; quantity: string }>;
       customerId?: string;
-      payment: { method: PaymentMethod; amountReceived?: string; reference?: string };
+      payments: Array<{
+        method: PaymentMethod;
+        amount: string;
+        amountReceived?: string;
+        reference?: string;
+      }>;
     };
     key: string;
   } | null = null;
@@ -399,10 +404,8 @@ export class ApplicationPage implements OnInit {
     categoryId: [''],
     brandId: [''],
   });
+  protected readonly paymentRows = this.formBuilder.array([this.createPaymentRow()]);
   protected readonly cashForm = this.formBuilder.nonNullable.group({
-    method: ['CASH' as PaymentMethod, [Validators.required]],
-    cashReceived: ['', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
-    reference: [''],
     customerId: [''],
   });
   protected readonly customerSearchForm = this.formBuilder.nonNullable.group({ q: [''] });
@@ -1487,7 +1490,11 @@ export class ApplicationPage implements OnInit {
       this.cashForm.markAllAsTouched();
       return;
     }
-    const method = this.cashForm.controls.method.value;
+    if (!this.paymentsMatchTotal(quote.totals.total)) {
+      this.posError.set('La suma de pagos debe coincidir exactamente con el total de la venta.');
+      this.paymentRows.markAllAsTouched();
+      return;
+    }
     const input = {
       lines: this.cart().map((entry) => ({
         productId: entry.product.id,
@@ -1496,13 +1503,16 @@ export class ApplicationPage implements OnInit {
       ...(this.cashForm.controls.customerId.value
         ? { customerId: this.cashForm.controls.customerId.value }
         : {}),
-      payment:
-        method === 'CASH'
-          ? {
-              method,
-              amountReceived: this.cashForm.controls.cashReceived.value.trim(),
-            }
-          : { method, reference: this.cashForm.controls.reference.value.trim() },
+      payments: this.paymentRows.controls.map((row) => {
+        const value = row.getRawValue();
+        return {
+          method: value.method,
+          amount: value.amount.trim(),
+          ...(value.method === 'CASH'
+            ? { amountReceived: value.amountReceived.trim() }
+            : { reference: value.reference.trim() }),
+        };
+      }),
     };
     const pending = this.pendingSale;
     const idempotencyKey =
@@ -1511,7 +1521,8 @@ export class ApplicationPage implements OnInit {
         : `web-sale-${globalThis.crypto.randomUUID()}`;
     this.pendingSale = { input, key: idempotencyKey };
     if (this.browserOffline()) {
-      if (method !== 'CASH') {
+      const offlinePayment = input.payments[0];
+      if (input.payments.length !== 1 || offlinePayment?.method !== 'CASH') {
         this.pendingSale = null;
         this.posError.set('Los pagos distintos de efectivo requieren conexión al servidor.');
         return;
@@ -1519,7 +1530,7 @@ export class ApplicationPage implements OnInit {
       void this.queueOfflineCashSale(
         {
           lines: input.lines,
-          cashReceived: input.payment.amountReceived!,
+          cashReceived: 'amountReceived' in offlinePayment ? offlinePayment.amountReceived : '',
           ...(input.customerId ? { customerId: input.customerId } : {}),
         },
         idempotencyKey,
@@ -1547,11 +1558,13 @@ export class ApplicationPage implements OnInit {
       },
       error: (error: HttpErrorResponse) => {
         if (error.status === 0) {
-          if (method === 'CASH') {
+          const offlinePayment = input.payments[0];
+          if (input.payments.length === 1 && offlinePayment?.method === 'CASH') {
             void this.queueOfflineCashSale(
               {
                 lines: input.lines,
-                cashReceived: input.payment.amountReceived!,
+                cashReceived:
+                  'amountReceived' in offlinePayment ? offlinePayment.amountReceived : '',
                 ...(input.customerId ? { customerId: input.customerId } : {}),
               },
               idempotencyKey,
@@ -1571,15 +1584,18 @@ export class ApplicationPage implements OnInit {
     });
   }
 
-  protected changePaymentMethod(): void {
-    const method = this.cashForm.controls.method.value;
-    const cash = this.cashForm.controls.cashReceived;
-    const reference = this.cashForm.controls.reference;
+  protected changePaymentMethod(index: number): void {
+    const row = this.paymentRows.at(index);
+    const method = row.controls.method.value;
+    const cash = row.controls.amountReceived;
+    const reference = row.controls.reference;
     if (method === 'CASH') {
       cash.setValidators([Validators.required, Validators.pattern(MONEY_PATTERN)]);
       reference.clearValidators();
       reference.setValue('');
-      if (this.cartQuote()) cash.setValue(this.cartQuote()!.totals.total);
+      if (this.paymentRows.length === 1 && this.cartQuote()) {
+        cash.setValue(this.cartQuote()!.totals.total);
+      }
     } else {
       cash.clearValidators();
       cash.setValue('');
@@ -1595,10 +1611,45 @@ export class ApplicationPage implements OnInit {
     this.posError.set(null);
   }
 
-  protected paymentMethodLabel(method: PaymentMethod): string {
-    return { CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', VOUCHER: 'Vale' }[
-      method
-    ];
+  protected addPayment(): void {
+    const method = this.paymentMethods().find(
+      (candidate) =>
+        !this.paymentRows.controls.some((row) => row.controls.method.value === candidate),
+    );
+    if (!method) return;
+    if (this.paymentRows.length === 1) {
+      this.paymentRows.at(0).controls.amount.setValue('');
+      this.paymentRows.at(0).controls.amountReceived.setValue('');
+    }
+    this.paymentRows.push(this.createPaymentRow(method));
+    this.posError.set(null);
+  }
+
+  protected removePayment(index: number): void {
+    if (this.paymentRows.length === 1) return;
+    this.paymentRows.removeAt(index);
+    if (this.paymentRows.length === 1) this.syncSinglePaymentAmount();
+    this.posError.set(null);
+  }
+
+  protected canAddPayment(): boolean {
+    return this.paymentRows.length < this.paymentMethods().length;
+  }
+
+  protected availablePaymentMethods(index: number): PaymentMethod[] {
+    const current = this.paymentRows.at(index).controls.method.value;
+    const used = new Set(this.paymentRows.controls.map((row) => row.controls.method.value));
+    return this.paymentMethods().filter((method) => method === current || !used.has(method));
+  }
+
+  protected paymentMethodLabel(method: PaymentMethod | 'MIXED'): string {
+    return {
+      CASH: 'Efectivo',
+      CARD: 'Tarjeta',
+      TRANSFER: 'Transferencia',
+      VOUCHER: 'Vale',
+      MIXED: 'Mixto',
+    }[method];
   }
 
   protected selectProduct(id: string): void {
@@ -2709,9 +2760,7 @@ export class ApplicationPage implements OnInit {
         next: ({ data }) => {
           this.offlinePosActive.set(false);
           this.cartQuote.set(data);
-          if (this.cashForm.controls.method.value === 'CASH') {
-            this.cashForm.controls.cashReceived.setValue(data.totals.total);
-          }
+          this.syncSinglePaymentAmount();
         },
         error: (error: HttpErrorResponse) => {
           if (error.status === 0) {
@@ -2760,9 +2809,7 @@ export class ApplicationPage implements OnInit {
         })),
       );
       this.cartQuote.set(quote);
-      if (this.cashForm.controls.method.value === 'CASH') {
-        this.cashForm.controls.cashReceived.setValue(quote.totals.total);
-      }
+      this.syncSinglePaymentAmount();
       this.offlinePosActive.set(true);
     } catch (error) {
       this.cartQuote.set(null);
@@ -2812,9 +2859,11 @@ export class ApplicationPage implements OnInit {
       next: ({ data }) => {
         this.paymentMethods.set(data.methods);
         this.nonCashProvider.set(data.nonCashProvider);
-        if (!data.methods.includes(this.cashForm.controls.method.value)) {
-          this.cashForm.controls.method.setValue(data.methods[0] ?? 'CASH');
-          this.changePaymentMethod();
+        for (const [index, row] of this.paymentRows.controls.entries()) {
+          if (!data.methods.includes(row.controls.method.value)) {
+            row.controls.method.setValue(data.methods[0] ?? 'CASH');
+            this.changePaymentMethod(index);
+          }
         }
       },
       error: () => {
@@ -2825,8 +2874,58 @@ export class ApplicationPage implements OnInit {
   }
 
   private resetPaymentForm(): void {
-    this.cashForm.reset({ method: 'CASH', cashReceived: '', reference: '', customerId: '' });
-    this.changePaymentMethod();
+    this.cashForm.reset({ customerId: '' });
+    this.paymentRows.clear();
+    this.paymentRows.push(this.createPaymentRow());
+    this.syncSinglePaymentAmount();
+  }
+
+  private createPaymentRow(method: PaymentMethod = 'CASH') {
+    const row = this.formBuilder.nonNullable.group({
+      method: [method, [Validators.required]],
+      amount: ['', [Validators.required, Validators.pattern(POSITIVE_MONEY_PATTERN)]],
+      amountReceived: [''],
+      reference: [''],
+    });
+    if (method === 'CASH') {
+      row.controls.amountReceived.setValidators([
+        Validators.required,
+        Validators.pattern(MONEY_PATTERN),
+      ]);
+    } else {
+      row.controls.reference.setValidators([
+        Validators.required,
+        Validators.minLength(4),
+        Validators.maxLength(120),
+        Validators.pattern(PAYMENT_REFERENCE_PATTERN),
+      ]);
+    }
+    row.controls.amountReceived.updateValueAndValidity();
+    row.controls.reference.updateValueAndValidity();
+    return row;
+  }
+
+  private syncSinglePaymentAmount(): void {
+    if (this.paymentRows.length !== 1 || !this.cartQuote()) return;
+    const row = this.paymentRows.at(0);
+    row.controls.amount.setValue(this.cartQuote()!.totals.total);
+    if (row.controls.method.value === 'CASH') {
+      row.controls.amountReceived.setValue(this.cartQuote()!.totals.total);
+    }
+  }
+
+  private paymentsMatchTotal(total: string): boolean {
+    if (this.paymentRows.invalid) return false;
+    const toCents = (value: string) => {
+      const [whole, fraction = ''] = value.split('.');
+      return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'));
+    };
+    return (
+      this.paymentRows.controls.reduce(
+        (sum, row) => sum + toCents(row.controls.amount.value),
+        0n,
+      ) === toCents(total)
+    );
   }
 
   private toInput(): ProductInput {
