@@ -11,7 +11,7 @@
 }
 
 .return-heading,
-.return-history li,
+.return-history > li,
 .return-lines fieldset {
   display: flex;
   justify-content: space-between;
@@ -40,6 +40,38 @@
 .return-history span,
 .return-history small {
   display: block;
+}
+
+.settlement-history {
+  grid-column: 1 / -1;
+  margin: 0.45rem 0 0;
+  padding-left: 1.2rem;
+  color: #166534;
+  font-size: 0.82rem;
+}
+
+.settlement-history .failed {
+  color: #9f1239;
+}
+
+.settlement-form {
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  margin: 1rem 0;
+  padding: 0.85rem;
+  border: 1px solid #bfd0e8;
+  border-radius: 0.65rem;
+  background: #eef5ff;
+}
+
+.settlement-form h4,
+.settlement-form button,
+.credit-recipient {
+  grid-column: 1 / -1;
+}
+
+.settlement-form h4,
+.credit-recipient {
+  margin: 0;
 }
 
 form,
@@ -84,7 +116,7 @@ textarea {
 
 @media (max-width: 700px) {
   .return-heading,
-  .return-history li,
+  .return-history > li,
   .return-lines fieldset {
     display: grid;
   }

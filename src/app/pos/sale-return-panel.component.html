@@ -4,7 +4,7 @@
       <p class="eyebrow">Corrección trazable</p>
       <h3 id="sale-return-title">Devoluciones y cambios</h3>
     </div>
-    <span>Liquidación monetaria pendiente</span>
+    <span>Reembolsos y saldo a favor</span>
   </div>
 
   @if (loading()) {
@@ -16,14 +16,80 @@
         <li>
           <span>
             <strong>{{ item.totals.total }} · {{ item.returnedBy.email }}</strong>
-            <small>{{ item.createdAt | date: 'short' }} · {{ item.reason }}</small>
+            <small>
+              {{ item.createdAt | date: 'short' }} · {{ item.reason }} ·
+              {{ settlementLabel(item) }} · pendiente {{ item.refundableAmount }}
+            </small>
           </span>
           @if (item.exchangeSale) {
             <span class="exchange">Cambio {{ item.exchangeSale.receiptNumber }}</span>
           }
+          @if (item.settlements.length) {
+            <ul class="settlement-history" aria-label="Liquidaciones registradas">
+              @for (settlement of item.settlements; track settlement.id) {
+                <li [class.failed]="settlement.status === 'FAILED'">
+                  {{ settlement.amount }} · {{ settlement.method }} ·
+                  {{ settlement.status === 'COMPLETED' ? 'Completado' : 'Falló; saldo disponible' }}
+                </li>
+              }
+            </ul>
+          }
         </li>
       }
     </ol>
+  }
+
+  @if (settlementForm.controls.returnId.value) {
+    <form class="settlement-form" [formGroup]="settlementForm" (ngSubmit)="settle()">
+      <h4>Liquidar una devolución</h4>
+      <label>
+        Devolución
+        <select formControlName="returnId">
+          @for (item of returns(); track item.id) {
+            @if (item.refundableAmount !== '0.00') {
+              <option [value]="item.id">
+                {{ item.createdAt | date: 'short' }} · pendiente {{ item.refundableAmount }}
+              </option>
+            }
+          }
+        </select>
+      </label>
+      <label>
+        Entrega de valor
+        <select formControlName="mode">
+          <option value="REFUND">Reembolsar al medio original</option>
+          <option value="STORE_CREDIT" [disabled]="!sale().customer">
+            Saldo a favor del cliente
+          </option>
+        </select>
+      </label>
+      @if (settlementForm.controls.mode.value === 'REFUND') {
+        <label>
+          Pago original
+          <select formControlName="originalPaymentId">
+            <option value="">Selecciona un pago</option>
+            @for (payment of paymentOptions(); track payment.id) {
+              @if (payment.status === 'COMPLETED') {
+                <option [value]="payment.id">
+                  {{ payment.method }} · {{ payment.amountApplied }}
+                </option>
+              }
+            }
+          </select>
+        </label>
+      } @else if (sale().customer) {
+        <p class="credit-recipient">
+          El saldo quedará en el ledger de {{ sale().customer?.name }}.
+        </p>
+      }
+      <label>
+        Importe
+        <input formControlName="amount" inputmode="decimal" placeholder="0.00" />
+      </label>
+      <button type="submit" [disabled]="saving() || settlementForm.invalid">
+        {{ saving() ? 'Procesando…' : 'Procesar liquidación' }}
+      </button>
+    </form>
   }
 
   @if (sale().status === 'COMPLETED') {
@@ -72,8 +138,8 @@
         </select>
       </label>
       <p class="settlement-note">
-        Esta operación devuelve stock y conserva la trazabilidad. No entrega efectivo ni revierte
-        pagos; ese paso se procesa por separado.
+        Esta operación devuelve stock y conserva la trazabilidad. Después podrás liquidar el valor
+        por el medio original o como saldo a favor.
       </p>
       <button type="submit" [disabled]="saving() || form.invalid">
         {{ saving() ? 'Registrando…' : 'Registrar devolución' }}

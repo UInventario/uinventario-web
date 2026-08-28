@@ -8,6 +8,7 @@ describe('SaleReturnPanelComponent', () => {
   let pos: {
     listSaleReturns: ReturnType<typeof vi.fn>;
     createSaleReturn: ReturnType<typeof vi.fn>;
+    settleSaleReturn: ReturnType<typeof vi.fn>;
   };
 
   const sale: SaleDetailData = {
@@ -36,6 +37,7 @@ describe('SaleReturnPanelComponent', () => {
     ],
     totals: { subtotal: '200.00', tax: '32.00', total: '232.00' },
     payment: {
+      id: 'payment-1',
       method: 'CASH',
       status: 'COMPLETED',
       amountReceived: '250.00',
@@ -45,7 +47,19 @@ describe('SaleReturnPanelComponent', () => {
       provider: 'CASH',
       authorizationCode: null,
     },
-    payments: [],
+    payments: [
+      {
+        id: 'payment-1',
+        method: 'CASH',
+        status: 'COMPLETED',
+        amountReceived: '250.00',
+        amountApplied: '232.00',
+        change: '18.00',
+        reference: null,
+        provider: 'CASH',
+        authorizationCode: null,
+      },
+    ],
     createdAt: '2026-08-28T12:00:00.000Z',
     void: null,
     movements: [],
@@ -57,9 +71,11 @@ describe('SaleReturnPanelComponent', () => {
     exchangeSale: { id: 'sale-2', receiptNumber: 'V-002' },
     reason: 'Cambio de presentación',
     settlementStatus: 'PENDING',
+    refundableAmount: '116.00',
     totals: { subtotal: '100.00', tax: '16.00', total: '116.00' },
     returnedBy: { id: 'user-1', email: 'admin@example.com' },
     createdAt: '2026-08-28T13:00:00.000Z',
+    settlements: [],
     lines: [
       {
         id: 'return-line-1',
@@ -81,6 +97,48 @@ describe('SaleReturnPanelComponent', () => {
       createSaleReturn: vi.fn().mockReturnValue(
         of({
           data: saleReturn,
+          meta: { apiVersion: '1' as const, idempotentReplay: false },
+        }),
+      ),
+      settleSaleReturn: vi.fn().mockReturnValue(
+        of({
+          data: {
+            saleReturn: {
+              ...saleReturn,
+              settlementStatus: 'PARTIALLY_SETTLED' as const,
+              refundableAmount: '66.00',
+              settlements: [
+                {
+                  id: 'settlement-1',
+                  mode: 'REFUND' as const,
+                  method: 'CASH' as const,
+                  status: 'COMPLETED' as const,
+                  currency: 'MXN',
+                  amount: '50.00',
+                  originalPayment: { id: 'payment-1', method: 'CASH' as const },
+                  provider: 'CASH',
+                  providerReference: null,
+                  failureCode: null,
+                  processedBy: sale.user,
+                  createdAt: '2026-08-28T13:05:00.000Z',
+                },
+              ],
+            },
+            settlement: {
+              id: 'settlement-1',
+              mode: 'REFUND' as const,
+              method: 'CASH' as const,
+              status: 'COMPLETED' as const,
+              currency: 'MXN',
+              amount: '50.00',
+              originalPayment: { id: 'payment-1', method: 'CASH' as const },
+              provider: 'CASH',
+              providerReference: null,
+              failureCode: null,
+              processedBy: sale.user,
+              createdAt: '2026-08-28T13:05:00.000Z',
+            },
+          },
           meta: { apiVersion: '1' as const, idempotentReplay: false },
         }),
       ),
@@ -153,6 +211,25 @@ describe('SaleReturnPanelComponent', () => {
     );
     expect(fixture.nativeElement.textContent).toContain('pendiente 1.000');
     expect(fixture.nativeElement.textContent).toContain('Cambio V-002');
-    expect(fixture.nativeElement.textContent).toContain('No entrega efectivo ni revierte pagos');
+    expect(fixture.nativeElement.textContent).toContain('podrás liquidar el valor');
+
+    const amount = fixture.nativeElement.querySelector(
+      'form.settlement-form input[formcontrolname=amount]',
+    ) as HTMLInputElement;
+    amount.value = '50.00';
+    amount.dispatchEvent(new Event('input'));
+    (fixture.nativeElement.querySelector('form.settlement-form') as HTMLFormElement).dispatchEvent(
+      new Event('submit'),
+    );
+    fixture.detectChanges();
+
+    expect(pos.settleSaleReturn).toHaveBeenCalledWith(
+      sale.id,
+      saleReturn.id,
+      { mode: 'REFUND', amount: '50.00', originalPaymentId: 'payment-1' },
+      expect.stringMatching(/^web-return-settlement-/),
+    );
+    expect(fixture.nativeElement.textContent).toContain('pendiente 66.00');
+    expect(fixture.nativeElement.textContent).toContain('Reembolso registrado correctamente');
   });
 });
