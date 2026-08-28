@@ -1668,7 +1668,7 @@ describe('ApplicationPage', () => {
       {
         lines: [{ productId: 'product', quantity: '2' }],
         customerId: 'customer',
-        payment: { method: 'CASH', amountReceived: '250.00' },
+        payments: [{ method: 'CASH', amount: '239.80', amountReceived: '250.00' }],
       },
       expect.stringMatching(/^web-sale-/),
     );
@@ -1706,6 +1706,18 @@ describe('ApplicationPage', () => {
           provider: 'INTERNAL',
           authorizationCode: null,
         },
+        payments: [
+          {
+            method: 'CASH',
+            status: 'COMPLETED',
+            amountReceived: '250.00',
+            amountApplied: '239.80',
+            change: '10.20',
+            reference: null,
+            provider: 'INTERNAL',
+            authorizationCode: null,
+          },
+        ],
         createdAt: new Date().toISOString(),
         void: null,
       },
@@ -1755,12 +1767,20 @@ describe('ApplicationPage', () => {
     const component = fixture.componentInstance as unknown as {
       cart: { set(value: Array<{ product: typeof product; quantity: string }>): void };
       cartQuote: { set(value: typeof quote): void };
-      cashForm: { controls: { cashReceived: { setValue(value: string): void } } };
+      paymentRows: {
+        at(index: number): {
+          controls: {
+            amount: { setValue(value: string): void };
+            amountReceived: { setValue(value: string): void };
+          };
+        };
+      };
       completeCashSale(): void;
     };
     component.cart.set([{ product, quantity: '1' }]);
     component.cartQuote.set(quote);
-    component.cashForm.controls.cashReceived.setValue('120.00');
+    component.paymentRows.at(0).controls.amount.setValue('116.00');
+    component.paymentRows.at(0).controls.amountReceived.setValue('120.00');
     pos.createSale.mockReturnValue(
       throwError(() => new HttpErrorResponse({ status: 0, statusText: 'Offline' })),
     );
@@ -1780,7 +1800,7 @@ describe('ApplicationPage', () => {
     expect(fixture.nativeElement.textContent).toContain('Sólo efectivo, sin sobreventa');
   });
 
-  it('submits a referenced card payment and explains a simulated rejection', () => {
+  it('submits referenced and mixed payments and explains a simulated rejection', () => {
     const product = {
       id: 'product',
       name: 'Café',
@@ -1817,20 +1837,26 @@ describe('ApplicationPage', () => {
     const component = fixture.componentInstance as unknown as {
       cart: { set(value: Array<{ product: typeof product; quantity: string }>): void };
       cartQuote: { set(value: typeof quote): void };
-      cashForm: {
-        controls: {
-          method: { setValue(value: 'CARD'): void };
-          reference: { setValue(value: string): void };
+      paymentRows: {
+        at(index: number): {
+          controls: {
+            method: { setValue(value: string): void };
+            amount: { setValue(value: string): void };
+            amountReceived: { setValue(value: string): void };
+            reference: { setValue(value: string): void };
+          };
         };
       };
-      changePaymentMethod(): void;
+      changePaymentMethod(index: number): void;
+      addPayment(): void;
       completeCashSale(): void;
     };
     component.cart.set([{ product, quantity: '1' }]);
     component.cartQuote.set(quote);
-    component.cashForm.controls.method.setValue('CARD');
-    component.changePaymentMethod();
-    component.cashForm.controls.reference.setValue('DECLINE-001');
+    component.paymentRows.at(0).controls.method.setValue('CARD');
+    component.changePaymentMethod(0);
+    component.paymentRows.at(0).controls.amount.setValue('116.00');
+    component.paymentRows.at(0).controls.reference.setValue('DECLINE-001');
     pos.createSale.mockReturnValue(
       throwError(
         () =>
@@ -1849,11 +1875,30 @@ describe('ApplicationPage', () => {
     expect(pos.createSale).toHaveBeenCalledWith(
       {
         lines: [{ productId: 'product', quantity: '1' }],
-        payment: { method: 'CARD', reference: 'DECLINE-001' },
+        payments: [{ method: 'CARD', amount: '116.00', reference: 'DECLINE-001' }],
       },
       expect.stringMatching(/^web-sale-/),
     );
     expect(fixture.nativeElement.textContent).toContain('El pago fue rechazado');
+
+    component.paymentRows.at(0).controls.reference.setValue('CARD-OK-001');
+    component.addPayment();
+    component.paymentRows.at(0).controls.amount.setValue('56.00');
+    component.paymentRows.at(1).controls.amount.setValue('60.00');
+    component.paymentRows.at(1).controls.amountReceived.setValue('70.00');
+    pos.createSale.mockReturnValue(new Subject());
+    component.completeCashSale();
+
+    expect(pos.createSale).toHaveBeenLastCalledWith(
+      {
+        lines: [{ productId: 'product', quantity: '1' }],
+        payments: [
+          { method: 'CARD', amount: '56.00', reference: 'CARD-OK-001' },
+          { method: 'CASH', amount: '60.00', amountReceived: '70.00' },
+        ],
+      },
+      expect.stringMatching(/^web-sale-/),
+    );
   });
 
   it('creates a customer only after contact consent and selects it for the sale', () => {
@@ -1941,6 +1986,18 @@ describe('ApplicationPage', () => {
         provider: 'INTERNAL',
         authorizationCode: null,
       },
+      payments: [
+        {
+          method: 'CASH',
+          status: 'COMPLETED',
+          amountReceived: '120.00',
+          amountApplied: '119.90',
+          change: '0.10',
+          reference: null,
+          provider: 'INTERNAL',
+          authorizationCode: null,
+        },
+      ],
       createdAt: '2026-08-27T14:30:00.000Z',
       void: null,
       movements: [
@@ -2008,6 +2065,7 @@ describe('ApplicationPage', () => {
         ...completed,
         status: 'VOIDED',
         payment: { ...completed.payment, status: 'REVERSED' },
+        payments: completed.payments.map((payment) => ({ ...payment, status: 'REVERSED' })),
         void: {
           reason: 'Error de captura confirmado',
           user: { id: 'user', email: 'admin@example.com' },
@@ -2031,7 +2089,7 @@ describe('ApplicationPage', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Venta anulada');
     expect(fixture.nativeElement.textContent).toContain('Error de captura confirmado');
-    expect(fixture.nativeElement.textContent).toContain('Pago');
+    expect(fixture.nativeElement.textContent).toContain('Estado');
     expect(fixture.nativeElement.textContent).toContain('Revertido');
     expect(fixture.nativeElement.textContent).toContain('Anulación');
     expect(fixture.nativeElement.querySelector('.sale-void-form')).toBeNull();
