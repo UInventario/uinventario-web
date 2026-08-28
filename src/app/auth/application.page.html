@@ -2507,7 +2507,7 @@
             </dl>
             <h3>Líneas</h3>
             <ul class="sale-lines">
-              @for (line of sale.lines; track line.product.id) {
+              @for (line of sale.lines; track line.id) {
                 <li>
                   <span
                     ><strong>{{ line.product.name }}</strong
@@ -2516,6 +2516,13 @@
                 </li>
               }
             </ul>
+            @if (canReturnSales()) {
+              <app-sale-return-panel
+                [sale]="sale"
+                [exchangeOptions]="salesHistory()"
+                (completed)="saleReturnCompleted()"
+              />
+            }
             @if (canReprintSales()) {
               <app-sale-receipt-panel [saleId]="sale.id" />
             }
@@ -2553,8 +2560,14 @@
                   <span
                     ><strong>{{ movement.location.name }}</strong
                     ><small
-                      >{{ movement.type === 'SALE_VOID' ? 'Anulación' : 'Venta' }} ·
-                      {{ movement.reference }}</small
+                      >{{
+                        movement.type === 'SALE_VOID'
+                          ? 'Anulación'
+                          : movement.type === 'SALE_RETURN'
+                            ? 'Devolución'
+                            : 'Venta'
+                      }}
+                      · {{ movement.reference }}</small
                     ></span
                   ><strong>{{ movement.quantityChange }} → {{ movement.resultingQuantity }}</strong>
                 </li>
