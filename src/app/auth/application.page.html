@@ -625,8 +625,23 @@
               @if (product.trackLots) {
                 <div class="catalog-state" [class.form-error]="!lotReconciled()">
                   <strong>{{ selectedProductLots().length }} lote(s)</strong>
+                  <span>
+                    Valor específico
+                    {{ selectedProductLotValuation().currency || 'sin moneda' }}
+                    {{ selectedProductLotValuation().inventoryValue }}
+                  </span>
                   @for (lot of selectedProductLots(); track lot.id) {
-                    <span>{{ lot.code }} · {{ lot.quantity }}</span>
+                    <span>
+                      {{ lot.code }} · {{ lot.quantity }} · {{ lot.currency }} {{ lot.unitCost }}/u
+                      · valor {{ lot.inventoryValue }}
+                    </span>
+                    @for (origin of lot.origins; track origin.purchaseReceiptLineId) {
+                      <small>
+                        Origen {{ origin.purchaseOrder.folio }} ·
+                        {{ origin.receipt.documentReference }} · {{ origin.quantity }} a
+                        {{ origin.currency }} {{ origin.unitCost }}
+                      </small>
+                    }
                   }
                   @if (!lotReconciled()) {
                     <span>La suma por lote no coincide con la existencia total.</span>
@@ -914,6 +929,10 @@
                   <small>
                     Lotes {{ tracking.lotQuantity }} ·
                     {{ tracking.reconciled ? 'conciliados' : 'por conciliar' }}
+                  </small>
+                  <small>
+                    Valor por lote {{ tracking.currency || 'sin moneda' }}
+                    {{ tracking.inventoryValue }}
                   </small>
                 }
               </span>
@@ -1306,9 +1325,10 @@
                   </small>
                 }
                 @for (lot of movement.lots ?? []; track lot.id) {
-                  <small
-                    >Lote {{ lot.code }} · {{ lot.quantityChange }} · {{ lot.selectionMode }}</small
-                  >
+                  <small>
+                    Lote {{ lot.code }} · {{ lot.quantityChange }} · {{ lot.currency }}
+                    {{ lot.unitCost }}/u · valor {{ lot.valueChange }} · {{ lot.selectionMode }}
+                  </small>
                 }
               </span>
               <span>

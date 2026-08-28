@@ -174,6 +174,8 @@ describe('ApplicationPage', () => {
             totalQuantity: '0.000',
             lotQuantity: '0.000',
             reconciled: true,
+            currency: null,
+            inventoryValue: '0.0000',
           },
         }),
       ),

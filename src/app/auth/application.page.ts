@@ -295,6 +295,10 @@ export class ApplicationPage implements OnInit {
   protected readonly stockList = signal<InventoryStockItem[]>([]);
   protected readonly selectedProductLots = signal<InventoryLotData[]>([]);
   protected readonly lotReconciled = signal(true);
+  protected readonly selectedProductLotValuation = signal<{
+    currency: string | null;
+    inventoryValue: string;
+  }>({ currency: null, inventoryValue: '0.0000' });
   protected readonly stockListError = signal<string | null>(null);
   protected readonly loadingStockList = signal(true);
   protected readonly movementHistory = signal<InventoryMovementHistoryItem[]>([]);
@@ -2537,10 +2541,15 @@ export class ApplicationPage implements OnInit {
   private loadLots(productId: string): void {
     this.selectedProductLots.set([]);
     this.lotReconciled.set(true);
+    this.selectedProductLotValuation.set({ currency: null, inventoryValue: '0.0000' });
     this.inventory.listLots(productId).subscribe({
       next: ({ data, meta }) => {
         this.selectedProductLots.set(data);
         this.lotReconciled.set(meta.reconciled);
+        this.selectedProductLotValuation.set({
+          currency: meta.currency,
+          inventoryValue: meta.inventoryValue,
+        });
       },
       error: (error: HttpErrorResponse) =>
         this.stockError.set(this.operationMessage(error, 'No fue posible consultar los lotes.')),
