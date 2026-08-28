@@ -33,6 +33,7 @@ import {
   PosCartQuote,
   SaleDetailData,
   SaleSummaryData,
+  SalesCashReportData,
 } from '../pos/pos-api.service';
 import { AuditApiService, AuditEventData } from '../audit/audit-api.service';
 import {
@@ -349,6 +350,11 @@ export class ApplicationPage implements OnInit {
   protected readonly salesPage = signal(1);
   protected readonly salesTotalPages = signal(0);
   protected readonly salesTotal = signal(0);
+  protected readonly salesCashReport = signal<SalesCashReportData | null>(null);
+  protected readonly loadingSalesCashReport = signal(true);
+  protected readonly salesCashReportError = signal<string | null>(null);
+  protected readonly salesCashReportPage = signal(1);
+  protected readonly salesCashReportTotalPages = signal(0);
   protected readonly auditEvents = signal<AuditEventData[]>([]);
   protected readonly loadingAudit = signal(true);
   protected readonly exportingAudit = signal(false);
@@ -437,6 +443,14 @@ export class ApplicationPage implements OnInit {
     dateTo: [''],
     cashRegisterId: [''],
     userId: [''],
+  });
+  protected readonly salesCashReportForm = this.formBuilder.nonNullable.group({
+    dateFrom: [''],
+    dateTo: [''],
+    branchId: [''],
+    cashRegisterId: [''],
+    userId: [''],
+    status: ['ALL' as 'ALL' | 'COMPLETED' | 'VOIDED'],
   });
   protected readonly auditFilterForm = this.formBuilder.nonNullable.group({
     q: ['', [Validators.maxLength(100)]],
@@ -544,6 +558,7 @@ export class ApplicationPage implements OnInit {
       this.loadCurrentCashRegisterShift();
       this.loadLatestCashClosure();
       this.loadSales(1);
+      this.loadSalesCashReport(1);
       this.loadCustomers();
     }
     if (this.canViewAudit()) this.loadAuditEvents();
@@ -1679,6 +1694,22 @@ export class ApplicationPage implements OnInit {
     this.loadSales(1);
   }
 
+  protected filterSalesCashReport(): void {
+    this.loadSalesCashReport(1);
+  }
+
+  protected previousSalesCashReportPage(): void {
+    if (this.salesCashReportPage() > 1) {
+      this.loadSalesCashReport(this.salesCashReportPage() - 1);
+    }
+  }
+
+  protected nextSalesCashReportPage(): void {
+    if (this.salesCashReportPage() < this.salesCashReportTotalPages()) {
+      this.loadSalesCashReport(this.salesCashReportPage() + 1);
+    }
+  }
+
   protected previousSalesPage(): void {
     if (this.salesPage() > 1) this.loadSales(this.salesPage() - 1);
   }
@@ -2624,6 +2655,37 @@ export class ApplicationPage implements OnInit {
           this.selectedSale.set(null);
           this.salesError.set(
             this.operationMessage(error, 'No fue posible cargar el historial de ventas.'),
+          );
+        },
+      });
+  }
+
+  private loadSalesCashReport(page: number): void {
+    this.loadingSalesCashReport.set(true);
+    this.salesCashReportError.set(null);
+    const value = this.salesCashReportForm.getRawValue();
+    this.pos
+      .salesCashReport({
+        ...(value.dateFrom ? { dateFrom: value.dateFrom } : {}),
+        ...(value.dateTo ? { dateTo: value.dateTo } : {}),
+        ...(value.branchId ? { branchId: value.branchId } : {}),
+        ...(value.cashRegisterId ? { cashRegisterId: value.cashRegisterId } : {}),
+        ...(value.userId ? { userId: value.userId } : {}),
+        status: value.status,
+        page,
+        pageSize: 10,
+      })
+      .pipe(finalize(() => this.loadingSalesCashReport.set(false)))
+      .subscribe({
+        next: ({ data, meta }) => {
+          this.salesCashReport.set(data);
+          this.salesCashReportPage.set(meta.pagination.page);
+          this.salesCashReportTotalPages.set(meta.pagination.totalPages);
+        },
+        error: (error: HttpErrorResponse) => {
+          this.salesCashReport.set(null);
+          this.salesCashReportError.set(
+            this.operationMessage(error, 'No fue posible cargar el reporte de ventas y caja.'),
           );
         },
       });
