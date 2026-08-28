@@ -75,6 +75,8 @@ export interface CashRegisterClosureData {
   closedAt: string;
 }
 
+export type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER' | 'VOUCHER';
+
 export interface CashSaleData {
   id: string;
   receiptNumber: string;
@@ -87,11 +89,14 @@ export interface CashSaleData {
   lines: Array<Omit<PosCartQuote['lines'][number], 'availableQuantity'>>;
   totals: PosCartQuote['totals'];
   payment: {
-    method: 'CASH';
+    method: PaymentMethod;
     status: 'COMPLETED' | 'REVERSED';
     amountReceived: string;
     amountApplied: string;
     change: string;
+    reference: string | null;
+    provider: string;
+    authorizationCode: string | null;
   };
   createdAt: string;
   void: {
@@ -115,7 +120,7 @@ export interface SaleSummaryData {
   cashRegister: { id: string; name: string; code: string };
   currency: string;
   total: string;
-  paymentMethod: 'CASH';
+  paymentMethod: PaymentMethod;
   createdAt: string;
 }
 
@@ -235,6 +240,28 @@ export class PosApiService {
       { lines, ...(reservationId ? { reservationId } : {}) },
       { withCredentials: true },
     );
+  }
+
+  getPaymentOptions() {
+    return this.http.get<{
+      data: { methods: PaymentMethod[]; nonCashProvider: 'SIMULATOR' | 'DISABLED' };
+      meta: { apiVersion: '1' };
+    }>(`${this.config.apiBaseUrl()}/pos/payment-options`, { withCredentials: true });
+  }
+
+  createSale(
+    input: {
+      lines: Array<{ productId: string; quantity: string }>;
+      customerId?: string;
+      reservationId?: string;
+      payment: { method: PaymentMethod; amountReceived?: string; reference?: string };
+    },
+    idempotencyKey: string,
+  ) {
+    return this.http.post<CashSaleResponse>(`${this.config.apiBaseUrl()}/pos/sales`, input, {
+      headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+      withCredentials: true,
+    });
   }
 
   createCashSale(
