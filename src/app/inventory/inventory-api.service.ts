@@ -79,6 +79,15 @@ export interface InventoryStockItem {
   availableQuantity: string;
   totalQuantity: string;
   states: InventoryStateQuantity[];
+  averageUnitCost?: string;
+  inventoryValue?: string;
+  valuation?: {
+    quantity: string;
+    inventoryValue: string;
+    quantityReconciled?: boolean;
+    valueReconciled?: boolean;
+    reconciled: boolean;
+  };
 }
 
 export interface InventoryMovementHistoryItem {
@@ -117,6 +126,12 @@ export interface InventoryMovementHistoryItem {
     from: InventoryStockState;
     to: InventoryStockState;
     quantity: string;
+  } | null;
+  valuation?: {
+    unitCost: string;
+    valueChange: string;
+    resultingInventoryValue: string | null;
+    averageUnitCost: string | null;
   } | null;
 }
 
