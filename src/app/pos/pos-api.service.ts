@@ -111,6 +111,7 @@ export interface CashRegisterClosureData {
 export type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER' | 'VOUCHER';
 
 export interface SalePaymentData {
+  id: string;
   method: PaymentMethod;
   status: 'COMPLETED' | 'REVERSED';
   amountReceived: string;
@@ -222,15 +223,32 @@ export interface SaleReceiptDeliveryData {
 
 export type SaleReturnCondition = 'SELLABLE' | 'DAMAGED';
 
+export interface SaleReturnSettlementData {
+  id: string;
+  mode: 'REFUND' | 'STORE_CREDIT';
+  method: PaymentMethod | 'STORE_CREDIT';
+  status: 'COMPLETED' | 'FAILED';
+  currency: string;
+  amount: string;
+  originalPayment: { id: string; method: PaymentMethod } | null;
+  provider: string;
+  providerReference: string | null;
+  failureCode: string | null;
+  processedBy: { id: string; email: string };
+  createdAt: string;
+}
+
 export interface SaleReturnData {
   id: string;
   saleId: string;
   exchangeSale: { id: string; receiptNumber: string } | null;
   reason: string;
-  settlementStatus: 'PENDING';
+  settlementStatus: 'PENDING' | 'PARTIALLY_SETTLED' | 'SETTLED';
+  refundableAmount: string;
   totals: { subtotal: string; tax: string; total: string };
   returnedBy: { id: string; email: string };
   createdAt: string;
+  settlements: SaleReturnSettlementData[];
   lines: Array<{
     id: string;
     saleLineId: string;
@@ -611,6 +629,25 @@ export class PosApiService {
       data: SaleReturnData;
       meta: { apiVersion: '1'; idempotentReplay: boolean };
     }>(`${this.config.apiBaseUrl()}/pos/sales/${id}/returns`, input, {
+      headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+      withCredentials: true,
+    });
+  }
+
+  settleSaleReturn(
+    saleId: string,
+    returnId: string,
+    input: {
+      mode: 'REFUND' | 'STORE_CREDIT';
+      amount: string;
+      originalPaymentId?: string;
+    },
+    idempotencyKey: string,
+  ) {
+    return this.http.post<{
+      data: { saleReturn: SaleReturnData; settlement: SaleReturnSettlementData };
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(`${this.config.apiBaseUrl()}/pos/sales/${saleId}/returns/${returnId}/settlements`, input, {
       headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
       withCredentials: true,
     });

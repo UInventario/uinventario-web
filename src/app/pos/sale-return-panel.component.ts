@@ -1,12 +1,13 @@
 import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, effect, inject, input, output, signal } from '@angular/core';
+import { Component, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs';
 import {
   CreateSaleReturnInput,
   PosApiService,
   SaleDetailData,
+  SalePaymentData,
   SaleReturnData,
   SaleSummaryData,
 } from './pos-api.service';
@@ -24,6 +25,7 @@ export class SaleReturnPanelComponent {
   private readonly pos = inject(PosApiService);
   private readonly formBuilder = inject(FormBuilder);
   private pending: { fingerprint: string; key: string } | null = null;
+  private pendingSettlement: { fingerprint: string; key: string } | null = null;
 
   readonly sale = input.required<SaleDetailData>();
   readonly exchangeOptions = input<SaleSummaryData[]>([]);
@@ -39,12 +41,26 @@ export class SaleReturnPanelComponent {
     exchangeSaleId: [''],
     lines: new FormArray<ReturnType<typeof this.createLineGroup>>([]),
   });
+  protected readonly settlementForm = this.formBuilder.nonNullable.group({
+    returnId: ['', Validators.required],
+    mode: ['REFUND' as 'REFUND' | 'STORE_CREDIT', Validators.required],
+    originalPaymentId: [''],
+    amount: [
+      '',
+      [
+        Validators.required,
+        Validators.pattern(/^(?:0\.(?:0[1-9]|[1-9]\d)|[1-9]\d{0,14}(?:\.\d{1,2})?)$/),
+      ],
+    ],
+  });
 
   constructor() {
     effect(() => {
       const sale = this.sale();
-      this.resetLines(sale);
-      this.loadReturns(sale.id);
+      untracked(() => {
+        this.resetLines(sale);
+        this.loadReturns(sale.id);
+      });
     });
   }
 
@@ -104,6 +120,7 @@ export class SaleReturnPanelComponent {
           this.returns.update((items) =>
             items.some((item) => item.id === data.id) ? items : [...items, data],
           );
+          this.selectFirstRefundable();
           this.form.controls.reason.reset('');
           this.form.controls.exchangeSaleId.reset('');
           for (const line of this.form.controls.lines.controls) {
@@ -118,6 +135,72 @@ export class SaleReturnPanelComponent {
         },
         error: (error: HttpErrorResponse) => {
           if (error.status > 0 && error.status < 500) this.pending = null;
+          this.error.set(this.messageFor(error));
+          if (error.status === 409) this.loadReturns(this.sale().id);
+        },
+      });
+  }
+
+  protected paymentOptions(): SalePaymentData[] {
+    return this.sale().payments.length ? this.sale().payments : [this.sale().payment];
+  }
+
+  protected settlementLabel(item: SaleReturnData): string {
+    if (item.settlementStatus === 'SETTLED') return 'Liquidada';
+    if (item.settlementStatus === 'PARTIALLY_SETTLED') return 'Liquidación parcial';
+    return 'Pendiente';
+  }
+
+  protected settle(): void {
+    if (this.settlementForm.invalid || this.saving()) {
+      this.settlementForm.markAllAsTouched();
+      return;
+    }
+    const value = this.settlementForm.getRawValue();
+    if (value.mode === 'REFUND' && !value.originalPaymentId) {
+      this.error.set('Selecciona el pago original que se reembolsará.');
+      return;
+    }
+    if (value.mode === 'STORE_CREDIT' && !this.sale().customer) {
+      this.error.set('Asocia un cliente a la venta para emitir saldo a favor.');
+      return;
+    }
+    const input = {
+      mode: value.mode,
+      amount: value.amount.trim(),
+      ...(value.mode === 'REFUND' ? { originalPaymentId: value.originalPaymentId } : {}),
+    };
+    const fingerprint = JSON.stringify({ returnId: value.returnId, ...input });
+    const key =
+      this.pendingSettlement?.fingerprint === fingerprint
+        ? this.pendingSettlement.key
+        : `web-return-settlement-${globalThis.crypto.randomUUID()}`;
+    this.pendingSettlement = { fingerprint, key };
+    this.saving.set(true);
+    this.error.set(null);
+    this.success.set(null);
+    this.pos
+      .settleSaleReturn(this.sale().id, value.returnId, input, key)
+      .pipe(finalize(() => this.saving.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.pendingSettlement = null;
+          this.returns.update((items) =>
+            items.map((item) => (item.id === data.saleReturn.id ? data.saleReturn : item)),
+          );
+          this.settlementForm.controls.amount.reset('');
+          this.selectFirstRefundable();
+          this.success.set(
+            data.settlement.status === 'FAILED'
+              ? 'El proveedor rechazó el reembolso; el saldo sigue disponible para reintentar.'
+              : data.settlement.mode === 'STORE_CREDIT'
+                ? 'Saldo a favor registrado en el cliente.'
+                : 'Reembolso registrado correctamente.',
+          );
+          this.completed.emit(data.saleReturn);
+        },
+        error: (error: HttpErrorResponse) => {
+          if (error.status > 0 && error.status < 500) this.pendingSettlement = null;
           this.error.set(this.messageFor(error));
           if (error.status === 409) this.loadReturns(this.sale().id);
         },
@@ -141,6 +224,13 @@ export class SaleReturnPanelComponent {
     this.error.set(null);
     this.success.set(null);
     this.pending = null;
+    this.pendingSettlement = null;
+    this.settlementForm.reset({
+      returnId: '',
+      mode: 'REFUND',
+      originalPaymentId: '',
+      amount: '',
+    });
   }
 
   private loadReturns(saleId: string): void {
@@ -150,7 +240,10 @@ export class SaleReturnPanelComponent {
       .listSaleReturns(saleId)
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
-        next: ({ data }) => this.returns.set(data),
+        next: ({ data }) => {
+          this.returns.set(data);
+          this.selectFirstRefundable();
+        },
         error: (error: HttpErrorResponse) => this.error.set(this.messageFor(error)),
       });
   }
@@ -165,8 +258,31 @@ export class SaleReturnPanelComponent {
       return 'La venta elegida para el cambio no es válida o ya fue enlazada.';
     if (code === 'SALE_RETURN_SERIALS_INVALID')
       return 'Revisa las series: deben ser exactamente las unidades vendidas que regresan.';
+    if (code === 'SALE_RETURN_SETTLEMENT_EXCEEDS_BALANCE')
+      return 'El importe supera el saldo pendiente de la devolución.';
+    if (code === 'SALE_RETURN_PAYMENT_NOT_REFUNDABLE')
+      return 'Ese pago ya no tiene saldo reembolsable o no corresponde a la venta.';
+    if (code === 'SALE_RETURN_CUSTOMER_REQUIRED')
+      return 'Asocia un cliente a la venta para emitir saldo a favor.';
+    if (code === 'CASH_REGISTER_SHIFT_REQUIRED')
+      return 'Abre la caja antes de entregar un reembolso.';
+    if (code === 'INSUFFICIENT_EXPECTED_CASH')
+      return 'La caja no tiene efectivo esperado suficiente para este reembolso.';
     if (error.status === 0) return 'No fue posible conectar con el servicio de ventas.';
     return 'No fue posible registrar la devolución.';
+  }
+
+  private selectFirstRefundable(): void {
+    const current = this.settlementForm.controls.returnId.value;
+    const available = this.returns().filter((item) => item.refundableAmount !== '0.00');
+    if (!available.some((item) => item.id === current)) {
+      this.settlementForm.controls.returnId.setValue(available[0]?.id ?? '');
+    }
+    if (!this.settlementForm.controls.originalPaymentId.value) {
+      this.settlementForm.controls.originalPaymentId.setValue(
+        this.paymentOptions().find(({ status }) => status === 'COMPLETED')?.id ?? '',
+      );
+    }
   }
 
   private units(value: string): number {

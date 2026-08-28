@@ -1854,6 +1854,7 @@ describe('ApplicationPage', () => {
         ],
         totals: { subtotal: '206.72', tax: '33.08', total: '239.80' },
         payment: {
+          id: 'payment-1',
           method: 'CASH',
           status: 'COMPLETED',
           amountReceived: '250.00',
@@ -1865,6 +1866,7 @@ describe('ApplicationPage', () => {
         },
         payments: [
           {
+            id: 'payment-1',
             method: 'CASH',
             status: 'COMPLETED',
             amountReceived: '250.00',
@@ -2375,6 +2377,7 @@ describe('ApplicationPage', () => {
       ],
       totals: { subtotal: '103.36', tax: '16.54', total: '119.90' },
       payment: {
+        id: 'payment-detail-1',
         method: 'CASH',
         status: 'COMPLETED',
         amountReceived: '120.00',
@@ -2386,6 +2389,7 @@ describe('ApplicationPage', () => {
       },
       payments: [
         {
+          id: 'payment-detail-1',
           method: 'CASH',
           status: 'COMPLETED',
           amountReceived: '120.00',
