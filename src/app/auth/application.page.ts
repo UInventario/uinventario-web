@@ -29,6 +29,7 @@ import {
 import { InventoryImportPanelComponent } from '../inventory/inventory-import-panel.component';
 import { InventoryCountPanelComponent } from '../inventory/inventory-count-panel.component';
 import { InventoryValuationPolicyPanelComponent } from '../inventory/inventory-valuation-policy-panel.component';
+import { InventoryReconciliationPanelComponent } from '../inventory/inventory-reconciliation-panel.component';
 import { SessionApiService } from './session-api.service';
 import {
   CashRegisterClosureData,
@@ -103,6 +104,7 @@ interface CartEntry {
     InventoryImportPanelComponent,
     InventoryCountPanelComponent,
     InventoryValuationPolicyPanelComponent,
+    InventoryReconciliationPanelComponent,
     CustomerHistoryPanelComponent,
     SupplierPanelComponent,
     PurchaseOrderPanelComponent,

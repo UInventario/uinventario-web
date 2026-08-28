@@ -55,6 +55,8 @@ describe('ApplicationPage', () => {
     getValuationPolicy: ReturnType<typeof vi.fn>;
     previewValuationPolicy: ReturnType<typeof vi.fn>;
     changeValuationPolicy: ReturnType<typeof vi.fn>;
+    latestReconciliation: ReturnType<typeof vi.fn>;
+    runReconciliation: ReturnType<typeof vi.fn>;
   };
   let pos: {
     getCurrentShift: ReturnType<typeof vi.fn>;
@@ -250,6 +252,8 @@ describe('ApplicationPage', () => {
       ),
       previewValuationPolicy: vi.fn(),
       changeValuationPolicy: vi.fn(),
+      latestReconciliation: vi.fn().mockReturnValue(of({ data: null, meta: { apiVersion: '1' } })),
+      runReconciliation: vi.fn(),
     };
     pos = {
       getCurrentShift: vi.fn().mockReturnValue(
