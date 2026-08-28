@@ -99,7 +99,7 @@ export interface CashSaleData {
   customer?: { id: string; name: string; identifier: string | null } | null;
   currency: string;
   taxRate: string;
-  lines: Array<Omit<PosCartQuote['lines'][number], 'availableQuantity'>>;
+  lines: Array<Omit<PosCartQuote['lines'][number], 'availableQuantity'> & { id: string }>;
   totals: PosCartQuote['totals'];
   payment: SalePaymentData;
   payments: SalePaymentData[];
@@ -133,7 +133,7 @@ export interface SaleDetailData extends Omit<CashSaleData, 'userId'> {
   user: { id: string; email: string };
   movements: Array<{
     id: string;
-    type: 'SALE' | 'SALE_VOID';
+    type: 'SALE' | 'SALE_VOID' | 'SALE_RETURN';
     saleLineId: string;
     product: { id: string; name: string; sku: string };
     location: { id: string; name: string; code: string };
@@ -187,6 +187,39 @@ export interface SaleReceiptDeliveryData {
   recipient: string;
   messageId: string;
   acceptedAt: string;
+}
+
+export type SaleReturnCondition = 'SELLABLE' | 'DAMAGED';
+
+export interface SaleReturnData {
+  id: string;
+  saleId: string;
+  exchangeSale: { id: string; receiptNumber: string } | null;
+  reason: string;
+  settlementStatus: 'PENDING';
+  totals: { subtotal: string; tax: string; total: string };
+  returnedBy: { id: string; email: string };
+  createdAt: string;
+  lines: Array<{
+    id: string;
+    saleLineId: string;
+    product: { id: string; name: string; sku: string };
+    quantity: string;
+    condition: SaleReturnCondition;
+    totals: { subtotal: string; tax: string; total: string };
+    serialNumbers: string[];
+  }>;
+}
+
+export interface CreateSaleReturnInput {
+  reason: string;
+  exchangeSaleId?: string;
+  lines: Array<{
+    saleLineId: string;
+    quantity: string;
+    condition: SaleReturnCondition;
+    serialNumbers?: string[];
+  }>;
 }
 
 export interface SalesCashReportData {
@@ -475,6 +508,25 @@ export class PosApiService {
       { email },
       { withCredentials: true },
     );
+  }
+
+  listSaleReturns(id: string) {
+    return this.http.get<{
+      data: SaleReturnData[];
+      meta: { apiVersion: '1' };
+    }>(`${this.config.apiBaseUrl()}/pos/sales/${id}/returns`, {
+      withCredentials: true,
+    });
+  }
+
+  createSaleReturn(id: string, input: CreateSaleReturnInput, idempotencyKey: string) {
+    return this.http.post<{
+      data: SaleReturnData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(`${this.config.apiBaseUrl()}/pos/sales/${id}/returns`, input, {
+      headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+      withCredentials: true,
+    });
   }
 
   salesCashReport(query: {

@@ -1,0 +1,89 @@
+<section class="return-panel" aria-labelledby="sale-return-title" [attr.aria-busy]="loading()">
+  <div class="return-heading">
+    <div>
+      <p class="eyebrow">Corrección trazable</p>
+      <h3 id="sale-return-title">Devoluciones y cambios</h3>
+    </div>
+    <span>Liquidación monetaria pendiente</span>
+  </div>
+
+  @if (loading()) {
+    <p role="status">Consultando devoluciones…</p>
+  }
+  @if (returns().length) {
+    <ol class="return-history" aria-label="Devoluciones registradas">
+      @for (item of returns(); track item.id) {
+        <li>
+          <span>
+            <strong>{{ item.totals.total }} · {{ item.returnedBy.email }}</strong>
+            <small>{{ item.createdAt | date: 'short' }} · {{ item.reason }}</small>
+          </span>
+          @if (item.exchangeSale) {
+            <span class="exchange">Cambio {{ item.exchangeSale.receiptNumber }}</span>
+          }
+        </li>
+      }
+    </ol>
+  }
+
+  @if (sale().status === 'COMPLETED') {
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <div class="return-lines" formArrayName="lines">
+        @for (line of sale().lines; track line.id; let index = $index) {
+          <fieldset [formGroupName]="index" [disabled]="available(line) === '0.000'">
+            <legend>{{ line.product.name }} · {{ line.product.sku }}</legend>
+            <p>Vendido {{ line.quantity }} · pendiente {{ available(line) }}</p>
+            <label>
+              Cantidad
+              <input
+                formControlName="quantity"
+                inputmode="decimal"
+                [attr.aria-label]="'Cantidad a devolver de ' + line.product.name"
+                placeholder="0.000"
+              />
+            </label>
+            <label>
+              Condición
+              <select formControlName="condition">
+                <option value="SELLABLE">Apto para venta</option>
+                <option value="DAMAGED">Dañado</option>
+              </select>
+            </label>
+            <label class="series">
+              Series, si aplica (una por línea)
+              <textarea formControlName="serialNumbers" rows="2"></textarea>
+            </label>
+          </fieldset>
+        }
+      </div>
+      <label>
+        Motivo obligatorio
+        <textarea formControlName="reason" rows="2" maxlength="240"></textarea>
+      </label>
+      <label>
+        Venta nueva del cambio (opcional)
+        <select formControlName="exchangeSaleId">
+          <option value="">Devolución sin cambio</option>
+          @for (option of exchangeOptions(); track option.id) {
+            @if (option.id !== sale().id && option.status === 'COMPLETED') {
+              <option [value]="option.id">{{ option.receiptNumber }} · {{ option.total }}</option>
+            }
+          }
+        </select>
+      </label>
+      <p class="settlement-note">
+        Esta operación devuelve stock y conserva la trazabilidad. No entrega efectivo ni revierte
+        pagos; ese paso se procesa por separado.
+      </p>
+      <button type="submit" [disabled]="saving() || form.invalid">
+        {{ saving() ? 'Registrando…' : 'Registrar devolución' }}
+      </button>
+    </form>
+  }
+  @if (error()) {
+    <div class="form-error" role="alert">{{ error() }}</div>
+  }
+  @if (success()) {
+    <div class="success" role="status">{{ success() }}</div>
+  }
+</section>

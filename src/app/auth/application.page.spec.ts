@@ -77,6 +77,8 @@ describe('ApplicationPage', () => {
     getSale: ReturnType<typeof vi.fn>;
     reprintSaleReceipt: ReturnType<typeof vi.fn>;
     sendSaleReceipt: ReturnType<typeof vi.fn>;
+    listSaleReturns: ReturnType<typeof vi.fn>;
+    createSaleReturn: ReturnType<typeof vi.fn>;
     salesCashReport: ReturnType<typeof vi.fn>;
   };
   let audit: {
@@ -331,6 +333,8 @@ describe('ApplicationPage', () => {
       getSale: vi.fn(),
       reprintSaleReceipt: vi.fn(),
       sendSaleReceipt: vi.fn(),
+      listSaleReturns: vi.fn().mockReturnValue(of({ data: [], meta: { apiVersion: '1' } })),
+      createSaleReturn: vi.fn(),
       salesCashReport: vi.fn().mockReturnValue(
         of({
           data: {
@@ -458,6 +462,7 @@ describe('ApplicationPage', () => {
           'PRODUCTS_MANAGE',
           'SALES_MANAGE',
           'SALES_VOID',
+          'SALES_RETURN',
           'SALES_DISCOUNT',
           'SALE_REPRINT',
           'CASH_REGISTER_OPEN',
@@ -1828,6 +1833,7 @@ describe('ApplicationPage', () => {
         taxRate: '0.1600',
         lines: [
           {
+            id: 'sale-line-1',
             product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
             quantity: '2.000',
             unitPrice: '119.90',
@@ -1894,6 +1900,7 @@ describe('ApplicationPage', () => {
       taxRate: '0.1600',
       lines: [
         {
+          id: 'sale-line-1',
           product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
           quantity: '1.000',
           availableQuantity: '5.000',
@@ -2230,6 +2237,7 @@ describe('ApplicationPage', () => {
       taxRate: '0.1600',
       lines: [
         {
+          id: 'sale-line-detail-1',
           product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
           quantity: '1.000',
           unitPrice: '119.90',

@@ -32,6 +32,7 @@ import { InventoryValuationPolicyPanelComponent } from '../inventory/inventory-v
 import { InventoryReconciliationPanelComponent } from '../inventory/inventory-reconciliation-panel.component';
 import { StockAlertPanelComponent } from '../inventory/stock-alert-panel.component';
 import { SaleReceiptPanelComponent } from '../pos/sale-receipt-panel.component';
+import { SaleReturnPanelComponent } from '../pos/sale-return-panel.component';
 import { SessionApiService } from './session-api.service';
 import {
   CashRegisterClosureData,
@@ -110,6 +111,7 @@ interface CartEntry {
     InventoryReconciliationPanelComponent,
     StockAlertPanelComponent,
     SaleReceiptPanelComponent,
+    SaleReturnPanelComponent,
     CustomerHistoryPanelComponent,
     SupplierPanelComponent,
     PurchaseOrderPanelComponent,
@@ -231,6 +233,9 @@ export class ApplicationPage implements OnInit {
   );
   protected readonly canVoidSales = computed(
     () => this.session()?.user.permissions.includes('SALES_VOID') ?? false,
+  );
+  protected readonly canReturnSales = computed(
+    () => this.session()?.user.permissions.includes('SALES_RETURN') ?? false,
   );
   protected readonly canReprintSales = computed(
     () => this.session()?.user.permissions.includes('SALE_REPRINT') ?? false,
@@ -1926,6 +1931,16 @@ export class ApplicationPage implements OnInit {
       });
   }
 
+  protected saleReturnCompleted(): void {
+    const saleId = this.selectedSale()?.id;
+    if (saleId) this.selectSale(saleId);
+    this.loadStockList(this.stockPage());
+    this.loadMovementHistory(1);
+    this.loadAuditEvents();
+    const product = this.selectedProduct();
+    if (product) this.loadBalance(product.id);
+  }
+
   protected dateTime(value: string): string {
     return new Date(value).toLocaleString('es-MX');
   }
@@ -1956,6 +1971,7 @@ export class ApplicationPage implements OnInit {
         INVENTORY_IMPORT_CONFIRMED: 'Importación de inventario confirmada',
         SALE_COMPLETED: 'Venta completada',
         SALE_VOIDED: 'Venta anulada',
+        SALE_RETURNED: 'Devolución de venta registrada',
         SALE_RECEIPT_REPRINTED: 'Comprobante reimpreso',
         SALE_RECEIPT_SENT: 'Comprobante enviado',
         ACCESS_ROLE_CREATED: 'Rol operativo creado',
@@ -2404,6 +2420,7 @@ export class ApplicationPage implements OnInit {
       PRODUCTS_MANAGE: 'Administrar productos',
       SALES_MANAGE: 'Operar ventas',
       SALES_VOID: 'Anular ventas',
+      SALES_RETURN: 'Registrar devoluciones y cambios',
       SALES_DISCOUNT: 'Aplicar descuentos',
       SALE_REPRINT: 'Reimprimir comprobantes',
       CASH_REGISTER_OPEN: 'Abrir caja',
