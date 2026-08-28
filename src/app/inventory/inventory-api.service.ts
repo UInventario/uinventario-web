@@ -23,6 +23,30 @@ export type InventoryMovementType =
 
 export type InventoryStockState = 'AVAILABLE' | 'RESERVED' | 'DAMAGED' | 'IN_TRANSIT';
 
+export type InventoryValuationMethod = 'MOVING_AVERAGE' | 'FIFO' | 'SPECIFIC_LOT';
+
+export interface InventoryValuationPolicyData {
+  method: InventoryValuationMethod;
+  version: number;
+  effectiveAt: string;
+  migrationRule: 'INITIAL_DEFAULT' | 'FORWARD_ONLY_CUTOVER';
+}
+
+export interface InventoryValuationMigrationPlan {
+  current: InventoryValuationPolicyData;
+  targetMethod: InventoryValuationMethod;
+  allowed: boolean;
+  blockingReasons: string[];
+  strategy:
+    | 'USE_MAINTAINED_MOVING_AVERAGE'
+    | 'USE_MAINTAINED_FIFO_LAYERS'
+    | 'OPENING_LOTS_AT_MOVING_AVERAGE';
+  productsToMigrate: number;
+  locationsToMigrate: number;
+  devicesToRebootstrap: number;
+  planFingerprint: string;
+}
+
 export interface InventoryStateQuantity {
   code: InventoryStockState;
   quantity: string;
@@ -181,6 +205,9 @@ export interface InventoryMovementHistoryItem {
     quantity: string;
   } | null;
   valuation?: {
+    method: InventoryValuationMethod;
+    policyVersion: number;
+    effectiveAt: string;
     unitCost: string;
     valueChange: string;
     resultingInventoryValue: string | null;
@@ -346,6 +373,42 @@ export class InventoryApiService {
 
   listLocations() {
     return this.http.get<LocationsResponse>(`${this.config.apiBaseUrl()}/inventory/locations`, {
+      withCredentials: true,
+    });
+  }
+
+  getValuationPolicy() {
+    return this.http.get<{ data: InventoryValuationPolicyData; meta: { apiVersion: '1' } }>(
+      `${this.config.apiBaseUrl()}/inventory/valuation-policy`,
+      { withCredentials: true },
+    );
+  }
+
+  previewValuationPolicy(targetMethod: InventoryValuationMethod) {
+    return this.http.post<{
+      data: InventoryValuationMigrationPlan;
+      meta: { apiVersion: '1' };
+    }>(
+      `${this.config.apiBaseUrl()}/inventory/valuation-policy/preview`,
+      { targetMethod },
+      { withCredentials: true },
+    );
+  }
+
+  changeValuationPolicy(
+    input: {
+      targetMethod: InventoryValuationMethod;
+      expectedVersion: number;
+      planFingerprint: string;
+    },
+    idempotencyKey: string,
+  ) {
+    const headers = new HttpHeaders().set('Idempotency-Key', idempotencyKey);
+    return this.http.post<{
+      data: InventoryValuationPolicyData;
+      meta: { apiVersion: '1'; replay: boolean };
+    }>(`${this.config.apiBaseUrl()}/inventory/valuation-policy/changes`, input, {
+      headers,
       withCredentials: true,
     });
   }

@@ -75,6 +75,8 @@ export class OfflineOutboxService {
       kind: command.kind,
       payload: command.payload,
       createdAt: command.createdAt,
+      valuationMethod: command.valuationMethod,
+      valuationPolicyVersion: command.valuationPolicyVersion,
     };
   }
 

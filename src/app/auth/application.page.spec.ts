@@ -52,6 +52,9 @@ describe('ApplicationPage', () => {
     createCountSession: ReturnType<typeof vi.fn>;
     recordCount: ReturnType<typeof vi.fn>;
     closeCountSession: ReturnType<typeof vi.fn>;
+    getValuationPolicy: ReturnType<typeof vi.fn>;
+    previewValuationPolicy: ReturnType<typeof vi.fn>;
+    changeValuationPolicy: ReturnType<typeof vi.fn>;
   };
   let pos: {
     getCurrentShift: ReturnType<typeof vi.fn>;
@@ -227,6 +230,19 @@ describe('ApplicationPage', () => {
       createCountSession: vi.fn(),
       recordCount: vi.fn(),
       closeCountSession: vi.fn(),
+      getValuationPolicy: vi.fn().mockReturnValue(
+        of({
+          data: {
+            method: 'MOVING_AVERAGE',
+            version: 1,
+            effectiveAt: '2026-08-28T00:00:00.000Z',
+            migrationRule: 'INITIAL_DEFAULT',
+          },
+          meta: { apiVersion: '1' },
+        }),
+      ),
+      previewValuationPolicy: vi.fn(),
+      changeValuationPolicy: vi.fn(),
     };
     pos = {
       getCurrentShift: vi.fn().mockReturnValue(
@@ -423,6 +439,7 @@ describe('ApplicationPage', () => {
           'INVENTORY_TRANSFER',
           'INVENTORY_COUNT',
           'INVENTORY_APPROVE',
+          'INVENTORY_VALUATION_MANAGE',
         ],
       },
       tenant: { id: 'tenant', name: 'Tienda' },

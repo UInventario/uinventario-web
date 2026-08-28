@@ -13,6 +13,8 @@ export type OfflineCommandEnvelope = Pick<
   | 'kind'
   | 'payload'
   | 'createdAt'
+  | 'valuationMethod'
+  | 'valuationPolicyVersion'
 >;
 
 interface OfflineCommandBatchResponse {

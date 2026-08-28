@@ -18,12 +18,14 @@ import {
   InventoryFifoLayerData,
   InventoryMovementHistoryItem,
   InventoryMovementType,
+  InventoryValuationMethod,
   InventoryStateTransitionInput,
   InventoryStockState,
   InventoryStockItem,
 } from '../inventory/inventory-api.service';
 import { InventoryImportPanelComponent } from '../inventory/inventory-import-panel.component';
 import { InventoryCountPanelComponent } from '../inventory/inventory-count-panel.component';
+import { InventoryValuationPolicyPanelComponent } from '../inventory/inventory-valuation-policy-panel.component';
 import { SessionApiService } from './session-api.service';
 import {
   CashRegisterClosureData,
@@ -96,6 +98,7 @@ interface CartEntry {
     RouterLink,
     InventoryImportPanelComponent,
     InventoryCountPanelComponent,
+    InventoryValuationPolicyPanelComponent,
     CustomerHistoryPanelComponent,
     SupplierPanelComponent,
     PurchaseOrderPanelComponent,
@@ -1087,6 +1090,14 @@ export class ApplicationPage implements OnInit {
       PURCHASE_RECEIPT: 'Recepción de compra',
       SUPPLIER_RETURN: 'Devolución a proveedor',
     }[type];
+  }
+
+  protected valuationMethodLabel(method: InventoryValuationMethod): string {
+    return {
+      MOVING_AVERAGE: 'Promedio móvil',
+      FIFO: 'FIFO',
+      SPECIFIC_LOT: 'Costo específico por lote',
+    }[method];
   }
 
   protected movementDocumentLabel(type: InventoryMovementHistoryItem['document']['type']): string {
@@ -2286,6 +2297,7 @@ export class ApplicationPage implements OnInit {
       INVENTORY_TRANSFER: 'Crear y recibir transferencias',
       INVENTORY_COUNT: 'Realizar conteos',
       INVENTORY_APPROVE: 'Despachar, cancelar y aprobar operaciones',
+      INVENTORY_VALUATION_MANAGE: 'Cambiar el método de valorización',
     }[permission];
   }
 

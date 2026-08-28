@@ -54,6 +54,12 @@ describe('OfflinePosService', () => {
           INVENTORY_MOVEMENT: 3600,
         },
       },
+      valuationPolicy: {
+        method: 'MOVING_AVERAGE',
+        version: 1,
+        effectiveAt: generatedAt,
+        migrationRule: 'INITIAL_DEFAULT',
+      },
       scope: activeScope,
       identity: {
         tenant: { id: 'tenant-1', name: 'Tenant' },

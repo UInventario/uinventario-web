@@ -29,6 +29,7 @@ interface ScopeRecord {
   freshnessPolicy?: OfflineFreshnessPolicyData;
   roles?: string[];
   permissions?: string[];
+  valuationPolicy?: OfflineBootstrapData['valuationPolicy'];
 }
 
 interface EntityRecord {
@@ -86,6 +87,8 @@ export interface OfflineOutboxCommand {
   kind: 'CASH_SALE' | 'INVENTORY_COUNT' | 'INVENTORY_MOVEMENT';
   payload: Readonly<Record<string, unknown>>;
   createdAt: string;
+  valuationMethod: OfflineBootstrapData['valuationPolicy']['method'];
+  valuationPolicyVersion: number;
   status: 'PENDING' | 'SENT' | 'CONFIRMED' | 'ERROR';
   attempts: number;
   nextAttemptAt: string | null;
@@ -170,6 +173,7 @@ export class OfflineStoreService {
         freshnessPolicy: bootstrap.freshnessPolicy,
         roles: bootstrap.identity.user.roles,
         permissions: bootstrap.identity.user.permissions,
+        valuationPolicy: bootstrap.valuationPolicy,
       } satisfies ScopeRecord);
     };
     await this.safeTransaction(transaction);
@@ -257,6 +261,16 @@ export class OfflineStoreService {
     }
     const database = await this.open();
     const scopeKey = this.scopeKey(scope);
+    const storedScope = await this.request<ScopeRecord | undefined>(
+      database.transaction('scopes').objectStore('scopes').get(scopeKey),
+    );
+    if (!storedScope?.valuationPolicy) {
+      throw new OfflinePolicyError(
+        'NOT_PREPARED',
+        'Descarga un bootstrap nuevo antes de guardar operaciones offline.',
+      );
+    }
+    const valuationPolicy = storedScope.valuationPolicy;
     const transaction = database.transaction('outbox', 'readwrite');
     const store = transaction.objectStore('outbox');
     const request = store.index('scopeKey').getAll(IDBKeyRange.only(scopeKey));
@@ -279,6 +293,8 @@ export class OfflineStoreService {
         kind,
         payload,
         createdAt: new Date().toISOString(),
+        valuationMethod: valuationPolicy.method,
+        valuationPolicyVersion: valuationPolicy.version,
         status: 'PENDING',
         attempts: 0,
         nextAttemptAt: null,
