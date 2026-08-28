@@ -45,6 +45,11 @@ describe('ApplicationPage', () => {
     createStateTransition: ReturnType<typeof vi.fn>;
     previewImport: ReturnType<typeof vi.fn>;
     confirmImport: ReturnType<typeof vi.fn>;
+    listCountSessions: ReturnType<typeof vi.fn>;
+    getCountSession: ReturnType<typeof vi.fn>;
+    createCountSession: ReturnType<typeof vi.fn>;
+    recordCount: ReturnType<typeof vi.fn>;
+    closeCountSession: ReturnType<typeof vi.fn>;
   };
   let pos: {
     getCurrentShift: ReturnType<typeof vi.fn>;
@@ -179,6 +184,11 @@ describe('ApplicationPage', () => {
       createStateTransition: vi.fn(),
       previewImport: vi.fn(),
       confirmImport: vi.fn(),
+      listCountSessions: vi.fn().mockReturnValue(of({ data: [], meta: { apiVersion: '1' } })),
+      getCountSession: vi.fn(),
+      createCountSession: vi.fn(),
+      recordCount: vi.fn(),
+      closeCountSession: vi.fn(),
     };
     pos = {
       getCurrentShift: vi.fn().mockReturnValue(

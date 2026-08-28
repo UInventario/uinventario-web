@@ -1,0 +1,185 @@
+<section class="count-panel" aria-labelledby="physical-count-title" [attr.aria-busy]="loading()">
+  <div class="count-heading">
+    <div>
+      <p class="eyebrow">Control operativo</p>
+      <h2 id="physical-count-title">Conteo físico</h2>
+      <p>Abre una sesión por ubicación, registra reconteos y aplica diferencias al cerrar.</p>
+    </div>
+    @if (activeSession()) {
+      <button class="secondary" type="button" (click)="leaveSession()">Ver sesiones</button>
+    }
+  </div>
+
+  @if (error()) {
+    <div class="form-error" role="alert">{{ error() }}</div>
+  }
+  @if (success()) {
+    <div class="success" role="status">{{ success() }}</div>
+  }
+
+  @if (activeSession(); as session) {
+    <div class="session-summary">
+      <strong>{{ session.location.name }} · {{ session.location.code }}</strong>
+      <span>{{ session.lines.length }} producto(s)</span>
+      <span>{{ session.blind ? 'Conteo ciego' : 'Conteo visible' }}</span>
+      <span [class.closed]="session.status === 'CLOSED'">
+        {{ session.status === 'OPEN' ? 'Abierta' : 'Cerrada' }}
+      </span>
+    </div>
+
+    @if (session.status === 'OPEN' && canCount()) {
+      <app-product-code-scanner [globalCapture]="false" (resolved)="scannedProduct($event)" />
+      <p class="scanner-note">
+        El lector verifica códigos. La sesión conserva sólo los productos fijados al abrirla.
+      </p>
+    }
+
+    <div class="count-lines" role="table" aria-label="Productos de la sesión de conteo">
+      <div class="count-row count-header" role="row">
+        <span role="columnheader">Producto</span>
+        <span role="columnheader">Esperado</span>
+        <span role="columnheader">Conteo</span>
+        <span role="columnheader">Traza</span>
+      </div>
+      @for (line of session.lines; track line.product.id) {
+        <div class="count-row" role="row">
+          <span role="cell">
+            <strong>{{ line.product.name }}</strong>
+            <small>{{ line.product.sku }}</small>
+          </span>
+          <span role="cell">
+            @if (line.snapshotQuantity !== null) {
+              {{ line.snapshotQuantity }}
+            } @else {
+              <em>Oculto</em>
+            }
+            @if (line.varianceQuantity !== null) {
+              <small>Diferencia {{ line.varianceQuantity }}</small>
+            }
+          </span>
+          <span role="cell" class="capture-cell">
+            <input
+              type="text"
+              inputmode="decimal"
+              [value]="quantities()[line.product.id]"
+              [disabled]="session.status === 'CLOSED'"
+              [attr.aria-label]="'Cantidad contada de ' + line.product.name"
+              (input)="updateQuantity(line.product.id, $event)"
+            />
+            @if (session.status === 'OPEN' && canCount()) {
+              <button type="button" (click)="record(line)" [disabled]="savingProductId() !== null">
+                {{ line.attemptCount === 0 ? 'Registrar' : 'Recontar' }}
+              </button>
+            }
+          </span>
+          <span role="cell">
+            <strong>{{ line.attemptCount }} captura(s)</strong>
+            @if (line.countedBy) {
+              <small>{{ line.countedBy.email }}</small>
+            }
+            @for (attempt of line.attempts; track attempt.attempt) {
+              <small>#{{ attempt.attempt }}: {{ attempt.countedQuantity }}</small>
+            }
+          </span>
+        </div>
+      }
+    </div>
+
+    @if (session.status === 'OPEN') {
+      @if (canApprove()) {
+        <form class="close-form" [formGroup]="closeForm" (ngSubmit)="closeSession()">
+          <label for="countReason">Motivo de ajuste</label>
+          <input id="countReason" formControlName="reason" maxlength="160" />
+          <label for="countReference">Referencia</label>
+          <input id="countReference" formControlName="reference" maxlength="120" />
+          <button type="submit" [disabled]="!readyToClose() || closing()">
+            {{ closing() ? 'Cerrando…' : 'Cerrar y aplicar diferencias' }}
+          </button>
+          @if (!readyToClose()) {
+            <small>Todos los productos necesitan al menos una captura.</small>
+          }
+        </form>
+      } @else {
+        <p class="approval-note">Un usuario con permiso de aprobación debe cerrar la sesión.</p>
+      }
+    }
+  } @else {
+    <div class="count-workspace">
+      @if (canCount()) {
+        <div class="create-count" [formGroup]="createForm">
+          <h3>Nueva sesión</h3>
+          <label for="countLocation">Ubicación</label>
+          <select id="countLocation" formControlName="locationId">
+            @for (location of locations(); track location.id) {
+              <option [value]="location.id">{{ location.name }} · {{ location.code }}</option>
+            }
+          </select>
+          <label class="blind-option">
+            <input type="checkbox" formControlName="blind" />
+            Conteo ciego: ocultar la existencia esperada hasta el cierre
+          </label>
+
+          <div class="product-search" [formGroup]="searchForm">
+            <label for="countProductSearch">Buscar producto</label>
+            <div>
+              <input id="countProductSearch" formControlName="q" placeholder="Nombre o SKU" />
+              <button
+                class="secondary"
+                type="button"
+                [disabled]="searching()"
+                (click)="searchProducts()"
+              >
+                Buscar
+              </button>
+            </div>
+          </div>
+          <app-product-code-scanner [globalCapture]="false" (resolved)="scannedProduct($event)" />
+
+          <div class="product-results" aria-label="Resultados de productos">
+            @for (product of productResults(); track product.id) {
+              <button class="secondary" type="button" (click)="addProduct(product)">
+                {{ product.name }} · {{ product.sku }}
+              </button>
+            }
+          </div>
+
+          <div class="selected-products">
+            <strong>Productos seleccionados ({{ selectedProducts().length }})</strong>
+            @for (product of selectedProducts(); track product.id) {
+              <span>
+                {{ product.name }} · {{ product.sku }}
+                <button
+                  type="button"
+                  aria-label="Quitar producto"
+                  (click)="removeProduct(product.id)"
+                >
+                  ×
+                </button>
+              </span>
+            }
+          </div>
+          <button
+            type="button"
+            [disabled]="creating() || selectedProducts().length === 0"
+            (click)="createSession()"
+          >
+            {{ creating() ? 'Abriendo…' : 'Abrir sesión' }}
+          </button>
+        </div>
+      }
+
+      <div class="session-list">
+        <h3>Sesiones recientes</h3>
+        @for (session of sessions(); track session.id) {
+          <button type="button" (click)="resume(session)">
+            <strong>{{ session.location.name }}</strong>
+            <span>{{ session.status === 'OPEN' ? 'Abierta' : 'Cerrada' }}</span>
+            <small>{{ session.lines.length }} producto(s) · {{ session.createdBy.email }}</small>
+          </button>
+        } @empty {
+          <p>No hay sesiones de conteo en esta bodega.</p>
+        }
+      </div>
+    </div>
+  }
+</section>

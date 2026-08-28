@@ -204,6 +204,49 @@ interface InventoryImportResponse {
   meta: { apiVersion: '1'; idempotentReplay?: boolean };
 }
 
+export interface InventoryCountAttemptData {
+  attempt: number;
+  countedQuantity: string;
+  responsible: { id: string; email: string };
+  createdAt: string;
+}
+
+export interface InventoryCountSessionLineData {
+  product: { id: string; name: string; sku: string };
+  snapshotQuantity: string | null;
+  countedQuantity: string | null;
+  varianceQuantity: string | null;
+  attemptCount: number;
+  countedBy: { id: string; email: string } | null;
+  countedAt: string | null;
+  movementId: string | null;
+  attempts: InventoryCountAttemptData[];
+}
+
+export interface InventoryCountSessionData {
+  id: string;
+  status: 'OPEN' | 'CLOSED';
+  blind: boolean;
+  branch: { id: string; name: string };
+  warehouse: { id: string; name: string };
+  location: InventoryLocationData;
+  createdBy: { id: string; email: string };
+  closedBy: { id: string; email: string } | null;
+  createdAt: string;
+  closedAt: string | null;
+  lines: InventoryCountSessionLineData[];
+}
+
+interface InventoryCountSessionResponse {
+  data: InventoryCountSessionData;
+  meta: { apiVersion: '1'; idempotentReplay?: boolean };
+}
+
+interface InventoryCountSessionListResponse {
+  data: InventoryCountSessionData[];
+  meta: { apiVersion: '1' };
+}
+
 @Injectable({ providedIn: 'root' })
 export class InventoryApiService {
   private readonly http = inject(HttpClient);
@@ -302,6 +345,52 @@ export class InventoryApiService {
       `${this.config.apiBaseUrl()}/inventory/imports/${importId}/confirm`,
       {},
       { headers, withCredentials: true },
+    );
+  }
+
+  listCountSessions() {
+    return this.http.get<InventoryCountSessionListResponse>(
+      `${this.config.apiBaseUrl()}/inventory/count-sessions`,
+      { withCredentials: true },
+    );
+  }
+
+  getCountSession(sessionId: string) {
+    return this.http.get<InventoryCountSessionResponse>(
+      `${this.config.apiBaseUrl()}/inventory/count-sessions/${sessionId}`,
+      { withCredentials: true },
+    );
+  }
+
+  createCountSession(
+    input: { locationId: string; productIds: string[]; blind: boolean },
+    idempotencyKey: string,
+  ) {
+    const headers = new HttpHeaders().set('Idempotency-Key', idempotencyKey);
+    return this.http.post<InventoryCountSessionResponse>(
+      `${this.config.apiBaseUrl()}/inventory/count-sessions`,
+      input,
+      { headers, withCredentials: true },
+    );
+  }
+
+  recordCount(
+    sessionId: string,
+    productId: string,
+    input: { countedQuantity: string; expectedAttempt: number },
+  ) {
+    return this.http.put<InventoryCountSessionResponse>(
+      `${this.config.apiBaseUrl()}/inventory/count-sessions/${sessionId}/lines/${productId}`,
+      input,
+      { withCredentials: true },
+    );
+  }
+
+  closeCountSession(sessionId: string, input: { reason: string; reference: string }) {
+    return this.http.post<InventoryCountSessionResponse>(
+      `${this.config.apiBaseUrl()}/inventory/count-sessions/${sessionId}/close`,
+      input,
+      { withCredentials: true },
     );
   }
 }
