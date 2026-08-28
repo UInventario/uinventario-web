@@ -846,6 +846,7 @@
             <span role="columnheader">Estado</span>
             <span role="columnheader">Disponible</span>
             <span role="columnheader">Total</span>
+            <span role="columnheader">Valorización</span>
           </div>
           @for (item of stockList(); track item.product.id) {
             <div class="stock-row" role="row">
@@ -863,6 +864,13 @@
               </span>
               <span class="stock-quantity" role="cell">
                 <small>Total</small><strong>{{ item.totalQuantity }}</strong>
+              </span>
+              <span class="stock-quantity" role="cell">
+                <small>Costo promedio</small><strong>{{ item.averageUnitCost ?? '0.0000' }}</strong>
+                <small>Valor bodega {{ item.inventoryValue ?? '0.0000' }}</small>
+                @if (item.valuation && !item.valuation.reconciled) {
+                  <small class="valuation-warning">Valorización por reconciliar</small>
+                }
               </span>
             </div>
           }
@@ -1246,6 +1254,12 @@
                 <small>
                   Saldo {{ movement.previousQuantity }} → {{ movement.resultingQuantity }}
                 </small>
+                @if (movement.valuation; as valuation) {
+                  <small>
+                    Costo {{ valuation.unitCost }} · valor {{ valuation.valueChange }} · promedio
+                    {{ valuation.averageUnitCost ?? 'histórico' }}
+                  </small>
+                }
               </span>
               <span>
                 <strong>{{ movement.location.name }}</strong>
