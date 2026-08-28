@@ -649,6 +649,39 @@
                 </div>
               }
 
+              <div
+                class="catalog-state"
+                [class.form-error]="!selectedProductFifoValuation().reconciled"
+              >
+                <strong>{{ selectedProductFifoLayers().length }} capa(s) FIFO</strong>
+                <span>
+                  Valor FIFO {{ selectedProductFifoValuation().currency || 'sin moneda' }}
+                  {{ selectedProductFifoValuation().inventoryValue }}
+                </span>
+                @if (selectedProductFifoValuation().cutoverAt; as cutoverAt) {
+                  <small>
+                    Corte FIFO {{ cutoverAt | date: 'short' }} · saldo inicial al costo promedio
+                    vigente
+                  </small>
+                }
+                @for (layer of selectedProductFifoLayers(); track layer.id) {
+                  <span>
+                    {{ layer.remainingQuantity }}/{{ layer.originalQuantity }} ·
+                    {{ layer.currency }} {{ layer.unitCost }}/u · valor {{ layer.inventoryValue }} ·
+                    {{ layer.location.code }}
+                  </span>
+                  <small>
+                    {{ layer.originType }} · adquirido {{ layer.acquiredAt | date: 'short' }}
+                    @if (layer.source.reference) {
+                      · {{ layer.source.reference }}
+                    }
+                  </small>
+                }
+                @if (!selectedProductFifoValuation().reconciled) {
+                  <span>Las capas FIFO no coinciden con la existencia total.</span>
+                }
+              </div>
+
               <form
                 [hidden]="!canAdjustInventory()"
                 [formGroup]="stockForm"
@@ -933,6 +966,14 @@
                   <small>
                     Valor por lote {{ tracking.currency || 'sin moneda' }}
                     {{ tracking.inventoryValue }}
+                  </small>
+                }
+                @if (item.fifoValuation; as fifoValuation) {
+                  <small>
+                    FIFO {{ fifoValuation.quantity }} ·
+                    {{ fifoValuation.reconciled ? 'conciliado' : 'por conciliar' }} ·
+                    {{ fifoValuation.currency || 'sin moneda' }}
+                    {{ fifoValuation.inventoryValue }}
                   </small>
                 }
               </span>
@@ -1322,6 +1363,19 @@
                   <small>
                     Costo {{ valuation.unitCost }} · valor {{ valuation.valueChange }} · promedio
                     {{ valuation.averageUnitCost ?? 'histórico' }}
+                  </small>
+                }
+                @if (movement.fifoValuation; as fifo) {
+                  <small>
+                    FIFO {{ fifo.unitCost }}/u · valor {{ fifo.valueChange }} · saldo valorado
+                    {{ fifo.resultingInventoryValue }}
+                  </small>
+                }
+                @for (layer of movement.fifoLayers ?? []; track layer.allocationId) {
+                  <small>
+                    Capa {{ layer.layerId.slice(0, 8) }} · {{ layer.quantityChange }} ·
+                    {{ layer.currency }} {{ layer.unitCost }}/u · valor {{ layer.valueChange }} ·
+                    {{ layer.selectionMode }}
                   </small>
                 }
                 @for (lot of movement.lots ?? []; track lot.id) {
