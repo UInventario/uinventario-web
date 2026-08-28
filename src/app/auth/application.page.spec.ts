@@ -165,6 +165,13 @@ describe('ApplicationPage', () => {
               branch: { id: 'branch', name: 'Sucursal' },
               warehouse: { id: 'warehouse', name: 'Bodega' },
             },
+            valuation: {
+              method: 'MOVING_AVERAGE',
+              policyVersion: 1,
+              effectiveAt: '2026-01-01T00:00:00.000Z',
+              currency: 'MXN',
+              asOf: '2026-01-01T01:00:00.000Z',
+            },
             pagination: { page: 1, pageSize: 10, total: 0, totalPages: 0 },
           },
         }),
@@ -915,6 +922,13 @@ describe('ApplicationPage', () => {
             availableQuantity: '10.000',
             totalQuantity: '10.000',
             states: [{ code: 'AVAILABLE', quantity: '10.000' }],
+            costing: {
+              method: 'MOVING_AVERAGE',
+              currency: 'MXN',
+              quantity: '10.000',
+              inventoryValue: '12.0000',
+              reconciled: true,
+            },
           },
         ],
         meta: {
@@ -923,6 +937,13 @@ describe('ApplicationPage', () => {
           scope: {
             branch: { id: 'branch', name: 'Sucursal' },
             warehouse: { id: 'warehouse', name: 'Bodega' },
+          },
+          valuation: {
+            method: 'MOVING_AVERAGE',
+            policyVersion: 1,
+            effectiveAt: '2026-01-01T00:00:00.000Z',
+            currency: 'MXN',
+            asOf: '2026-01-01T01:00:00.000Z',
           },
           pagination: { page: 1, pageSize: 10, total: 1, totalPages: 1 },
         },
@@ -960,6 +981,10 @@ describe('ApplicationPage', () => {
     expect(
       fixture.nativeElement.querySelector('[aria-label="Existencias por producto"]').textContent,
     ).toContain('CAFE-1');
+    expect(fixture.nativeElement.textContent).toContain('Promedio móvil');
+    expect(fixture.nativeElement.textContent).toContain('MXN');
+    expect(fixture.nativeElement.textContent).toContain('Cantidad valorizada 10.000');
+    expect(fixture.nativeElement.textContent).toContain('12.0000');
   });
 
   it('previews and confirms an atomic inventory import from the real file control', () => {
