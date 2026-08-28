@@ -336,6 +336,7 @@
 
     @if (canManageProducts()) {
       <app-catalog-classification-panel (changed)="classificationChanged()" />
+      <app-product-import-panel (confirmed)="classificationChanged()" />
     }
 
     <div class="workspace">
