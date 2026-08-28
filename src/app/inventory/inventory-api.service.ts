@@ -47,6 +47,37 @@ export interface InventoryValuationMigrationPlan {
   planFingerprint: string;
 }
 
+export type InventoryReconciliationStatus = 'HEALTHY' | 'WARNING' | 'CRITICAL';
+
+export interface InventoryReconciliationFindingData {
+  id: string;
+  code: string;
+  severity: 'WARNING' | 'CRITICAL';
+  scopeType: 'TENANT' | 'PRODUCT' | 'LOCATION' | 'LOT' | 'SERIAL' | 'VALUATION';
+  product: { id: string; name: string; sku: string } | null;
+  location: InventoryLocationData | null;
+  subjectReference: string | null;
+  expectedValue: string | null;
+  actualValue: string | null;
+  differenceValue: string | null;
+  message: string;
+  recommendedAction: string;
+  blocksOperations: boolean;
+}
+
+export interface InventoryReconciliationRunData {
+  id: string;
+  status: 'RUNNING' | 'COMPLETED';
+  overallStatus: InventoryReconciliationStatus;
+  summary: { findings: number; warnings: number; critical: number };
+  policy: { releaseBlocked: boolean; operationsBlocked: boolean };
+  correlationId: string;
+  responsible: { id: string; email: string };
+  startedAt: string;
+  finishedAt: string | null;
+  findings: InventoryReconciliationFindingData[];
+}
+
 export interface InventoryStateQuantity {
   code: InventoryStockState;
   quantity: string;
@@ -450,6 +481,26 @@ export class InventoryApiService {
       data: InventoryValuationPolicyData;
       meta: { apiVersion: '1'; replay: boolean };
     }>(`${this.config.apiBaseUrl()}/inventory/valuation-policy/changes`, input, {
+      headers,
+      withCredentials: true,
+    });
+  }
+
+  latestReconciliation() {
+    return this.http.get<{
+      data: InventoryReconciliationRunData | null;
+      meta: { apiVersion: '1' };
+    }>(`${this.config.apiBaseUrl()}/inventory/reconciliations/latest`, {
+      withCredentials: true,
+    });
+  }
+
+  runReconciliation(idempotencyKey: string) {
+    const headers = new HttpHeaders().set('Idempotency-Key', idempotencyKey);
+    return this.http.post<{
+      data: InventoryReconciliationRunData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(`${this.config.apiBaseUrl()}/inventory/reconciliations`, {}, {
       headers,
       withCredentials: true,
     });
