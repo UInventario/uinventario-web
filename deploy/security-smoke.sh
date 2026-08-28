@@ -23,7 +23,7 @@ grep -Eiq '^permissions-policy:.*camera=\(\).*microphone=\(\)' "$headers"
 grep -Eiq '^strict-transport-security:' "$headers"
 
 status="$(curl --silent --show-error --output "$body" --write-out '%{http_code}' \
-  --request POST "$web_origin/not-api")"
+  --request POST --data '' "$web_origin/not-api")"
 [ "$status" = "405" ] || { echo "Unexpected static POST status $status." >&2; exit 1; }
 if grep -Eiq 'stack|node_modules|/workspace/' "$body"; then
   echo "Web error response leaked implementation details." >&2
