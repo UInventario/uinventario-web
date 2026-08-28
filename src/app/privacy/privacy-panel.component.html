@@ -1,0 +1,220 @@
+<section
+  id="privacy-title"
+  class="privacy-panel"
+  aria-labelledby="privacy-heading"
+  [attr.aria-busy]="loading() || action() !== null"
+>
+  <div class="privacy-heading">
+    <div>
+      <p class="eyebrow">Gobierno de datos</p>
+      <h2 id="privacy-heading">Privacidad y retención</h2>
+      <p>Acceso, bloqueo legal y anonimización sin eliminar ventas.</p>
+    </div>
+    @if (policy(); as current) {
+      <strong>{{ current.policyCode }} · versión {{ current.version }}</strong>
+    }
+  </div>
+
+  @if (error()) {
+    <div class="form-error" role="alert">{{ error() }}</div>
+  }
+  @if (success()) {
+    <div class="success" role="status">{{ success() }}</div>
+  }
+  @if (loading()) {
+    <p class="catalog-state" role="status">Consultando controles de privacidad…</p>
+  }
+
+  @if (policy(); as current) {
+    <div class="privacy-overview">
+      <dl>
+        <div>
+          <dt>País</dt>
+          <dd>{{ current.countryCode }}</dd>
+        </div>
+        <div>
+          <dt>Mínimo obligatorio</dt>
+          <dd>{{ current.minimumTransactionRetentionDays }} días</dd>
+        </div>
+        <div>
+          <dt>Retención vigente</dt>
+          <dd>{{ current.transactionRetentionDays }} días</dd>
+        </div>
+        <div>
+          <dt>Datos clasificados</dt>
+          <dd>{{ classificationCodes().length }} clases</dd>
+        </div>
+      </dl>
+      <form class="policy-form" [formGroup]="policyForm" (ngSubmit)="updatePolicy()">
+        <label for="privacyRetentionDays">Retención transaccional (días)</label>
+        <input
+          id="privacyRetentionDays"
+          type="number"
+          min="365"
+          max="36500"
+          formControlName="transactionRetentionDays"
+        />
+        <label for="privacyPolicyReason">Motivo del cambio</label>
+        <input id="privacyPolicyReason" maxlength="240" formControlName="reason" />
+        <button type="submit" [disabled]="action() !== null">Actualizar política</button>
+      </form>
+    </div>
+  }
+
+  <div class="privacy-workspace">
+    <div>
+      <form class="customer-search" [formGroup]="searchForm" (ngSubmit)="search()">
+        <label for="privacyCustomerSearch">Cliente</label>
+        <div>
+          <input
+            id="privacyCustomerSearch"
+            formControlName="q"
+            maxlength="160"
+            autocomplete="off"
+            placeholder="Nombre, identificador o contacto"
+          />
+          <button class="secondary" type="submit" [disabled]="loading()">Buscar</button>
+        </div>
+      </form>
+      @if (customers().length === 0 && !loading()) {
+        <p class="empty-state">No hay clientes para mostrar.</p>
+      } @else {
+        <ul class="customer-list">
+          @for (customer of customers(); track customer.id) {
+            <li [class.selected]="selectedCustomer()?.id === customer.id">
+              <div>
+                <strong>{{ customer.name }}</strong>
+                <small>
+                  {{ customer.identifier || customer.email || 'Sin datos adicionales' }} ·
+                  {{ customer.privacyStatus === 'ANONYMIZED' ? 'Anonimizado' : 'Activo' }}
+                </small>
+              </div>
+              <button class="secondary" type="button" (click)="select(customer)">Gestionar</button>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+
+    <div class="subject-panel">
+      @if (report(); as data) {
+        <div class="subject-heading">
+          <div>
+            <p class="eyebrow">Titular seleccionado</p>
+            <h3>{{ data.subject.name }}</h3>
+            <p>
+              {{ data.transactions.count }} venta(s) · conservación hasta
+              {{
+                data.transactions.retainedUntil
+                  ? (data.transactions.retainedUntil | date: 'mediumDate')
+                  : 'sin fecha transaccional'
+              }}
+            </p>
+          </div>
+          <button
+            class="secondary"
+            type="button"
+            (click)="exportData()"
+            [disabled]="action() !== null"
+          >
+            {{ action() === 'export' ? 'Exportando…' : 'Exportar datos' }}
+          </button>
+        </div>
+
+        <dl class="subject-data">
+          <div>
+            <dt>Identificador</dt>
+            <dd>{{ data.subject.identifier || '—' }}</dd>
+          </div>
+          <div>
+            <dt>Email</dt>
+            <dd>{{ data.subject.email || '—' }}</dd>
+          </div>
+          <div>
+            <dt>Teléfono</dt>
+            <dd>{{ data.subject.phone || '—' }}</dd>
+          </div>
+          <div>
+            <dt>Estado</dt>
+            <dd>{{ data.subject.privacyStatus }}</dd>
+          </div>
+        </dl>
+
+        <form class="privacy-action" [formGroup]="holdForm" (ngSubmit)="createLegalHold()">
+          <h4>Bloqueo legal</h4>
+          @if (data.activeLegalHold; as hold) {
+            <p class="legal-hold">
+              Activo · {{ hold.reason }}
+              @if (hold.expiresAt) {
+                · vence {{ hold.expiresAt | date: 'medium' }}
+              }
+            </p>
+          }
+          <label for="privacyHoldReason">Motivo</label>
+          <input id="privacyHoldReason" maxlength="240" formControlName="reason" />
+          <label for="privacyHoldReference">Referencia</label>
+          <input id="privacyHoldReference" maxlength="120" formControlName="requestReference" />
+          <label for="privacyHoldExpiration">Vigencia opcional</label>
+          <input id="privacyHoldExpiration" type="datetime-local" formControlName="expiresAt" />
+          <div class="action-buttons">
+            @if (data.activeLegalHold) {
+              <button
+                class="secondary"
+                type="button"
+                (click)="releaseLegalHold()"
+                [disabled]="action() !== null"
+              >
+                Liberar bloqueo
+              </button>
+            } @else {
+              <button type="submit" [disabled]="action() !== null">Aplicar bloqueo</button>
+            }
+          </div>
+        </form>
+
+        <form
+          class="privacy-action danger-zone"
+          [formGroup]="anonymizationForm"
+          (ngSubmit)="anonymize()"
+        >
+          <h4>Anonimización controlada</h4>
+          <p>Elimina la PII y desactiva al cliente. Ventas, pagos y auditoría permanecen.</p>
+          <label for="privacyAnonymizationReason">Motivo verificado</label>
+          <input id="privacyAnonymizationReason" maxlength="240" formControlName="reason" />
+          <label for="privacyAnonymizationReference">Referencia de solicitud</label>
+          <input
+            id="privacyAnonymizationReference"
+            maxlength="120"
+            formControlName="requestReference"
+          />
+          <button
+            class="danger"
+            type="submit"
+            [disabled]="action() !== null || data.subject.privacyStatus === 'ANONYMIZED'"
+          >
+            {{ data.subject.privacyStatus === 'ANONYMIZED' ? 'Ya anonimizado' : 'Anonimizar PII' }}
+          </button>
+        </form>
+
+        @if (data.recentDecisions.length > 0) {
+          <div class="decision-list">
+            <h4>Decisiones recientes</h4>
+            <ul>
+              @for (decision of data.recentDecisions; track decision.id) {
+                <li>
+                  <strong>{{ decision.decisionCode }}</strong>
+                  <span>{{ decision.status }} · {{ decision.createdAt | date: 'short' }}</span>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+      } @else {
+        <div class="empty-state">
+          <h3>Selecciona un cliente</h3>
+          <p>Podrás consultar, exportar, bloquear o anonimizar sus datos.</p>
+        </div>
+      }
+    </div>
+  </div>
+</section>

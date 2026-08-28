@@ -9,6 +9,9 @@ export interface CustomerData {
   email: string | null;
   phone: string | null;
   dataProcessingConsent: boolean;
+  privacyStatus: 'ACTIVE' | 'ANONYMIZED';
+  anonymizedAt: string | null;
+  privacyRetentionUntil: string | null;
   active: boolean;
   version: number;
   createdAt: string;
