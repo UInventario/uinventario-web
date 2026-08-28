@@ -1,0 +1,194 @@
+:host {
+  display: block;
+}
+
+.supplier-panel {
+  background: #fff;
+  border: 1px solid #d8dde7;
+  border-radius: 1rem;
+  margin: 1rem 0;
+  padding: 1.25rem;
+}
+
+.heading,
+.filters,
+.workspace,
+.contact-heading,
+.actions,
+.row-actions,
+.pagination {
+  align-items: end;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.heading p {
+  color: #315c9a;
+  font-weight: 700;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+h2,
+h3,
+h4 {
+  margin: 0.2rem 0;
+}
+
+.filters {
+  background: #f6f8fb;
+  margin: 1rem 0;
+  padding: 0.75rem;
+}
+
+label {
+  display: grid;
+  flex: 1;
+  font-size: 0.85rem;
+  font-weight: 650;
+  gap: 0.3rem;
+}
+
+input,
+select,
+button {
+  border: 1px solid #aeb8ca;
+  border-radius: 0.4rem;
+  font: inherit;
+  min-height: 2.4rem;
+  padding: 0.45rem 0.65rem;
+}
+
+button {
+  background: #164b8a;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+button.secondary {
+  background: #fff;
+  color: #173a63;
+}
+
+button.danger {
+  background: #fff;
+  border-color: #b93c39;
+  color: #8f211e;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.workspace {
+  align-items: start;
+  display: grid;
+  grid-template-columns: minmax(18rem, 0.8fr) minmax(22rem, 1.2fr);
+}
+
+.editor,
+.contacts,
+.results ul {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.form-row {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr 1fr;
+}
+
+.supplier-product-row details {
+  margin-top: 0.4rem;
+}
+
+.supplier-product-row ol {
+  gap: 0.2rem;
+  margin: 0.4rem 0;
+  padding-left: 1.2rem;
+}
+
+.supplier-product-row ol li {
+  border: 0;
+  display: list-item;
+  padding: 0.15rem 0;
+}
+
+fieldset {
+  border: 1px solid #d8dde7;
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: 1fr 1fr;
+  margin: 0;
+  padding: 0.75rem;
+}
+
+.check {
+  align-items: center;
+  display: flex;
+}
+
+.check input {
+  min-height: auto;
+}
+
+.results ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.results li {
+  align-items: center;
+  border-bottom: 1px solid #e4e8ef;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.8rem 0;
+}
+
+.results li > div:first-child,
+.results small,
+.results span {
+  display: grid;
+}
+
+.inactive {
+  opacity: 0.7;
+}
+
+.message,
+.empty {
+  border-radius: 0.45rem;
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+}
+
+.error {
+  background: #fff0ef;
+  color: #8f211e;
+}
+
+.success {
+  background: #edf8f1;
+  color: #176b3a;
+}
+
+@media (max-width: 760px) {
+  .workspace,
+  fieldset,
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .filters,
+  .heading,
+  .results li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

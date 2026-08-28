@@ -1,0 +1,26 @@
+:host {
+  display: block;
+}
+
+.export-panel {
+  margin-block: 1rem;
+}
+
+.export-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+.export-status span {
+  color: var(--muted-foreground, #4b5563);
+}
+
+.checkbox {
+  align-self: end;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}

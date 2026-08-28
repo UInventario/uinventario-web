@@ -1,0 +1,154 @@
+:host {
+  display: block;
+}
+.reservations {
+  padding-top: 0;
+}
+.heading,
+.line-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+.heading h2,
+.heading p {
+  margin: 0.2rem 0;
+}
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(18rem, 0.8fr) minmax(20rem, 1.2fr);
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.editor,
+.history {
+  padding: 1rem;
+  border: 1px solid #dbe3ea;
+  border-radius: 0.8rem;
+  background: #fff;
+}
+.editor,
+.lines,
+.history {
+  display: grid;
+  gap: 0.8rem;
+}
+label {
+  display: grid;
+  gap: 0.3rem;
+  font-weight: 600;
+}
+input,
+select,
+button {
+  min-height: 2.6rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #b8c5d1;
+  border-radius: 0.45rem;
+  font: inherit;
+}
+button {
+  border: 0;
+  background: #0b5cab;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+button.secondary {
+  border: 1px solid #b8c5d1;
+  background: #fff;
+  color: #234;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.row,
+fieldset {
+  display: grid;
+  grid-template-columns: 1fr 8rem auto;
+  gap: 0.65rem;
+  align-items: end;
+}
+.row {
+  grid-template-columns: 1fr 9rem;
+}
+fieldset {
+  margin: 0;
+  padding: 0.7rem;
+  border: 1px solid #dbe3ea;
+  border-radius: 0.6rem;
+}
+.history article {
+  padding: 0.8rem;
+  border: 1px solid #dbe3ea;
+  border-radius: 0.6rem;
+}
+.sale-box {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.8rem;
+  border: 2px solid #0b5cab;
+  border-radius: 0.6rem;
+}
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+.status {
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: #edf2f7;
+  font-size: 0.78rem;
+}
+.status.active {
+  color: #176c35;
+  background: #e5f4ea;
+}
+.status.released,
+.status.expired {
+  color: #8d5314;
+  background: #fff3cd;
+}
+.status.consumed {
+  color: #174ea6;
+  background: #e8f0fe;
+}
+.history article div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.history span,
+.history small {
+  color: #637587;
+}
+.history ul {
+  margin: 0.5rem 0;
+  padding-left: 1.2rem;
+}
+.message {
+  margin: 0.8rem 0;
+  padding: 0.7rem;
+  border-radius: 0.5rem;
+}
+.message.error {
+  background: #fde7e7;
+  color: #8d1b14;
+}
+.message.success {
+  background: #e5f4ea;
+  color: #176c35;
+}
+@media (max-width: 50rem) {
+  .workspace,
+  .row,
+  fieldset {
+    grid-template-columns: 1fr;
+  }
+  .history article div {
+    display: grid;
+  }
+}

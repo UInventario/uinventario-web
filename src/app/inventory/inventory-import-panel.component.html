@@ -1,0 +1,114 @@
+<section
+  class="import-panel"
+  aria-labelledby="inventory-import-title"
+  [attr.aria-busy]="loadingPreview() || confirming()"
+>
+  <div class="import-heading">
+    <div>
+      <p class="eyebrow">Carga masiva</p>
+      <h2 id="inventory-import-title">Importar stock o conteo</h2>
+      <p>Vista previa obligatoria. El lote completo se confirma o no se aplica ninguna fila.</p>
+    </div>
+    <button class="secondary" type="button" (click)="downloadTemplate()">
+      Descargar plantilla CSV
+    </button>
+  </div>
+
+  <div class="import-controls">
+    <label for="inventoryImportMode">Operación</label>
+    <select id="inventoryImportMode" [value]="mode()" (change)="selectMode($event)">
+      <option value="INITIAL">Stock inicial</option>
+      <option value="COUNT">Conteo físico</option>
+    </select>
+
+    <label for="inventoryImportFile">Archivo CSV o Excel</label>
+    <input
+      id="inventoryImportFile"
+      type="file"
+      accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      (change)="selectFile($event)"
+    />
+    <small>Columnas: sku, location, quantity, state, reason. Máximo 1,000 filas y 2 MB.</small>
+    <button
+      type="button"
+      (click)="createPreview()"
+      [disabled]="!filename() || loadingPreview() || confirming()"
+    >
+      {{ loadingPreview() ? 'Analizando…' : 'Generar vista previa' }}
+    </button>
+  </div>
+
+  @if (error()) {
+    <div class="form-error" role="alert">{{ error() }}</div>
+  }
+  @if (success()) {
+    <div class="success" role="status">{{ success() }}</div>
+  }
+
+  @if (preview(); as batch) {
+    <div class="import-summary" role="status">
+      <strong>{{ batch.sourceFilename }}</strong>
+      <span>{{ batch.summary.rows }} fila(s)</span>
+      <span>{{ batch.summary.validRows }} válida(s)</span>
+      <span [class.has-errors]="batch.summary.errorRows > 0">
+        {{ batch.summary.errorRows }} con error
+      </span>
+      <span>Política {{ batch.policy === 'ATOMIC' ? 'atómica' : batch.policy }}</span>
+    </div>
+
+    <div class="import-table" role="table" aria-label="Vista previa de importación de inventario">
+      <div class="import-row import-header" role="row">
+        <span role="columnheader">Fila</span>
+        <span role="columnheader">Producto / ubicación</span>
+        <span role="columnheader">Estado</span>
+        <span role="columnheader">Actual → objetivo</span>
+        <span role="columnheader">Resultado</span>
+      </div>
+      @for (row of batch.rows; track row.id) {
+        <div class="import-row" role="row" [class.invalid]="row.errors.length > 0">
+          <span role="cell">{{ row.rowNumber }}</span>
+          <span role="cell">
+            <strong>{{ row.product?.name || 'Producto no encontrado' }}</strong>
+            <small
+              >{{ row.product?.sku || 'SKU inválido' }} ·
+              {{ row.location?.code || 'Ubicación inválida' }}</small
+            >
+          </span>
+          <span role="cell">{{ stateLabel(row.state) }}</span>
+          <span role="cell">
+            {{ row.currentQuantity ?? '—' }} → {{ row.targetQuantity ?? '—' }}
+            <small>Diferencia {{ row.difference ?? '—' }}</small>
+          </span>
+          <span role="cell">
+            @if (row.errors.length === 0) {
+              <strong>Lista</strong>
+              <small>{{ row.reason }}</small>
+            } @else {
+              @for (problem of row.errors; track problem.code) {
+                <small class="row-error">{{ problem.message }}</small>
+              }
+            }
+          </span>
+        </div>
+      }
+    </div>
+
+    @if (batch.status === 'PREVIEWED') {
+      <button
+        class="confirm-import"
+        type="button"
+        (click)="confirmImport()"
+        [disabled]="!batch.canConfirm || confirming()"
+      >
+        {{ confirming() ? 'Confirmando lote…' : 'Confirmar lote completo' }}
+      </button>
+      @if (!batch.canConfirm) {
+        <p class="atomic-warning">
+          Corrige el archivo completo y vuelve a generar la vista previa.
+        </p>
+      }
+    } @else {
+      <p class="confirmed-batch">Lote confirmado y trazable en el historial de movimientos.</p>
+    }
+  }
+</section>

@@ -38,6 +38,48 @@ export interface ProductListResponse {
   };
 }
 
+export type ProductStatusFilter = 'ACTIVE' | 'INACTIVE' | 'ALL';
+export type CatalogClassificationKind = 'categories' | 'brands';
+
+export interface CatalogClassificationData {
+  id: string;
+  name: string;
+  active: boolean;
+  productCount: number;
+}
+
+export interface ProductRetirementResponse {
+  data: {
+    outcome: 'DELETED' | 'DEACTIVATED';
+    product: ProductData | null;
+  };
+  meta: { apiVersion: '1' };
+}
+
+export interface ProductImportData {
+  id: string;
+  status: 'PREVIEWED' | 'CONFIRMED';
+  policy: 'ATOMIC';
+  templateVersion: string;
+  sourceFilename: string;
+  summary: { rows: number; creates: number; updates: number; unchanged: number; errors: number };
+  canConfirm: boolean;
+  rows: Array<{
+    id: string;
+    rowNumber: number;
+    action: 'CREATE' | 'UPDATE' | 'UNCHANGED' | 'ERROR';
+    name: string;
+    sku: string;
+    barcode: string | null;
+    category: string | null;
+    brand: string | null;
+    cost: string | null;
+    price: string | null;
+    active: boolean;
+    errors: Array<{ code: string; message: string }>;
+  }>;
+}
+
 interface CatalogOptionsResponse {
   data: {
     categories: Array<{ id: string; name: string }>;
@@ -69,9 +111,19 @@ export class ProductApiService {
     });
   }
 
-  list(query: { q?: string; page: number; pageSize: number }) {
+  list(query: {
+    q?: string;
+    status?: ProductStatusFilter;
+    categoryId?: string;
+    brandId?: string;
+    page: number;
+    pageSize: number;
+  }) {
     let params = new HttpParams().set('page', query.page).set('pageSize', query.pageSize);
     if (query.q) params = params.set('q', query.q);
+    if (query.status) params = params.set('status', query.status);
+    if (query.categoryId) params = params.set('categoryId', query.categoryId);
+    if (query.brandId) params = params.set('brandId', query.brandId);
     return this.http.get<ProductListResponse>(`${this.config.apiBaseUrl()}/products`, {
       params,
       withCredentials: true,
@@ -80,6 +132,85 @@ export class ProductApiService {
 
   get(id: string) {
     return this.http.get<ProductResponse>(`${this.config.apiBaseUrl()}/products/${id}`, {
+      withCredentials: true,
+    });
+  }
+
+  resolveCode(code: string) {
+    const params = new HttpParams().set('code', code);
+    return this.http.get<ProductResponse>(`${this.config.apiBaseUrl()}/products/resolve-code`, {
+      params,
+      withCredentials: true,
+    });
+  }
+
+  retire(id: string) {
+    return this.http.delete<ProductRetirementResponse>(
+      `${this.config.apiBaseUrl()}/products/${id}`,
+      { withCredentials: true },
+    );
+  }
+
+  previewImport(file: File) {
+    const body = new FormData();
+    body.append('file', file, file.name);
+    return this.http.post<{ data: ProductImportData }>(
+      `${this.config.apiBaseUrl()}/products/imports/preview`,
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  confirmImport(id: string, idempotencyKey: string) {
+    return this.http.post<{ data: ProductImportData }>(
+      `${this.config.apiBaseUrl()}/products/imports/${id}/confirm`,
+      {},
+      { headers: { 'Idempotency-Key': idempotencyKey }, withCredentials: true },
+    );
+  }
+
+  importResult(id: string) {
+    return this.http.get(`${this.config.apiBaseUrl()}/products/imports/${id}/result`, {
+      responseType: 'blob',
+      withCredentials: true,
+    });
+  }
+
+  listClassifications(kind: CatalogClassificationKind, includeInactive = false) {
+    const params = new HttpParams().set('includeInactive', includeInactive);
+    return this.http.get<{ data: CatalogClassificationData[] }>(
+      `${this.config.apiBaseUrl()}/catalog/${kind}`,
+      { params, withCredentials: true },
+    );
+  }
+
+  createClassification(kind: CatalogClassificationKind, name: string) {
+    return this.http.post<{ data: CatalogClassificationData }>(
+      `${this.config.apiBaseUrl()}/catalog/${kind}`,
+      { name },
+      { withCredentials: true },
+    );
+  }
+
+  updateClassification(
+    kind: CatalogClassificationKind,
+    id: string,
+    input: { name?: string; active?: boolean },
+  ) {
+    return this.http.patch<{ data: CatalogClassificationData }>(
+      `${this.config.apiBaseUrl()}/catalog/${kind}/${id}`,
+      input,
+      { withCredentials: true },
+    );
+  }
+
+  deactivateClassification(kind: CatalogClassificationKind, id: string, replacementId?: string) {
+    let params = new HttpParams();
+    if (replacementId) params = params.set('replacementId', replacementId);
+    return this.http.delete<{
+      data: { classification: CatalogClassificationData; reassignedProducts: number };
+    }>(`${this.config.apiBaseUrl()}/catalog/${kind}/${id}`, {
+      params,
       withCredentials: true,
     });
   }

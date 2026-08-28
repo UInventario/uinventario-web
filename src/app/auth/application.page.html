@@ -7,14 +7,314 @@
     <button class="secondary" type="button" (click)="logout()">Cerrar sesión</button>
   </header>
   <nav aria-label="Módulos principales">
-    <a routerLink="/onboarding">Empresa</a>
-    <a routerLink="/app" fragment="products-title">Productos</a>
-    <a routerLink="/app" fragment="stock-overview-title">Inventario</a>
-    <a routerLink="/app" fragment="movement-history-title">Movimientos</a>
-    <a routerLink="/app" fragment="pos-title">Punto de venta</a>
-    <a routerLink="/app" fragment="sales-title">Historial</a>
-    <a routerLink="/app" fragment="audit-title">Auditoría</a>
+    @if (canManageTenant()) {
+      <a routerLink="/onboarding">Empresa</a>
+      <a routerLink="/app" fragment="organization-title">Sucursales</a>
+    }
+    @if (canManageProducts()) {
+      <a routerLink="/app" fragment="products-title">Productos</a>
+    }
+    @if (canManageSuppliers()) {
+      <a routerLink="/app" fragment="suppliers-title">Proveedores</a>
+    }
+    @if (canAccessPurchaseOrders()) {
+      <a routerLink="/app" fragment="purchase-orders-title">Órdenes de compra</a>
+    }
+    @if (canManageStock()) {
+      <a routerLink="/app" fragment="stock-overview-title">Inventario</a>
+      <a routerLink="/app" fragment="transfers-title">Transferencias</a>
+      <a routerLink="/app" fragment="movement-history-title">Movimientos</a>
+    }
+    @if (canManageAccess()) {
+      <a routerLink="/app" fragment="access-title">Accesos</a>
+    }
+    @if (canManageSales()) {
+      <a routerLink="/app" fragment="pos-title">Punto de venta</a>
+      <a routerLink="/app" fragment="sales-title">Historial</a>
+    }
+    @if (canViewAudit()) {
+      <a routerLink="/app" fragment="audit-title">Auditoría</a>
+    }
+    @if (canExportAudit()) {
+      <a routerLink="/app" fragment="data-exports-title">Exportar</a>
+    }
   </nav>
+
+  <app-offline-bootstrap-panel />
+  @if (canExportAudit()) {
+    <app-data-export-panel />
+  }
+  @if (canAdjustInventory() || canCountInventory()) {
+    <app-offline-inventory-panel />
+  }
+
+  <section
+    class="stock-overview"
+    aria-labelledby="organization-title"
+    [attr.aria-busy]="loadingOrganization() || savingOrganization() || switchingContext()"
+  >
+    <div class="overview-heading">
+      <div>
+        <p class="eyebrow">Contexto operativo</p>
+        <h2 id="organization-title">Sucursales y bodegas</h2>
+        <p>El inventario y las operaciones nuevas usan la selección activa.</p>
+      </div>
+      <strong>{{ activeBranches().length }} sucursal(es)</strong>
+    </div>
+
+    <form class="movement-filters" [formGroup]="contextForm" (ngSubmit)="changeContext()">
+      <div class="field">
+        <label for="contextBranch">Sucursal activa</label>
+        <select id="contextBranch" formControlName="branchId" (change)="contextBranchChanged()">
+          @for (branch of activeBranches(); track branch.id) {
+            <option [value]="branch.id">{{ branch.name }}</option>
+          }
+        </select>
+      </div>
+      <div class="field">
+        <label for="contextWarehouse">Bodega activa</label>
+        <select id="contextWarehouse" formControlName="warehouseId">
+          @for (warehouse of contextWarehouses(); track warehouse.id) {
+            <option [value]="warehouse.id">{{ warehouse.name }}</option>
+          }
+        </select>
+      </div>
+      <div class="field">
+        <label for="contextCashRegister">Caja activa</label>
+        <select id="contextCashRegister" formControlName="cashRegisterId">
+          <option value="">Sin caja</option>
+          @for (register of contextCashRegisters(); track register.id) {
+            <option [value]="register.id">{{ register.name }} · {{ register.code }}</option>
+          }
+        </select>
+      </div>
+      <button class="secondary" type="submit" [disabled]="switchingContext()">
+        {{ switchingContext() ? 'Cambiando…' : 'Usar contexto' }}
+      </button>
+    </form>
+
+    @if (organizationError()) {
+      <div class="form-error" role="alert">{{ organizationError() }}</div>
+    }
+    @if (organizationSuccess()) {
+      <div class="success" role="status">{{ organizationSuccess() }}</div>
+    }
+
+    @if (canManageTenant()) {
+      <div class="workspace">
+        <form class="product-form" [formGroup]="branchForm" (ngSubmit)="submitBranch()">
+          <div class="form-heading">
+            <div>
+              <h3>{{ editingBranch() ? 'Editar sucursal' : 'Nueva sucursal' }}</h3>
+              <p>La nueva sucursal incluye una primera bodega y ubicación.</p>
+            </div>
+          </div>
+          <div class="fields">
+            <div class="field wide">
+              <label for="branchName">Nombre</label>
+              <input id="branchName" formControlName="name" maxlength="120" />
+            </div>
+            <div class="field wide">
+              <label for="branchTimezone">Zona horaria</label>
+              <input id="branchTimezone" formControlName="timezone" maxlength="64" />
+            </div>
+            @if (!editingBranch()) {
+              <div class="field wide">
+                <label for="branchWarehouseName">Bodega inicial</label>
+                <input id="branchWarehouseName" formControlName="warehouseName" maxlength="120" />
+              </div>
+              <div class="field">
+                <label for="branchLocationName">Ubicación</label>
+                <input id="branchLocationName" formControlName="locationName" maxlength="120" />
+              </div>
+              <div class="field">
+                <label for="branchLocationCode">Código</label>
+                <input id="branchLocationCode" formControlName="locationCode" maxlength="40" />
+              </div>
+            }
+          </div>
+          <div class="form-actions">
+            @if (editingBranch()) {
+              <button class="secondary" type="button" (click)="cancelBranchEditing()">
+                Cancelar
+              </button>
+            }
+            <button class="primary" type="submit" [disabled]="savingOrganization()">
+              {{ editingBranch() ? 'Guardar sucursal' : 'Crear sucursal' }}
+            </button>
+          </div>
+        </form>
+
+        <form class="product-form" [formGroup]="warehouseForm" (ngSubmit)="submitWarehouse()">
+          <div class="form-heading">
+            <div>
+              <h3>{{ editingWarehouse() ? 'Editar bodega' : 'Nueva bodega' }}</h3>
+              <p>Cada bodega inicia con una ubicación operativa.</p>
+            </div>
+          </div>
+          <div class="fields">
+            <div class="field wide">
+              <label for="warehouseBranch">Sucursal</label>
+              <select id="warehouseBranch" formControlName="branchId">
+                @for (branch of activeBranches(); track branch.id) {
+                  <option [value]="branch.id">{{ branch.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="field wide">
+              <label for="warehouseName">Nombre</label>
+              <input id="warehouseName" formControlName="name" maxlength="120" />
+            </div>
+            @if (!editingWarehouse()) {
+              <div class="field">
+                <label for="warehouseLocationName">Ubicación</label>
+                <input id="warehouseLocationName" formControlName="locationName" maxlength="120" />
+              </div>
+              <div class="field">
+                <label for="warehouseLocationCode">Código</label>
+                <input id="warehouseLocationCode" formControlName="locationCode" maxlength="40" />
+              </div>
+            }
+          </div>
+          <div class="form-actions">
+            @if (editingWarehouse()) {
+              <button class="secondary" type="button" (click)="cancelWarehouseEditing()">
+                Cancelar
+              </button>
+            }
+            <button class="primary" type="submit" [disabled]="savingOrganization()">
+              {{ editingWarehouse() ? 'Guardar bodega' : 'Crear bodega' }}
+            </button>
+          </div>
+        </form>
+
+        <form class="product-form" [formGroup]="cashRegisterForm" (ngSubmit)="submitCashRegister()">
+          <div class="form-heading">
+            <div>
+              <h3>Nueva caja</h3>
+              <p>Agrega una caja física u operativa a una sucursal.</p>
+            </div>
+          </div>
+          <div class="fields">
+            <div class="field wide">
+              <label for="cashRegisterBranch">Sucursal</label>
+              <select id="cashRegisterBranch" formControlName="branchId">
+                @for (branch of activeBranches(); track branch.id) {
+                  <option [value]="branch.id">{{ branch.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="field">
+              <label for="cashRegisterName">Nombre</label>
+              <input id="cashRegisterName" formControlName="name" maxlength="120" />
+            </div>
+            <div class="field">
+              <label for="cashRegisterCode">Código</label>
+              <input id="cashRegisterCode" formControlName="code" maxlength="40" />
+            </div>
+          </div>
+          <button class="primary" type="submit" [disabled]="savingOrganization()">
+            Crear caja
+          </button>
+        </form>
+      </div>
+
+      @if (organizationRetirement()) {
+        <div class="success" role="alert">
+          <p>Se desactivará sólo si no tiene stock, historial, ventas ni sesiones activas.</p>
+          <div class="form-actions">
+            <button class="secondary" type="button" (click)="cancelOrganizationRetirement()">
+              Cancelar
+            </button>
+            <button class="primary" type="button" (click)="confirmOrganizationRetirement()">
+              Confirmar desactivación
+            </button>
+          </div>
+        </div>
+      }
+
+      <div class="stock-table" role="table" aria-label="Sucursales, bodegas, ubicaciones y cajas">
+        <div class="stock-row stock-header" role="row">
+          <span role="columnheader">Sucursal</span>
+          <span role="columnheader">Bodega</span>
+          <span role="columnheader">Ubicación</span>
+          <span role="columnheader">Acciones</span>
+        </div>
+        @for (branch of organizations(); track branch.id) {
+          @for (warehouse of branch.warehouses; track warehouse.id) {
+            <div class="stock-row" role="row">
+              <span role="cell">
+                <strong>{{ branch.name }}</strong>
+                <small>{{ branch.active ? branch.timezone : 'Inactiva' }}</small>
+                @for (register of branch.cashRegisters; track register.id) {
+                  <small>Caja: {{ register.name }} · {{ register.code }}</small>
+                } @empty {
+                  <small>Sin cajas</small>
+                }
+              </span>
+              <span role="cell">
+                <strong>{{ warehouse.name }}</strong>
+                <small>{{ warehouse.active ? 'Activa' : 'Inactiva' }}</small>
+              </span>
+              <span role="cell">
+                @for (location of warehouse.locations; track location.id) {
+                  <strong>{{ location.name }}</strong
+                  ><small>{{ location.code }}</small>
+                }
+              </span>
+              <span role="cell">
+                @if (branch.active && warehouse.active) {
+                  <button class="secondary" type="button" (click)="editBranch(branch)">
+                    Editar sucursal
+                  </button>
+                  <button
+                    class="secondary"
+                    type="button"
+                    (click)="editWarehouse(branch.id, warehouse)"
+                  >
+                    Editar bodega
+                  </button>
+                  <button
+                    class="secondary"
+                    type="button"
+                    (click)="requestOrganizationRetirement('WAREHOUSE', warehouse.id)"
+                  >
+                    Desactivar bodega
+                  </button>
+                  <button
+                    class="secondary"
+                    type="button"
+                    (click)="requestOrganizationRetirement('BRANCH', branch.id)"
+                  >
+                    Desactivar sucursal
+                  </button>
+                }
+              </span>
+            </div>
+          }
+        }
+      </div>
+    }
+  </section>
+
+  @if (canManageSuppliers()) {
+    <app-supplier-panel />
+  }
+
+  @if (canAccessPurchaseOrders()) {
+    <app-purchase-order-panel
+      [canManage]="canManagePurchaseOrders()"
+      [canApprove]="canApprovePurchaseOrders()"
+      [canOverReceive]="canOverReceivePurchaseOrders()"
+    />
+  }
+
+  @if (hasNoCoreAccess()) {
+    <section class="empty" role="status" aria-labelledby="no-access-title">
+      <h1 id="no-access-title">Sin módulos asignados</h1>
+      <p>Tu sesión es válida, pero un administrador debe asignarte permisos.</p>
+    </section>
+  }
 
   @if (pendingOperation(); as operation) {
     <div class="operation-status" role="status" aria-live="polite">
@@ -24,6 +324,7 @@
 
   <section
     aria-labelledby="products-title"
+    [hidden]="!canManageProducts() && !canManageStock()"
     [attr.aria-busy]="loadingCatalog() || loadingOptions() || saving()"
   >
     <p class="eyebrow">Catálogo</p>
@@ -33,8 +334,19 @@
       {{ session()?.context?.cashRegister?.name }}
     </p>
 
+    @if (canManageProducts()) {
+      <app-catalog-classification-panel (changed)="classificationChanged()" />
+      <app-product-import-panel (confirmed)="classificationChanged()" />
+    }
+
     <div class="workspace">
-      <form class="product-form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <form
+        class="product-form catalog-product-form"
+        [hidden]="!canManageProducts()"
+        [formGroup]="form"
+        (ngSubmit)="submit()"
+        novalidate
+      >
         <div class="form-heading">
           <div>
             <h2>{{ editingProduct() ? 'Editar producto' : 'Nuevo producto' }}</h2>
@@ -134,10 +446,30 @@
           <label for="productSearch">Buscar por nombre, SKU o código</label>
           <div>
             <input id="productSearch" formControlName="q" maxlength="80" />
+            <select aria-label="Estado del producto" formControlName="status">
+              <option value="ACTIVE">Activos</option>
+              <option value="INACTIVE">Inactivos</option>
+              <option value="ALL">Todos</option>
+            </select>
+            <select aria-label="Categoría del producto" formControlName="categoryId">
+              <option value="">Todas las categorías</option>
+              @for (category of categories(); track category.id) {
+                <option [value]="category.id">{{ category.name }}</option>
+              }
+            </select>
+            <select aria-label="Marca del producto" formControlName="brandId">
+              <option value="">Todas las marcas</option>
+              @for (brand of brands(); track brand.id) {
+                <option [value]="brand.id">{{ brand.name }}</option>
+              }
+            </select>
             <button class="secondary" type="submit">Buscar</button>
           </div>
         </form>
 
+        @if (retirementMessage()) {
+          <div class="success" role="status">{{ retirementMessage() }}</div>
+        }
         @if (catalogError()) {
           <div class="form-error" role="alert">{{ catalogError() }}</div>
         }
@@ -206,9 +538,30 @@
               <div class="success">Producto actualizado</div>
             }
             <h3>{{ product.name }}</h3>
-            <button class="secondary" type="button" (click)="startEditing(product)">
-              Editar producto
-            </button>
+            @if (canManageProducts()) {
+              <div class="form-actions">
+                <button class="secondary" type="button" (click)="startEditing(product)">
+                  Editar producto
+                </button>
+                @if (product.active && !confirmingRetirement()) {
+                  <button class="secondary" type="button" (click)="requestRetirement()">
+                    Retirar producto
+                  </button>
+                }
+                @if (confirmingRetirement()) {
+                  <button class="secondary" type="button" (click)="cancelRetirement()">
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    (click)="retireProduct(product)"
+                    [disabled]="retiringProduct()"
+                  >
+                    {{ retiringProduct() ? 'Retirando…' : 'Confirmar retiro' }}
+                  </button>
+                }
+              </div>
+            }
             <dl>
               <div>
                 <dt>SKU</dt>
@@ -236,7 +589,7 @@
               </div>
             </dl>
 
-            <section class="stock-card" aria-labelledby="stock-title">
+            <section class="stock-card" aria-labelledby="stock-title" [hidden]="!canManageStock()">
               <div class="stock-heading">
                 <div>
                   <p class="eyebrow">Inventario</p>
@@ -248,7 +601,20 @@
                 </div>
               </div>
 
-              <form [formGroup]="stockForm" (ngSubmit)="recordMovement()" novalidate>
+              @if (stockBalance()?.states; as states) {
+                <p>
+                  @for (state of states; track state.code) {
+                    <strong>{{ stockStateLabel(state.code) }}:</strong> {{ state.quantity }}
+                  }
+                </p>
+              }
+
+              <form
+                [hidden]="!canAdjustInventory()"
+                [formGroup]="stockForm"
+                (ngSubmit)="recordMovement()"
+                novalidate
+              >
                 <div class="stock-fields">
                   <div class="field wide">
                     <label for="stockLocation">Ubicación</label>
@@ -266,9 +632,17 @@
                   </div>
                   <div class="field">
                     <label for="movementType">Tipo</label>
-                    <select id="movementType" formControlName="type">
+                    <select
+                      id="movementType"
+                      formControlName="type"
+                      (change)="movementTypeChanged()"
+                    >
                       <option value="INITIAL">Stock inicial</option>
                       <option value="ENTRY">Entrada</option>
+                      <option value="EXIT">Salida</option>
+                      <option value="RETURN">Devolución</option>
+                      <option value="LOSS">Pérdida</option>
+                      <option value="DAMAGE">Daño</option>
                       <option value="ADJUSTMENT">Ajuste</option>
                     </select>
                   </div>
@@ -294,8 +668,19 @@
                     }
                   </div>
                   <div class="field wide">
-                    <label for="stockReference">Referencia <span>Opcional</span></label>
+                    <label for="stockReference">
+                      Referencia o evidencia
+                      @if (!movementRequiresReference()) {
+                        <span>Opcional</span>
+                      }
+                    </label>
                     <input id="stockReference" formControlName="reference" maxlength="120" />
+                    @if (
+                      stockForm.controls.reference.touched &&
+                      stockForm.controls.reference.hasError('required')
+                    ) {
+                      <p class="field-error">La referencia es obligatoria para este tipo.</p>
+                    }
                   </div>
                 </div>
                 @if (stockError()) {
@@ -312,6 +697,95 @@
                   {{ savingStock() ? 'Registrando…' : 'Registrar movimiento' }}
                 </button>
               </form>
+
+              <form
+                class="state-transition-form"
+                [hidden]="!canAdjustInventory()"
+                [formGroup]="stateTransitionForm"
+                (ngSubmit)="changeStockState()"
+                novalidate
+              >
+                <div class="stock-heading">
+                  <div>
+                    <p class="eyebrow">Clasificación</p>
+                    <h4>Cambiar estado</h4>
+                  </div>
+                  <small>Ubicación seleccionada arriba</small>
+                </div>
+                <div class="stock-fields">
+                  <div class="field">
+                    <label for="stateFrom">Desde</label>
+                    <select
+                      id="stateFrom"
+                      formControlName="fromState"
+                      (change)="transitionSourceChanged()"
+                    >
+                      <option value="AVAILABLE">Disponible</option>
+                      <option value="RESERVED">Reservado</option>
+                      <option value="DAMAGED">Dañado</option>
+                      <option value="IN_TRANSIT">En tránsito</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="stateTo">Hacia</label>
+                    <select id="stateTo" formControlName="toState">
+                      @for (state of transitionTargets(); track state) {
+                        <option [value]="state">{{ stockStateLabel(state) }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="stateQuantity">Cantidad</label>
+                    <input
+                      id="stateQuantity"
+                      formControlName="quantity"
+                      inputmode="decimal"
+                      placeholder="0.000"
+                    />
+                    @if (
+                      stateTransitionForm.controls.quantity.touched &&
+                      stateTransitionForm.controls.quantity.invalid
+                    ) {
+                      <p class="field-error">Usa una cantidad positiva con máximo 3 decimales.</p>
+                    }
+                  </div>
+                  <div class="field wide">
+                    <label for="stateReason">Motivo</label>
+                    <input id="stateReason" formControlName="reason" maxlength="160" />
+                    @if (
+                      stateTransitionForm.controls.reason.touched &&
+                      stateTransitionForm.controls.reason.invalid
+                    ) {
+                      <p class="field-error">Describe el motivo del cambio.</p>
+                    }
+                  </div>
+                  <div class="field wide">
+                    <label for="stateReference">Referencia o evidencia</label>
+                    <input id="stateReference" formControlName="reference" maxlength="120" />
+                    @if (
+                      stateTransitionForm.controls.reference.touched &&
+                      stateTransitionForm.controls.reference.invalid
+                    ) {
+                      <p class="field-error">Agrega una referencia o evidencia.</p>
+                    }
+                  </div>
+                </div>
+                @if (stateTransitionError()) {
+                  <div class="form-error" role="alert">{{ stateTransitionError() }}</div>
+                }
+                @if (stateTransitionSuccess()) {
+                  <div class="success stock-success" role="status">
+                    {{ stateTransitionSuccess() }}
+                  </div>
+                }
+                <button
+                  class="secondary"
+                  type="submit"
+                  [disabled]="savingStateTransition() || locations().length === 0"
+                >
+                  {{ savingStateTransition() ? 'Actualizando…' : 'Cambiar estado' }}
+                </button>
+              </form>
             </section>
           </div>
         }
@@ -321,6 +795,7 @@
     <section
       class="stock-overview"
       aria-labelledby="stock-overview-title"
+      [hidden]="!canManageStock()"
       [attr.aria-busy]="loadingStockList()"
     >
       <div class="overview-heading">
@@ -331,6 +806,11 @@
             {{ stockScope()?.branch?.name || session()?.context?.branch?.name }} ·
             {{ stockScope()?.warehouse?.name || session()?.context?.warehouse?.name }}
           </p>
+          <small>
+            Política:
+            {{ negativeStockPolicy() === 'DENY' ? 'stock negativo bloqueado' : '' }} para todas las
+            operaciones.
+          </small>
         </div>
         <strong>{{ stockTotal() }} producto(s)</strong>
       </div>
@@ -373,7 +853,11 @@
                 ><strong>{{ item.product.name }}</strong
                 ><small>{{ item.product.sku }}</small></span
               >
-              <span role="cell">Disponible</span>
+              <span role="cell">
+                @for (state of item.states; track state.code) {
+                  <small>{{ stockStateLabel(state.code) }} {{ state.quantity }}</small>
+                }
+              </span>
               <span class="stock-quantity" role="cell">
                 <small>Disponible</small><strong>{{ item.availableQuantity }}</strong>
               </span>
@@ -407,9 +891,249 @@
       }
     </section>
 
+    @if (canAdjustInventory()) {
+      <app-inventory-import-panel (confirmed)="inventoryImportConfirmed()" />
+    }
+
+    @if (canCountInventory() || canApproveInventory()) {
+      <app-inventory-count-panel
+        [canCount]="canCountInventory()"
+        [canApprove]="canApproveInventory()"
+        (closed)="inventoryCountClosed()"
+      />
+    }
+
+    <section
+      class="stock-overview movement-history"
+      aria-labelledby="transfers-title"
+      [hidden]="!canManageStock()"
+      [attr.aria-busy]="loadingTransfers() || savingTransfer() || transferActionId()"
+    >
+      <div class="overview-heading">
+        <div>
+          <p class="eyebrow">Entre bodegas</p>
+          <h2 id="transfers-title">Transferencias</h2>
+          <p>El despacho descuenta disponible del origen y registra tránsito en el destino.</p>
+        </div>
+        <strong>{{ transferList().length }} documento(s)</strong>
+      </div>
+
+      <form
+        class="movement-filters"
+        [hidden]="!canTransferInventory()"
+        [formGroup]="transferForm"
+        (ngSubmit)="createTransfer()"
+        novalidate
+      >
+        <div class="field">
+          <label>Producto seleccionado</label>
+          <strong>{{ selectedProduct()?.name || 'Selecciona un producto del catálogo' }}</strong>
+          @if (selectedProduct(); as product) {
+            <small>{{ product.sku }}</small>
+          }
+        </div>
+        <div class="field">
+          <label for="transferSourceLocation">Ubicación de origen</label>
+          <select id="transferSourceLocation" formControlName="sourceLocationId">
+            @for (location of locations(); track location.id) {
+              <option [value]="location.id">{{ location.name }} · {{ location.code }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="transferDestinationWarehouse">Bodega destino</label>
+          <select
+            id="transferDestinationWarehouse"
+            formControlName="destinationWarehouseId"
+            (change)="transferDestinationChanged()"
+          >
+            @for (destination of transferDestinations(); track destination.warehouse.id) {
+              <option [value]="destination.warehouse.id">
+                {{ destination.branch.name }} · {{ destination.warehouse.name }}
+              </option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="transferDestinationLocation">Ubicación destino</label>
+          <select id="transferDestinationLocation" formControlName="destinationLocationId">
+            @for (location of transferDestinationLocations(); track location.id) {
+              <option [value]="location.id">{{ location.name }} · {{ location.code }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="transferQuantity">Cantidad</label>
+          <input
+            id="transferQuantity"
+            formControlName="quantity"
+            inputmode="decimal"
+            placeholder="0.000"
+          />
+        </div>
+        <div class="field">
+          <label for="transferReference">Referencia</label>
+          <input id="transferReference" formControlName="reference" maxlength="120" />
+        </div>
+        <div class="field">
+          <label for="transferReason">Motivo</label>
+          <input id="transferReason" formControlName="reason" maxlength="160" />
+        </div>
+        <button
+          class="primary"
+          type="submit"
+          [disabled]="
+            savingTransfer() ||
+            !selectedProduct() ||
+            locations().length === 0 ||
+            transferDestinations().length === 0
+          "
+        >
+          {{ savingTransfer() ? 'Creando…' : 'Crear borrador' }}
+        </button>
+      </form>
+
+      @if (transferError()) {
+        <div class="form-error" role="alert">{{ transferError() }}</div>
+      }
+      @if (transferSuccess()) {
+        <div class="success" role="status">{{ transferSuccess() }}</div>
+      }
+      @if (transferDestinations().length === 0) {
+        <div class="empty stock-empty">
+          <h3>Falta una bodega destino</h3>
+          <p>Crea otra sucursal o bodega activa para poder transferir inventario.</p>
+        </div>
+      } @else if (loadingTransfers()) {
+        <p class="catalog-state" role="status">Cargando transferencias…</p>
+      } @else if (transferList().length === 0) {
+        <div class="empty stock-empty">
+          <h3>Sin transferencias</h3>
+          <p>Selecciona un producto y crea el primer borrador.</p>
+        </div>
+      } @else {
+        <ol class="movement-list" aria-label="Transferencias de inventario">
+          @for (transfer of transferList(); track transfer.id) {
+            <li class="movement-row">
+              <span>
+                <strong>{{ transfer.reference }}</strong>
+                <small>{{ dateTime(transfer.createdAt) }}</small>
+              </span>
+              <span>
+                <strong>{{ transferStatusLabel(transfer.status) }}</strong>
+                <small>{{ transfer.createdBy.email }}</small>
+              </span>
+              <span>
+                <strong>{{ transfer.originWarehouse.name }}</strong>
+                <small>{{ transfer.originWarehouse.branch.name }}</small>
+              </span>
+              <span>
+                <strong>{{ transfer.destinationWarehouse.name }}</strong>
+                <small>{{ transfer.destinationWarehouse.branch.name }}</small>
+              </span>
+              <span>
+                @for (line of transfer.lines; track line.id) {
+                  <strong>{{ line.product.name }} · {{ line.quantity }}</strong>
+                  <small
+                    >{{ line.sourceLocation.code }} → {{ line.destinationLocation.code }}</small
+                  >
+                  <small>
+                    Recibido {{ line.receivedQuantity }} · Diferencia
+                    {{ line.discrepancyQuantity }} · Pendiente {{ line.pendingQuantity }}
+                  </small>
+                }
+              </span>
+              <span>
+                @if (transfer.status === 'DRAFT') {
+                  @if (canApproveInventory()) {
+                    <button
+                      class="primary"
+                      type="button"
+                      (click)="dispatchTransfer(transfer)"
+                      [disabled]="transferActionId()"
+                    >
+                      Despachar
+                    </button>
+                    <button
+                      class="secondary"
+                      type="button"
+                      (click)="cancelTransfer(transfer)"
+                      [disabled]="transferActionId()"
+                    >
+                      Cancelar
+                    </button>
+                  } @else {
+                    <small>Requiere permiso de aprobación.</small>
+                  }
+                } @else if (canReceiveTransfer(transfer)) {
+                  @for (line of transfer.lines; track line.id) {
+                    @if (line.pendingQuantity !== '0.000') {
+                      <form
+                        (ngSubmit)="
+                          receiveTransferLine(
+                            transfer,
+                            line,
+                            receivedQuantity.value,
+                            discrepancyQuantity.value,
+                            discrepancyReason.value
+                          )
+                        "
+                      >
+                        <small>{{ line.product.sku }} · pendiente {{ line.pendingQuantity }}</small>
+                        <input
+                          #receivedQuantity
+                          aria-label="Cantidad recibida"
+                          inputmode="decimal"
+                          [value]="line.pendingQuantity"
+                        />
+                        <input
+                          #discrepancyQuantity
+                          aria-label="Cantidad con diferencia"
+                          inputmode="decimal"
+                          value="0"
+                        />
+                        <input
+                          #discrepancyReason
+                          aria-label="Motivo de diferencia"
+                          maxlength="160"
+                          placeholder="Motivo si hay diferencia"
+                        />
+                        <button class="primary" type="submit" [disabled]="transferActionId()">
+                          Recibir línea
+                        </button>
+                      </form>
+                    }
+                  }
+                } @else {
+                  <small>
+                    {{
+                      transfer.dispatchedAt
+                        ? dateTime(transfer.dispatchedAt)
+                        : transfer.cancelledAt
+                          ? dateTime(transfer.cancelledAt)
+                          : ''
+                    }}
+                  </small>
+                  @for (receipt of transfer.receipts; track receipt.id) {
+                    <small>
+                      {{ dateTime(receipt.createdAt) }} · {{ receipt.receivedBy.email }}
+                      @if (receipt.discrepancyReason) {
+                        · {{ receipt.discrepancyReason }}
+                      }
+                    </small>
+                  }
+                }
+              </span>
+            </li>
+          }
+        </ol>
+      }
+    </section>
+
     <section
       class="stock-overview movement-history"
       aria-labelledby="movement-history-title"
+      [hidden]="!canManageStock()"
       [attr.aria-busy]="loadingMovementHistory()"
     >
       <div class="overview-heading">
@@ -436,9 +1160,43 @@
             <option value="">Todos</option>
             <option value="INITIAL">Stock inicial</option>
             <option value="ENTRY">Entrada</option>
+            <option value="EXIT">Salida</option>
+            <option value="RETURN">Devolución</option>
+            <option value="LOSS">Pérdida</option>
+            <option value="DAMAGE">Daño</option>
             <option value="ADJUSTMENT">Ajuste</option>
+            <option value="IMPORT">ImportaciÃ³n</option>
+            <option value="STATE_TRANSITION">Cambio de estado</option>
+            <option value="TRANSFER_OUT">Transferencia despachada</option>
+            <option value="TRANSFER_IN">Transferencia en tránsito</option>
+            <option value="TRANSFER_RECEIPT">Transferencia recibida</option>
+            <option value="TRANSFER_DISCREPANCY">Diferencia de transferencia</option>
             <option value="SALE">Venta</option>
           </select>
+        </div>
+        <div class="field">
+          <label for="movementLocation">Ubicación</label>
+          <input
+            id="movementLocation"
+            formControlName="location"
+            placeholder="Ubicación, código o bodega"
+          />
+        </div>
+        <div class="field">
+          <label for="movementResponsible">Responsable</label>
+          <input
+            id="movementResponsible"
+            formControlName="responsible"
+            placeholder="Correo del usuario"
+          />
+        </div>
+        <div class="field">
+          <label for="movementDocument">Documento</label>
+          <input
+            id="movementDocument"
+            formControlName="document"
+            placeholder="Referencia, ID o clave idempotente"
+          />
         </div>
         <div class="field">
           <label for="movementDateFrom">Desde</label>
@@ -474,11 +1232,20 @@
                 <small>{{ movement.product.sku }}</small>
               </span>
               <span>
-                <strong
-                  >{{ movement.direction === 'IN' ? 'Entrada' : 'Salida' }}
-                  {{ movement.quantityChange }}</strong
-                >
-                <small>Saldo {{ movement.resultingQuantity }}</small>
+                @if (movement.stateTransition; as transition) {
+                  <strong>
+                    {{ stockStateLabel(transition.from) }} → {{ stockStateLabel(transition.to) }}
+                    {{ transition.quantity }}
+                  </strong>
+                } @else {
+                  <strong>
+                    {{ movement.direction === 'IN' ? 'Entrada' : 'Salida' }}
+                    {{ movement.quantityChange }}
+                  </strong>
+                }
+                <small>
+                  Saldo {{ movement.previousQuantity }} → {{ movement.resultingQuantity }}
+                </small>
               </span>
               <span>
                 <strong>{{ movement.location.name }}</strong>
@@ -486,11 +1253,15 @@
               </span>
               <span>
                 <strong>{{ movement.reason }}</strong>
-                <small>{{ movement.reference || 'Sin referencia' }}</small>
+                <small>
+                  {{ movementDocumentLabel(movement.document.type) }} ·
+                  {{ movement.document.reference || movement.document.id }}
+                </small>
               </span>
               <span>
                 <strong>{{ movement.responsible.email }}</strong>
-                <small>Responsable</small>
+                <small>Correlación {{ movement.correlationId }}</small>
+                <small>Idempotencia {{ movement.idempotencyKey }}</small>
               </span>
             </li>
           }
@@ -523,7 +1294,14 @@
   <section
     class="pos-workspace"
     aria-labelledby="pos-title"
-    [attr.aria-busy]="searchingPos() || quotingCart() || savingSale()"
+    [hidden]="!canManageSales()"
+    [attr.aria-busy]="
+      loadingCashRegisterShift() ||
+      openingCashRegisterShift() ||
+      searchingPos() ||
+      quotingCart() ||
+      savingSale()
+    "
   >
     <p class="eyebrow">Caja</p>
     <h2 id="pos-title">Punto de venta</h2>
@@ -532,43 +1310,391 @@
       {{ session()?.context?.cashRegister?.name }}
     </p>
 
-    <div class="pos-grid">
-      <div class="pos-search-panel">
-        <h2>Agregar productos</h2>
-        <form class="search" [formGroup]="posSearchForm" (ngSubmit)="searchPos()">
-          <label for="posSearch">Buscar producto para venta por nombre, SKU o código</label>
+    @if (loadingCashRegisterShift()) {
+      <p class="catalog-state" role="status">Consultando estado de la caja…</p>
+    } @else if (currentCashRegisterShift(); as shift) {
+      <div class="success" role="status">
+        <strong>Caja abierta</strong>
+        <span>
+          Fondo {{ shift.currency }} {{ shift.openingAmount }} · Responsable
+          {{ shift.openedBy.email }} · {{ shift.openedAt | date: 'short' }}
+        </span>
+      </div>
+      @if (cashRegisterShiftSuccess()) {
+        <div class="success" role="status">{{ cashRegisterShiftSuccess() }}</div>
+      }
+    } @else {
+      <form
+        class="cash-payment cash-shift-opening"
+        [hidden]="!canOpenCashRegister()"
+        [formGroup]="cashRegisterShiftForm"
+        (ngSubmit)="openCashRegisterShift()"
+      >
+        <h3>Abrir caja</h3>
+        <p>Registra el fondo inicial para comenzar a vender en esta caja.</p>
+        <label for="openingAmount">Fondo de apertura</label>
+        <input
+          id="openingAmount"
+          formControlName="openingAmount"
+          inputmode="decimal"
+          autocomplete="off"
+        />
+        @if (
+          cashRegisterShiftForm.controls.openingAmount.touched &&
+          cashRegisterShiftForm.controls.openingAmount.invalid
+        ) {
+          <small class="field-error">Escribe un importe no negativo con máximo 2 decimales.</small>
+        }
+        @if (cashRegisterShiftError()) {
+          <div class="form-error" role="alert">{{ cashRegisterShiftError() }}</div>
+        }
+        <button type="submit" [disabled]="openingCashRegisterShift()">
+          {{ openingCashRegisterShift() ? 'Abriendo caja…' : 'Abrir caja' }}
+        </button>
+      </form>
+    }
+
+    @if (currentCashRegisterShift(); as shift) {
+      <div
+        class="pos-search-panel cash-movements"
+        [attr.aria-busy]="loadingCashMovements() || savingCashMovement()"
+      >
+        <div class="cart-heading">
           <div>
-            <input id="posSearch" formControlName="q" maxlength="80" autocomplete="off" />
-            <button class="secondary" type="submit" [disabled]="searchingPos()">
-              {{ searchingPos() ? 'Buscando…' : 'Buscar' }}
-            </button>
+            <p class="eyebrow">Efectivo del turno</p>
+            <h3>Ingresos y egresos</h3>
           </div>
+          <strong>
+            Saldo esperado {{ shift.currency }} {{ expectedCash() || shift.openingAmount }}
+          </strong>
+        </div>
+
+        @if (cashMovementError()) {
+          <div class="form-error" role="alert">{{ cashMovementError() }}</div>
+        }
+        @if (cashMovementSuccess()) {
+          <div class="success" role="status">{{ cashMovementSuccess() }}</div>
+        }
+
+        <form
+          class="cash-payment"
+          [hidden]="!canMoveCash()"
+          [formGroup]="cashMovementForm"
+          (ngSubmit)="submitCashMovement()"
+        >
+          <label for="cashMovementType">Tipo</label>
+          <select id="cashMovementType" formControlName="type">
+            <option value="INCOME">Ingreso</option>
+            <option value="WITHDRAWAL">Egreso</option>
+          </select>
+          <label for="cashMovementAmount">Monto</label>
+          <input
+            id="cashMovementAmount"
+            formControlName="amount"
+            inputmode="decimal"
+            autocomplete="off"
+          />
+          <label for="cashMovementReason">Motivo</label>
+          <input id="cashMovementReason" formControlName="reason" maxlength="160" />
+          @if (cashMovementForm.touched && cashMovementForm.invalid) {
+            <small class="field-error">Indica un monto mayor que cero y un motivo.</small>
+          }
+          <button type="submit" [disabled]="savingCashMovement()">
+            {{ savingCashMovement() ? 'Confirmando…' : 'Confirmar movimiento' }}
+          </button>
         </form>
-        @if (posResults().length === 0) {
+
+        @if (movementToReverse(); as movement) {
+          <form
+            class="cash-payment"
+            [formGroup]="cashMovementReversalForm"
+            (ngSubmit)="reverseCashMovement()"
+          >
+            <h3>Reversar {{ cashMovementLabel(movement).toLowerCase() }}</h3>
+            <p>{{ movement.reason }} · {{ shift.currency }} {{ movement.amount }}</p>
+            <label for="cashMovementReversalReason">Motivo de la reversa</label>
+            <input id="cashMovementReversalReason" formControlName="reason" maxlength="160" />
+            <button type="submit" [disabled]="reversingCashMovementId() !== null">
+              {{ reversingCashMovementId() ? 'Reversando…' : 'Confirmar reversa' }}
+            </button>
+            <button class="secondary" type="button" (click)="cancelCashMovementReversal()">
+              Cancelar
+            </button>
+          </form>
+        }
+
+        @if (loadingCashMovements()) {
+          <p class="catalog-state" role="status">Cargando movimientos de caja…</p>
+        } @else if (cashRegisterMovements().length === 0) {
           <div class="empty pos-empty">
-            <h3>Busca el primer producto</h3>
-            <p>Usa nombre, SKU o lector de código de barras.</p>
+            <h3>Sin movimientos adicionales</h3>
+            <p>Las ventas en efectivo ya forman parte del saldo esperado.</p>
           </div>
         } @else {
           <ul class="pos-results">
-            @for (product of posResults(); track product.id) {
+            @for (movement of cashRegisterMovements(); track movement.id) {
               <li>
                 <div>
-                  <strong>{{ product.name }}</strong
-                  ><small>{{ product.sku }} · {{ product.price }}</small>
+                  <strong
+                    >{{ cashMovementLabel(movement) }} · {{ shift.currency }}
+                    {{ movement.amount }}</strong
+                  >
+                  <small>
+                    {{ movement.reason }} · {{ movement.responsible.email }} ·
+                    {{ movement.createdAt | date: 'short' }}
+                    @if (movement.reversed) {
+                      · Reversado
+                    }
+                  </small>
                 </div>
-                <button
-                  class="secondary"
-                  type="button"
-                  (click)="addToCart(product)"
-                  [disabled]="!product.active"
-                >
-                  {{ product.active ? 'Agregar' : 'Inactivo' }}
-                </button>
+                @if (canMoveCash() && movement.type !== 'REVERSAL' && !movement.reversed) {
+                  <button
+                    class="secondary"
+                    type="button"
+                    (click)="startCashMovementReversal(movement)"
+                  >
+                    Reversar
+                  </button>
+                }
               </li>
             }
           </ul>
         }
+
+        <form
+          class="cash-payment cash-closure-form"
+          [hidden]="!canCloseCashRegister()"
+          [formGroup]="cashClosureForm"
+          (ngSubmit)="closeCashRegisterShift()"
+        >
+          <h3>Cerrar caja y realizar arqueo</h3>
+          <p>El servidor volverá a calcular el saldo esperado antes de cerrar el turno.</p>
+          <label for="cashCountedAmount">Efectivo contado</label>
+          <input
+            id="cashCountedAmount"
+            formControlName="countedAmount"
+            inputmode="decimal"
+            autocomplete="off"
+          />
+          <label for="cashDifferenceReason">Motivo de diferencia (si existe)</label>
+          <input id="cashDifferenceReason" formControlName="differenceReason" maxlength="160" />
+          <label for="cashDenominations">Denominaciones opcionales</label>
+          <input
+            id="cashDenominations"
+            formControlName="denominations"
+            maxlength="240"
+            placeholder="200x2, 50x1"
+          />
+          <small>La suma debe coincidir con el efectivo contado.</small>
+          @if (cashClosureForm.touched && cashClosureForm.invalid) {
+            <small class="field-error">Revisa el conteo y los datos del arqueo.</small>
+          }
+          @if (cashClosureError()) {
+            <div class="form-error" role="alert">{{ cashClosureError() }}</div>
+          }
+          <button type="submit" [disabled]="closingCashRegister()">
+            {{ closingCashRegister() ? 'Cerrando caja…' : 'Cerrar caja' }}
+          </button>
+        </form>
+      </div>
+    }
+
+    @if (cashClosureSuccess()) {
+      <div class="success" role="status">{{ cashClosureSuccess() }}</div>
+    }
+    @if (loadingCashClosure()) {
+      <p class="catalog-state" role="status">Consultando último arqueo…</p>
+    } @else if (latestCashClosure(); as closure) {
+      <div class="cart-panel cash-closure-report">
+        <div class="cart-heading">
+          <div>
+            <p class="eyebrow">Último arqueo</p>
+            <h3>{{ closure.cashRegister.name }} · {{ closure.closedAt | date: 'short' }}</h3>
+          </div>
+          <strong>Diferencia {{ closure.currency }} {{ closure.difference }}</strong>
+        </div>
+        <dl class="cart-totals">
+          <div>
+            <dt>Fondo inicial</dt>
+            <dd>{{ closure.currency }} {{ closure.openingAmount }}</dd>
+          </div>
+          <div>
+            <dt>Ventas ({{ closure.salesCount }})</dt>
+            <dd>{{ closure.currency }} {{ closure.cashSales }}</dd>
+          </div>
+          <div>
+            <dt>Movimientos ({{ closure.movementsCount }})</dt>
+            <dd>{{ closure.currency }} {{ closure.movementsNet }}</dd>
+          </div>
+          <div>
+            <dt>Esperado</dt>
+            <dd>{{ closure.currency }} {{ closure.expectedCash }}</dd>
+          </div>
+          <div>
+            <dt>Contado</dt>
+            <dd>{{ closure.currency }} {{ closure.countedCash }}</dd>
+          </div>
+        </dl>
+        <p>
+          Abrió {{ closure.openedBy.email }} · Cerró {{ closure.closedBy.email }} ·
+          {{ closure.openedAt | date: 'short' }} a {{ closure.closedAt | date: 'short' }}
+        </p>
+        @if (closure.differenceReason) {
+          <p><strong>Motivo:</strong> {{ closure.differenceReason }}</p>
+        }
+        @if (closure.denominations.length > 0) {
+          <p>
+            <strong>Denominaciones:</strong>
+            @for (item of closure.denominations; track $index) {
+              {{ item.denomination }} × {{ item.quantity }}
+            }
+          </p>
+        }
+      </div>
+    }
+
+    <div class="pos-grid" [hidden]="!currentCashRegisterShift()">
+      <div class="pos-search-panel">
+        <div class="customer-panel">
+          <div class="cart-heading">
+            <div>
+              <p class="eyebrow">Venta identificada</p>
+              <h2>Clientes</h2>
+            </div>
+            <button class="secondary" type="button" (click)="cancelCustomerEdit()">Nuevo</button>
+          </div>
+          <form class="search" [formGroup]="customerSearchForm" (ngSubmit)="searchCustomers()">
+            <label for="customerSearch">Buscar por nombre, identificador, email o teléfono</label>
+            <div>
+              <input id="customerSearch" formControlName="q" maxlength="160" autocomplete="off" />
+              <button class="secondary" type="submit">Buscar</button>
+            </div>
+          </form>
+          @if (customerError()) {
+            <div class="form-error" role="alert">{{ customerError() }}</div>
+          }
+          @if (customerSuccess()) {
+            <div class="success" role="status">{{ customerSuccess() }}</div>
+          }
+          <form class="customer-form" [formGroup]="customerForm" (ngSubmit)="saveCustomer()">
+            <label for="customerName">Nombre</label>
+            <input id="customerName" formControlName="name" maxlength="160" autocomplete="name" />
+            <label for="customerIdentifier">Identificador</label>
+            <input id="customerIdentifier" formControlName="identifier" maxlength="80" />
+            <label for="customerEmail">Email</label>
+            <input
+              id="customerEmail"
+              formControlName="email"
+              type="email"
+              maxlength="254"
+              autocomplete="email"
+            />
+            <label for="customerPhone">Teléfono</label>
+            <input id="customerPhone" formControlName="phone" maxlength="32" autocomplete="tel" />
+            <label class="customer-consent">
+              <input type="checkbox" formControlName="dataProcessingConsent" />
+              Autorizó guardar sus datos de contacto
+            </label>
+            <button type="submit" [disabled]="savingCustomer()">
+              {{
+                savingCustomer()
+                  ? 'Guardando…'
+                  : editingCustomer()
+                    ? 'Actualizar cliente'
+                    : 'Crear cliente'
+              }}
+            </button>
+          </form>
+          @if (customers().length > 0) {
+            <ul class="pos-results customer-results">
+              @for (customer of customers(); track customer.id) {
+                <li>
+                  <div>
+                    <strong>{{ customer.name }}</strong>
+                    <small>{{
+                      customer.identifier ||
+                        customer.email ||
+                        customer.phone ||
+                        'Sin datos adicionales'
+                    }}</small>
+                  </div>
+                  <div class="customer-actions">
+                    <button class="secondary" type="button" (click)="openCustomerHistory(customer)">
+                      Historial
+                    </button>
+                    <button class="secondary" type="button" (click)="editCustomer(customer)">
+                      Editar
+                    </button>
+                    <button class="remove" type="button" (click)="deactivateCustomer(customer)">
+                      Desactivar
+                    </button>
+                  </div>
+                </li>
+              }
+            </ul>
+          }
+          @if (customerHistoryCustomer(); as historyCustomer) {
+            <app-customer-history-panel
+              [customer]="historyCustomer"
+              (saleSelected)="openCustomerSale($event)"
+              (dismissed)="customerHistoryCustomer.set(null)"
+            />
+          }
+        </div>
+
+        <div class="product-search-panel">
+          <h2>Agregar productos</h2>
+          <app-product-code-scanner
+            [globalCapture]="!!currentCashRegisterShift()"
+            (resolved)="addToCart($event)"
+          />
+          <form class="search" [formGroup]="posSearchForm" (ngSubmit)="searchPos()">
+            <label for="posSearch">Buscar producto para venta por nombre, SKU o código</label>
+            <div>
+              <input id="posSearch" formControlName="q" maxlength="80" autocomplete="off" />
+              <select aria-label="Filtrar POS por categoría" formControlName="categoryId">
+                <option value="">Todas las categorías</option>
+                @for (category of categories(); track category.id) {
+                  <option [value]="category.id">{{ category.name }}</option>
+                }
+              </select>
+              <select aria-label="Filtrar POS por marca" formControlName="brandId">
+                <option value="">Todas las marcas</option>
+                @for (brand of brands(); track brand.id) {
+                  <option [value]="brand.id">{{ brand.name }}</option>
+                }
+              </select>
+              <button class="secondary" type="submit" [disabled]="searchingPos()">
+                {{ searchingPos() ? 'Buscando…' : 'Buscar' }}
+              </button>
+            </div>
+          </form>
+          @if (posResults().length === 0) {
+            <div class="empty pos-empty">
+              <h3>Busca el primer producto</h3>
+              <p>Usa nombre, SKU o lector de código de barras.</p>
+            </div>
+          } @else {
+            <ul class="pos-results">
+              @for (product of posResults(); track product.id) {
+                <li>
+                  <div>
+                    <strong>{{ product.name }}</strong
+                    ><small>{{ product.sku }} · {{ product.price }}</small>
+                  </div>
+                  <button
+                    class="secondary"
+                    type="button"
+                    (click)="addToCart(product)"
+                    [disabled]="!product.active"
+                  >
+                    {{ product.active ? 'Agregar' : 'Inactivo' }}
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        </div>
       </div>
 
       <div class="cart-panel" aria-live="polite">
@@ -582,13 +1708,41 @@
         @if (posError()) {
           <div class="form-error" role="alert">{{ posError() }}</div>
         }
+        @if (offlinePosActive()) {
+          <div class="catalog-state" role="status">
+            Modo offline: se usan precios e impuestos del snapshot. Sólo efectivo, sin sobreventa;
+            la venta queda pendiente hasta que el servidor la concilie.
+          </div>
+        }
+        @if (queuedOfflineSale(); as queued) {
+          <div class="catalog-state sale-complete" role="status">
+            <strong>Venta pendiente de confirmación</strong>
+            <span
+              >Total {{ cartQuote()?.currency || currentCashRegisterShift()?.currency }}
+              {{ queued.total }}</span
+            >
+            <span>Comando {{ queued.commandId }}</span>
+          </div>
+        }
         @if (completedSale(); as sale) {
           <div class="success sale-complete" role="status">
             <strong>Venta {{ sale.receiptNumber }} completada</strong>
             <span>
-              Total {{ sale.currency }} {{ sale.totals.total }} · Cambio {{ sale.currency }}
-              {{ sale.payment.change }}
+              Total {{ sale.currency }} {{ sale.totals.total }} ·
+              {{
+                sale.payments.length > 1 ? 'Pago mixto' : paymentMethodLabel(sale.payment.method)
+              }}
             </span>
+            @for (payment of sale.payments; track $index) {
+              <span>
+                {{ paymentMethodLabel(payment.method) }} {{ sale.currency }}
+                {{ payment.amountApplied }}
+                @if (payment.change !== '0.00') {
+                  · Cambio {{ sale.currency }} {{ payment.change }}
+                }
+              </span>
+            }
+            <span>Cliente: {{ sale.customer?.name || 'Venta anónima' }}</span>
           </div>
         }
         @if (cart().length === 0) {
@@ -642,20 +1796,88 @@
             </dl>
             <div class="success cart-ready" role="status">Carrito validado y listo para cobrar</div>
             <form class="cash-payment" [formGroup]="cashForm" (ngSubmit)="completeCashSale()">
-              <label for="cashReceived">Efectivo recibido</label>
-              <input
-                id="cashReceived"
-                formControlName="cashReceived"
-                inputmode="decimal"
-                autocomplete="off"
-              />
-              @if (
-                cashForm.controls.cashReceived.touched && cashForm.controls.cashReceived.invalid
-              ) {
-                <small class="field-error">Escribe un importe válido con máximo 2 decimales.</small>
+              <label for="posCustomer">Cliente (opcional)</label>
+              <select id="posCustomer" formControlName="customerId">
+                <option value="">Venta anónima</option>
+                @for (customer of customers(); track customer.id) {
+                  <option [value]="customer.id">{{ customer.name }}</option>
+                }
+              </select>
+              @for (payment of paymentRows.controls; track payment; let index = $index) {
+                <div class="sale-payment" [formGroup]="payment">
+                  <label [for]="'paymentMethod-' + index">Método de pago {{ index + 1 }}</label>
+                  <select
+                    [id]="'paymentMethod-' + index"
+                    formControlName="method"
+                    (change)="changePaymentMethod(index)"
+                  >
+                    @for (method of availablePaymentMethods(index); track method) {
+                      <option [value]="method">{{ paymentMethodLabel(method) }}</option>
+                    }
+                  </select>
+                  <label [for]="'paymentAmount-' + index">Importe aplicado</label>
+                  <input
+                    [id]="'paymentAmount-' + index"
+                    formControlName="amount"
+                    inputmode="decimal"
+                    autocomplete="off"
+                  />
+                  @if (payment.controls.amount.touched && payment.controls.amount.invalid) {
+                    <small class="field-error">Escribe un importe mayor a cero.</small>
+                  }
+                  @if (payment.controls.method.value === 'CASH') {
+                    <label [for]="index === 0 ? 'cashReceived' : 'cashReceived-' + index"
+                      >Efectivo recibido</label
+                    >
+                    <input
+                      [id]="index === 0 ? 'cashReceived' : 'cashReceived-' + index"
+                      formControlName="amountReceived"
+                      inputmode="decimal"
+                      autocomplete="off"
+                    />
+                    @if (
+                      payment.controls.amountReceived.touched &&
+                      payment.controls.amountReceived.invalid
+                    ) {
+                      <small class="field-error">Escribe un importe válido.</small>
+                    }
+                  } @else {
+                    <label [for]="'paymentReference-' + index">Referencia de autorización</label>
+                    <input
+                      [id]="'paymentReference-' + index"
+                      formControlName="reference"
+                      autocomplete="off"
+                    />
+                    @if (payment.controls.reference.touched && payment.controls.reference.invalid) {
+                      <small class="field-error"
+                        >Usa de 4 a 120 letras, números o los caracteres . _ : / -</small
+                      >
+                    }
+                    @if (nonCashProvider() === 'SIMULATOR') {
+                      <small role="status">Autorización simulada para este ambiente.</small>
+                    }
+                  }
+                  @if (paymentRows.length > 1) {
+                    <button type="button" class="remove" (click)="removePayment(index)">
+                      Quitar pago
+                    </button>
+                  }
+                </div>
+              }
+              @if (canAddPayment()) {
+                <button type="button" (click)="addPayment()">Agregar otro pago</button>
+              }
+              @if (paymentRows.invalid) {
+                <small class="field-error">Completa todos los datos del desglose de pago.</small>
               }
               <button type="submit" [disabled]="savingSale() || quotingCart()">
-                {{ savingSale() ? 'Registrando venta…' : 'Cobrar en efectivo' }}
+                {{
+                  savingSale()
+                    ? 'Registrando venta…'
+                    : offlinePosActive()
+                      ? 'Guardar venta offline'
+                      : 'Confirmar pago'
+                }}
               </button>
             </form>
           }
@@ -664,9 +1886,202 @@
     </div>
   </section>
 
+  @if (canManageSales()) {
+    <app-product-reservation-panel />
+  }
+
+  <section
+    class="sales-workspace"
+    aria-labelledby="sales-cash-report-title"
+    [hidden]="!canManageSales()"
+    [attr.aria-busy]="loadingSalesCashReport()"
+  >
+    <p class="eyebrow">Supervisión operativa</p>
+    <div class="sales-heading">
+      <div>
+        <h2 id="sales-cash-report-title">Reporte de ventas y caja</h2>
+        <p class="context">Los periodos se interpretan en la zona horaria de cada sucursal.</p>
+      </div>
+    </div>
+    <form
+      class="sales-filters"
+      [formGroup]="salesCashReportForm"
+      (ngSubmit)="filterSalesCashReport()"
+    >
+      <label>Desde <input type="date" formControlName="dateFrom" /></label>
+      <label>Hasta <input type="date" formControlName="dateTo" /></label>
+      <label>
+        Sucursal
+        <select formControlName="branchId">
+          <option value="">Todas las autorizadas</option>
+          @for (branch of salesCashReport()?.options?.branches || []; track branch.id) {
+            <option [value]="branch.id">{{ branch.name }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        Caja
+        <select formControlName="cashRegisterId">
+          <option value="">Todas</option>
+          @for (register of salesCashReport()?.options?.registers || []; track register.id) {
+            <option [value]="register.id">{{ register.name }} · {{ register.code }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        Usuario
+        <select formControlName="userId">
+          <option value="">Todos</option>
+          @for (user of salesCashReport()?.options?.users || []; track user.id) {
+            <option [value]="user.id">{{ user.email }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        Estado
+        <select formControlName="status">
+          <option value="ALL">Completadas y anuladas</option>
+          <option value="COMPLETED">Completadas</option>
+          <option value="VOIDED">Anuladas</option>
+        </select>
+      </label>
+      <button class="secondary" type="submit" [disabled]="loadingSalesCashReport()">
+        Actualizar reporte
+      </button>
+    </form>
+    @if (salesCashReportError()) {
+      <div class="form-error" role="alert">{{ salesCashReportError() }}</div>
+    }
+    @if (loadingSalesCashReport()) {
+      <p class="catalog-state" role="status">Conciliando ventas, pagos y cajas…</p>
+    } @else if (salesCashReport(); as report) {
+      <div class="cart-totals">
+        <div>
+          <dt>Ventas netas</dt>
+          <dd>{{ report.summary.sales.net }}</dd>
+        </div>
+        <div>
+          <dt>Completadas</dt>
+          <dd>{{ report.summary.sales.completed }}</dd>
+        </div>
+        <div>
+          <dt>Anuladas</dt>
+          <dd>{{ report.summary.sales.voided }}</dd>
+        </div>
+        <div>
+          <dt>Importe anulado</dt>
+          <dd>{{ report.summary.sales.voidedAmount }}</dd>
+        </div>
+        <div>
+          <dt>Cajas abiertas / cerradas</dt>
+          <dd>{{ report.summary.cash.open }} / {{ report.summary.cash.closed }}</dd>
+        </div>
+        <div>
+          <dt>Diferencia de caja</dt>
+          <dd>{{ report.summary.cash.difference }}</dd>
+        </div>
+      </div>
+      <div
+        class="success"
+        [class.form-error]="!report.summary.reconciliation.matches"
+        role="status"
+      >
+        <strong>
+          {{
+            report.summary.reconciliation.matches ? 'Conciliación correcta' : 'Diferencia detectada'
+          }}
+        </strong>
+        <span>
+          Ventas {{ report.summary.reconciliation.salesNet }} · Pagos
+          {{ report.summary.reconciliation.paymentsApplied }}
+        </span>
+      </div>
+      <h3>Pagos</h3>
+      <ul class="sale-lines">
+        @for (payment of report.summary.payments; track payment.method + payment.status) {
+          <li>
+            <span>
+              <strong>{{ paymentMethodLabel(payment.method) }}</strong>
+              <small
+                >{{ payment.status === 'REVERSED' ? 'Revertido' : 'Aplicado' }} ·
+                {{ payment.count }}</small
+              >
+            </span>
+            <strong>{{ payment.amount }}</strong>
+          </li>
+        }
+      </ul>
+      <h3>Turnos de caja</h3>
+      @if (report.shifts.length === 0) {
+        <p class="catalog-state">Sin turnos en el periodo.</p>
+      } @else {
+        <ul class="sale-lines">
+          @for (shift of report.shifts; track shift.id) {
+            <li>
+              <span>
+                <strong>{{ shift.branch.name }} · {{ shift.cashRegister.name }}</strong>
+                <small>{{ shift.openedByEmail }} · {{ dateTime(shift.openedAt) }}</small>
+              </span>
+              <span>
+                Esperado {{ shift.expected }} · Contado {{ shift.counted || '—' }} · Diferencia
+                {{ shift.difference || '—' }}
+              </span>
+            </li>
+          }
+        </ul>
+      }
+      <h3>Ventas del periodo</h3>
+      @if (report.sales.length === 0) {
+        <p class="catalog-state">Sin ventas para los filtros seleccionados.</p>
+      } @else {
+        <ul class="sale-lines">
+          @for (sale of report.sales; track sale.id) {
+            <li>
+              <span>
+                <strong>{{ sale.receiptNumber }} · {{ sale.branch.name }}</strong>
+                <small>{{ sale.user.email }} · {{ dateTime(sale.createdAt) }}</small>
+                <small>
+                  @for (payment of sale.payments; track $index) {
+                    {{ paymentMethodLabel(payment.method) }} {{ payment.amount }}
+                  }
+                </small>
+              </span>
+              <strong
+                >{{ sale.total }} ·
+                {{ sale.status === 'VOIDED' ? 'Anulada' : 'Completada' }}</strong
+              >
+            </li>
+          }
+        </ul>
+      }
+      <div class="pagination" aria-label="Paginación del reporte">
+        <button
+          type="button"
+          class="secondary"
+          (click)="previousSalesCashReportPage()"
+          [disabled]="salesCashReportPage() <= 1 || loadingSalesCashReport()"
+        >
+          Anterior
+        </button>
+        <span>Página {{ salesCashReportPage() }} de {{ salesCashReportTotalPages() || 1 }}</span>
+        <button
+          type="button"
+          class="secondary"
+          (click)="nextSalesCashReportPage()"
+          [disabled]="
+            salesCashReportPage() >= salesCashReportTotalPages() || loadingSalesCashReport()
+          "
+        >
+          Siguiente
+        </button>
+      </div>
+    }
+  </section>
+
   <section
     class="sales-workspace"
     aria-labelledby="sales-title"
+    [hidden]="!canManageSales()"
     [attr.aria-busy]="loadingSales() || loadingSaleDetail()"
   >
     <p class="eyebrow">Auditoría</p>
@@ -733,7 +2148,8 @@
                 ><small>{{ dateTime(sale.createdAt) }}</small></span
               >
               <span
-                >{{ sale.cashRegister.name }}<small>{{ sale.user.email }}</small></span
+                >{{ sale.cashRegister.name
+                }}<small>{{ sale.customer?.name || 'Venta anónima' }}</small></span
               >
               <span
                 ><strong>{{ sale.currency }} {{ sale.total }}</strong
@@ -768,25 +2184,48 @@
           @if (loadingSaleDetail()) {
             <p class="catalog-state" role="status">Cargando detalle…</p>
           } @else if (selectedSale(); as sale) {
-            <p class="eyebrow">Venta confirmada</p>
+            <p class="eyebrow">
+              {{ sale.status === 'VOIDED' ? 'Venta anulada' : 'Venta confirmada' }}
+            </p>
             <h2>{{ sale.receiptNumber }}</h2>
             <p>
               {{ sale.user.email }} · {{ sale.context.cashRegister.name }} ·
               {{ dateTime(sale.createdAt) }}
             </p>
+            <p><strong>Cliente:</strong> {{ sale.customer?.name || 'Venta anónima' }}</p>
+            @if (sale.void; as voidData) {
+              <div class="success" role="status">
+                <strong>Anulada por {{ voidData.user.email }}</strong>
+                <p>{{ dateTime(voidData.voidedAt) }} · {{ voidData.reason }}</p>
+              </div>
+            }
             <dl class="sale-payment">
               <div>
                 <dt>Total</dt>
                 <dd>{{ sale.currency }} {{ sale.totals.total }}</dd>
               </div>
-              <div>
-                <dt>Efectivo</dt>
-                <dd>{{ sale.currency }} {{ sale.payment.amountReceived }}</dd>
-              </div>
-              <div>
-                <dt>Cambio</dt>
-                <dd>{{ sale.currency }} {{ sale.payment.change }}</dd>
-              </div>
+              @for (payment of sale.payments; track $index) {
+                <div>
+                  <dt>{{ paymentMethodLabel(payment.method) }}</dt>
+                  <dd>{{ sale.currency }} {{ payment.amountApplied }}</dd>
+                </div>
+                @if (payment.method === 'CASH' && payment.change !== '0.00') {
+                  <div>
+                    <dt>Cambio</dt>
+                    <dd>{{ sale.currency }} {{ payment.change }}</dd>
+                  </div>
+                }
+                @if (payment.reference) {
+                  <div>
+                    <dt>Referencia</dt>
+                    <dd>{{ payment.reference }}</dd>
+                  </div>
+                }
+                <div>
+                  <dt>Estado</dt>
+                  <dd>{{ payment.status === 'REVERSED' ? 'Revertido' : 'Aplicado' }}</dd>
+                </div>
+              }
             </dl>
             <h3>Líneas</h3>
             <ul class="sale-lines">
@@ -799,13 +2238,43 @@
                 </li>
               }
             </ul>
+            @if (sale.status === 'COMPLETED' && canVoidSales() && currentCashRegisterShift()) {
+              <form
+                class="cash-payment sale-void-form"
+                [formGroup]="saleVoidForm"
+                (ngSubmit)="voidSelectedSale()"
+              >
+                <label for="saleVoidReason">Motivo obligatorio de anulación</label>
+                <textarea
+                  id="saleVoidReason"
+                  formControlName="reason"
+                  rows="2"
+                  placeholder="Ej. Error de captura confirmado"
+                ></textarea>
+                <button
+                  type="submit"
+                  [disabled]="saleVoidForm.invalid || voidingSaleId() === sale.id"
+                >
+                  {{ voidingSaleId() === sale.id ? 'Anulando…' : 'Anular venta' }}
+                </button>
+              </form>
+            }
+            @if (saleVoidError()) {
+              <div class="form-error" role="alert">{{ saleVoidError() }}</div>
+            }
+            @if (saleVoidSuccess()) {
+              <div class="success" role="status">{{ saleVoidSuccess() }}</div>
+            }
             <h3>Movimientos de inventario</h3>
             <ul class="sale-lines movements">
               @for (movement of sale.movements; track movement.id) {
                 <li>
                   <span
                     ><strong>{{ movement.location.name }}</strong
-                    ><small>{{ movement.reference }}</small></span
+                    ><small
+                      >{{ movement.type === 'SALE_VOID' ? 'Anulación' : 'Venta' }} ·
+                      {{ movement.reference }}</small
+                    ></span
                   ><strong>{{ movement.quantityChange }} → {{ movement.resultingQuantity }}</strong>
                 </li>
               }
@@ -819,18 +2288,283 @@
   </section>
 
   <section
+    class="stock-overview"
+    aria-labelledby="access-title"
+    [hidden]="!canManageAccess()"
+    [attr.aria-busy]="loadingAccess() || savingAccess()"
+  >
+    <div class="overview-heading">
+      <div>
+        <p class="eyebrow">Administración</p>
+        <h2 id="access-title">Roles y acceso operativo</h2>
+        <p>Delega sólo las operaciones y sucursales que cada persona necesita.</p>
+      </div>
+      <strong>{{ accessUsers().length }} usuario(s)</strong>
+    </div>
+
+    @if (accessError()) {
+      <div class="form-error" role="alert">{{ accessError() }}</div>
+    }
+    @if (accessSuccess()) {
+      <div class="success" role="status">{{ accessSuccess() }}</div>
+    }
+
+    <div class="workspace">
+      <form class="product-form" [formGroup]="accessRoleForm" (ngSubmit)="createAccessRole()">
+        <div class="form-heading">
+          <div>
+            <h3>Nuevo rol operativo</h3>
+            <p>Combina permisos pequeños para evitar acceso innecesario.</p>
+          </div>
+        </div>
+        <div class="field wide">
+          <label for="accessRoleName">Nombre</label>
+          <input id="accessRoleName" formControlName="name" maxlength="80" />
+        </div>
+        <fieldset>
+          <legend>Permisos</legend>
+          @for (permission of rolePermissions; track permission) {
+            <label>
+              <input
+                #permissionInput
+                type="checkbox"
+                [checked]="selectedRolePermissions().includes(permission)"
+                (change)="toggleRolePermission(permission, permissionInput.checked)"
+              />
+              {{ permissionLabel(permission) }}
+            </label>
+          }
+        </fieldset>
+        <button class="primary" type="submit" [disabled]="savingAccess()">Crear rol</button>
+      </form>
+
+      <form class="product-form" [formGroup]="accessUserForm" (ngSubmit)="createAccessUser()">
+        <div class="form-heading">
+          <div>
+            <h3>Nuevo usuario operativo</h3>
+            <p>La cuenta inicia limitada al rol, sucursales y cajas seleccionadas.</p>
+          </div>
+        </div>
+        <div class="fields">
+          <div class="field wide">
+            <label for="accessUserEmail">Correo</label>
+            <input id="accessUserEmail" type="email" formControlName="email" maxlength="254" />
+          </div>
+          <div class="field wide">
+            <label for="accessUserPassword">Contraseña temporal</label>
+            <input
+              id="accessUserPassword"
+              type="password"
+              formControlName="password"
+              maxlength="128"
+              autocomplete="new-password"
+            />
+            @if (
+              accessUserForm.controls.password.touched && accessUserForm.controls.password.invalid
+            ) {
+              <p class="field-error">
+                Usa 12 caracteres con mayúscula, minúscula, número y símbolo.
+              </p>
+            }
+          </div>
+          <div class="field">
+            <label for="accessUserRole">Rol</label>
+            <select id="accessUserRole" formControlName="roleId">
+              @for (role of accessRoles(); track role.id) {
+                <option [value]="role.id">{{ role.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label for="accessUserBranch">Sucursales</label>
+            <select
+              id="accessUserBranch"
+              formControlName="branchIds"
+              multiple
+              (change)="accessUserBranchesChanged()"
+            >
+              @for (branch of activeBranches(); track branch.id) {
+                <option [value]="branch.id">{{ branch.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label for="accessUserCashRegister">Cajas</label>
+            <select id="accessUserCashRegister" formControlName="cashRegisterIds" multiple>
+              @for (register of accessUserCashRegisters(); track register.id) {
+                <option [value]="register.id">{{ register.name }} · {{ register.code }}</option>
+              }
+            </select>
+            <small>Obligatoria para roles que operan ventas.</small>
+          </div>
+        </div>
+        <button
+          class="primary"
+          type="submit"
+          [disabled]="savingAccess() || accessRoles().length === 0"
+        >
+          Crear acceso
+        </button>
+      </form>
+    </div>
+
+    @if (manageableAccessUsers().length > 0) {
+      <form
+        class="movement-filters"
+        [formGroup]="accessAssignmentForm"
+        (ngSubmit)="updateAccessUser()"
+      >
+        <div class="field">
+          <label for="accessAssignmentUser">Usuario</label>
+          <select
+            id="accessAssignmentUser"
+            formControlName="userId"
+            (change)="assignmentUserChanged()"
+          >
+            @for (user of accessUsers(); track user.id) {
+              @if (user.manageable) {
+                <option [value]="user.id">{{ user.email }}</option>
+              }
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="accessAssignmentRole">Rol</label>
+          <select id="accessAssignmentRole" formControlName="roleId">
+            @for (role of accessRoles(); track role.id) {
+              <option [value]="role.id">{{ role.name }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="accessAssignmentBranch">Sucursales</label>
+          <select
+            id="accessAssignmentBranch"
+            formControlName="branchIds"
+            multiple
+            (change)="accessAssignmentBranchesChanged()"
+          >
+            @for (branch of activeBranches(); track branch.id) {
+              <option [value]="branch.id">{{ branch.name }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="accessAssignmentCashRegister">Cajas</label>
+          <select id="accessAssignmentCashRegister" formControlName="cashRegisterIds" multiple>
+            @for (register of accessAssignmentCashRegisters(); track register.id) {
+              <option [value]="register.id">{{ register.name }} · {{ register.code }}</option>
+            }
+          </select>
+        </div>
+        <button class="secondary" type="submit" [disabled]="savingAccess()">
+          Actualizar acceso
+        </button>
+      </form>
+    }
+
+    <div class="stock-table" role="table" aria-label="Usuarios y permisos operativos">
+      <div class="stock-row stock-header" role="row">
+        <span role="columnheader">Usuario</span>
+        <span role="columnheader">Roles</span>
+        <span role="columnheader">Permisos</span>
+        <span role="columnheader">Sucursales y cajas</span>
+      </div>
+      @for (user of accessUsers(); track user.id) {
+        <div class="stock-row" role="row">
+          <span role="cell"
+            ><strong>{{ user.email }}</strong></span
+          >
+          <span role="cell">
+            @for (role of user.roles; track role.id) {
+              <strong>{{ role.name }}</strong>
+            }
+          </span>
+          <span role="cell">
+            @for (role of user.roles; track role.id) {
+              @for (permission of role.permissions; track permission) {
+                <small>{{ permissionLabel(permission) }}</small>
+              }
+            }
+          </span>
+          <span role="cell">
+            @if (!user.manageable && user.roles[0]?.name === 'Administrador') {
+              <strong>Todas</strong>
+            } @else {
+              @for (branch of user.branches; track branch.id) {
+                <strong>{{ branch.name }}</strong>
+              }
+              @for (register of user.cashRegisters; track register.id) {
+                <small>Caja: {{ register.name }} · {{ register.code }}</small>
+              } @empty {
+                <small>Sin caja</small>
+              }
+            }
+          </span>
+        </div>
+      }
+    </div>
+  </section>
+
+  <section
     class="stock-overview audit-log"
     aria-labelledby="audit-title"
+    [hidden]="!canViewAudit()"
     [attr.aria-busy]="loadingAudit()"
   >
     <div class="overview-heading">
       <div>
         <p class="eyebrow">Administración</p>
-        <h2 id="audit-title">Auditoría Core</h2>
-        <p>Registro de sólo lectura del tenant activo.</p>
+        <h2 id="audit-title">Auditoría administrativa</h2>
+        <p>
+          Registro inmutable del tenant activo · retención mínima
+          {{ auditRetentionDays() }} días.
+        </p>
       </div>
-      <strong>{{ auditEvents().length }} evento(s)</strong>
+      <div class="audit-status">
+        <strong>{{ auditTotal() }} evento(s)</strong>
+        <span>
+          {{ auditIntegrity() ? 'Integridad verificada' : 'Alteración detectada' }}
+        </span>
+      </div>
     </div>
+    <form class="movement-filters" [formGroup]="auditFilterForm" (ngSubmit)="filterAuditEvents()">
+      <div class="field">
+        <label for="auditSearch">Buscar</label>
+        <input
+          id="auditSearch"
+          formControlName="q"
+          placeholder="Acción, entidad, actor o correlación"
+        />
+      </div>
+      <div class="field">
+        <label for="auditAction">Acción exacta</label>
+        <input id="auditAction" formControlName="action" />
+      </div>
+      <div class="field">
+        <label for="auditEntity">Tipo de entidad</label>
+        <input id="auditEntity" formControlName="entityType" />
+      </div>
+      <div class="field">
+        <label for="auditDateFrom">Desde</label>
+        <input id="auditDateFrom" type="date" formControlName="dateFrom" />
+      </div>
+      <div class="field">
+        <label for="auditDateTo">Hasta</label>
+        <input id="auditDateTo" type="date" formControlName="dateTo" />
+      </div>
+      <button class="secondary" type="submit">Filtrar</button>
+      @if (canExportAudit()) {
+        <button
+          class="secondary"
+          type="button"
+          (click)="exportAuditEvents()"
+          [disabled]="exportingAudit()"
+        >
+          {{ exportingAudit() ? 'Exportando…' : 'Exportar CSV' }}
+        </button>
+      }
+    </form>
     @if (auditError()) {
       <div class="form-error" role="alert">{{ auditError() }}</div>
     } @else if (loadingAudit()) {
@@ -845,23 +2579,53 @@
         @for (event of auditEvents(); track event.id) {
           <li class="movement-row">
             <span>
-              <strong>{{ auditActionLabel(event.action) }}</strong>
-              <small>{{ dateTime(event.createdAt) }}</small>
+              <strong>#{{ event.sequence }} · {{ auditActionLabel(event.action) }}</strong>
+              <small>
+                {{ dateTime(event.createdAt) }} ·
+                {{ event.integrity.valid ? 'íntegro' : 'alterado' }}
+              </small>
             </span>
             <span
               ><strong>{{ event.actor.email }}</strong
-              ><small>Actor</small></span
+              ><small>
+                Actor
+                @if (event.impersonator) {
+                  · impersonado por {{ event.impersonator.email }}
+                }
+              </small></span
             >
             <span
               ><strong>{{ event.entityType }}</strong
               ><small>{{ event.entityId }}</small></span
             >
             <span
-              ><strong>Correlación</strong><small>{{ event.correlationId }}</small></span
+              ><strong>{{ event.origin }}</strong
+              ><small>{{ event.correlationId }}</small></span
             >
           </li>
         }
       </ol>
+      @if (auditTotalPages() > 1) {
+        <div class="pagination">
+          <button
+            class="secondary"
+            type="button"
+            (click)="previousAuditPage()"
+            [disabled]="auditPage() === 1"
+          >
+            Anterior
+          </button>
+          <span>Página {{ auditPage() }} de {{ auditTotalPages() }}</span>
+          <button
+            class="secondary"
+            type="button"
+            (click)="nextAuditPage()"
+            [disabled]="auditPage() === auditTotalPages()"
+          >
+            Siguiente
+          </button>
+        </div>
+      }
     }
   </section>
 </main>
