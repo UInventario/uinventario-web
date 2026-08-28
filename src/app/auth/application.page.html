@@ -368,6 +368,13 @@
               <p class="field-error">Escribe un nombre de al menos 2 caracteres.</p>
             }
           </div>
+          <div class="field wide">
+            <label>
+              <input type="checkbox" formControlName="trackSerials" />
+              Controlar cada unidad por nÃºmero de serie
+            </label>
+            <small>Las entradas, traslados y ventas exigirÃ¡n una serie Ãºnica por unidad.</small>
+          </div>
 
           <div class="field">
             <label for="sku">SKU</label>
@@ -416,6 +423,15 @@
             @if (form.controls.price.touched && form.controls.price.invalid) {
               <p class="field-error">Escribe un precio no negativo, con máximo 2 decimales.</p>
             }
+          </div>
+          <div class="field wide">
+            <label>
+              <input type="checkbox" formControlName="trackLots" />
+              Controlar existencias por lote
+            </label>
+            <small
+              >Las entradas solicitarán un código y cada salida conservará su trazabilidad.</small
+            >
           </div>
         </div>
 
@@ -587,6 +603,14 @@
                 <dt>Marca</dt>
                 <dd>{{ product.brand?.name || 'Sin marca' }}</dd>
               </div>
+              <div>
+                <dt>Lotes</dt>
+                <dd>{{ product.trackLots ? 'Controlados' : 'No controlados' }}</dd>
+              </div>
+              <div>
+                <dt>Series</dt>
+                <dd>{{ product.trackSerials ? 'Controladas' : 'No controladas' }}</dd>
+              </div>
             </dl>
 
             <section class="stock-card" aria-labelledby="stock-title" [hidden]="!canManageStock()">
@@ -608,6 +632,88 @@
                   }
                 </p>
               }
+
+              @if (product.trackLots) {
+                <div class="catalog-state" [class.form-error]="!lotReconciled()">
+                  <strong>{{ selectedProductLots().length }} lote(s)</strong>
+                  <span>
+                    Valor específico
+                    {{ selectedProductLotValuation().currency || 'sin moneda' }}
+                    {{ selectedProductLotValuation().inventoryValue }}
+                  </span>
+                  @for (lot of selectedProductLots(); track lot.id) {
+                    <span>
+                      {{ lot.code }} · {{ lot.quantity }} · {{ lot.currency }} {{ lot.unitCost }}/u
+                      · valor {{ lot.inventoryValue }}
+                    </span>
+                    @for (origin of lot.origins; track origin.purchaseReceiptLineId) {
+                      <small>
+                        Origen {{ origin.purchaseOrder.folio }} ·
+                        {{ origin.receipt.documentReference }} · {{ origin.quantity }} a
+                        {{ origin.currency }} {{ origin.unitCost }}
+                      </small>
+                    }
+                  }
+                  @if (!lotReconciled()) {
+                    <span>La suma por lote no coincide con la existencia total.</span>
+                  }
+                </div>
+              }
+
+              @if (product.trackSerials) {
+                <div class="catalog-state">
+                  <strong>{{ selectedProductSerials().length }} serie(s)</strong>
+                  @for (serial of selectedProductSerials(); track serial.id) {
+                    <button type="button" class="secondary" (click)="viewSerialHistory(serial.id)">
+                      {{ serial.serialNumber }} Â· {{ serial.status }} Â·
+                      {{ serial.currentLocation?.code || 'sin ubicaciÃ³n' }}
+                    </button>
+                  }
+                  @if (selectedSerialHistory(); as history) {
+                    <strong>Custodia de {{ history.serial.serialNumber }}</strong>
+                    @for (event of history.events; track event.id) {
+                      <small>
+                        {{ event.createdAt | date: 'short' }} Â· {{ event.movement.type }} Â·
+                        {{ event.fromStatus || 'ALTA' }} â†’ {{ event.toStatus }} Â·
+                        {{ event.responsible.email }}
+                      </small>
+                    }
+                  }
+                </div>
+              }
+
+              <div
+                class="catalog-state"
+                [class.form-error]="!selectedProductFifoValuation().reconciled"
+              >
+                <strong>{{ selectedProductFifoLayers().length }} capa(s) FIFO</strong>
+                <span>
+                  Valor FIFO {{ selectedProductFifoValuation().currency || 'sin moneda' }}
+                  {{ selectedProductFifoValuation().inventoryValue }}
+                </span>
+                @if (selectedProductFifoValuation().cutoverAt; as cutoverAt) {
+                  <small>
+                    Corte FIFO {{ cutoverAt | date: 'short' }} · saldo inicial al costo promedio
+                    vigente
+                  </small>
+                }
+                @for (layer of selectedProductFifoLayers(); track layer.id) {
+                  <span>
+                    {{ layer.remainingQuantity }}/{{ layer.originalQuantity }} ·
+                    {{ layer.currency }} {{ layer.unitCost }}/u · valor {{ layer.inventoryValue }} ·
+                    {{ layer.location.code }}
+                  </span>
+                  <small>
+                    {{ layer.originType }} · adquirido {{ layer.acquiredAt | date: 'short' }}
+                    @if (layer.source.reference) {
+                      · {{ layer.source.reference }}
+                    }
+                  </small>
+                }
+                @if (!selectedProductFifoValuation().reconciled) {
+                  <span>Las capas FIFO no coinciden con la existencia total.</span>
+                }
+              </div>
 
               <form
                 [hidden]="!canAdjustInventory()"
@@ -682,6 +788,34 @@
                       <p class="field-error">La referencia es obligatoria para este tipo.</p>
                     }
                   </div>
+                  @if (product.trackLots) {
+                    <div class="field wide">
+                      <label for="stockLotCode">Lote</label>
+                      <input
+                        id="stockLotCode"
+                        formControlName="lotCode"
+                        maxlength="64"
+                        placeholder="Ej. LOT-2026-001"
+                      />
+                      <small
+                        >En entradas crea o reutiliza el lote; en salidas permite elegirlo.</small
+                      >
+                    </div>
+                  }
+                  @if (product.trackSerials) {
+                    <div class="field wide">
+                      <label for="stockSerialNumbers">NÃºmeros de serie</label>
+                      <textarea
+                        id="stockSerialNumbers"
+                        formControlName="serialNumbers"
+                        rows="5"
+                        placeholder="Escanea o escribe una serie por lÃ­nea"
+                      ></textarea>
+                      <small
+                        >La cantidad debe coincidir exactamente con el nÃºmero de series.</small
+                      >
+                    </div>
+                  }
                 </div>
                 @if (stockError()) {
                   <div class="form-error" role="alert">{{ stockError() }}</div>
@@ -769,6 +903,17 @@
                       <p class="field-error">Agrega una referencia o evidencia.</p>
                     }
                   </div>
+                  @if (product.trackSerials) {
+                    <div class="field wide">
+                      <label for="stateSerialNumbers">Series a cambiar</label>
+                      <textarea
+                        id="stateSerialNumbers"
+                        formControlName="serialNumbers"
+                        rows="4"
+                        placeholder="Una serie por lÃ­nea"
+                      ></textarea>
+                    </div>
+                  }
                 </div>
                 @if (stateTransitionError()) {
                   <div class="form-error" role="alert">{{ stateTransitionError() }}</div>
@@ -792,6 +937,11 @@
       </aside>
     </div>
 
+    @if (canManageStock()) {
+      <app-inventory-valuation-policy-panel />
+      <app-inventory-reconciliation-panel />
+    }
+
     <section
       class="stock-overview"
       aria-labelledby="stock-overview-title"
@@ -811,6 +961,12 @@
             {{ negativeStockPolicy() === 'DENY' ? 'stock negativo bloqueado' : '' }} para todas las
             operaciones.
           </small>
+          @if (stockValuationReport(); as report) {
+            <small>
+              Valorización: {{ valuationMethodLabel(report.method) }} v{{ report.policyVersion }} ·
+              {{ report.currency }} · corte {{ report.asOf | date: 'short' }}
+            </small>
+          }
         </div>
         <strong>{{ stockTotal() }} producto(s)</strong>
       </div>
@@ -846,6 +1002,7 @@
             <span role="columnheader">Estado</span>
             <span role="columnheader">Disponible</span>
             <span role="columnheader">Total</span>
+            <span role="columnheader">Valorización</span>
           </div>
           @for (item of stockList(); track item.product.id) {
             <div class="stock-row" role="row">
@@ -863,6 +1020,35 @@
               </span>
               <span class="stock-quantity" role="cell">
                 <small>Total</small><strong>{{ item.totalQuantity }}</strong>
+              </span>
+              <span class="stock-quantity" role="cell">
+                <small
+                  >{{ valuationMethodLabel(item.costing.method) }} ·
+                  {{ item.costing.currency }}</small
+                >
+                <strong>{{ item.costing.inventoryValue }}</strong>
+                <small>Cantidad valorizada {{ item.costing.quantity }}</small>
+                @if (!item.costing.reconciled) {
+                  <small class="valuation-warning">Valorización por reconciliar</small>
+                }
+                @if (item.lotTracking; as tracking) {
+                  <small>
+                    Lotes {{ tracking.lotQuantity }} ·
+                    {{ tracking.reconciled ? 'conciliados' : 'por conciliar' }}
+                  </small>
+                  <small>
+                    Valor por lote {{ tracking.currency || 'sin moneda' }}
+                    {{ tracking.inventoryValue }}
+                  </small>
+                }
+                @if (item.fifoValuation; as fifoValuation) {
+                  <small>
+                    FIFO {{ fifoValuation.quantity }} ·
+                    {{ fifoValuation.reconciled ? 'conciliado' : 'por conciliar' }} ·
+                    {{ fifoValuation.currency || 'sin moneda' }}
+                    {{ fifoValuation.inventoryValue }}
+                  </small>
+                }
               </span>
             </div>
           }
@@ -979,6 +1165,17 @@
           <label for="transferReason">Motivo</label>
           <input id="transferReason" formControlName="reason" maxlength="160" />
         </div>
+        @if (selectedProduct()?.trackSerials) {
+          <div class="field wide">
+            <label for="transferSerials">Series a trasladar</label>
+            <textarea
+              id="transferSerials"
+              formControlName="serialNumbers"
+              rows="4"
+              placeholder="Una serie por lÃ­nea"
+            ></textarea>
+          </div>
+        }
         <button
           class="primary"
           type="submit"
@@ -1075,7 +1272,9 @@
                             line,
                             receivedQuantity.value,
                             discrepancyQuantity.value,
-                            discrepancyReason.value
+                            discrepancyReason.value,
+                            receivedSerials.value,
+                            discrepancySerials.value
                           )
                         "
                       >
@@ -1098,6 +1297,20 @@
                           maxlength="160"
                           placeholder="Motivo si hay diferencia"
                         />
+                        <textarea
+                          #receivedSerials
+                          aria-label="Series recibidas"
+                          rows="3"
+                          placeholder="Series recibidas, una por lÃ­nea"
+                          [hidden]="(line.serialNumbers?.length ?? 0) === 0"
+                        ></textarea>
+                        <textarea
+                          #discrepancySerials
+                          aria-label="Series con diferencia"
+                          rows="3"
+                          placeholder="Series faltantes, una por lÃ­nea"
+                          [hidden]="(line.serialNumbers?.length ?? 0) === 0"
+                        ></textarea>
                         <button class="primary" type="submit" [disabled]="transferActionId()">
                           Recibir línea
                         </button>
@@ -1246,6 +1459,32 @@
                 <small>
                   Saldo {{ movement.previousQuantity }} → {{ movement.resultingQuantity }}
                 </small>
+                @if (movement.valuation; as valuation) {
+                  <small>
+                    {{ valuationMethodLabel(valuation.method) }} v{{ valuation.policyVersion }} ·
+                    costo {{ valuation.unitCost }} · valor {{ valuation.valueChange }} · efectivo
+                    {{ valuation.effectiveAt | date: 'short' }}
+                  </small>
+                }
+                @if (movement.fifoValuation; as fifo) {
+                  <small>
+                    FIFO {{ fifo.unitCost }}/u · valor {{ fifo.valueChange }} · saldo valorado
+                    {{ fifo.resultingInventoryValue }}
+                  </small>
+                }
+                @for (layer of movement.fifoLayers ?? []; track layer.allocationId) {
+                  <small>
+                    Capa {{ layer.layerId.slice(0, 8) }} · {{ layer.quantityChange }} ·
+                    {{ layer.currency }} {{ layer.unitCost }}/u · valor {{ layer.valueChange }} ·
+                    {{ layer.selectionMode }}
+                  </small>
+                }
+                @for (lot of movement.lots ?? []; track lot.id) {
+                  <small>
+                    Lote {{ lot.code }} · {{ lot.quantityChange }} · {{ lot.currency }}
+                    {{ lot.unitCost }}/u · valor {{ lot.valueChange }} · {{ lot.selectionMode }}
+                  </small>
+                }
               </span>
               <span>
                 <strong>{{ movement.location.name }}</strong>
@@ -1767,6 +2006,33 @@
                     (change)="updateCartQuantity(entry.product.id, $any($event.target).value)"
                   />
                 </label>
+                @if (entry.product.trackLots) {
+                  <label>
+                    Lote
+                    <select
+                      [attr.aria-label]="'Lote de ' + entry.product.name"
+                      [value]="entry.lotId"
+                      (change)="updateCartLot(entry.product.id, $any($event.target).value)"
+                    >
+                      <option value="">Automático (primero recibido)</option>
+                      @for (lot of entry.lots; track lot.id) {
+                        <option [value]="lot.id">{{ lot.code }} · {{ lot.quantity }}</option>
+                      }
+                    </select>
+                  </label>
+                }
+                @if (entry.product.trackSerials) {
+                  <label>
+                    Series
+                    <textarea
+                      [attr.aria-label]="'Series de ' + entry.product.name"
+                      [value]="entry.serialNumbers"
+                      rows="3"
+                      placeholder="Una serie por lÃ­nea"
+                      (change)="updateCartSerials(entry.product.id, $any($event.target).value)"
+                    ></textarea>
+                  </label>
+                }
                 <div class="line-total">
                   <small>Total validado</small
                   ><strong>{{ quotedLine(entry.product.id)?.total || '—' }}</strong>

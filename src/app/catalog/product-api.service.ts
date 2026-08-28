@@ -7,6 +7,8 @@ export interface ProductData {
   name: string;
   sku: string;
   barcode: string | null;
+  trackLots?: boolean;
+  trackSerials?: boolean;
   category: { id: string; name: string } | null;
   brand: { id: string; name: string } | null;
   cost: string;
@@ -19,6 +21,8 @@ export interface ProductInput {
   name: string;
   sku: string;
   barcode?: string;
+  trackLots: boolean;
+  trackSerials?: boolean;
   categoryName?: string;
   brandName?: string;
   cost: string;

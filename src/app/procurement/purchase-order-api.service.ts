@@ -53,6 +53,7 @@ export interface PurchaseReceiptData {
     id: string;
     purchaseOrderLineId: string;
     receivedQuantity: string;
+    lotCode?: string | null;
     overageQuantity: string;
     unitCost: string;
     totalCost: string;
@@ -90,14 +91,23 @@ export interface PurchaseReceiptInput {
   locationId: string;
   documentReference: string;
   overageReason?: string;
-  lines: Array<{ purchaseOrderLineId: string; receivedQuantity: string }>;
+  lines: Array<{
+    purchaseOrderLineId: string;
+    receivedQuantity: string;
+    lotCode?: string;
+    serialNumbers?: string[];
+  }>;
 }
 
 export interface PurchaseReturnInput {
   purchaseReceiptId: string;
   documentReference: string;
   reason: string;
-  lines: Array<{ purchaseReceiptLineId: string; returnedQuantity: string }>;
+  lines: Array<{
+    purchaseReceiptLineId: string;
+    returnedQuantity: string;
+    serialNumbers?: string[];
+  }>;
 }
 
 export interface PurchaseOrderTransitionData {

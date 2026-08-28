@@ -1,0 +1,84 @@
+<section
+  class="reconciliation"
+  aria-labelledby="inventory-reconciliation-title"
+  [attr.aria-busy]="loading() || running()"
+>
+  <div class="heading">
+    <div>
+      <p class="eyebrow">Integridad operativa</p>
+      <h2 id="inventory-reconciliation-title">Reconciliación de inventario</h2>
+      <p>
+        Compara saldos, movimientos, valorización, capas FIFO, lotes y series sin corregir datos.
+      </p>
+    </div>
+    @if (canRun()) {
+      <button type="button" (click)="reconcile()" [disabled]="running()">
+        {{ running() ? 'Reconciliando…' : 'Ejecutar reconciliación' }}
+      </button>
+    }
+  </div>
+
+  @if (loading()) {
+    <p>Cargando último diagnóstico…</p>
+  } @else if (run(); as current) {
+    <div class="summary" [class.critical]="current.overallStatus === 'CRITICAL'">
+      <div>
+        <small>Estado</small>
+        <strong>{{ statusLabel(current.overallStatus) }}</strong>
+        <span>{{ current.finishedAt | date: 'medium' }}</span>
+      </div>
+      <dl>
+        <div>
+          <dt>Hallazgos</dt>
+          <dd>{{ current.summary.findings }}</dd>
+        </div>
+        <div>
+          <dt>Críticos</dt>
+          <dd>{{ current.summary.critical }}</dd>
+        </div>
+        <div>
+          <dt>Advertencias</dt>
+          <dd>{{ current.summary.warnings }}</dd>
+        </div>
+      </dl>
+    </div>
+
+    @if (current.policy.operationsBlocked) {
+      <div class="blocked" role="alert">
+        Las operaciones de inventario están bloqueadas hasta resolver los hallazgos críticos y
+        ejecutar una reconciliación limpia. Esta ejecución también bloquea la release.
+      </div>
+    }
+
+    @if (current.findings.length === 0) {
+      <p class="healthy" role="status">No se detectaron invariantes rotas.</p>
+    } @else {
+      <div class="findings" aria-label="Hallazgos de reconciliación">
+        @for (finding of current.findings; track finding.id) {
+          <article [class.critical]="finding.severity === 'CRITICAL'">
+            <header>
+              <strong>{{ finding.message }}</strong>
+              <span>{{ finding.severity === 'CRITICAL' ? 'Crítico' : 'Advertencia' }}</span>
+            </header>
+            <p>{{ finding.recommendedAction }}</p>
+            <small>
+              {{ finding.code }}
+              @if (finding.subjectReference) {
+                · {{ finding.subjectReference }}
+              }
+              @if (finding.expectedValue !== null) {
+                · esperado {{ finding.expectedValue }} · actual {{ finding.actualValue }}
+              }
+            </small>
+          </article>
+        }
+      </div>
+    }
+  } @else {
+    <p>Aún no existe un diagnóstico. Ejecuta la primera reconciliación.</p>
+  }
+
+  @if (error()) {
+    <div class="form-error" role="alert">{{ error() }}</div>
+  }
+</section>

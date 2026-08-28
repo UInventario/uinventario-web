@@ -14,14 +14,22 @@ import {
   InventoryApiService,
   InventoryBalanceData,
   InventoryMovementInput,
+  InventoryLotData,
+  InventoryFifoLayerData,
+  InventorySerialData,
+  InventorySerialEventData,
   InventoryMovementHistoryItem,
   InventoryMovementType,
+  InventoryValuationMethod,
   InventoryStateTransitionInput,
   InventoryStockState,
   InventoryStockItem,
+  InventoryStockValuationReport,
 } from '../inventory/inventory-api.service';
 import { InventoryImportPanelComponent } from '../inventory/inventory-import-panel.component';
 import { InventoryCountPanelComponent } from '../inventory/inventory-count-panel.component';
+import { InventoryValuationPolicyPanelComponent } from '../inventory/inventory-valuation-policy-panel.component';
+import { InventoryReconciliationPanelComponent } from '../inventory/inventory-reconciliation-panel.component';
 import { SessionApiService } from './session-api.service';
 import {
   CashRegisterClosureData,
@@ -82,6 +90,9 @@ const PAYMENT_REFERENCE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]{3,119}$/;
 interface CartEntry {
   product: ProductData;
   quantity: string;
+  lotId: string;
+  lots: InventoryLotData[];
+  serialNumbers: string;
 }
 
 @Component({
@@ -92,6 +103,8 @@ interface CartEntry {
     RouterLink,
     InventoryImportPanelComponent,
     InventoryCountPanelComponent,
+    InventoryValuationPolicyPanelComponent,
+    InventoryReconciliationPanelComponent,
     CustomerHistoryPanelComponent,
     SupplierPanelComponent,
     PurchaseOrderPanelComponent,
@@ -133,7 +146,12 @@ export class ApplicationPage implements OnInit {
   } | null = null;
   private pendingSale: {
     input: {
-      lines: Array<{ productId: string; quantity: string }>;
+      lines: Array<{
+        productId: string;
+        quantity: string;
+        lotId?: string;
+        serialNumbers?: string[];
+      }>;
       customerId?: string;
       payments: Array<{
         method: PaymentMethod;
@@ -290,6 +308,29 @@ export class ApplicationPage implements OnInit {
     id: string;
   } | null>(null);
   protected readonly stockList = signal<InventoryStockItem[]>([]);
+  protected readonly selectedProductLots = signal<InventoryLotData[]>([]);
+  protected readonly selectedProductSerials = signal<InventorySerialData[]>([]);
+  protected readonly selectedSerialHistory = signal<{
+    serial: InventorySerialData;
+    events: InventorySerialEventData[];
+  } | null>(null);
+  protected readonly lotReconciled = signal(true);
+  protected readonly selectedProductLotValuation = signal<{
+    currency: string | null;
+    inventoryValue: string;
+  }>({ currency: null, inventoryValue: '0.0000' });
+  protected readonly selectedProductFifoLayers = signal<InventoryFifoLayerData[]>([]);
+  protected readonly selectedProductFifoValuation = signal<{
+    currency: string | null;
+    inventoryValue: string;
+    reconciled: boolean;
+    cutoverAt: string | null;
+  }>({
+    currency: null,
+    inventoryValue: '0.0000',
+    reconciled: true,
+    cutoverAt: null,
+  });
   protected readonly stockListError = signal<string | null>(null);
   protected readonly loadingStockList = signal(true);
   protected readonly movementHistory = signal<InventoryMovementHistoryItem[]>([]);
@@ -307,6 +348,7 @@ export class ApplicationPage implements OnInit {
     branch: { id: string; name: string };
     warehouse: { id: string; name: string };
   } | null>(null);
+  protected readonly stockValuationReport = signal<InventoryStockValuationReport | null>(null);
   protected readonly posResults = signal<ProductData[]>([]);
   protected readonly currentCashRegisterShift = signal<CashRegisterShiftData | null>(null);
   protected readonly loadingCashRegisterShift = signal(true);
@@ -433,6 +475,7 @@ export class ApplicationPage implements OnInit {
     type: ['INCOME' as 'INCOME' | 'WITHDRAWAL', [Validators.required]],
     amount: ['', [Validators.required, Validators.pattern(POSITIVE_MONEY_PATTERN)]],
     reason: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
+    serialNumbers: [''],
   });
   protected readonly cashMovementReversalForm = this.formBuilder.nonNullable.group({
     reason: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
@@ -474,6 +517,8 @@ export class ApplicationPage implements OnInit {
     brandName: ['', [Validators.minLength(2), Validators.maxLength(120)]],
     cost: ['', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
     price: ['', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
+    trackLots: [false],
+    trackSerials: [false],
   });
   protected readonly stockForm = this.formBuilder.nonNullable.group({
     locationId: ['', [Validators.required]],
@@ -481,6 +526,8 @@ export class ApplicationPage implements OnInit {
     quantity: ['', [Validators.required, Validators.pattern(QUANTITY_PATTERN)]],
     reason: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
     reference: ['', [Validators.maxLength(120)]],
+    lotCode: ['', [Validators.maxLength(64)]],
+    serialNumbers: ['', [Validators.maxLength(120999)]],
   });
   protected readonly stateTransitionForm = this.formBuilder.nonNullable.group({
     fromState: ['AVAILABLE' as InventoryStockState, [Validators.required]],
@@ -488,6 +535,7 @@ export class ApplicationPage implements OnInit {
     quantity: ['', [Validators.required, Validators.pattern(POSITIVE_QUANTITY_PATTERN)]],
     reason: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
     reference: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
+    serialNumbers: [''],
   });
   protected readonly contextForm = this.formBuilder.nonNullable.group({
     branchId: ['', [Validators.required]],
@@ -501,6 +549,7 @@ export class ApplicationPage implements OnInit {
     quantity: ['', [Validators.required, Validators.pattern(POSITIVE_QUANTITY_PATTERN)]],
     reference: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
     reason: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
+    serialNumbers: [''],
   });
   protected readonly branchForm = this.formBuilder.nonNullable.group({
     name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
@@ -590,6 +639,8 @@ export class ApplicationPage implements OnInit {
         this.loadOptions();
         this.loadProducts(1);
         this.loadBalance(data.id);
+        this.loadLots(data.id);
+        this.loadSerials(data);
         this.loadStockList(1);
         this.loadAuditEvents();
       },
@@ -610,6 +661,8 @@ export class ApplicationPage implements OnInit {
       brandName: product.brand?.name ?? '',
       cost: product.cost,
       price: product.price,
+      trackLots: product.trackLots,
+      trackSerials: product.trackSerials ?? false,
     });
   }
 
@@ -1063,6 +1116,14 @@ export class ApplicationPage implements OnInit {
     }[type];
   }
 
+  protected valuationMethodLabel(method: InventoryValuationMethod): string {
+    return {
+      MOVING_AVERAGE: 'Promedio móvil',
+      FIFO: 'FIFO',
+      SPECIFIC_LOT: 'Costo específico por lote',
+    }[method];
+  }
+
   protected movementDocumentLabel(type: InventoryMovementHistoryItem['document']['type']): string {
     return {
       MOVEMENT: 'Movimiento',
@@ -1463,7 +1524,26 @@ export class ApplicationPage implements OnInit {
               ? { ...entry, quantity: String(Number(entry.quantity) + 1) }
               : entry,
           )
-        : [...this.cart(), { product, quantity: '1' }],
+        : [...this.cart(), { product, quantity: '1', lotId: '', lots: [], serialNumbers: '' }],
+    );
+    if (!existing && product.trackLots) {
+      this.inventory.listLots(product.id).subscribe({
+        next: ({ data }) => {
+          this.cart.update((entries) =>
+            entries.map((entry) =>
+              entry.product.id === product.id ? { ...entry, lots: data } : entry,
+            ),
+          );
+        },
+      });
+    }
+    this.quoteCart();
+  }
+
+  protected updateCartLot(productId: string, lotId: string): void {
+    this.resetCompletedSale();
+    this.cart.update((entries) =>
+      entries.map((entry) => (entry.product.id === productId ? { ...entry, lotId } : entry)),
     );
     this.quoteCart();
   }
@@ -1478,6 +1558,16 @@ export class ApplicationPage implements OnInit {
     this.cart.set(
       this.cart().map((entry) =>
         entry.product.id === productId ? { ...entry, quantity: normalized } : entry,
+      ),
+    );
+    this.quoteCart();
+  }
+
+  protected updateCartSerials(productId: string, serialNumbers: string): void {
+    this.resetCompletedSale();
+    this.cart.update((entries) =>
+      entries.map((entry) =>
+        entry.product.id === productId ? { ...entry, serialNumbers } : entry,
       ),
     );
     this.quoteCart();
@@ -1518,6 +1608,15 @@ export class ApplicationPage implements OnInit {
       lines: this.cart().map((entry) => ({
         productId: entry.product.id,
         quantity: entry.quantity,
+        ...(entry.lotId ? { lotId: entry.lotId } : {}),
+        ...((entry.serialNumbers ?? '').trim()
+          ? {
+              serialNumbers: entry.serialNumbers
+                .split(/\r?\n/)
+                .map((serialNumber) => serialNumber.trim())
+                .filter(Boolean),
+            }
+          : {}),
       })),
       ...(this.cashForm.controls.customerId.value
         ? { customerId: this.cashForm.controls.customerId.value }
@@ -1573,7 +1672,10 @@ export class ApplicationPage implements OnInit {
         this.loadCashMovements();
         this.loadAuditEvents();
         const selected = this.selectedProduct();
-        if (selected) this.loadBalance(selected.id);
+        if (selected) {
+          this.loadBalance(selected.id);
+          this.loadSerials(selected);
+        }
       },
       error: (error: HttpErrorResponse) => {
         if (error.status === 0) {
@@ -1686,6 +1788,8 @@ export class ApplicationPage implements OnInit {
           this.editingProduct.set(null);
           this.selectedProduct.set(data);
           this.loadBalance(data.id);
+          this.loadLots(data.id);
+          this.loadSerials(data);
         },
         error: (error: HttpErrorResponse) =>
           this.catalogError.set(
@@ -1696,6 +1800,16 @@ export class ApplicationPage implements OnInit {
 
   protected filterSales(): void {
     this.loadSales(1);
+  }
+
+  protected viewSerialHistory(serialId: string): void {
+    this.inventory.serialHistory(serialId).subscribe({
+      next: ({ data }) => this.selectedSerialHistory.set(data),
+      error: (error: HttpErrorResponse) =>
+        this.stockError.set(
+          this.operationMessage(error, 'No fue posible consultar la custodia de la serie.'),
+        ),
+    });
   }
 
   protected filterSalesCashReport(): void {
@@ -1929,6 +2043,15 @@ export class ApplicationPage implements OnInit {
       quantity: value.quantity.trim(),
       reason: value.reason.trim(),
       ...(value.reference.trim() ? { reference: value.reference.trim() } : {}),
+      ...(value.lotCode.trim() ? { lotCode: value.lotCode.trim() } : {}),
+      ...(value.serialNumbers.trim()
+        ? {
+            serialNumbers: value.serialNumbers
+              .split(/\r?\n/)
+              .map((serialNumber) => serialNumber.trim())
+              .filter(Boolean),
+          }
+        : {}),
     };
     const pending = this.pendingMovement;
     const idempotencyKey =
@@ -1950,10 +2073,14 @@ export class ApplicationPage implements OnInit {
             quantity: '',
             reason: '',
             reference: '',
+            lotCode: '',
+            serialNumbers: '',
           });
           this.movementTypeChanged();
           this.loadStockList(this.stockPage());
           this.loadMovementHistory(1);
+          this.loadLots(product.id);
+          this.loadSerials(product);
           this.loadAuditEvents();
         },
         error: (error: HttpErrorResponse) => {
@@ -1995,6 +2122,14 @@ export class ApplicationPage implements OnInit {
       quantity: value.quantity.trim(),
       reason: value.reason.trim(),
       reference: value.reference.trim(),
+      ...(value.serialNumbers.trim()
+        ? {
+            serialNumbers: value.serialNumbers
+              .split(/\r?\n/)
+              .map((serialNumber) => serialNumber.trim())
+              .filter(Boolean),
+          }
+        : {}),
     };
     const pending = this.pendingStateTransition;
     const idempotencyKey =
@@ -2020,10 +2155,12 @@ export class ApplicationPage implements OnInit {
             quantity: '',
             reason: '',
             reference: '',
+            serialNumbers: '',
           });
           this.loadBalance(product.id);
           this.loadStockList(this.stockPage());
           this.loadMovementHistory(1);
+          this.loadSerials(product);
           this.loadAuditEvents();
         },
         error: (error: HttpErrorResponse) => {
@@ -2058,6 +2195,14 @@ export class ApplicationPage implements OnInit {
           sourceLocationId: value.sourceLocationId,
           destinationLocationId: value.destinationLocationId,
           quantity: value.quantity.trim(),
+          ...(value.serialNumbers.trim()
+            ? {
+                serialNumbers: value.serialNumbers
+                  .split(/\r?\n/)
+                  .map((serialNumber) => serialNumber.trim())
+                  .filter(Boolean),
+              }
+            : {}),
         },
       ],
     };
@@ -2080,6 +2225,7 @@ export class ApplicationPage implements OnInit {
           this.transferForm.controls.quantity.setValue('');
           this.transferForm.controls.reference.setValue('');
           this.transferForm.controls.reason.setValue('');
+          this.transferForm.controls.serialNumbers.setValue('');
           this.loadTransfers();
           this.loadAuditEvents();
         },
@@ -2149,6 +2295,8 @@ export class ApplicationPage implements OnInit {
     receivedValue: string,
     discrepancyValue: string,
     reasonValue: string,
+    receivedSerialsValue = '',
+    discrepancySerialsValue = '',
   ): void {
     if (!this.canTransferInventory() || this.transferActionId()) return;
     const received = receivedValue.trim();
@@ -2174,6 +2322,22 @@ export class ApplicationPage implements OnInit {
           transferLineId: line.id,
           receivedQuantity: received,
           discrepancyQuantity: discrepancy,
+          ...(receivedSerialsValue.trim()
+            ? {
+                receivedSerialNumbers: receivedSerialsValue
+                  .split(/\r?\n/)
+                  .map((value) => value.trim())
+                  .filter(Boolean),
+              }
+            : {}),
+          ...(discrepancySerialsValue.trim()
+            ? {
+                discrepancySerialNumbers: discrepancySerialsValue
+                  .split(/\r?\n/)
+                  .map((value) => value.trim())
+                  .filter(Boolean),
+              }
+            : {}),
         },
       ],
     };
@@ -2236,6 +2400,7 @@ export class ApplicationPage implements OnInit {
       INVENTORY_TRANSFER: 'Crear y recibir transferencias',
       INVENTORY_COUNT: 'Realizar conteos',
       INVENTORY_APPROVE: 'Despachar, cancelar y aprobar operaciones',
+      INVENTORY_VALUATION_MANAGE: 'Cambiar el método de valorización',
     }[permission];
   }
 
@@ -2501,6 +2666,59 @@ export class ApplicationPage implements OnInit {
     });
   }
 
+  private loadLots(productId: string): void {
+    this.selectedProductLots.set([]);
+    this.lotReconciled.set(true);
+    this.selectedProductLotValuation.set({ currency: null, inventoryValue: '0.0000' });
+    this.inventory.listLots(productId).subscribe({
+      next: ({ data, meta }) => {
+        this.selectedProductLots.set(data);
+        this.lotReconciled.set(meta.reconciled);
+        this.selectedProductLotValuation.set({
+          currency: meta.currency,
+          inventoryValue: meta.inventoryValue,
+        });
+      },
+      error: (error: HttpErrorResponse) =>
+        this.stockError.set(this.operationMessage(error, 'No fue posible consultar los lotes.')),
+    });
+    this.selectedProductFifoLayers.set([]);
+    this.selectedProductFifoValuation.set({
+      currency: null,
+      inventoryValue: '0.0000',
+      reconciled: true,
+      cutoverAt: null,
+    });
+    this.inventory.listFifoLayers(productId).subscribe({
+      next: ({ data, meta }) => {
+        this.selectedProductFifoLayers.set(data);
+        this.selectedProductFifoValuation.set({
+          currency: meta.currency,
+          inventoryValue: meta.inventoryValue,
+          reconciled: meta.reconciled,
+          cutoverAt: meta.cutover.effectiveAt,
+        });
+      },
+      error: (error: HttpErrorResponse) =>
+        this.stockError.set(
+          this.operationMessage(error, 'No fue posible consultar las capas FIFO.'),
+        ),
+    });
+  }
+
+  private loadSerials(product: ProductData): void {
+    this.selectedProductSerials.set([]);
+    this.selectedSerialHistory.set(null);
+    if (!product.trackSerials) return;
+    this.inventory.listSerials(product.id).subscribe({
+      next: ({ data }) => this.selectedProductSerials.set(data),
+      error: (error: HttpErrorResponse) =>
+        this.stockError.set(
+          this.operationMessage(error, 'No fue posible consultar los nÃºmeros de serie.'),
+        ),
+    });
+  }
+
   private loadProducts(page: number): void {
     this.loadingCatalog.set(true);
     this.catalogError.set(null);
@@ -2549,6 +2767,7 @@ export class ApplicationPage implements OnInit {
           this.stockList.set(data);
           this.negativeStockPolicy.set(meta.policy.negativeStock);
           this.stockScope.set(meta.scope);
+          this.stockValuationReport.set(meta.valuation);
           this.stockPage.set(meta.pagination.page);
           this.stockTotalPages.set(meta.pagination.totalPages);
           this.stockTotal.set(meta.pagination.total);
@@ -2628,7 +2847,10 @@ export class ApplicationPage implements OnInit {
     this.loadMovementHistory(1);
     this.loadAuditEvents();
     const selected = this.selectedProduct();
-    if (selected) this.loadBalance(selected.id);
+    if (selected) {
+      this.loadBalance(selected.id);
+      this.loadSerials(selected);
+    }
   }
 
   private loadSales(page: number): void {
@@ -2819,6 +3041,15 @@ export class ApplicationPage implements OnInit {
         this.cart().map((entry) => ({
           productId: entry.product.id,
           quantity: entry.quantity,
+          ...(entry.lotId ? { lotId: entry.lotId } : {}),
+          ...((entry.serialNumbers ?? '').trim()
+            ? {
+                serialNumbers: entry.serialNumbers
+                  .split(/\r?\n/)
+                  .map((serialNumber) => serialNumber.trim())
+                  .filter(Boolean),
+              }
+            : {}),
         })),
       )
       .pipe(finalize(() => this.quotingCart.set(false)))
@@ -3004,6 +3235,10 @@ export class ApplicationPage implements OnInit {
       ...(value.brandName.trim() ? { brandName: value.brandName.trim() } : {}),
       cost: value.cost.trim(),
       price: value.price.trim(),
+      trackLots: value.trackLots,
+      ...(value.trackSerials || this.editingProduct()?.trackSerials
+        ? { trackSerials: value.trackSerials }
+        : {}),
     };
   }
 
@@ -3016,6 +3251,8 @@ export class ApplicationPage implements OnInit {
       brandName: product?.brand?.name ?? '',
       cost: '',
       price: '',
+      trackLots: product?.trackLots ?? false,
+      trackSerials: product?.trackSerials ?? false,
     });
   }
 

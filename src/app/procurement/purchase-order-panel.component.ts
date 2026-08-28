@@ -280,6 +280,14 @@ export class PurchaseOrderPanelComponent implements OnInit {
       .map((line) => ({
         purchaseReceiptLineId: line.purchaseReceiptLineId,
         returnedQuantity: line.returnedQuantity.trim(),
+        ...(line.serialNumbers.trim()
+          ? {
+              serialNumbers: line.serialNumbers
+                .split(/\r?\n/)
+                .map((value) => value.trim())
+                .filter(Boolean),
+            }
+          : {}),
       }));
     if (lines.length === 0) {
       this.error.set('Captura al menos una cantidad a devolver.');
@@ -345,6 +353,15 @@ export class PurchaseOrderPanelComponent implements OnInit {
       .map((line) => ({
         purchaseOrderLineId: line.purchaseOrderLineId,
         receivedQuantity: line.receivedQuantity.trim(),
+        ...(line.lotCode.trim() ? { lotCode: line.lotCode.trim() } : {}),
+        ...(line.serialNumbers.trim()
+          ? {
+              serialNumbers: line.serialNumbers
+                .split(/\r?\n/)
+                .map((value) => value.trim())
+                .filter(Boolean),
+            }
+          : {}),
       }));
     if (lines.length === 0) {
       this.error.set('Captura al menos una cantidad recibida.');
@@ -594,6 +611,8 @@ export class PurchaseOrderPanelComponent implements OnInit {
         receivedQuantity,
         [Validators.required, Validators.pattern(RECEIPT_QUANTITY_PATTERN)],
       ],
+      lotCode: ['', [Validators.maxLength(64)]],
+      serialNumbers: [''],
     });
   }
 
@@ -604,6 +623,7 @@ export class PurchaseOrderPanelComponent implements OnInit {
         returnedQuantity,
         [Validators.required, Validators.pattern(RECEIPT_QUANTITY_PATTERN)],
       ],
+      serialNumbers: [''],
     });
   }
 

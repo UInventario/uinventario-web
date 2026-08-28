@@ -39,6 +39,8 @@ describe('ApplicationPage', () => {
   let inventory: {
     listLocations: ReturnType<typeof vi.fn>;
     listStock: ReturnType<typeof vi.fn>;
+    listLots: ReturnType<typeof vi.fn>;
+    listFifoLayers: ReturnType<typeof vi.fn>;
     listMovements: ReturnType<typeof vi.fn>;
     getBalance: ReturnType<typeof vi.fn>;
     createMovement: ReturnType<typeof vi.fn>;
@@ -50,6 +52,11 @@ describe('ApplicationPage', () => {
     createCountSession: ReturnType<typeof vi.fn>;
     recordCount: ReturnType<typeof vi.fn>;
     closeCountSession: ReturnType<typeof vi.fn>;
+    getValuationPolicy: ReturnType<typeof vi.fn>;
+    previewValuationPolicy: ReturnType<typeof vi.fn>;
+    changeValuationPolicy: ReturnType<typeof vi.fn>;
+    latestReconciliation: ReturnType<typeof vi.fn>;
+    runReconciliation: ReturnType<typeof vi.fn>;
   };
   let pos: {
     getCurrentShift: ReturnType<typeof vi.fn>;
@@ -160,7 +167,46 @@ describe('ApplicationPage', () => {
               branch: { id: 'branch', name: 'Sucursal' },
               warehouse: { id: 'warehouse', name: 'Bodega' },
             },
+            valuation: {
+              method: 'MOVING_AVERAGE',
+              policyVersion: 1,
+              effectiveAt: '2026-01-01T00:00:00.000Z',
+              currency: 'MXN',
+              asOf: '2026-01-01T01:00:00.000Z',
+            },
             pagination: { page: 1, pageSize: 10, total: 0, totalPages: 0 },
+          },
+        }),
+      ),
+      listLots: vi.fn().mockReturnValue(
+        of({
+          data: [],
+          meta: {
+            apiVersion: '1',
+            tracked: false,
+            totalQuantity: '0.000',
+            lotQuantity: '0.000',
+            reconciled: true,
+            currency: null,
+            inventoryValue: '0.0000',
+          },
+        }),
+      ),
+      listFifoLayers: vi.fn().mockReturnValue(
+        of({
+          data: [],
+          meta: {
+            apiVersion: '1',
+            method: 'FIFO',
+            cutover: {
+              effectiveAt: '2026-08-28T00:00:00.000Z',
+              migrationRule: 'OPENING_BALANCE_AT_MOVING_AVERAGE',
+            },
+            totalQuantity: '0.000',
+            layerQuantity: '0.000',
+            reconciled: true,
+            currency: null,
+            inventoryValue: '0.0000',
           },
         }),
       ),
@@ -193,6 +239,21 @@ describe('ApplicationPage', () => {
       createCountSession: vi.fn(),
       recordCount: vi.fn(),
       closeCountSession: vi.fn(),
+      getValuationPolicy: vi.fn().mockReturnValue(
+        of({
+          data: {
+            method: 'MOVING_AVERAGE',
+            version: 1,
+            effectiveAt: '2026-08-28T00:00:00.000Z',
+            migrationRule: 'INITIAL_DEFAULT',
+          },
+          meta: { apiVersion: '1' },
+        }),
+      ),
+      previewValuationPolicy: vi.fn(),
+      changeValuationPolicy: vi.fn(),
+      latestReconciliation: vi.fn().mockReturnValue(of({ data: null, meta: { apiVersion: '1' } })),
+      runReconciliation: vi.fn(),
     };
     pos = {
       getCurrentShift: vi.fn().mockReturnValue(
@@ -389,6 +450,7 @@ describe('ApplicationPage', () => {
           'INVENTORY_TRANSFER',
           'INVENTORY_COUNT',
           'INVENTORY_APPROVE',
+          'INVENTORY_VALUATION_MANAGE',
         ],
       },
       tenant: { id: 'tenant', name: 'Tienda' },
@@ -481,6 +543,7 @@ describe('ApplicationPage', () => {
       brandName: 'Casa',
       cost: '1.20',
       price: '2.50',
+      trackLots: false,
     });
     expect(fixture.nativeElement.textContent).toContain('Producto creado');
     expect(products.list).toHaveBeenLastCalledWith({ page: 1, pageSize: 5 });
@@ -749,6 +812,7 @@ describe('ApplicationPage', () => {
       brandName: 'Casa',
       cost: '1.20',
       price: '3.00',
+      trackLots: false,
       version: 1,
     });
     expect(fixture.nativeElement.textContent).toContain('Producto actualizado');
@@ -862,6 +926,13 @@ describe('ApplicationPage', () => {
             availableQuantity: '10.000',
             totalQuantity: '10.000',
             states: [{ code: 'AVAILABLE', quantity: '10.000' }],
+            costing: {
+              method: 'MOVING_AVERAGE',
+              currency: 'MXN',
+              quantity: '10.000',
+              inventoryValue: '12.0000',
+              reconciled: true,
+            },
           },
         ],
         meta: {
@@ -870,6 +941,13 @@ describe('ApplicationPage', () => {
           scope: {
             branch: { id: 'branch', name: 'Sucursal' },
             warehouse: { id: 'warehouse', name: 'Bodega' },
+          },
+          valuation: {
+            method: 'MOVING_AVERAGE',
+            policyVersion: 1,
+            effectiveAt: '2026-01-01T00:00:00.000Z',
+            currency: 'MXN',
+            asOf: '2026-01-01T01:00:00.000Z',
           },
           pagination: { page: 1, pageSize: 10, total: 1, totalPages: 1 },
         },
@@ -907,6 +985,10 @@ describe('ApplicationPage', () => {
     expect(
       fixture.nativeElement.querySelector('[aria-label="Existencias por producto"]').textContent,
     ).toContain('CAFE-1');
+    expect(fixture.nativeElement.textContent).toContain('Promedio móvil');
+    expect(fixture.nativeElement.textContent).toContain('MXN');
+    expect(fixture.nativeElement.textContent).toContain('Cantidad valorizada 10.000');
+    expect(fixture.nativeElement.textContent).toContain('12.0000');
   });
 
   it('previews and confirms an atomic inventory import from the real file control', () => {

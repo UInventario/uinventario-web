@@ -73,6 +73,8 @@ el pipeline de despliegue debe ejecutar este gate antes de publicar.
 `cloudbuild.yaml` aplica el mismo orden antes de construir y desplegar la imagen;
 la configuración y el rollback están documentados en
 `uinventario-api/docs/operations/cloud-build.md`.
+El checklist y runbook coordinado de release se mantienen en
+`uinventario-api/docs/operations/production-runbook.md`.
 
 El E2E requiere MySQL local sano y el build actual de `uinventario-api`; Playwright levanta temporalmente API y Web.
 

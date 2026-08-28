@@ -23,6 +23,61 @@ export type InventoryMovementType =
 
 export type InventoryStockState = 'AVAILABLE' | 'RESERVED' | 'DAMAGED' | 'IN_TRANSIT';
 
+export type InventoryValuationMethod = 'MOVING_AVERAGE' | 'FIFO' | 'SPECIFIC_LOT';
+
+export interface InventoryValuationPolicyData {
+  method: InventoryValuationMethod;
+  version: number;
+  effectiveAt: string;
+  migrationRule: 'INITIAL_DEFAULT' | 'FORWARD_ONLY_CUTOVER';
+}
+
+export interface InventoryValuationMigrationPlan {
+  current: InventoryValuationPolicyData;
+  targetMethod: InventoryValuationMethod;
+  allowed: boolean;
+  blockingReasons: string[];
+  strategy:
+    | 'USE_MAINTAINED_MOVING_AVERAGE'
+    | 'USE_MAINTAINED_FIFO_LAYERS'
+    | 'OPENING_LOTS_AT_MOVING_AVERAGE';
+  productsToMigrate: number;
+  locationsToMigrate: number;
+  devicesToRebootstrap: number;
+  planFingerprint: string;
+}
+
+export type InventoryReconciliationStatus = 'HEALTHY' | 'WARNING' | 'CRITICAL';
+
+export interface InventoryReconciliationFindingData {
+  id: string;
+  code: string;
+  severity: 'WARNING' | 'CRITICAL';
+  scopeType: 'TENANT' | 'PRODUCT' | 'LOCATION' | 'LOT' | 'SERIAL' | 'VALUATION';
+  product: { id: string; name: string; sku: string } | null;
+  location: InventoryLocationData | null;
+  subjectReference: string | null;
+  expectedValue: string | null;
+  actualValue: string | null;
+  differenceValue: string | null;
+  message: string;
+  recommendedAction: string;
+  blocksOperations: boolean;
+}
+
+export interface InventoryReconciliationRunData {
+  id: string;
+  status: 'RUNNING' | 'COMPLETED';
+  overallStatus: InventoryReconciliationStatus;
+  summary: { findings: number; warnings: number; critical: number };
+  policy: { releaseBlocked: boolean; operationsBlocked: boolean };
+  correlationId: string;
+  responsible: { id: string; email: string };
+  startedAt: string;
+  finishedAt: string | null;
+  findings: InventoryReconciliationFindingData[];
+}
+
 export interface InventoryStateQuantity {
   code: InventoryStockState;
   quantity: string;
@@ -62,6 +117,8 @@ export interface InventoryMovementInput {
   quantity: string;
   reason: string;
   reference?: string;
+  lotCode?: string;
+  serialNumbers?: string[];
 }
 
 export interface InventoryStateTransitionInput {
@@ -72,13 +129,114 @@ export interface InventoryStateTransitionInput {
   quantity: string;
   reason: string;
   reference: string;
+  serialNumbers?: string[];
 }
 
 export interface InventoryStockItem {
-  product: { id: string; name: string; sku: string; active: boolean };
+  product: { id: string; name: string; sku: string; active: boolean; trackLots: boolean };
   availableQuantity: string;
   totalQuantity: string;
   states: InventoryStateQuantity[];
+  averageUnitCost?: string;
+  inventoryValue?: string;
+  costing: {
+    method: InventoryValuationMethod;
+    currency: string;
+    quantity: string;
+    inventoryValue: string;
+    reconciled: boolean;
+  };
+  valuation?: {
+    quantity: string;
+    inventoryValue: string;
+    quantityReconciled?: boolean;
+    valueReconciled?: boolean;
+    reconciled: boolean;
+  };
+  lotTracking?: {
+    lotQuantity: string;
+    reconciled: boolean;
+    currency: string | null;
+    inventoryValue: string;
+  } | null;
+  fifoValuation?: {
+    quantity: string;
+    inventoryValue: string;
+    currency: string | null;
+    reconciled: boolean;
+  };
+}
+
+export interface InventoryStockValuationReport {
+  method: InventoryValuationMethod;
+  policyVersion: number;
+  effectiveAt: string;
+  currency: string;
+  asOf: string;
+}
+
+export interface InventoryLotData {
+  id: string;
+  code: string;
+  product: { id: string; name: string; sku: string };
+  quantity: string;
+  unitCost: string;
+  currency: string;
+  inventoryValue: string;
+  createdAt: string;
+  origins: Array<{
+    purchaseReceiptLineId: string;
+    quantity: string;
+    unitCost: string;
+    currency: string;
+    receipt: { id: string; documentReference: string };
+    purchaseOrder: { id: string; folio: string };
+  }>;
+  balances: Array<{ location: InventoryLocationData; quantity: string }>;
+}
+
+export interface InventoryFifoLayerData {
+  id: string;
+  product: { id: string; name: string; sku: string };
+  location: InventoryLocationData;
+  originType: 'MIGRATION_CUT' | 'ENTRY' | 'PURCHASE_RECEIPT' | 'RETURN' | 'TRANSFER';
+  originalQuantity: string;
+  remainingQuantity: string;
+  unitCost: string;
+  currency: string;
+  inventoryValue: string;
+  acquiredAt: string;
+  source: {
+    movementId: string | null;
+    movementType: InventoryMovementType | null;
+    reference: string | null;
+    layerId: string | null;
+    purchaseReceiptLineId: string | null;
+  };
+}
+
+export type InventorySerialStatus =
+  'AVAILABLE' | 'RESERVED' | 'DAMAGED' | 'IN_TRANSIT' | 'SOLD' | 'RETURNED_TO_SUPPLIER' | 'REMOVED';
+
+export interface InventorySerialData {
+  id: string;
+  serialNumber: string;
+  status: InventorySerialStatus;
+  product: { id: string; name: string; sku: string };
+  currentLocation: InventoryLocationData | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InventorySerialEventData {
+  id: string;
+  movement: { id: string; type: InventoryMovementType; reference: string | null; reason: string };
+  fromStatus: InventorySerialStatus | null;
+  toStatus: InventorySerialStatus;
+  fromLocation: InventoryLocationData | null;
+  toLocation: InventoryLocationData | null;
+  responsible: { id: string; email: string };
+  createdAt: string;
 }
 
 export interface InventoryMovementHistoryItem {
@@ -118,6 +276,39 @@ export interface InventoryMovementHistoryItem {
     to: InventoryStockState;
     quantity: string;
   } | null;
+  valuation?: {
+    method: InventoryValuationMethod;
+    policyVersion: number;
+    effectiveAt: string;
+    unitCost: string;
+    valueChange: string;
+    resultingInventoryValue: string | null;
+    averageUnitCost: string | null;
+  } | null;
+  lots?: Array<{
+    id: string;
+    code: string;
+    quantityChange: string;
+    unitCost: string;
+    currency: string;
+    valueChange: string;
+    selectionMode: 'ORIGIN' | 'MANUAL' | 'AUTOMATIC' | 'RESTORE' | 'TRANSFER';
+  }>;
+  fifoValuation?: {
+    unitCost: string;
+    valueChange: string;
+    resultingInventoryValue: string;
+  } | null;
+  fifoLayers?: Array<{
+    allocationId: string;
+    layerId: string;
+    sourceAllocationId: string | null;
+    quantityChange: string;
+    unitCost: string;
+    currency: string;
+    valueChange: string;
+    selectionMode: 'ENTRY' | 'FIFO' | 'RESTORE' | 'TRANSFER' | 'ORIGIN_RETURN';
+  }>;
 }
 
 interface LocationsResponse {
@@ -156,6 +347,7 @@ export interface StockListResponse {
       branch: { id: string; name: string };
       warehouse: { id: string; name: string };
     };
+    valuation: InventoryStockValuationReport;
     pagination: { page: number; pageSize: number; total: number; totalPages: number };
   };
 }
@@ -258,6 +450,66 @@ export class InventoryApiService {
     });
   }
 
+  getValuationPolicy() {
+    return this.http.get<{ data: InventoryValuationPolicyData; meta: { apiVersion: '1' } }>(
+      `${this.config.apiBaseUrl()}/inventory/valuation-policy`,
+      { withCredentials: true },
+    );
+  }
+
+  previewValuationPolicy(targetMethod: InventoryValuationMethod) {
+    return this.http.post<{
+      data: InventoryValuationMigrationPlan;
+      meta: { apiVersion: '1' };
+    }>(
+      `${this.config.apiBaseUrl()}/inventory/valuation-policy/preview`,
+      { targetMethod },
+      { withCredentials: true },
+    );
+  }
+
+  changeValuationPolicy(
+    input: {
+      targetMethod: InventoryValuationMethod;
+      expectedVersion: number;
+      planFingerprint: string;
+    },
+    idempotencyKey: string,
+  ) {
+    const headers = new HttpHeaders().set('Idempotency-Key', idempotencyKey);
+    return this.http.post<{
+      data: InventoryValuationPolicyData;
+      meta: { apiVersion: '1'; replay: boolean };
+    }>(`${this.config.apiBaseUrl()}/inventory/valuation-policy/changes`, input, {
+      headers,
+      withCredentials: true,
+    });
+  }
+
+  latestReconciliation() {
+    return this.http.get<{
+      data: InventoryReconciliationRunData | null;
+      meta: { apiVersion: '1' };
+    }>(`${this.config.apiBaseUrl()}/inventory/reconciliations/latest`, {
+      withCredentials: true,
+    });
+  }
+
+  runReconciliation(idempotencyKey: string) {
+    const headers = new HttpHeaders().set('Idempotency-Key', idempotencyKey);
+    return this.http.post<{
+      data: InventoryReconciliationRunData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(
+      `${this.config.apiBaseUrl()}/inventory/reconciliations`,
+      {},
+      {
+        headers,
+        withCredentials: true,
+      },
+    );
+  }
+
   listStock(query: {
     branchId?: string;
     warehouseId?: string;
@@ -273,6 +525,62 @@ export class InventoryApiService {
     if (query.q) params = params.set('q', query.q);
     return this.http.get<StockListResponse>(`${this.config.apiBaseUrl()}/inventory/stock`, {
       params,
+      withCredentials: true,
+    });
+  }
+
+  listLots(productId: string) {
+    return this.http.get<{
+      data: InventoryLotData[];
+      meta: {
+        apiVersion: '1';
+        tracked: boolean;
+        totalQuantity: string;
+        lotQuantity: string;
+        reconciled: boolean;
+        currency: string | null;
+        inventoryValue: string;
+      };
+    }>(`${this.config.apiBaseUrl()}/inventory/products/${productId}/lots`, {
+      withCredentials: true,
+    });
+  }
+
+  listSerials(productId: string) {
+    return this.http.get<{
+      data: InventorySerialData[];
+      meta: { apiVersion: '1'; tracked: boolean };
+    }>(`${this.config.apiBaseUrl()}/inventory/products/${productId}/serials`, {
+      withCredentials: true,
+    });
+  }
+
+  serialHistory(serialId: string) {
+    return this.http.get<{
+      data: { serial: InventorySerialData; events: InventorySerialEventData[] };
+      meta: { apiVersion: '1' };
+    }>(`${this.config.apiBaseUrl()}/inventory/serials/${serialId}/history`, {
+      withCredentials: true,
+    });
+  }
+
+  listFifoLayers(productId: string) {
+    return this.http.get<{
+      data: InventoryFifoLayerData[];
+      meta: {
+        apiVersion: '1';
+        method: 'FIFO';
+        cutover: {
+          effectiveAt: string;
+          migrationRule: 'OPENING_BALANCE_AT_MOVING_AVERAGE';
+        };
+        totalQuantity: string;
+        layerQuantity: string;
+        reconciled: boolean;
+        currency: string | null;
+        inventoryValue: string;
+      };
+    }>(`${this.config.apiBaseUrl()}/inventory/products/${productId}/fifo-layers`, {
       withCredentials: true,
     });
   }

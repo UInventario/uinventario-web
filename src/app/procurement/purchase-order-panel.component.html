@@ -79,6 +79,19 @@
               inputmode="decimal"
               formControlName="receivedQuantity"
             />
+            Código de lote (si el producto controla lotes)
+            <input
+              [id]="'purchaseReceiptLot' + index"
+              formControlName="lotCode"
+              maxlength="64"
+              placeholder="Ej. LOT-2026-001"
+            />
+            NÃºmeros de serie (uno por lÃ­nea si aplica)
+            <textarea
+              [id]="'purchaseReceiptSerials' + index"
+              formControlName="serialNumbers"
+              rows="3"
+            ></textarea>
           </label>
         }
       </div>
@@ -129,6 +142,9 @@
                 Recibido {{ context.receipt.lines[index].receivedQuantity }} · Devuelto
                 {{ context.receipt.lines[index].returnedQuantity }} · Disponible
                 {{ context.receipt.lines[index].returnableQuantity }}
+                @if (context.receipt.lines[index].lotCode; as lotCode) {
+                  · Lote {{ lotCode }}
+                }
               </small>
             </span>
             Cantidad a devolver
@@ -137,6 +153,8 @@
               inputmode="decimal"
               formControlName="returnedQuantity"
             />
+            Series a devolver (una por lÃ­nea si aplica)
+            <textarea formControlName="serialNumbers" rows="3"></textarea>
           </label>
         }
       </div>
