@@ -64,4 +64,5 @@ gcloud run deploy "$service_name" \
 service_url="$(gcloud run services describe "$service_name" --project="$project_id" --region="$region" --format='value(status.url)')"
 curl --fail --silent --show-error "${service_url}/health/live" >/dev/null
 curl --fail --silent --show-error "${service_url}/config.json" >/dev/null
+sh deploy/security-smoke.sh "$service_url"
 printf '%s\n' "$service_url"

@@ -61,6 +61,10 @@ test('serves dynamic same-origin configuration and health', async () => {
 
   const healthResponse = await fetch(`${applicationUrl}/health/live`);
   assert.equal(healthResponse.status, 200);
+  assert.match(healthResponse.headers.get('content-security-policy'), /frame-ancestors 'none'/);
+  assert.equal(healthResponse.headers.get('x-frame-options'), 'DENY');
+  assert.equal(healthResponse.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(healthResponse.headers.get('strict-transport-security'), null);
   assert.deepEqual(await healthResponse.json(), { status: 'ok' });
 });
 
@@ -92,4 +96,19 @@ test('rejects insecure production upstreams', () => {
     () => createApplicationServer({ environment: 'prod', apiUpstream: 'http://api.invalid' }),
     /secure origin/,
   );
+});
+
+test('enables transport security outside local development', async () => {
+  const secureApplication = createApplicationServer({
+    rootDirectory,
+    environment: 'dev',
+    apiUpstream: 'https://api.example.test',
+  });
+  const secureUrl = await listen(secureApplication);
+  try {
+    const response = await fetch(`${secureUrl}/health/live`);
+    assert.match(response.headers.get('strict-transport-security'), /max-age=31536000/);
+  } finally {
+    await new Promise((resolve) => secureApplication.close(resolve));
+  }
 });
