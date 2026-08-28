@@ -1,0 +1,103 @@
+<section
+  class="history-panel"
+  aria-labelledby="customer-history-title"
+  [attr.aria-busy]="loading()"
+>
+  <div class="history-heading">
+    <div>
+      <p class="eyebrow">Contexto del cliente</p>
+      <h3 id="customer-history-title">Historial de {{ customer().name }}</h3>
+      <p>{{ customer().identifier || 'Sin identificador' }} · sucursal activa</p>
+    </div>
+    <button class="secondary" type="button" (click)="dismissed.emit()">Cerrar</button>
+  </div>
+
+  <form class="history-filters" [formGroup]="filters" (ngSubmit)="applyFilters()">
+    <label for="customerHistoryStatus">Estado</label>
+    <select id="customerHistoryStatus" formControlName="status">
+      <option value="ALL">Todas</option>
+      <option value="COMPLETED">Completadas</option>
+      <option value="VOIDED">Anuladas</option>
+    </select>
+    <label for="customerHistoryFrom">Desde</label>
+    <input id="customerHistoryFrom" type="date" formControlName="dateFrom" />
+    <label for="customerHistoryTo">Hasta</label>
+    <input id="customerHistoryTo" type="date" formControlName="dateTo" />
+    <button type="submit" [disabled]="loading()">Filtrar</button>
+  </form>
+
+  @if (error()) {
+    <div class="form-error" role="alert">{{ error() }}</div>
+  }
+
+  @if (history(); as data) {
+    <dl class="history-summary">
+      <div>
+        <dt>Operaciones</dt>
+        <dd>{{ data.summary.salesCount }}</dd>
+      </div>
+      <div>
+        <dt>Completadas</dt>
+        <dd>{{ data.summary.completedCount }}</dd>
+      </div>
+      <div>
+        <dt>Anuladas / reversadas</dt>
+        <dd>{{ data.summary.voidedCount }}</dd>
+      </div>
+      <div>
+        <dt>Venta efectiva</dt>
+        <dd>{{ data.summary.currency || '' }} {{ data.summary.completedAmount }}</dd>
+      </div>
+    </dl>
+
+    @if (data.items.length === 0 && !loading()) {
+      <p class="empty-history">No hay compras para los filtros seleccionados.</p>
+    } @else {
+      <div class="history-list">
+        @for (sale of data.items; track sale.id) {
+          <article [class.voided]="sale.status === 'VOIDED'">
+            <div>
+              <strong>{{ sale.receiptNumber }}</strong>
+              <small>{{ sale.createdAt | date: 'short' }} · {{ sale.cashRegister.name }}</small>
+            </div>
+            <div>
+              <strong>{{ sale.currency }} {{ sale.total }}</strong>
+              <small>{{ sale.status === 'COMPLETED' ? 'Completada' : 'Anulada' }}</small>
+            </div>
+            <div class="payment-list">
+              @for (payment of sale.payments; track payment.method) {
+                <span>
+                  {{ payment.method }} · {{ payment.amountApplied }} ·
+                  {{ payment.status === 'COMPLETED' ? 'Aplicado' : 'Reversado' }}
+                </span>
+              }
+              @if (sale.reversal) {
+                <small>Motivo: {{ sale.reversal.reason }}</small>
+              }
+            </div>
+            <button class="secondary" type="button" (click)="saleSelected.emit(sale.id)">
+              Ver venta
+            </button>
+          </article>
+        }
+      </div>
+    }
+
+    @if (totalPages() > 1) {
+      <div class="history-pagination">
+        <button class="secondary" type="button" (click)="previous()" [disabled]="page() === 1">
+          Anterior
+        </button>
+        <span>Página {{ page() }} de {{ totalPages() }} · {{ total() }} resultado(s)</span>
+        <button
+          class="secondary"
+          type="button"
+          (click)="next()"
+          [disabled]="page() === totalPages()"
+        >
+          Siguiente
+        </button>
+      </div>
+    }
+  }
+</section>

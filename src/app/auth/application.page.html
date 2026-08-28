@@ -1612,6 +1612,9 @@
                     }}</small>
                   </div>
                   <div class="customer-actions">
+                    <button class="secondary" type="button" (click)="openCustomerHistory(customer)">
+                      Historial
+                    </button>
                     <button class="secondary" type="button" (click)="editCustomer(customer)">
                       Editar
                     </button>
@@ -1622,6 +1625,13 @@
                 </li>
               }
             </ul>
+          }
+          @if (customerHistoryCustomer(); as historyCustomer) {
+            <app-customer-history-panel
+              [customer]="historyCustomer"
+              (saleSelected)="openCustomerSale($event)"
+              (dismissed)="customerHistoryCustomer.set(null)"
+            />
           }
         </div>
 

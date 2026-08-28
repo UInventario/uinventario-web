@@ -98,6 +98,7 @@ describe('ApplicationPage', () => {
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
     deactivate: ReturnType<typeof vi.fn>;
+    history: ReturnType<typeof vi.fn>;
   };
   let productReservations: {
     list: ReturnType<typeof vi.fn>;
@@ -313,6 +314,7 @@ describe('ApplicationPage', () => {
       create: vi.fn(),
       update: vi.fn(),
       deactivate: vi.fn(),
+      history: vi.fn(),
     };
     productReservations = {
       list: vi.fn().mockReturnValue(of({ data: [], meta: { apiVersion: '1' } })),
