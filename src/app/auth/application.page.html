@@ -38,11 +38,17 @@
     @if (canExportAudit()) {
       <a routerLink="/app" fragment="data-exports-title">Exportar</a>
     }
+    @if (canManagePrivacy()) {
+      <a routerLink="/app" fragment="privacy-title">Privacidad</a>
+    }
   </nav>
 
   <app-offline-bootstrap-panel />
   @if (canExportAudit()) {
     <app-data-export-panel />
+  }
+  @if (canManagePrivacy()) {
+    <app-privacy-panel />
   }
   @if (canAdjustInventory() || canCountInventory()) {
     <app-offline-inventory-panel />
