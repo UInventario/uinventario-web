@@ -79,6 +79,13 @@
               inputmode="decimal"
               formControlName="receivedQuantity"
             />
+            Código de lote (si el producto controla lotes)
+            <input
+              [id]="'purchaseReceiptLot' + index"
+              formControlName="lotCode"
+              maxlength="64"
+              placeholder="Ej. LOT-2026-001"
+            />
           </label>
         }
       </div>
@@ -129,6 +136,9 @@
                 Recibido {{ context.receipt.lines[index].receivedQuantity }} · Devuelto
                 {{ context.receipt.lines[index].returnedQuantity }} · Disponible
                 {{ context.receipt.lines[index].returnableQuantity }}
+                @if (context.receipt.lines[index].lotCode; as lotCode) {
+                  · Lote {{ lotCode }}
+                }
               </small>
             </span>
             Cantidad a devolver

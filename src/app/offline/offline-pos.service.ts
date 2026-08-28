@@ -70,6 +70,7 @@ export class OfflinePosService {
         name: product.name,
         sku: product.sku,
         barcode: product.barcode,
+        trackLots: false,
         category: null,
         brand: null,
         cost: '0.00',
@@ -146,6 +147,7 @@ export class OfflinePosService {
       return {
         product: { id: product.id, name: product.name, sku: product.sku },
         quantity: this.quantity(quantityUnits),
+        lotId: null,
         availableQuantity: this.quantity(effectiveAvailable),
         unitPrice: this.money(this.moneyCents(product.price)),
         subtotal: this.money(lineSubtotal),

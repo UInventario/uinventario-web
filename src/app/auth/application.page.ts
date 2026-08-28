@@ -14,6 +14,7 @@ import {
   InventoryApiService,
   InventoryBalanceData,
   InventoryMovementInput,
+  InventoryLotData,
   InventoryMovementHistoryItem,
   InventoryMovementType,
   InventoryStateTransitionInput,
@@ -82,6 +83,8 @@ const PAYMENT_REFERENCE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]{3,119}$/;
 interface CartEntry {
   product: ProductData;
   quantity: string;
+  lotId: string;
+  lots: InventoryLotData[];
 }
 
 @Component({
@@ -133,7 +136,7 @@ export class ApplicationPage implements OnInit {
   } | null = null;
   private pendingSale: {
     input: {
-      lines: Array<{ productId: string; quantity: string }>;
+      lines: Array<{ productId: string; quantity: string; lotId?: string }>;
       customerId?: string;
       payments: Array<{
         method: PaymentMethod;
@@ -290,6 +293,8 @@ export class ApplicationPage implements OnInit {
     id: string;
   } | null>(null);
   protected readonly stockList = signal<InventoryStockItem[]>([]);
+  protected readonly selectedProductLots = signal<InventoryLotData[]>([]);
+  protected readonly lotReconciled = signal(true);
   protected readonly stockListError = signal<string | null>(null);
   protected readonly loadingStockList = signal(true);
   protected readonly movementHistory = signal<InventoryMovementHistoryItem[]>([]);
@@ -474,6 +479,7 @@ export class ApplicationPage implements OnInit {
     brandName: ['', [Validators.minLength(2), Validators.maxLength(120)]],
     cost: ['', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
     price: ['', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
+    trackLots: [false],
   });
   protected readonly stockForm = this.formBuilder.nonNullable.group({
     locationId: ['', [Validators.required]],
@@ -481,6 +487,7 @@ export class ApplicationPage implements OnInit {
     quantity: ['', [Validators.required, Validators.pattern(QUANTITY_PATTERN)]],
     reason: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
     reference: ['', [Validators.maxLength(120)]],
+    lotCode: ['', [Validators.maxLength(64)]],
   });
   protected readonly stateTransitionForm = this.formBuilder.nonNullable.group({
     fromState: ['AVAILABLE' as InventoryStockState, [Validators.required]],
@@ -590,6 +597,7 @@ export class ApplicationPage implements OnInit {
         this.loadOptions();
         this.loadProducts(1);
         this.loadBalance(data.id);
+        this.loadLots(data.id);
         this.loadStockList(1);
         this.loadAuditEvents();
       },
@@ -610,6 +618,7 @@ export class ApplicationPage implements OnInit {
       brandName: product.brand?.name ?? '',
       cost: product.cost,
       price: product.price,
+      trackLots: product.trackLots,
     });
   }
 
@@ -1463,7 +1472,26 @@ export class ApplicationPage implements OnInit {
               ? { ...entry, quantity: String(Number(entry.quantity) + 1) }
               : entry,
           )
-        : [...this.cart(), { product, quantity: '1' }],
+        : [...this.cart(), { product, quantity: '1', lotId: '', lots: [] }],
+    );
+    if (!existing && product.trackLots) {
+      this.inventory.listLots(product.id).subscribe({
+        next: ({ data }) => {
+          this.cart.update((entries) =>
+            entries.map((entry) =>
+              entry.product.id === product.id ? { ...entry, lots: data } : entry,
+            ),
+          );
+        },
+      });
+    }
+    this.quoteCart();
+  }
+
+  protected updateCartLot(productId: string, lotId: string): void {
+    this.resetCompletedSale();
+    this.cart.update((entries) =>
+      entries.map((entry) => (entry.product.id === productId ? { ...entry, lotId } : entry)),
     );
     this.quoteCart();
   }
@@ -1518,6 +1546,7 @@ export class ApplicationPage implements OnInit {
       lines: this.cart().map((entry) => ({
         productId: entry.product.id,
         quantity: entry.quantity,
+        ...(entry.lotId ? { lotId: entry.lotId } : {}),
       })),
       ...(this.cashForm.controls.customerId.value
         ? { customerId: this.cashForm.controls.customerId.value }
@@ -1686,6 +1715,7 @@ export class ApplicationPage implements OnInit {
           this.editingProduct.set(null);
           this.selectedProduct.set(data);
           this.loadBalance(data.id);
+          this.loadLots(data.id);
         },
         error: (error: HttpErrorResponse) =>
           this.catalogError.set(
@@ -1929,6 +1959,7 @@ export class ApplicationPage implements OnInit {
       quantity: value.quantity.trim(),
       reason: value.reason.trim(),
       ...(value.reference.trim() ? { reference: value.reference.trim() } : {}),
+      ...(value.lotCode.trim() ? { lotCode: value.lotCode.trim() } : {}),
     };
     const pending = this.pendingMovement;
     const idempotencyKey =
@@ -1950,10 +1981,12 @@ export class ApplicationPage implements OnInit {
             quantity: '',
             reason: '',
             reference: '',
+            lotCode: '',
           });
           this.movementTypeChanged();
           this.loadStockList(this.stockPage());
           this.loadMovementHistory(1);
+          this.loadLots(product.id);
           this.loadAuditEvents();
         },
         error: (error: HttpErrorResponse) => {
@@ -2501,6 +2534,19 @@ export class ApplicationPage implements OnInit {
     });
   }
 
+  private loadLots(productId: string): void {
+    this.selectedProductLots.set([]);
+    this.lotReconciled.set(true);
+    this.inventory.listLots(productId).subscribe({
+      next: ({ data, meta }) => {
+        this.selectedProductLots.set(data);
+        this.lotReconciled.set(meta.reconciled);
+      },
+      error: (error: HttpErrorResponse) =>
+        this.stockError.set(this.operationMessage(error, 'No fue posible consultar los lotes.')),
+    });
+  }
+
   private loadProducts(page: number): void {
     this.loadingCatalog.set(true);
     this.catalogError.set(null);
@@ -2819,6 +2865,7 @@ export class ApplicationPage implements OnInit {
         this.cart().map((entry) => ({
           productId: entry.product.id,
           quantity: entry.quantity,
+          ...(entry.lotId ? { lotId: entry.lotId } : {}),
         })),
       )
       .pipe(finalize(() => this.quotingCart.set(false)))
@@ -3004,6 +3051,7 @@ export class ApplicationPage implements OnInit {
       ...(value.brandName.trim() ? { brandName: value.brandName.trim() } : {}),
       cost: value.cost.trim(),
       price: value.price.trim(),
+      trackLots: value.trackLots,
     };
   }
 
@@ -3016,6 +3064,7 @@ export class ApplicationPage implements OnInit {
       brandName: product?.brand?.name ?? '',
       cost: '',
       price: '',
+      trackLots: product?.trackLots ?? false,
     });
   }
 
