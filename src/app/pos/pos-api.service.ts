@@ -29,6 +29,37 @@ interface PosCartQuoteResponse {
   meta: { apiVersion: '1'; recalculatedAt: string };
 }
 
+export type SuspendedSaleStatus = 'ACTIVE' | 'CANCELLED' | 'RESUMED' | 'EXPIRED';
+
+export interface SuspendedSaleData {
+  id: string;
+  status: SuspendedSaleStatus;
+  context: PosCartQuote['context'];
+  author: { id: string; email: string };
+  customer: { id: string; name: string; identifier: string | null } | null;
+  notes: string | null;
+  lines: Array<{
+    product: { id: string; name: string; sku: string };
+    quantity: string;
+    lotId: string | null;
+    serialNumbers: string[];
+    unitPriceSnapshot: string;
+    availableQuantitySnapshot: string;
+  }>;
+  completedSaleId: string | null;
+  expiresAt: string;
+  createdAt: string;
+  cancelledAt: string | null;
+  resumedAt: string | null;
+}
+
+export interface SuspendedSaleConflict {
+  code: 'PRICE_CHANGED' | 'AVAILABILITY_CHANGED' | 'INSUFFICIENT_STOCK' | 'PRODUCT_NOT_AVAILABLE';
+  productId: string;
+  previous?: string;
+  current?: string;
+}
+
 export interface CashRegisterShiftData {
   id: string;
   status: 'OPEN';
@@ -417,6 +448,7 @@ export class PosApiService {
       }>;
       customerId?: string;
       reservationId?: string;
+      suspendedSaleId?: string;
       payment?: { method: PaymentMethod; amountReceived?: string; reference?: string };
       payments?: Array<{
         method: PaymentMethod;
@@ -431,6 +463,61 @@ export class PosApiService {
       headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
       withCredentials: true,
     });
+  }
+
+  listSuspendedSales() {
+    return this.http.get<{
+      data: SuspendedSaleData[];
+      meta: { apiVersion: '1'; expirationHours: number };
+    }>(`${this.config.apiBaseUrl()}/pos/suspended-sales`, { withCredentials: true });
+  }
+
+  suspendSale(
+    input: {
+      lines: Array<{
+        productId: string;
+        quantity: string;
+        lotId?: string;
+        serialNumbers?: string[];
+      }>;
+      customerId?: string;
+      notes?: string;
+    },
+    idempotencyKey: string,
+  ) {
+    return this.http.post<{
+      data: SuspendedSaleData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(`${this.config.apiBaseUrl()}/pos/suspended-sales`, input, {
+      headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+      withCredentials: true,
+    });
+  }
+
+  resumeSuspendedSale(id: string) {
+    return this.http.post<{
+      data: {
+        suspendedSale: SuspendedSaleData;
+        quote: PosCartQuote | null;
+        conflicts: SuspendedSaleConflict[];
+      };
+      meta: { apiVersion: '1'; recalculatedAt: string };
+    }>(
+      `${this.config.apiBaseUrl()}/pos/suspended-sales/${id}/resume`,
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  cancelSuspendedSale(id: string) {
+    return this.http.post<{
+      data: SuspendedSaleData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(
+      `${this.config.apiBaseUrl()}/pos/suspended-sales/${id}/cancel`,
+      {},
+      { withCredentials: true },
+    );
   }
 
   createCashSale(

@@ -213,7 +213,8 @@ label span {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   min-height: 2.8rem;
   padding: 0.65rem 0.8rem;
@@ -225,7 +226,8 @@ select {
 }
 
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   border-color: #0b5cab;
   outline: 3px solid rgba(11, 92, 171, 0.16);
 }

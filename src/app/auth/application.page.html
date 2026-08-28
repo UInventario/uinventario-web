@@ -2081,6 +2081,14 @@
                   <option [value]="customer.id">{{ customer.name }}</option>
                 }
               </select>
+              <label for="suspendedSaleNotes">Notas del carrito (opcional)</label>
+              <textarea
+                id="suspendedSaleNotes"
+                formControlName="notes"
+                rows="2"
+                maxlength="500"
+                placeholder="Referencia para recuperar la venta"
+              ></textarea>
               @for (payment of paymentRows.controls; track payment; let index = $index) {
                 <div class="sale-payment" [formGroup]="payment">
                   <label [for]="'paymentMethod-' + index">Método de pago {{ index + 1 }}</label>
@@ -2148,6 +2156,14 @@
               @if (paymentRows.invalid) {
                 <small class="field-error">Completa todos los datos del desglose de pago.</small>
               }
+              <button
+                type="button"
+                class="secondary"
+                (click)="suspendCurrentSale()"
+                [disabled]="savingSuspendedSale() || savingSale() || !!resumedSuspendedSaleId()"
+              >
+                {{ savingSuspendedSale() ? 'Suspendiendo…' : 'Suspender venta' }}
+              </button>
               <button type="submit" [disabled]="savingSale() || quotingCart()">
                 {{
                   savingSale()
@@ -2159,9 +2175,86 @@
               </button>
             </form>
           }
+          @if (suspendedSaleConflicts().length > 0) {
+            <div class="form-error suspended-conflicts" role="alert">
+              <strong>Conflictos al reanudar</strong>
+              <ul>
+                @for (conflict of suspendedSaleConflicts(); track $index) {
+                  <li>{{ suspendedConflictLabel(conflict) }}</li>
+                }
+              </ul>
+            </div>
+          }
         }
       </div>
     </div>
+
+    <article class="suspended-sales" [attr.aria-busy]="loadingSuspendedSales()">
+      <div class="overview-heading">
+        <div>
+          <p class="eyebrow">Carritos pendientes</p>
+          <h3>Ventas suspendidas</h3>
+          <p>Caducan después de 24 horas y no apartan inventario ni registran pagos.</p>
+        </div>
+        <strong>{{ suspendedSales().length }}</strong>
+      </div>
+      @if (suspendedSaleError()) {
+        <div class="form-error" role="alert">{{ suspendedSaleError() }}</div>
+      }
+      @if (suspendedSaleSuccess()) {
+        <div class="success" role="status">{{ suspendedSaleSuccess() }}</div>
+      }
+      @if (loadingSuspendedSales()) {
+        <p class="catalog-state" role="status">Cargando ventas suspendidas…</p>
+      } @else if (suspendedSales().length === 0) {
+        <p class="catalog-state">No hay ventas suspendidas para esta caja y cajero.</p>
+      } @else {
+        <ul class="suspended-sale-list">
+          @for (sale of suspendedSales(); track sale.id) {
+            <li>
+              <span>
+                <strong>{{ sale.notes || 'Venta sin nota' }}</strong>
+                <small>
+                  {{ sale.lines.length }} línea(s) · {{ sale.customer?.name || 'Sin cliente' }} ·
+                  {{
+                    sale.status === 'ACTIVE'
+                      ? 'Activa'
+                      : sale.status === 'EXPIRED'
+                        ? 'Expirada'
+                        : sale.status === 'CANCELLED'
+                          ? 'Cancelada'
+                          : 'Cobrada'
+                  }}
+                </small>
+                <small
+                  >Creada {{ dateTime(sale.createdAt) }} · vence
+                  {{ dateTime(sale.expiresAt) }}</small
+                >
+              </span>
+              @if (sale.status === 'ACTIVE') {
+                <div class="suspended-sale-actions">
+                  <button
+                    type="button"
+                    (click)="resumeSuspendedSale(sale)"
+                    [disabled]="!!suspendedSaleActionId()"
+                  >
+                    Reanudar
+                  </button>
+                  <button
+                    type="button"
+                    class="remove"
+                    (click)="cancelSuspendedSale(sale)"
+                    [disabled]="!!suspendedSaleActionId()"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              }
+            </li>
+          }
+        </ul>
+      }
+    </article>
   </section>
 
   @if (canManageSales()) {
