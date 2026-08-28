@@ -221,6 +221,31 @@ export interface SaleReceiptDeliveryData {
   acceptedAt: string;
 }
 
+export interface PosPeripheralProfileData {
+  id: string;
+  cashRegister: { id: string; name: string; code: string };
+  deviceId: string;
+  label: string;
+  adapter: 'SIMULATOR';
+  printerEnabled: boolean;
+  drawerEnabled: boolean;
+  autoOpenCashSale: boolean;
+  updatedAt: string;
+}
+
+export interface PosPeripheralOperationData {
+  id: string;
+  action: 'PRINT_RECEIPT' | 'OPEN_DRAWER';
+  trigger: 'MANUAL' | 'CASH_SALE_COMPLETED';
+  status: 'COMPLETED' | 'FAILED';
+  attemptCount: number;
+  errorCode: string | null;
+  saleId: string | null;
+  deviceId: string;
+  createdAt: string;
+  completedAt: string | null;
+}
+
 export type SaleReturnCondition = 'SELLABLE' | 'DAMAGED';
 
 export interface SaleReturnSettlementData {
@@ -613,6 +638,58 @@ export class PosApiService {
       { email },
       { withCredentials: true },
     );
+  }
+
+  getPeripheralProfile() {
+    return this.http.get<{
+      data: PosPeripheralProfileData;
+      meta: { apiVersion: '1' };
+    }>(`${this.config.apiBaseUrl()}/pos/peripherals/profile`, {
+      withCredentials: true,
+    });
+  }
+
+  updatePeripheralProfile(input: {
+    deviceId: string;
+    label: string;
+    adapter: 'SIMULATOR';
+    printerEnabled: boolean;
+    drawerEnabled: boolean;
+    autoOpenCashSale: boolean;
+  }) {
+    return this.http.put<{
+      data: PosPeripheralProfileData;
+      meta: { apiVersion: '1' };
+    }>(`${this.config.apiBaseUrl()}/pos/peripherals/profile`, input, {
+      withCredentials: true,
+    });
+  }
+
+  printSaleReceipt(id: string, idempotencyKey: string) {
+    return this.http.post<{
+      data: { receipt: SaleReceiptData; operation: PosPeripheralOperationData };
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(
+      `${this.config.apiBaseUrl()}/pos/peripherals/receipts/${id}/prints`,
+      {},
+      {
+        headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+        withCredentials: true,
+      },
+    );
+  }
+
+  openCashDrawer(
+    input: { trigger: 'MANUAL' | 'CASH_SALE_COMPLETED'; saleId?: string },
+    idempotencyKey: string,
+  ) {
+    return this.http.post<{
+      data: PosPeripheralOperationData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(`${this.config.apiBaseUrl()}/pos/peripherals/cash-drawer/openings`, input, {
+      headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+      withCredentials: true,
+    });
   }
 
   listSaleReturns(id: string) {

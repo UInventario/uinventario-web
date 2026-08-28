@@ -1995,6 +1995,9 @@
             }
             <span>Cliente: {{ sale.customer?.name || 'Venta anónima' }}</span>
           </div>
+          @if (peripheralNotice()) {
+            <div class="catalog-state" role="status">{{ peripheralNotice() }}</div>
+          }
         }
         @if (cart().length === 0) {
           <div class="empty pos-empty">
@@ -2617,7 +2620,11 @@
               />
             }
             @if (canReprintSales()) {
-              <app-sale-receipt-panel [saleId]="sale.id" />
+              <app-sale-receipt-panel
+                [saleId]="sale.id"
+                [canConfigure]="canManageTenant()"
+                [canOpenDrawer]="canOpenCashDrawer()"
+              />
             }
             @if (sale.status === 'COMPLETED' && canVoidSales() && currentCashRegisterShift()) {
               <form
