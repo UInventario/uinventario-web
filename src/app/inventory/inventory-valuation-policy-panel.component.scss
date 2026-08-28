@@ -1,0 +1,109 @@
+:host {
+  display: block;
+}
+
+.valuation-policy {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1px solid var(--line, #d8dee8);
+  border-radius: 1rem;
+  background: var(--surface, #fff);
+}
+
+.policy-heading,
+.policy-controls,
+.migration-plan,
+.migration-plan dl {
+  display: flex;
+  gap: 0.9rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.policy-heading {
+  justify-content: space-between;
+}
+
+.policy-heading h2,
+.policy-heading p,
+.migration-plan p {
+  margin: 0.2rem 0;
+}
+
+.eyebrow,
+.active-policy small,
+.migration-plan small,
+.migration-plan dt {
+  color: var(--muted, #566274);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.active-policy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 13rem;
+  padding: 0.8rem 1rem;
+  border-radius: 0.75rem;
+  background: #eef5ff;
+}
+
+.policy-controls label {
+  font-weight: 700;
+}
+
+.migration-plan {
+  align-items: flex-start;
+  padding: 1rem;
+  border: 1px solid #9ab9e8;
+  border-radius: 0.8rem;
+  background: #f5f8ff;
+}
+
+.migration-plan > div:first-child {
+  flex: 1 1 20rem;
+}
+
+.migration-plan dl {
+  margin: 0;
+}
+
+.migration-plan dl div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 8rem;
+}
+
+.migration-plan dd {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.migration-plan.blocked {
+  border-color: #d79a90;
+  background: #fff4f2;
+}
+
+.blocking-reason,
+.form-error {
+  color: #a12622;
+}
+
+.success {
+  color: #176b3a;
+  font-weight: 700;
+}
+
+.read-only {
+  color: var(--muted, #566274);
+}
+
+@media (max-width: 720px) {
+  .policy-controls > * {
+    flex-basis: 100%;
+  }
+}

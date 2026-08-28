@@ -879,6 +879,10 @@
       </aside>
     </div>
 
+    @if (canManageStock()) {
+      <app-inventory-valuation-policy-panel />
+    }
+
     <section
       class="stock-overview"
       aria-labelledby="stock-overview-title"
@@ -1361,8 +1365,9 @@
                 </small>
                 @if (movement.valuation; as valuation) {
                   <small>
-                    Costo {{ valuation.unitCost }} · valor {{ valuation.valueChange }} · promedio
-                    {{ valuation.averageUnitCost ?? 'histórico' }}
+                    {{ valuationMethodLabel(valuation.method) }} v{{ valuation.policyVersion }} ·
+                    costo {{ valuation.unitCost }} · valor {{ valuation.valueChange }} · efectivo
+                    {{ valuation.effectiveAt | date: 'short' }}
                   </small>
                 }
                 @if (movement.fifoValuation; as fifo) {

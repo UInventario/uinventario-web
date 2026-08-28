@@ -40,6 +40,12 @@ export interface OfflineBootstrapData {
   generatedAt: string;
   sessionExpiresAt: string;
   freshnessPolicy: OfflineFreshnessPolicyData;
+  valuationPolicy: {
+    method: 'MOVING_AVERAGE' | 'FIFO' | 'SPECIFIC_LOT';
+    version: number;
+    effectiveAt: string;
+    migrationRule: 'INITIAL_DEFAULT' | 'FORWARD_ONLY_CUTOVER';
+  };
   scope: {
     tenantId: string;
     userId: string;

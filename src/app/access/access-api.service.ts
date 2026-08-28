@@ -8,6 +8,7 @@ export const INVENTORY_PERMISSIONS = [
   'INVENTORY_TRANSFER',
   'INVENTORY_COUNT',
   'INVENTORY_APPROVE',
+  'INVENTORY_VALUATION_MANAGE',
 ] as const;
 
 export type InventoryPermission = (typeof INVENTORY_PERMISSIONS)[number];

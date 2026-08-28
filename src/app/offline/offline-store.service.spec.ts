@@ -81,11 +81,16 @@ describe('OfflineStoreService', () => {
 
   it('allocates causal sequences and persists command delivery states', async () => {
     const store = new OfflineStoreService();
+    await store.replaceBootstrap(response(firstScope), response(firstScope).page.entities);
     const first = await store.queue(firstScope, 'INVENTORY_MOVEMENT', { quantity: '2' });
     const second = await store.queue(firstScope, 'CASH_SALE', { total: '10.00' });
 
     expect([first.sequence, second.sequence]).toEqual([1, 2]);
     expect(first.idempotencyKey).toContain(first.commandId);
+    expect(first).toMatchObject({
+      valuationMethod: 'MOVING_AVERAGE',
+      valuationPolicyVersion: 1,
+    });
     await store.markSent([first.commandId, second.commandId]);
     expect((await store.pending(firstScope)).map(({ status }) => status)).toEqual(['SENT', 'SENT']);
 
@@ -115,6 +120,7 @@ describe('OfflineStoreService', () => {
 
   it('backs off transport failures without sending later causal commands early', async () => {
     const store = new OfflineStoreService();
+    await store.replaceBootstrap(response(firstScope), response(firstScope).page.entities);
     const first = await store.queue(firstScope, 'INVENTORY_MOVEMENT', { quantity: '2' });
     await store.markSent([first.commandId]);
     await store.retry([first.commandId], new Error('network down'));
@@ -135,6 +141,7 @@ describe('OfflineStoreService', () => {
 
   it('retries transport failures and safely rejects commands never sent', async () => {
     const store = new OfflineStoreService();
+    await store.replaceBootstrap(response(firstScope), response(firstScope).page.entities);
     const failed = await store.queue(firstScope, 'INVENTORY_MOVEMENT', { quantity: '2' });
     await store.markSent([failed.commandId]);
     await store.retry([failed.commandId], new Error('network down'));
@@ -238,6 +245,7 @@ describe('OfflineStoreService', () => {
 
     const store = new OfflineStoreService();
     expect(await store.outbox(firstScope)).toEqual([]);
+    await store.replaceBootstrap(response(firstScope), response(firstScope).page.entities);
     expect((await store.queue(firstScope, 'INVENTORY_MOVEMENT', {})).sequence).toBe(1);
   });
 
@@ -282,6 +290,7 @@ describe('OfflineStoreService', () => {
     firstTab.watchOutbox(firstScope, firstListener);
     secondTab.watchOutbox(firstScope, secondListener);
 
+    await firstTab.replaceBootstrap(response(firstScope), response(firstScope).page.entities);
     await firstTab.queue(firstScope, 'INVENTORY_COUNT', { countedQuantity: '2' });
 
     expect(firstListener).toHaveBeenCalledOnce();
@@ -296,6 +305,12 @@ describe('OfflineStoreService', () => {
       generatedAt,
       sessionExpiresAt: new Date(Date.now() + 8 * 60 * 60_000).toISOString(),
       freshnessPolicy: policy(),
+      valuationPolicy: {
+        method: 'MOVING_AVERAGE',
+        version: 1,
+        effectiveAt: generatedAt,
+        migrationRule: 'INITIAL_DEFAULT',
+      },
       scope,
       identity: {
         tenant: { id: scope.tenantId, name: 'Tenant' },

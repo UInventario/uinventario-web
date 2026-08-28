@@ -1,0 +1,79 @@
+<section
+  class="valuation-policy"
+  aria-labelledby="valuation-policy-title"
+  [attr.aria-busy]="loading() || previewing() || saving()"
+>
+  <div class="policy-heading">
+    <div>
+      <p class="eyebrow">Contabilidad de inventario</p>
+      <h2 id="valuation-policy-title">Método de valorización</h2>
+      <p>Cada movimiento conserva el método, versión y fecha efectiva de su corte.</p>
+    </div>
+    @if (policy(); as current) {
+      <div class="active-policy" role="status">
+        <small>Activo · versión {{ current.version }}</small>
+        <strong>{{ methodLabel(current.method) }}</strong>
+        <span>Desde {{ current.effectiveAt | date: 'medium' }}</span>
+      </div>
+    }
+  </div>
+
+  @if (loading()) {
+    <p>Cargando configuración…</p>
+  } @else if (policy() && canManage()) {
+    <div class="policy-controls">
+      <label for="valuationMethod">Nuevo método</label>
+      <select id="valuationMethod" [value]="selectedMethod()" (change)="selectMethod($event)">
+        <option value="MOVING_AVERAGE">Promedio móvil</option>
+        <option value="FIFO">FIFO</option>
+        <option value="SPECIFIC_LOT">Costo específico por lote</option>
+      </select>
+      <button type="button" (click)="createPreview()" [disabled]="previewing() || saving()">
+        {{ previewing() ? 'Prevalidando…' : 'Prevalidar cambio' }}
+      </button>
+    </div>
+  } @else if (policy()) {
+    <p class="read-only">Sólo un rol autorizado puede preparar y confirmar un corte.</p>
+  }
+
+  @if (error()) {
+    <div class="form-error" role="alert">{{ error() }}</div>
+  }
+  @if (success()) {
+    <div class="success" role="status">{{ success() }}</div>
+  }
+
+  @if (preview(); as plan) {
+    <div class="migration-plan" [class.blocked]="!plan.allowed">
+      <div>
+        <small>Plan de migración</small>
+        <strong
+          >{{ methodLabel(plan.current.method) }} → {{ methodLabel(plan.targetMethod) }}</strong
+        >
+        <p>{{ strategyLabel(plan) }}</p>
+      </div>
+      <dl>
+        <div>
+          <dt>Productos a migrar</dt>
+          <dd>{{ plan.productsToMigrate }}</dd>
+        </div>
+        <div>
+          <dt>Ubicaciones de apertura</dt>
+          <dd>{{ plan.locationsToMigrate }}</dd>
+        </div>
+        <div>
+          <dt>Dispositivos a resincronizar</dt>
+          <dd>{{ plan.devicesToRebootstrap }}</dd>
+        </div>
+      </dl>
+      @for (reason of plan.blockingReasons; track reason) {
+        <p class="blocking-reason">{{ blockingLabel(reason) }}</p>
+      }
+      @if (plan.allowed) {
+        <button type="button" (click)="confirmChange()" [disabled]="saving()">
+          {{ saving() ? 'Aplicando corte…' : 'Confirmar corte forward-only' }}
+        </button>
+      }
+    </div>
+  }
+</section>

@@ -20,7 +20,7 @@ describe('OfflineOutboxService', () => {
   let store: OfflineStoreService;
   let service: OfflineOutboxService;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     Object.assign(globalThis, { indexedDB: new IDBFactory(), IDBKeyRange });
     api.send.mockReset();
     sessions.invalidate.mockReset();
@@ -34,6 +34,44 @@ describe('OfflineOutboxService', () => {
     });
     store = TestBed.inject(OfflineStoreService);
     service = TestBed.inject(OfflineOutboxService);
+    const generatedAt = new Date().toISOString();
+    await store.replaceBootstrap(
+      {
+        protocolVersion: '1.0',
+        generatedAt,
+        sessionExpiresAt: new Date(Date.now() + 8 * 60 * 60_000).toISOString(),
+        freshnessPolicy: {
+          version: 1,
+          maxClockSkewSeconds: 300,
+          catalogTtlSeconds: 86400,
+          permissionsTtlSeconds: 3600,
+          actionTtlSeconds: {
+            CASH_SALE: 900,
+            INVENTORY_COUNT: 14400,
+            INVENTORY_MOVEMENT: 3600,
+          },
+        },
+        valuationPolicy: {
+          method: 'MOVING_AVERAGE',
+          version: 1,
+          effectiveAt: generatedAt,
+          migrationRule: 'INITIAL_DEFAULT',
+        },
+        scope,
+        identity: {
+          tenant: { id: scope.tenantId, name: 'Tenant' },
+          user: { id: scope.userId, roles: ['ADMIN'], permissions: ['INVENTORY_ADJUST'] },
+        },
+        page: {
+          initialSyncCursor: 'cursor-1',
+          cursor: 'cursor-1',
+          nextCursor: null,
+          complete: true,
+          entities: [],
+        },
+      },
+      [],
+    );
   });
 
   it('keeps a command retryable when connectivity fails before receiving a response', async () => {
@@ -41,6 +79,13 @@ describe('OfflineOutboxService', () => {
     api.send.mockReturnValue(throwError(() => new Error('offline')));
 
     await expect(service.flush(scope)).rejects.toThrow('offline');
+
+    expect(api.send).toHaveBeenCalledWith([
+      expect.objectContaining({
+        valuationMethod: 'MOVING_AVERAGE',
+        valuationPolicyVersion: 1,
+      }),
+    ]);
 
     expect(await store.outbox(scope)).toEqual([
       expect.objectContaining({
