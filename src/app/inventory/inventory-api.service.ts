@@ -167,6 +167,30 @@ export interface InventoryStockItem {
   };
 }
 
+export type InventoryStockAlertStatus = 'LOW' | 'OUT_OF_STOCK' | 'RECOVERED';
+
+export interface InventoryStockAlertData {
+  product: { id: string; name: string; sku: string };
+  location: InventoryLocationData;
+  status: InventoryStockAlertStatus;
+  availableQuantity: string;
+  threshold: string;
+  transitionedAt: string;
+}
+
+interface InventoryStockAlertListResponse {
+  data: InventoryStockAlertData[];
+  meta: {
+    apiVersion: '1';
+    defaultThreshold: string;
+    scope: {
+      branch: { id: string; name: string };
+      warehouse: { id: string; name: string };
+    };
+    pagination: { page: number; pageSize: number; total: number; totalPages: number };
+  };
+}
+
 export interface InventoryStockValuationReport {
   method: InventoryValuationMethod;
   policyVersion: number;
@@ -527,6 +551,32 @@ export class InventoryApiService {
       params,
       withCredentials: true,
     });
+  }
+
+  listStockAlerts(query: {
+    q?: string;
+    status?: InventoryStockAlertStatus;
+    page: number;
+    pageSize: number;
+  }) {
+    let params = new HttpParams().set('page', query.page).set('pageSize', query.pageSize);
+    if (query.q) params = params.set('q', query.q);
+    if (query.status) params = params.set('status', query.status);
+    return this.http.get<InventoryStockAlertListResponse>(
+      `${this.config.apiBaseUrl()}/inventory/stock-alerts`,
+      { params, withCredentials: true },
+    );
+  }
+
+  setStockAlertThreshold(productId: string, locationId: string, threshold: string) {
+    return this.http.put<{
+      data: InventoryStockAlertData;
+      meta: { apiVersion: '1'; defaultThreshold: string };
+    }>(
+      `${this.config.apiBaseUrl()}/inventory/stock-alerts/products/${productId}/locations/${locationId}/threshold`,
+      { threshold },
+      { withCredentials: true },
+    );
   }
 
   listLots(productId: string) {

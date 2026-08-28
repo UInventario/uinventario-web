@@ -39,6 +39,8 @@ describe('ApplicationPage', () => {
   let inventory: {
     listLocations: ReturnType<typeof vi.fn>;
     listStock: ReturnType<typeof vi.fn>;
+    listStockAlerts: ReturnType<typeof vi.fn>;
+    setStockAlertThreshold: ReturnType<typeof vi.fn>;
     listLots: ReturnType<typeof vi.fn>;
     listFifoLayers: ReturnType<typeof vi.fn>;
     listMovements: ReturnType<typeof vi.fn>;
@@ -178,6 +180,21 @@ describe('ApplicationPage', () => {
           },
         }),
       ),
+      listStockAlerts: vi.fn().mockReturnValue(
+        of({
+          data: [],
+          meta: {
+            apiVersion: '1',
+            defaultThreshold: '5.000',
+            scope: {
+              branch: { id: 'branch', name: 'Sucursal' },
+              warehouse: { id: 'warehouse', name: 'Bodega' },
+            },
+            pagination: { page: 1, pageSize: 10, total: 0, totalPages: 0 },
+          },
+        }),
+      ),
+      setStockAlertThreshold: vi.fn(),
       listLots: vi.fn().mockReturnValue(
         of({
           data: [],

@@ -30,6 +30,7 @@ import { InventoryImportPanelComponent } from '../inventory/inventory-import-pan
 import { InventoryCountPanelComponent } from '../inventory/inventory-count-panel.component';
 import { InventoryValuationPolicyPanelComponent } from '../inventory/inventory-valuation-policy-panel.component';
 import { InventoryReconciliationPanelComponent } from '../inventory/inventory-reconciliation-panel.component';
+import { StockAlertPanelComponent } from '../inventory/stock-alert-panel.component';
 import { SessionApiService } from './session-api.service';
 import {
   CashRegisterClosureData,
@@ -106,6 +107,7 @@ interface CartEntry {
     InventoryCountPanelComponent,
     InventoryValuationPolicyPanelComponent,
     InventoryReconciliationPanelComponent,
+    StockAlertPanelComponent,
     CustomerHistoryPanelComponent,
     SupplierPanelComponent,
     PurchaseOrderPanelComponent,
@@ -314,6 +316,7 @@ export class ApplicationPage implements OnInit {
     id: string;
   } | null>(null);
   protected readonly stockList = signal<InventoryStockItem[]>([]);
+  protected readonly stockAlertRefreshToken = signal(0);
   protected readonly selectedProductLots = signal<InventoryLotData[]>([]);
   protected readonly selectedProductSerials = signal<InventorySerialData[]>([]);
   protected readonly selectedSerialHistory = signal<{
@@ -1068,6 +1071,11 @@ export class ApplicationPage implements OnInit {
       this.stockSearchForm.markAllAsTouched();
       return;
     }
+    this.loadStockList(1);
+  }
+
+  protected viewAlertStock(sku: string): void {
+    this.stockSearchForm.controls.q.setValue(sku);
     this.loadStockList(1);
   }
 
@@ -2778,6 +2786,7 @@ export class ApplicationPage implements OnInit {
           this.stockPage.set(meta.pagination.page);
           this.stockTotalPages.set(meta.pagination.totalPages);
           this.stockTotal.set(meta.pagination.total);
+          this.stockAlertRefreshToken.update((value) => value + 1);
         },
         error: (error: HttpErrorResponse) =>
           this.stockListError.set(
