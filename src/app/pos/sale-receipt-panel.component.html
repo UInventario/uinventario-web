@@ -1,0 +1,136 @@
+<section class="receipt-panel" aria-labelledby="receipt-panel-title">
+  <div class="receipt-launch">
+    <div>
+      <h3 id="receipt-panel-title">Comprobante de venta</h3>
+      <p>Vista digital accesible y formato de 80 mm para impresión térmica.</p>
+    </div>
+    <button type="button" class="secondary" (click)="openReceipt()" [disabled]="loading()">
+      {{ loading() ? 'Generando…' : receipt() ? 'Reimprimir ticket' : 'Ver ticket' }}
+    </button>
+  </div>
+
+  @if (error()) {
+    <div class="form-error" role="alert">{{ error() }}</div>
+  }
+
+  @if (receipt(); as ticket) {
+    <article
+      class="thermal-receipt"
+      tabindex="0"
+      [attr.aria-label]="'Comprobante no fiscal ' + ticket.receiptNumber"
+    >
+      <header>
+        <strong>{{ ticket.merchant.name }}</strong>
+        @if (ticket.merchant.legalName) {
+          <span>{{ ticket.merchant.legalName }}</span>
+        }
+        <span>{{ ticket.branchName }}</span>
+        <span>{{ ticket.cashRegister.name }} · {{ ticket.cashRegister.code }}</span>
+        <h4>{{ ticket.fiscalNotice }}</h4>
+        @if (ticket.saleStatus === 'VOIDED') {
+          <strong class="voided">VENTA ANULADA</strong>
+        }
+      </header>
+
+      <dl class="receipt-meta">
+        <div>
+          <dt>Ticket</dt>
+          <dd>{{ ticket.receiptNumber }}</dd>
+        </div>
+        <div>
+          <dt>Fecha</dt>
+          <dd>
+            <time [attr.datetime]="ticket.issuedAt">{{ ticket.issuedAt | date: 'short' }}</time>
+          </dd>
+        </div>
+        <div>
+          <dt>Caja</dt>
+          <dd>{{ ticket.sellerEmail }}</dd>
+        </div>
+        <div>
+          <dt>Cliente</dt>
+          <dd>{{ ticket.customer?.name || 'Venta anónima' }}</dd>
+        </div>
+      </dl>
+
+      <table>
+        <caption>
+          Productos vendidos
+        </caption>
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th>Cant.</th>
+            <th>Importe</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (line of ticket.lines; track line.lineNumber) {
+            <tr>
+              <td>
+                {{ line.productName }}<small>{{ line.productSku }}</small>
+              </td>
+              <td>{{ line.quantity }}</td>
+              <td>{{ ticket.currency }} {{ line.total }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      <dl class="totals">
+        <div>
+          <dt>Subtotal</dt>
+          <dd>{{ ticket.currency }} {{ ticket.totals.subtotal }}</dd>
+        </div>
+        <div>
+          <dt>Impuestos incluidos</dt>
+          <dd>{{ ticket.currency }} {{ ticket.totals.tax }}</dd>
+        </div>
+        <div class="grand-total">
+          <dt>Total</dt>
+          <dd>{{ ticket.currency }} {{ ticket.totals.total }}</dd>
+        </div>
+      </dl>
+
+      <section aria-labelledby="receipt-payments-title">
+        <h5 id="receipt-payments-title">Pagos</h5>
+        @for (payment of ticket.payments; track $index) {
+          <p>
+            {{ paymentLabel(payment.method) }} · {{ ticket.currency }} {{ payment.amountApplied }}
+            @if (payment.change !== '0.00') {
+              · Cambio {{ ticket.currency }} {{ payment.change }}
+            }
+          </p>
+        }
+      </section>
+      @if (ticket.void; as voidData) {
+        <p class="voided">
+          Anulada {{ voidData.voidedAt | date: 'short' }} · {{ voidData.reason }}
+        </p>
+      }
+      <footer>{{ ticket.fiscalNotice }} · No sustituye un documento fiscal.</footer>
+    </article>
+
+    <div class="receipt-actions">
+      <button type="button" (click)="printReceipt()">Imprimir 80 mm</button>
+      <form [formGroup]="emailForm" (ngSubmit)="sendReceipt()">
+        <label>
+          Correo del destinatario
+          <input type="email" formControlName="email" maxlength="254" autocomplete="email" />
+        </label>
+        <button type="submit" class="secondary" [disabled]="sending()">
+          {{ sending() ? 'Enviando…' : 'Enviar ticket' }}
+        </button>
+      </form>
+    </div>
+    @if (emailForm.controls.email.touched && emailForm.controls.email.invalid) {
+      <p class="form-error">Ingresa un correo válido.</p>
+    }
+    @if (delivery(); as sent) {
+      <p class="simulation" role="status">
+        Simulación completada para {{ sent.recipient }}. No se envió correo real porque aún no hay
+        proveedor externo configurado.
+      </p>
+    }
+  }
+</section>

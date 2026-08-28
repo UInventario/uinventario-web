@@ -1,0 +1,152 @@
+:host {
+  display: block;
+}
+
+.receipt-panel {
+  display: grid;
+  gap: 1rem;
+  margin-block: 1rem;
+  padding-block: 1rem;
+  border-block: 1px solid var(--line, #d8dee8);
+}
+
+.receipt-launch,
+.receipt-actions,
+.receipt-actions form {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.receipt-launch h3,
+.receipt-launch p {
+  margin: 0.2rem 0;
+}
+
+.thermal-receipt {
+  width: min(100%, 80mm);
+  margin-inline: auto;
+  padding: 8mm 6mm;
+  border: 1px dashed #667085;
+  background: #fff;
+  color: #111;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.78rem;
+}
+
+.thermal-receipt header,
+.thermal-receipt footer {
+  display: grid;
+  gap: 0.2rem;
+  text-align: center;
+}
+
+.thermal-receipt h4,
+.thermal-receipt h5 {
+  margin: 0.6rem 0 0.25rem;
+}
+
+.receipt-meta,
+.totals {
+  display: grid;
+  gap: 0.2rem;
+  margin-block: 0.75rem;
+}
+
+.receipt-meta div,
+.totals div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.thermal-receipt dd {
+  margin: 0;
+  text-align: right;
+}
+
+.thermal-receipt table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.thermal-receipt caption {
+  text-align: left;
+  font-weight: 800;
+  padding-block: 0.5rem;
+}
+
+.thermal-receipt th,
+.thermal-receipt td {
+  padding: 0.35rem 0.15rem;
+  border-bottom: 1px dotted #777;
+  text-align: right;
+  vertical-align: top;
+}
+
+.thermal-receipt th:first-child,
+.thermal-receipt td:first-child {
+  text-align: left;
+}
+
+.thermal-receipt td small {
+  display: block;
+}
+
+.grand-total,
+.voided {
+  font-weight: 900;
+}
+
+.voided {
+  color: #a3261c;
+}
+
+.receipt-actions form label {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.simulation {
+  color: #785600;
+  font-weight: 700;
+}
+
+@media (max-width: 720px) {
+  .receipt-actions button,
+  .receipt-actions form,
+  .receipt-actions label,
+  .receipt-launch button {
+    width: 100%;
+  }
+}
+
+@media print {
+  :host {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    overflow: visible;
+    background: #fff;
+  }
+
+  .receipt-launch,
+  .receipt-actions,
+  .form-error,
+  .simulation {
+    display: none !important;
+  }
+
+  .receipt-panel,
+  .thermal-receipt {
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .thermal-receipt {
+    width: 80mm;
+  }
+}

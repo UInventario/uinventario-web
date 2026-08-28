@@ -31,6 +31,7 @@ import { InventoryCountPanelComponent } from '../inventory/inventory-count-panel
 import { InventoryValuationPolicyPanelComponent } from '../inventory/inventory-valuation-policy-panel.component';
 import { InventoryReconciliationPanelComponent } from '../inventory/inventory-reconciliation-panel.component';
 import { StockAlertPanelComponent } from '../inventory/stock-alert-panel.component';
+import { SaleReceiptPanelComponent } from '../pos/sale-receipt-panel.component';
 import { SessionApiService } from './session-api.service';
 import {
   CashRegisterClosureData,
@@ -108,6 +109,7 @@ interface CartEntry {
     InventoryValuationPolicyPanelComponent,
     InventoryReconciliationPanelComponent,
     StockAlertPanelComponent,
+    SaleReceiptPanelComponent,
     CustomerHistoryPanelComponent,
     SupplierPanelComponent,
     PurchaseOrderPanelComponent,
@@ -229,6 +231,9 @@ export class ApplicationPage implements OnInit {
   );
   protected readonly canVoidSales = computed(
     () => this.session()?.user.permissions.includes('SALES_VOID') ?? false,
+  );
+  protected readonly canReprintSales = computed(
+    () => this.session()?.user.permissions.includes('SALE_REPRINT') ?? false,
   );
   protected readonly canOpenCashRegister = computed(
     () => this.session()?.user.permissions.includes('CASH_REGISTER_OPEN') ?? false,
@@ -1951,6 +1956,8 @@ export class ApplicationPage implements OnInit {
         INVENTORY_IMPORT_CONFIRMED: 'Importación de inventario confirmada',
         SALE_COMPLETED: 'Venta completada',
         SALE_VOIDED: 'Venta anulada',
+        SALE_RECEIPT_REPRINTED: 'Comprobante reimpreso',
+        SALE_RECEIPT_SENT: 'Comprobante enviado',
         ACCESS_ROLE_CREATED: 'Rol operativo creado',
         ACCESS_USER_CREATED: 'Usuario operativo creado',
         ACCESS_USER_UPDATED: 'Acceso operativo actualizado',

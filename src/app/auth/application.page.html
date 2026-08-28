@@ -2516,6 +2516,9 @@
                 </li>
               }
             </ul>
+            @if (canReprintSales()) {
+              <app-sale-receipt-panel [saleId]="sale.id" />
+            }
             @if (sale.status === 'COMPLETED' && canVoidSales() && currentCashRegisterShift()) {
               <form
                 class="cash-payment sale-void-form"
