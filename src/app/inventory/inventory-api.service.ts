@@ -18,6 +18,7 @@ export type InventoryMovementType =
   | 'TRANSFER_DISCREPANCY'
   | 'SALE'
   | 'SALE_VOID'
+  | 'SALE_RETURN'
   | 'PURCHASE_RECEIPT'
   | 'SUPPLIER_RETURN';
 
