@@ -36,6 +36,24 @@ export interface ExternalAdapterExecutionData {
   updatedAt: string;
 }
 
+export interface ExternalEmailEventData {
+  webhookEventId: string;
+  provider: string;
+  providerReference: string;
+  eventType:
+    'SENT' | 'DELIVERED' | 'DELIVERY_DELAYED' | 'BOUNCED' | 'FAILED' | 'SUPPRESSED' | 'COMPLAINED';
+  errorCode: string | null;
+  occurredAt: string;
+  receivedAt: string;
+}
+
+export interface ExternalAdapterCatalogItem {
+  capability: ExternalAdapterCapability;
+  provider: string;
+  version: string;
+  mode: 'SIMULATOR' | 'LIVE';
+}
+
 interface ApiResponse<T, TMeta = { apiVersion: '1' }> {
   data: T;
   meta: TMeta;
@@ -52,12 +70,7 @@ export class ExternalAdapterApiService {
         ExternalAdapterConfigData[],
         {
           apiVersion: '1';
-          catalog: Array<{
-            capability: ExternalAdapterCapability;
-            provider: string;
-            version: string;
-            mode: 'SIMULATOR';
-          }>;
+          catalog: ExternalAdapterCatalogItem[];
           secrets: { storage: string; valuesAcceptedByApi: false };
         }
       >
@@ -94,6 +107,13 @@ export class ExternalAdapterApiService {
   executions() {
     return this.http.get<ApiResponse<ExternalAdapterExecutionData[]>>(
       `${this.config.apiBaseUrl()}/integrations/adapters/executions`,
+      { withCredentials: true },
+    );
+  }
+
+  emailEvents() {
+    return this.http.get<ApiResponse<ExternalEmailEventData[]>>(
+      `${this.config.apiBaseUrl()}/integrations/adapters/email-events`,
       { withCredentials: true },
     );
   }

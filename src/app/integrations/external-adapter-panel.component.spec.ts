@@ -8,6 +8,7 @@ describe('ExternalAdapterPanelComponent', () => {
   let api: {
     configurations: ReturnType<typeof vi.fn>;
     executions: ReturnType<typeof vi.fn>;
+    emailEvents: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
     diagnose: ReturnType<typeof vi.fn>;
   };
@@ -31,7 +32,20 @@ describe('ExternalAdapterPanelComponent', () => {
           data: [configuration],
           meta: {
             apiVersion: '1',
-            catalog: [],
+            catalog: [
+              {
+                capability: 'NOTIFICATION_EMAIL',
+                provider: 'SIMULATOR',
+                version: '1',
+                mode: 'SIMULATOR',
+              },
+              {
+                capability: 'NOTIFICATION_EMAIL',
+                provider: 'RESEND',
+                version: '1',
+                mode: 'LIVE',
+              },
+            ],
             secrets: { storage: 'EXTERNAL_SECRET_MANAGER', valuesAcceptedByApi: false },
           },
         }),
@@ -58,6 +72,22 @@ describe('ExternalAdapterPanelComponent', () => {
           meta: { apiVersion: '1' },
         }),
       ),
+      emailEvents: vi.fn().mockReturnValue(
+        of({
+          data: [
+            {
+              webhookEventId: 'event-1',
+              provider: 'RESEND',
+              providerReference: 'email-1',
+              eventType: 'BOUNCED',
+              errorCode: 'EMAIL_BOUNCED',
+              occurredAt: '2026-08-29T12:00:00.000Z',
+              receivedAt: '2026-08-29T12:00:01.000Z',
+            },
+          ],
+          meta: { apiVersion: '1' },
+        }),
+      ),
       update: vi.fn().mockReturnValue(of({ data: configuration, meta: { apiVersion: '1' } })),
       diagnose: vi
         .fn()
@@ -79,6 +109,8 @@ describe('ExternalAdapterPanelComponent', () => {
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('Email de notificaciones');
     expect(text).toContain('ADAPTER_TIMEOUT');
+    expect(text).toContain('EMAIL_BOUNCED');
+    expect(text).toContain('RESEND');
     expect(text).toContain('sólo acepta el nombre del secret');
   });
 
