@@ -627,6 +627,14 @@ describe('ApplicationPage', () => {
     fill('brandName', 'Casa');
     fill('cost', '1.20');
     fill('price', '2.50');
+    fill('quantityPrecision', '2');
+    fill('minimumQuantity', '0.250');
+    const baseUnit = fixture.nativeElement.querySelector('#baseUnit') as HTMLSelectElement;
+    baseUnit.value = 'KILOGRAM';
+    baseUnit.dispatchEvent(new Event('change'));
+    const rounding = fixture.nativeElement.querySelector('#quantityRounding') as HTMLSelectElement;
+    rounding.value = 'DOWN';
+    rounding.dispatchEvent(new Event('change'));
     submit();
 
     expect(products.create).toHaveBeenCalledWith({
@@ -636,6 +644,10 @@ describe('ApplicationPage', () => {
       brandName: 'Casa',
       cost: '1.20',
       price: '2.50',
+      baseUnit: 'KILOGRAM',
+      quantityPrecision: 2,
+      quantityRounding: 'DOWN',
+      minimumQuantity: '0.250',
       trackLots: false,
     });
     expect(fixture.nativeElement.textContent).toContain('Producto creado');
@@ -652,6 +664,10 @@ describe('ApplicationPage', () => {
       brand: null,
       cost: '1.20',
       price: '2.50',
+      baseUnit: 'UNIT' as const,
+      quantityPrecision: 0,
+      quantityRounding: 'HALF_UP' as const,
+      minimumQuantity: '1.000',
       active: true,
     };
     products.list.mockReturnValue(
@@ -866,6 +882,10 @@ describe('ApplicationPage', () => {
       brand: { id: 'brand', name: 'Casa' },
       cost: '1.20',
       price: '2.50',
+      baseUnit: 'UNIT' as const,
+      quantityPrecision: 0,
+      quantityRounding: 'HALF_UP' as const,
+      minimumQuantity: '1.000',
       active: true,
       version: 1,
     };
@@ -905,6 +925,10 @@ describe('ApplicationPage', () => {
       brandName: 'Casa',
       cost: '1.20',
       price: '3.00',
+      baseUnit: 'UNIT',
+      quantityPrecision: 0,
+      quantityRounding: 'HALF_UP',
+      minimumQuantity: '1.000',
       trackLots: false,
       version: 1,
     });
@@ -1800,6 +1824,10 @@ describe('ApplicationPage', () => {
       brand: null,
       cost: '1.20',
       price: '119.90',
+      baseUnit: 'UNIT' as const,
+      quantityPrecision: 0,
+      quantityRounding: 'HALF_UP' as const,
+      minimumQuantity: '1.000',
       active: true,
     };
     products.list.mockReturnValue(
@@ -1855,7 +1883,7 @@ describe('ApplicationPage', () => {
     fixture.detectChanges();
 
     expect(pos.quote).toHaveBeenLastCalledWith(
-      [{ productId: 'product', quantity: '1' }],
+      [{ productId: 'product', quantity: '1.000' }],
       undefined,
       undefined,
     );

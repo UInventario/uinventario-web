@@ -4,6 +4,7 @@ import { PosCartQuote } from '../pos/pos-api.service';
 import { SessionApiService } from '../auth/session-api.service';
 import { OfflineBootstrapEntity, OfflinePosPolicyData } from './offline-bootstrap-api.service';
 import { OfflineScopeIdentity, OfflineStoreService } from './offline-store.service';
+import { normalizeQuantity } from '../shared/quantity-policy';
 
 interface OfflineProduct extends OfflineBootstrapEntity {
   sku: string;
@@ -13,6 +14,10 @@ interface OfflineProduct extends OfflineBootstrapEntity {
   active: boolean;
   categoryId: string | null;
   brandId: string | null;
+  baseUnit?: import('../catalog/product-api.service').ProductBaseUnit;
+  quantityPrecision?: number;
+  quantityRounding?: import('../catalog/product-api.service').QuantityRoundingMode;
+  minimumQuantity?: string;
 }
 
 interface OfflineLocation extends OfflineBootstrapEntity {
@@ -88,6 +93,10 @@ export class OfflinePosService {
         brand: null,
         cost: '0.00',
         price: product.price,
+        baseUnit: product.baseUnit ?? 'UNIT',
+        quantityPrecision: product.quantityPrecision ?? 3,
+        quantityRounding: product.quantityRounding ?? 'HALF_UP',
+        minimumQuantity: product.minimumQuantity ?? '0.001',
         active: product.active,
         version: product.version,
       }));
@@ -148,7 +157,8 @@ export class OfflinePosService {
           'El producto no está disponible offline.',
         );
       }
-      const quantityUnits = this.quantityUnits(quantity);
+      const normalizedQuantity = normalizeQuantity(quantity, product);
+      const quantityUnits = this.quantityUnits(normalizedQuantity);
       const availableUnits = availability
         .filter((balance) => balance.productId === productId && locationIds.has(balance.locationId))
         .reduce((total, balance) => total + this.quantityUnits(balance.availableQuantity), 0n);
@@ -171,7 +181,14 @@ export class OfflinePosService {
       taxCents += lineTax;
       totalCents += lineTotal;
       return {
-        product: { id: product.id, name: product.name, sku: product.sku },
+        product: {
+          id: product.id,
+          name: product.name,
+          sku: product.sku,
+          baseUnit: product.baseUnit ?? 'UNIT',
+          quantityPrecision: product.quantityPrecision ?? 3,
+          minimumQuantity: product.minimumQuantity ?? '0.001',
+        },
         quantity: this.quantity(quantityUnits),
         lotId: null,
         availableQuantity: this.quantity(effectiveAvailable),

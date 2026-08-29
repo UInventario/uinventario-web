@@ -77,6 +77,8 @@
             <input
               [id]="'purchaseReceiptQuantity' + index"
               inputmode="decimal"
+              [attr.step]="orderLineQuantityStep(order, index)"
+              [attr.min]="orderLineMinimum(order, index)"
               formControlName="receivedQuantity"
             />
             Código de lote (si el producto controla lotes)
@@ -166,6 +168,8 @@
             <input
               [id]="'purchaseReturnQuantity' + index"
               inputmode="decimal"
+              [attr.step]="orderLineQuantityStep(context.order, index)"
+              [attr.min]="orderLineMinimum(context.order, index)"
               formControlName="returnedQuantity"
             />
             Series a devolver (una por lÃ­nea si aplica)
@@ -243,6 +247,7 @@
                 <input
                   [id]="'purchaseOrderQuantity' + index"
                   inputmode="decimal"
+                  [attr.step]="lineQuantityStep(index)"
                   formControlName="quantity"
                 />
               </label>

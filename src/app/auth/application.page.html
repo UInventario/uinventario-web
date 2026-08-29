@@ -454,6 +454,55 @@
               <p class="field-error">Escribe un precio no negativo, con máximo 2 decimales.</p>
             }
           </div>
+          <div class="field">
+            <label for="baseUnit">Unidad base</label>
+            <select id="baseUnit" formControlName="baseUnit">
+              <option value="UNIT">Unidad / fracci\u00f3n</option>
+              <option value="KILOGRAM">Kilogramo (kg)</option>
+              <option value="GRAM">Gramo (g)</option>
+              <option value="LITER">Litro (L)</option>
+              <option value="MILLILITER">Mililitro (mL)</option>
+              <option value="METER">Metro (m)</option>
+              <option value="CENTIMETER">Cent\u00edmetro (cm)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="quantityPrecision">Decimales de cantidad</label>
+            <input
+              id="quantityPrecision"
+              type="number"
+              min="0"
+              max="3"
+              formControlName="quantityPrecision"
+            />
+          </div>
+          <div class="field">
+            <label for="quantityRounding">Redondeo</label>
+            <select id="quantityRounding" formControlName="quantityRounding">
+              <option value="HALF_UP">Al m\u00e1s cercano</option>
+              <option value="DOWN">Hacia abajo</option>
+              <option value="UP">Hacia arriba</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="minimumQuantity">Cantidad m\u00ednima</label>
+            <input
+              id="minimumQuantity"
+              formControlName="minimumQuantity"
+              inputmode="decimal"
+              placeholder="1.000"
+            />
+            @if (form.controls.minimumQuantity.touched && form.controls.minimumQuantity.invalid) {
+              <p class="field-error">Usa una cantidad positiva con m\u00e1ximo 3 decimales.</p>
+            }
+          </div>
+          @if (form.controls.trackSerials.value) {
+            <div class="field wide">
+              <small
+                >El control por serie usa unidad entera, precisi\u00f3n 0 y m\u00ednimo 1.</small
+              >
+            </div>
+          }
           <div class="field wide">
             <label>
               <input type="checkbox" formControlName="trackLots" />
@@ -687,6 +736,14 @@
                 <dt>Series</dt>
                 <dd>{{ product.trackSerials ? 'Controladas' : 'No controladas' }}</dd>
               </div>
+              <div>
+                <dt>Medici\u00f3n</dt>
+                <dd>
+                  {{ baseUnitLabel(product.baseUnit || 'UNIT') }} \u00b7
+                  {{ product.quantityPrecision ?? 3 }} decimales \u00b7 m\u00ednimo
+                  {{ product.minimumQuantity || '0.001' }}
+                </dd>
+              </div>
             </dl>
 
             @if (canManageProducts() && product.active && !product.parentProductId) {
@@ -848,6 +905,8 @@
                       id="stockQuantity"
                       formControlName="quantity"
                       inputmode="decimal"
+                      [attr.step]="quantityStep(product)"
+                      [attr.min]="product.minimumQuantity || '0.001'"
                       placeholder="0.000"
                     />
                     @if (
@@ -1270,6 +1329,8 @@
             id="transferQuantity"
             formControlName="quantity"
             inputmode="decimal"
+            [attr.step]="selectedProduct() ? quantityStep(selectedProduct()!) : '0.001'"
+            [attr.min]="selectedProduct()?.minimumQuantity || '0.001'"
             placeholder="0.000"
           />
         </div>
@@ -2204,6 +2265,8 @@
                     [attr.aria-label]="'Cantidad de ' + entry.product.name"
                     [value]="entry.quantity"
                     inputmode="decimal"
+                    [attr.step]="quantityStep(entry.product)"
+                    [attr.min]="entry.product.minimumQuantity || '0.001'"
                     (change)="updateCartQuantity(entry.product.id, $any($event.target).value)"
                   />
                 </label>
