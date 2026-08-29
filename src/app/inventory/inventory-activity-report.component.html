@@ -1,0 +1,223 @@
+<section
+  class="activity-report"
+  aria-labelledby="inventory-activity-title"
+  [attr.aria-busy]="loading()"
+>
+  <a class="back" routerLink="/app">← Volver a operación</a>
+  <div class="heading">
+    <div>
+      <p class="eyebrow">Análisis operativo</p>
+      <h2 id="inventory-activity-title">Rotación, pérdidas y movimientos</h2>
+      <p>Detecta productos lentos y revisa la actividad por sucursal y bodega.</p>
+    </div>
+    <strong>{{ report()?.total ?? 0 }} producto(s)</strong>
+  </div>
+
+  @if (report(); as current) {
+    <details class="definitions">
+      <summary>Cómo se calculan las métricas</summary>
+      <dl>
+        <div>
+          <dt>Rotación</dt>
+          <dd>{{ current.definitions.rotation }}</dd>
+        </div>
+        <div>
+          <dt>Pérdida</dt>
+          <dd>{{ current.definitions.loss }}</dd>
+        </div>
+        <div>
+          <dt>Período</dt>
+          <dd>{{ current.definitions.period }}</dd>
+        </div>
+        <div>
+          <dt>Devoluciones y anulaciones</dt>
+          <dd>{{ current.definitions.returnsAndVoids }}</dd>
+        </div>
+        <div>
+          <dt>Transferencias</dt>
+          <dd>{{ current.definitions.transfers }}</dd>
+        </div>
+      </dl>
+    </details>
+  }
+
+  <form class="filters" [formGroup]="filterForm" (ngSubmit)="filter()">
+    <label>Desde <input type="date" formControlName="dateFrom" /></label>
+    <label>Hasta <input type="date" formControlName="dateTo" /></label>
+    <label>
+      Sucursal
+      <select formControlName="branchId" (change)="branchChanged()">
+        <option value="">Todas autorizadas</option>
+        @for (branch of report()?.scope?.branches ?? []; track branch.id) {
+          <option [value]="branch.id">{{ branch.name }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      Bodega
+      <select formControlName="warehouseId">
+        <option value="">Todas</option>
+        @for (warehouse of filteredWarehouses(); track warehouse.id) {
+          <option [value]="warehouse.id">{{ warehouse.branch.name }} · {{ warehouse.name }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      Categoría
+      <select formControlName="categoryId">
+        <option value="">Todas</option>
+        @for (category of report()?.filters?.categories ?? []; track category.id) {
+          <option [value]="category.id">{{ category.name }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      Producto
+      <input formControlName="product" maxlength="80" placeholder="Nombre, SKU o código" />
+    </label>
+    <button type="submit" [disabled]="loading()">
+      {{ loading() ? 'Consultando…' : 'Aplicar filtros' }}
+    </button>
+  </form>
+
+  @if (error()) {
+    <div class="form-error" role="alert">{{ error() }}</div>
+  } @else if (loading()) {
+    <p role="status">Calculando actividad…</p>
+  } @else if ((report()?.items?.length ?? 0) === 0) {
+    <p class="empty" role="status">No hay productos con inventario para los filtros actuales.</p>
+  } @else {
+    <div class="items" aria-label="Actividad por producto">
+      @for (item of report()!.items; track item.product.id) {
+        <article [class.slow]="item.status === 'SLOW'">
+          <div class="product">
+            @if (item.status === 'SLOW') {
+              <span class="badge">Producto lento</span>
+            }
+            <strong>{{ item.product.name }}</strong>
+            <small
+              >{{ item.product.sku }} · {{ item.product.category?.name || 'Sin categoría' }}</small
+            >
+          </div>
+          <dl class="metrics">
+            <div>
+              <dt>Apertura</dt>
+              <dd>{{ item.openingQuantity }}</dd>
+            </div>
+            <div>
+              <dt>Cierre</dt>
+              <dd>{{ item.closingQuantity }}</dd>
+            </div>
+            <div>
+              <dt>Venta neta</dt>
+              <dd>{{ item.netSoldQuantity }}</dd>
+            </div>
+            <div>
+              <dt>Rotación</dt>
+              <dd>{{ item.rotation === null ? 'N/D' : (item.rotation | number: '1.0-4') }}</dd>
+            </div>
+            <div>
+              <dt>Pérdida</dt>
+              <dd>{{ item.lossQuantity }}</dd>
+            </div>
+            <div>
+              <dt>Actividad</dt>
+              <dd>{{ item.activityQuantity }}</dd>
+            </div>
+          </dl>
+          <div class="actions">
+            <small
+              >Último:
+              {{
+                item.lastMovementAt ? (item.lastMovementAt | date: 'short') : 'sin movimientos'
+              }}</small
+            >
+            <button class="secondary" type="button" (click)="showMovements(item)">
+              Ver movimientos
+            </button>
+          </div>
+        </article>
+      }
+    </div>
+  }
+
+  @if (totalPages() > 1) {
+    <div class="pagination">
+      <button class="secondary" type="button" (click)="previous()" [disabled]="page() === 1">
+        Anterior
+      </button>
+      <span>Página {{ page() }} de {{ totalPages() }}</span>
+      <button class="secondary" type="button" (click)="next()" [disabled]="page() === totalPages()">
+        Siguiente
+      </button>
+    </div>
+  }
+
+  @if (selected(); as item) {
+    <section
+      class="drilldown"
+      aria-labelledby="activity-movements-title"
+      [attr.aria-busy]="loadingMovements()"
+    >
+      <div class="heading">
+        <div>
+          <p class="eyebrow">Detalle reconciliable</p>
+          <h3 id="activity-movements-title">Movimientos de {{ item.product.name }}</h3>
+        </div>
+      </div>
+      @if (movementError()) {
+        <div class="form-error" role="alert">{{ movementError() }}</div>
+      } @else if (loadingMovements()) {
+        <p role="status">Cargando movimientos…</p>
+      } @else if (movements().length === 0) {
+        <p class="empty">No hay movimientos en el período.</p>
+      } @else {
+        <ol>
+          @for (movement of movements(); track movement.id) {
+            <li>
+              <div>
+                <strong>{{ movementType(movement.type) }}</strong
+                ><small>{{ movement.reason }}</small>
+              </div>
+              <dl>
+                <div>
+                  <dt>Cambio</dt>
+                  <dd>{{ movement.quantityChange }}</dd>
+                </div>
+                <div>
+                  <dt>Resultado</dt>
+                  <dd>{{ movement.resultingQuantity }}</dd>
+                </div>
+              </dl>
+              <small
+                >{{ movement.branchName }} · {{ movement.warehouseName }} ·
+                {{ movement.locationName }} · {{ movement.occurredAt | date: 'short' }}</small
+              >
+            </li>
+          }
+        </ol>
+      }
+      @if (movementTotalPages() > 1) {
+        <div class="pagination">
+          <button
+            class="secondary"
+            type="button"
+            (click)="previousMovements()"
+            [disabled]="movementPage() === 1"
+          >
+            Anterior
+          </button>
+          <span>Página {{ movementPage() }} de {{ movementTotalPages() }}</span>
+          <button
+            class="secondary"
+            type="button"
+            (click)="nextMovements()"
+            [disabled]="movementPage() === movementTotalPages()"
+          >
+            Siguiente
+          </button>
+        </div>
+      }
+    </section>
+  }
+</section>

@@ -1225,6 +1225,7 @@ export class ApplicationPage implements OnInit {
       STATE_TRANSITION: 'Cambio de estado',
       SALE: 'Venta',
       SALE_VOID: 'Anulación de venta',
+      SALE_RETURN: 'Devolución de venta',
       TRANSFER_OUT: 'Transferencia despachada',
       TRANSFER_IN: 'Transferencia en tránsito',
       TRANSFER_RECEIPT: 'Transferencia recibida',
