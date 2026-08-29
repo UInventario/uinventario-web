@@ -379,6 +379,19 @@ interface MovementResponse {
   meta: { apiVersion: '1'; idempotentReplay: boolean };
 }
 
+export interface InventoryKitOperationData {
+  id: string;
+  operationType: 'ASSEMBLE' | 'DISASSEMBLE';
+  kit: { id: string; name: string; sku: string };
+  locationId: string;
+  quantity: string;
+  components: Array<{
+    product: { id: string; name: string; sku: string };
+    quantityChange: string;
+  }>;
+  createdAt: string;
+}
+
 export interface StockListResponse {
   data: InventoryStockItem[];
   meta: {
@@ -701,6 +714,25 @@ export class InventoryApiService {
       input,
       { headers, withCredentials: true },
     );
+  }
+
+  operateKit(
+    productId: string,
+    input: {
+      operationType: InventoryKitOperationData['operationType'];
+      locationId: string;
+      quantity: string;
+    },
+    idempotencyKey: string,
+  ) {
+    const headers = new HttpHeaders().set('Idempotency-Key', idempotencyKey);
+    return this.http.post<{
+      data: InventoryKitOperationData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(`${this.config.apiBaseUrl()}/inventory/kits/${productId}/operations`, input, {
+      headers,
+      withCredentials: true,
+    });
   }
 
   createStateTransition(input: InventoryStateTransitionInput, idempotencyKey: string) {

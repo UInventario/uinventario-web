@@ -1,0 +1,57 @@
+.kit-panel {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #d7dee8;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+}
+.kit-heading,
+.component-heading,
+.component-search,
+.component-row,
+.kit-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: end;
+  justify-content: space-between;
+}
+.kit-heading h4,
+.kit-heading p {
+  margin: 0.25rem 0;
+}
+.toggle {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  white-space: nowrap;
+}
+.kit-rules {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+.kit-rules label,
+.component-search label,
+.component-row label {
+  display: grid;
+  gap: 0.25rem;
+  flex: 1;
+}
+.component-heading,
+.component-search,
+.component-row,
+.kit-actions {
+  margin-top: 0.75rem;
+}
+@media (max-width: 720px) {
+  .kit-heading,
+  .component-search,
+  .component-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .kit-rules {
+    grid-template-columns: 1fr;
+  }
+}

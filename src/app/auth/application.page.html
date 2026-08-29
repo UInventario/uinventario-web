@@ -747,16 +747,31 @@
             </dl>
 
             @if (canManageProducts() && product.active && !product.parentProductId) {
-              <app-product-variant-panel
+              @if (!product.kit) {
+                <app-product-variant-panel
+                  [product]="product"
+                  (saved)="productVariantsSaved($event)"
+                />
+              }
+              <app-product-kit-panel [product]="product" (saved)="productKitSaved($event)" />
+            }
+
+            @if (canManageStock() && product.kit?.stockMode === 'ASSEMBLED') {
+              <app-inventory-kit-panel
                 [product]="product"
-                (saved)="productVariantsSaved($event)"
+                [locations]="locations()"
+                (completed)="kitInventoryCompleted()"
               />
             }
 
             <section
               class="stock-card"
               aria-labelledby="stock-title"
-              [hidden]="!canManageStock() || product.sellable === false"
+              [hidden]="
+                !canManageStock() ||
+                product.sellable === false ||
+                product.kit?.stockMode === 'DERIVED'
+              "
             >
               <div class="stock-heading">
                 <div>

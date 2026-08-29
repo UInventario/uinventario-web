@@ -1,0 +1,109 @@
+<section class="kit-panel" aria-labelledby="kit-title">
+  <div class="kit-heading">
+    <div>
+      <p class="eyebrow">Kits y combos</p>
+      <h4 id="kit-title">Composición y reglas</h4>
+      <p>Vende componentes juntos o ensámblalos previamente como existencia propia.</p>
+    </div>
+    <label class="toggle">
+      <input type="checkbox" [(ngModel)]="enabled" />
+      Configurar como kit
+    </label>
+  </div>
+
+  @if (!eligible) {
+    <p class="catalog-state">
+      Sólo pueden ser kits los productos por unidad, con mínimo 1 y sin control de lotes o series.
+    </p>
+  }
+
+  @if (enabled) {
+    <div class="kit-rules">
+      <label>
+        Existencia
+        <select [(ngModel)]="stockMode">
+          <option value="DERIVED">Derivada de componentes</option>
+          <option value="ASSEMBLED">Kit ensamblado</option>
+        </select>
+      </label>
+      <label>
+        Precio
+        <select [(ngModel)]="priceRule">
+          <option value="FIXED">Precio fijo del kit</option>
+          <option value="COMPONENT_SUM">Suma de componentes</option>
+        </select>
+      </label>
+      <label>
+        Vigente desde
+        <input type="date" [(ngModel)]="effectiveFrom" />
+      </label>
+      <label>
+        Vigente hasta
+        <input type="date" [(ngModel)]="effectiveTo" />
+      </label>
+    </div>
+
+    <div class="component-heading">
+      <strong>Componentes</strong>
+      <button
+        class="secondary"
+        type="button"
+        (click)="addComponent()"
+        [disabled]="components.length >= 50"
+      >
+        Agregar componente
+      </button>
+    </div>
+    <div class="component-search">
+      <label>
+        Buscar por nombre, SKU o código
+        <input [(ngModel)]="componentSearch" maxlength="80" />
+      </label>
+      <button class="secondary" type="button" (click)="loadChoices()" [disabled]="loadingChoices">
+        {{ loadingChoices ? 'Buscando…' : 'Buscar' }}
+      </button>
+    </div>
+    @for (component of components; track $index; let index = $index) {
+      <div class="component-row">
+        <label>
+          Producto
+          <select [(ngModel)]="component.productId" [disabled]="loadingChoices">
+            <option value="">Seleccionar</option>
+            @for (choice of choices; track choice.id) {
+              <option [value]="choice.id">{{ choice.name }} · {{ choice.sku }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          Cantidad por kit
+          <input [(ngModel)]="component.quantity" inputmode="decimal" />
+        </label>
+        <button
+          class="secondary"
+          type="button"
+          (click)="removeComponent(index)"
+          [disabled]="components.length === 1"
+        >
+          Quitar
+        </button>
+      </div>
+    }
+  }
+
+  @if (error) {
+    <div class="form-error" role="alert">{{ error }}</div>
+  }
+  @if (success) {
+    <div class="success" role="status">{{ success }}</div>
+  }
+  <div class="kit-actions">
+    <button
+      class="primary"
+      type="button"
+      (click)="save()"
+      [disabled]="saving || (enabled && !eligible)"
+    >
+      {{ saving ? 'Guardando…' : enabled ? 'Guardar kit' : 'Guardar como producto simple' }}
+    </button>
+  </div>
+</section>

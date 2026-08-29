@@ -90,6 +90,8 @@ import { ProductImportPanelComponent } from '../catalog/product-import-panel.com
 import { PrivacyPanelComponent } from '../privacy/privacy-panel.component';
 import { PriceListPanelComponent } from '../pricing/price-list-panel.component';
 import { ProductVariantPanelComponent } from '../catalog/product-variant-panel.component';
+import { ProductKitPanelComponent } from '../catalog/product-kit-panel.component';
+import { InventoryKitPanelComponent } from '../inventory/inventory-kit-panel.component';
 import { CustomerOrderPanelComponent } from '../orders/customer-order-panel.component';
 import { SalesQuotationPanelComponent } from '../quotations/sales-quotation-panel.component';
 import { OperationalDashboardComponent } from '../dashboard/operational-dashboard.component';
@@ -145,6 +147,8 @@ interface CartEntry {
     PrivacyPanelComponent,
     PriceListPanelComponent,
     ProductVariantPanelComponent,
+    ProductKitPanelComponent,
+    InventoryKitPanelComponent,
     CustomerOrderPanelComponent,
     SalesQuotationPanelComponent,
     OperationalDashboardComponent,
@@ -2335,6 +2339,22 @@ export class ApplicationPage implements OnInit {
   protected productVariantsSaved(product: ProductData): void {
     this.selectedProduct.set(product);
     this.loadProducts(1);
+    if (this.canViewAudit()) this.loadAuditEvents();
+  }
+
+  protected productKitSaved(product: ProductData): void {
+    this.selectedProduct.set(product);
+    this.loadProducts(1);
+    this.loadBalance(product.id);
+    this.loadStockList(1);
+    if (this.canViewAudit()) this.loadAuditEvents();
+  }
+
+  protected kitInventoryCompleted(): void {
+    const product = this.selectedProduct();
+    if (!product) return;
+    this.loadBalance(product.id);
+    this.loadStockList(this.stockPage());
     if (this.canViewAudit()) this.loadAuditEvents();
   }
 
