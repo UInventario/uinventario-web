@@ -24,6 +24,7 @@ describe('SaleReturnPanelComponent', () => {
     customer: null,
     currency: 'MXN',
     taxRate: '0.1600',
+    discount: null,
     lines: [
       {
         id: 'line-1',
@@ -32,12 +33,24 @@ describe('SaleReturnPanelComponent', () => {
         unitPrice: '116.00',
         priceSource: 'BASE',
         priceList: null,
+        grossTotal: '232.00',
+        discount: { line: null, sale: null, total: '0.00' },
         subtotal: '200.00',
         tax: '32.00',
         total: '232.00',
+        grossProfit: '40.00',
       },
     ],
-    totals: { subtotal: '200.00', tax: '32.00', total: '232.00' },
+    totals: {
+      gross: '232.00',
+      lineDiscount: '0.00',
+      saleDiscount: '0.00',
+      discount: '0.00',
+      subtotal: '200.00',
+      tax: '32.00',
+      total: '232.00',
+      grossProfit: '40.00',
+    },
     payment: {
       id: 'payment-1',
       method: 'CASH',

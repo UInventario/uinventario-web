@@ -40,6 +40,10 @@ describe('SaleReceiptPanelComponent', () => {
         productSku: 'CAFE-1',
         quantity: '1.000',
         unitPrice: '119.90',
+        grossTotal: '129.90',
+        discountTotal: '10.00',
+        lineDiscountReason: 'Empaque deteriorado',
+        saleDiscountReason: null,
         subtotal: '103.36',
         tax: '16.54',
         total: '119.90',
@@ -56,7 +60,13 @@ describe('SaleReceiptPanelComponent', () => {
         authorizationCode: null,
       },
     ],
-    totals: { subtotal: '103.36', tax: '16.54', total: '119.90' },
+    totals: {
+      gross: '129.90',
+      discount: '10.00',
+      subtotal: '103.36',
+      tax: '16.54',
+      total: '119.90',
+    },
     issuedAt: '2026-08-28T12:00:00.000Z',
     saleStatus: 'COMPLETED',
     void: null,
@@ -170,6 +180,8 @@ describe('SaleReceiptPanelComponent', () => {
     expect(pos.reprintSaleReceipt).toHaveBeenCalledWith('sale-1');
     expect(fixture.nativeElement.textContent).toContain('COMPROBANTE NO FISCAL');
     expect(fixture.nativeElement.textContent).toContain('Café molido');
+    expect(fixture.nativeElement.textContent).toContain('Descuento MXN 10.00');
+    expect(fixture.nativeElement.textContent).toContain('Empaque deteriorado');
     expect(fixture.nativeElement.querySelector('table caption').textContent).toContain(
       'Productos vendidos',
     );

@@ -69,6 +69,17 @@
             <tr>
               <td>
                 {{ line.productName }}<small>{{ line.productSku }}</small>
+                @if (line.discountTotal !== '0.00') {
+                  <small>
+                    Descuento {{ ticket.currency }} {{ line.discountTotal }}
+                    @if (line.lineDiscountReason) {
+                      · Producto: {{ line.lineDiscountReason }}
+                    }
+                    @if (line.saleDiscountReason) {
+                      · Venta: {{ line.saleDiscountReason }}
+                    }
+                  </small>
+                }
               </td>
               <td>{{ line.quantity }}</td>
               <td>{{ ticket.currency }} {{ line.total }}</td>
@@ -78,6 +89,16 @@
       </table>
 
       <dl class="totals">
+        @if (ticket.totals.discount !== '0.00') {
+          <div>
+            <dt>Importe original</dt>
+            <dd>{{ ticket.currency }} {{ ticket.totals.gross }}</dd>
+          </div>
+          <div>
+            <dt>Descuentos</dt>
+            <dd>-{{ ticket.currency }} {{ ticket.totals.discount }}</dd>
+          </div>
+        }
         <div>
           <dt>Subtotal</dt>
           <dd>{{ ticket.currency }} {{ ticket.totals.subtotal }}</dd>

@@ -45,6 +45,7 @@ import {
   PosApiService,
   PosCartQuote,
   SaleDetailData,
+  SaleDiscountInput,
   SaleSummaryData,
   SalesCashReportData,
   SuspendedSaleConflict,
@@ -103,6 +104,9 @@ interface CartEntry {
   lotId: string;
   lots: InventoryLotData[];
   serialNumbers: string;
+  discountType: '' | 'PERCENT' | 'AMOUNT';
+  discountValue: string;
+  discountReason: string;
 }
 
 @Component({
@@ -169,7 +173,9 @@ export class ApplicationPage implements OnInit {
         quantity: string;
         lotId?: string;
         serialNumbers?: string[];
+        discount?: SaleDiscountInput;
       }>;
+      discount?: SaleDiscountInput;
       customerId?: string;
       suspendedSaleId?: string;
       payments: Array<{
@@ -244,6 +250,9 @@ export class ApplicationPage implements OnInit {
   );
   protected readonly canVoidSales = computed(
     () => this.session()?.user.permissions.includes('SALES_VOID') ?? false,
+  );
+  protected readonly canApplyDiscount = computed(
+    () => this.session()?.user.permissions.includes('SALES_DISCOUNT') ?? false,
   );
   protected readonly canReturnSales = computed(
     () => this.session()?.user.permissions.includes('SALES_RETURN') ?? false,
@@ -522,6 +531,9 @@ export class ApplicationPage implements OnInit {
   protected readonly cashForm = this.formBuilder.nonNullable.group({
     customerId: [''],
     notes: ['', [Validators.maxLength(500)]],
+    discountType: ['' as '' | 'PERCENT' | 'AMOUNT'],
+    discountValue: ['', [Validators.pattern(POSITIVE_MONEY_PATTERN)]],
+    discountReason: ['', [Validators.maxLength(240)]],
   });
   protected readonly customerSearchForm = this.formBuilder.nonNullable.group({ q: [''] });
   protected readonly customerForm = this.formBuilder.nonNullable.group({
@@ -1603,7 +1615,19 @@ export class ApplicationPage implements OnInit {
               ? { ...entry, quantity: String(Number(entry.quantity) + 1) }
               : entry,
           )
-        : [...this.cart(), { product, quantity: '1', lotId: '', lots: [], serialNumbers: '' }],
+        : [
+            ...this.cart(),
+            {
+              product,
+              quantity: '1',
+              lotId: '',
+              lots: [],
+              serialNumbers: '',
+              discountType: '',
+              discountValue: '',
+              discountReason: '',
+            },
+          ],
     );
     if (!existing && product.trackLots) {
       this.inventory.listLots(product.id).subscribe({
@@ -1652,6 +1676,36 @@ export class ApplicationPage implements OnInit {
     this.quoteCart();
   }
 
+  protected updateCartDiscount(
+    productId: string,
+    field: 'type' | 'value' | 'reason',
+    value: string,
+  ): void {
+    if (!this.canApplyDiscount()) return;
+    this.resetCompletedSale();
+    this.cart.update((entries) =>
+      entries.map((entry) =>
+        entry.product.id === productId
+          ? {
+              ...entry,
+              ...(field === 'type'
+                ? { discountType: value as CartEntry['discountType'] }
+                : field === 'value'
+                  ? { discountValue: value }
+                  : { discountReason: value }),
+            }
+          : entry,
+      ),
+    );
+    this.quoteCart();
+  }
+
+  protected updateSaleDiscount(): void {
+    if (!this.canApplyDiscount()) return;
+    this.resetCompletedSale();
+    this.quoteCart();
+  }
+
   protected removeFromCart(productId: string): void {
     this.resetCompletedSale();
     this.cart.set(this.cart().filter((entry) => entry.product.id !== productId));
@@ -1688,20 +1742,18 @@ export class ApplicationPage implements OnInit {
       this.paymentRows.markAllAsTouched();
       return;
     }
+    let lines: ReturnType<ApplicationPage['saleLinesInput']>;
+    let discount: SaleDiscountInput | undefined;
+    try {
+      lines = this.saleLinesInput();
+      discount = this.saleDiscountInput();
+    } catch (error) {
+      this.posError.set(error instanceof Error ? error.message : 'Revisa los descuentos.');
+      return;
+    }
     const input = {
-      lines: this.cart().map((entry) => ({
-        productId: entry.product.id,
-        quantity: entry.quantity,
-        ...(entry.lotId ? { lotId: entry.lotId } : {}),
-        ...((entry.serialNumbers ?? '').trim()
-          ? {
-              serialNumbers: entry.serialNumbers
-                .split(/\r?\n/)
-                .map((serialNumber) => serialNumber.trim())
-                .filter(Boolean),
-            }
-          : {}),
-      })),
+      lines,
+      ...(discount ? { discount } : {}),
       ...(this.cashForm.controls.customerId.value
         ? { customerId: this.cashForm.controls.customerId.value }
         : {}),
@@ -1724,6 +1776,11 @@ export class ApplicationPage implements OnInit {
         : `web-sale-${globalThis.crypto.randomUUID()}`;
     this.pendingSale = { input, key: idempotencyKey };
     if (this.browserOffline()) {
+      if (discount || lines.some((line) => Boolean(line.discount))) {
+        this.pendingSale = null;
+        this.posError.set('Los descuentos requieren conexión para validar permisos y límites.');
+        return;
+      }
       const offlinePayment = input.payments[0];
       if (input.payments.length !== 1 || offlinePayment?.method !== 'CASH') {
         this.pendingSale = null;
@@ -1930,6 +1987,9 @@ export class ApplicationPage implements OnInit {
               lotId: line.lotId ?? '',
               lots: [],
               serialNumbers: line.serialNumbers.join('\n'),
+              discountType: '',
+              discountValue: '',
+              discountReason: '',
             })),
           );
           this.cashForm.patchValue({
@@ -3334,6 +3394,55 @@ export class ApplicationPage implements OnInit {
     };
   }
 
+  private saleLinesInput() {
+    return this.cart().map((entry) => {
+      const discount = this.discountInput(
+        entry.discountType,
+        entry.discountValue,
+        entry.discountReason,
+      );
+      return {
+        productId: entry.product.id,
+        quantity: entry.quantity,
+        ...(entry.lotId ? { lotId: entry.lotId } : {}),
+        ...((entry.serialNumbers ?? '').trim()
+          ? {
+              serialNumbers: entry.serialNumbers
+                .split(/\r?\n/)
+                .map((serialNumber) => serialNumber.trim())
+                .filter(Boolean),
+            }
+          : {}),
+        ...(discount ? { discount } : {}),
+      };
+    });
+  }
+
+  private saleDiscountInput(): SaleDiscountInput | undefined {
+    const value = this.cashForm.getRawValue();
+    return this.discountInput(value.discountType, value.discountValue, value.discountReason);
+  }
+
+  private discountInput(
+    type: '' | 'PERCENT' | 'AMOUNT' | undefined,
+    value: string | undefined,
+    reason: string | undefined,
+  ): SaleDiscountInput | undefined {
+    const normalizedValue = value?.trim() ?? '';
+    const normalizedReason = reason?.trim() ?? '';
+    if (!type && !normalizedValue && !normalizedReason) return undefined;
+    if (!this.canApplyDiscount()) {
+      throw new Error('No tienes permiso para aplicar descuentos.');
+    }
+    if (!type || !POSITIVE_MONEY_PATTERN.test(normalizedValue) || normalizedReason.length < 3) {
+      throw new Error('Completa el tipo, importe y motivo del descuento.');
+    }
+    if (type === 'PERCENT' && Number(normalizedValue) > 50) {
+      throw new Error('El descuento porcentual no puede superar 50%.');
+    }
+    return { type, value: normalizedValue, reason: normalizedReason };
+  }
+
   private quoteCart(): void {
     if (!this.assertOpenCashRegisterShift()) return;
     if (this.cart().length === 0) return;
@@ -3341,42 +3450,37 @@ export class ApplicationPage implements OnInit {
       void this.quoteCartOffline();
       return;
     }
+    let lines: ReturnType<ApplicationPage['saleLinesInput']>;
+    let discount: SaleDiscountInput | undefined;
+    try {
+      lines = this.saleLinesInput();
+      discount = this.saleDiscountInput();
+    } catch (error) {
+      this.cartQuote.set(null);
+      this.posError.set(error instanceof Error ? error.message : 'Revisa los descuentos.');
+      return;
+    }
     this.quotingCart.set(true);
     this.posError.set(null);
-    this.pos
-      .quote(
-        this.cart().map((entry) => ({
-          productId: entry.product.id,
-          quantity: entry.quantity,
-          ...(entry.lotId ? { lotId: entry.lotId } : {}),
-          ...((entry.serialNumbers ?? '').trim()
-            ? {
-                serialNumbers: entry.serialNumbers
-                  .split(/\r?\n/)
-                  .map((serialNumber) => serialNumber.trim())
-                  .filter(Boolean),
-              }
-            : {}),
-        })),
-        undefined,
-        this.cashForm.controls.customerId.value || undefined,
-      )
-      .pipe(finalize(() => this.quotingCart.set(false)))
-      .subscribe({
-        next: ({ data }) => {
-          this.offlinePosActive.set(false);
-          this.cartQuote.set(data);
-          this.syncSinglePaymentAmount();
-        },
-        error: (error: HttpErrorResponse) => {
-          if (error.status === 0) {
-            void this.quoteCartOffline();
-            return;
-          }
-          this.cartQuote.set(null);
-          this.posError.set(this.posMessageFor(error));
-        },
-      });
+    const customerId = this.cashForm.controls.customerId.value || undefined;
+    const quoteRequest = discount
+      ? this.pos.quote(lines, undefined, customerId, discount)
+      : this.pos.quote(lines, undefined, customerId);
+    quoteRequest.pipe(finalize(() => this.quotingCart.set(false))).subscribe({
+      next: ({ data }) => {
+        this.offlinePosActive.set(false);
+        this.cartQuote.set(data);
+        this.syncSinglePaymentAmount();
+      },
+      error: (error: HttpErrorResponse) => {
+        if (error.status === 0) {
+          void this.quoteCartOffline();
+          return;
+        }
+        this.cartQuote.set(null);
+        this.posError.set(this.posMessageFor(error));
+      },
+    });
   }
 
   private async searchPosOffline(): Promise<void> {
@@ -3496,7 +3600,13 @@ export class ApplicationPage implements OnInit {
   }
 
   private resetPaymentForm(): void {
-    this.cashForm.reset({ customerId: '', notes: '' });
+    this.cashForm.reset({
+      customerId: '',
+      notes: '',
+      discountType: '',
+      discountValue: '',
+      discountReason: '',
+    });
     this.paymentRows.clear();
     this.paymentRows.push(this.createPaymentRow());
     this.syncSinglePaymentAmount();

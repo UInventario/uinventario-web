@@ -2049,6 +2049,11 @@
                       {{ priced.unitPrice }} ·
                       {{ priced.priceList?.name || 'Precio base' }}
                     </small>
+                    @if (priced.discount?.total && priced.discount.total !== '0.00') {
+                      <small>
+                        Descuento {{ cartQuote()?.currency }} {{ priced.discount.total }}
+                      </small>
+                    }
                   }
                 </div>
                 <label>
@@ -2087,6 +2092,46 @@
                     ></textarea>
                   </label>
                 }
+                @if (canApplyDiscount()) {
+                  <label>
+                    Descuento del producto
+                    <select
+                      [value]="entry.discountType"
+                      [disabled]="offlinePosActive()"
+                      (change)="
+                        updateCartDiscount(entry.product.id, 'type', $any($event.target).value)
+                      "
+                    >
+                      <option value="">Sin descuento</option>
+                      <option value="PERCENT">Porcentaje</option>
+                      <option value="AMOUNT">Importe</option>
+                    </select>
+                  </label>
+                  @if (entry.discountType) {
+                    <label>
+                      {{ entry.discountType === 'PERCENT' ? 'Porcentaje' : 'Importe' }}
+                      <input
+                        [value]="entry.discountValue"
+                        inputmode="decimal"
+                        [disabled]="offlinePosActive()"
+                        (change)="
+                          updateCartDiscount(entry.product.id, 'value', $any($event.target).value)
+                        "
+                      />
+                    </label>
+                    <label>
+                      Motivo
+                      <input
+                        [value]="entry.discountReason"
+                        maxlength="240"
+                        [disabled]="offlinePosActive()"
+                        (change)="
+                          updateCartDiscount(entry.product.id, 'reason', $any($event.target).value)
+                        "
+                      />
+                    </label>
+                  }
+                }
                 <div class="line-total">
                   <small>Total validado</small
                   ><strong>{{ quotedLine(entry.product.id)?.total || '—' }}</strong>
@@ -2101,6 +2146,16 @@
             <p class="catalog-state" role="status">Validando precios y existencia…</p>
           } @else if (cartQuote(); as quote) {
             <dl class="cart-totals">
+              @if (quote.totals.discount && quote.totals.discount !== '0.00') {
+                <div>
+                  <dt>Importe antes de descuentos</dt>
+                  <dd>{{ quote.currency }} {{ quote.totals.gross }}</dd>
+                </div>
+                <div>
+                  <dt>Descuentos</dt>
+                  <dd>-{{ quote.currency }} {{ quote.totals.discount }}</dd>
+                </div>
+              }
               <div>
                 <dt>Subtotal</dt>
                 <dd>{{ quote.currency }} {{ quote.totals.subtotal }}</dd>
@@ -2123,6 +2178,42 @@
                   <option [value]="customer.id">{{ customer.name }}</option>
                 }
               </select>
+              @if (canApplyDiscount()) {
+                <fieldset class="sale-discount">
+                  <legend>Descuento sobre la venta</legend>
+                  <label for="saleDiscountType">Tipo</label>
+                  <select
+                    id="saleDiscountType"
+                    formControlName="discountType"
+                    [attr.disabled]="offlinePosActive() ? '' : null"
+                    (change)="updateSaleDiscount()"
+                  >
+                    <option value="">Sin descuento global</option>
+                    <option value="PERCENT">Porcentaje</option>
+                    <option value="AMOUNT">Importe</option>
+                  </select>
+                  @if (cashForm.controls.discountType.value) {
+                    <label for="saleDiscountValue">Valor</label>
+                    <input
+                      id="saleDiscountValue"
+                      formControlName="discountValue"
+                      inputmode="decimal"
+                      autocomplete="off"
+                      [attr.disabled]="offlinePosActive() ? '' : null"
+                      (change)="updateSaleDiscount()"
+                    />
+                    <label for="saleDiscountReason">Motivo</label>
+                    <input
+                      id="saleDiscountReason"
+                      formControlName="discountReason"
+                      maxlength="240"
+                      autocomplete="off"
+                      [attr.disabled]="offlinePosActive() ? '' : null"
+                      (change)="updateSaleDiscount()"
+                    />
+                  }
+                </fieldset>
+              }
               <label for="suspendedSaleNotes">Notas del carrito (opcional)</label>
               <textarea
                 id="suspendedSaleNotes"
@@ -2613,10 +2704,26 @@
               </div>
             }
             <dl class="sale-payment">
+              @if (sale.totals.discount !== '0.00') {
+                <div>
+                  <dt>Importe original</dt>
+                  <dd>{{ sale.currency }} {{ sale.totals.gross }}</dd>
+                </div>
+                <div>
+                  <dt>Descuentos</dt>
+                  <dd>-{{ sale.currency }} {{ sale.totals.discount }}</dd>
+                </div>
+              }
               <div>
                 <dt>Total</dt>
                 <dd>{{ sale.currency }} {{ sale.totals.total }}</dd>
               </div>
+              @if (sale.totals.grossProfit !== null) {
+                <div>
+                  <dt>Margen bruto</dt>
+                  <dd>{{ sale.currency }} {{ sale.totals.grossProfit }}</dd>
+                </div>
+              }
               @for (payment of sale.payments; track $index) {
                 <div>
                   <dt>{{ paymentMethodLabel(payment.method) }}</dt>
@@ -2646,7 +2753,18 @@
                 <li>
                   <span
                     ><strong>{{ line.product.name }}</strong
-                    ><small>{{ line.product.sku }} · {{ line.quantity }}</small></span
+                    ><small>{{ line.product.sku }} · {{ line.quantity }}</small>
+                    @if (line.discount.total !== '0.00') {
+                      <small>
+                        Descuento {{ sale.currency }} {{ line.discount.total }}
+                        @if (line.discount.line; as lineDiscount) {
+                          · Producto: {{ lineDiscount.reason }}
+                        }
+                        @if (line.discount.sale; as saleDiscount) {
+                          · Venta: {{ saleDiscount.reason }}
+                        }
+                      </small>
+                    }</span
                   ><strong>{{ sale.currency }} {{ line.total }}</strong>
                 </li>
               }
