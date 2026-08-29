@@ -26,42 +26,38 @@ describe('ExternalAdapterPanelComponent', () => {
 
   beforeEach(async () => {
     api = {
-      configurations: vi
-        .fn()
-        .mockReturnValue(
-          of({
-            data: [configuration],
-            meta: {
-              apiVersion: '1',
-              catalog: [],
-              secrets: { storage: 'EXTERNAL_SECRET_MANAGER', valuesAcceptedByApi: false },
+      configurations: vi.fn().mockReturnValue(
+        of({
+          data: [configuration],
+          meta: {
+            apiVersion: '1',
+            catalog: [],
+            secrets: { storage: 'EXTERNAL_SECRET_MANAGER', valuesAcceptedByApi: false },
+          },
+        }),
+      ),
+      executions: vi.fn().mockReturnValue(
+        of({
+          data: [
+            {
+              id: 'execution-1',
+              capability: 'NOTIFICATION_EMAIL',
+              provider: 'SIMULATOR',
+              adapterVersion: '1',
+              idempotencyKey: 'key',
+              correlationId: 'request',
+              status: 'TIMED_OUT',
+              attemptCount: 2,
+              errorCode: 'ADAPTER_TIMEOUT',
+              providerReference: null,
+              durationMs: 100,
+              createdAt: '2026-08-29T12:00:00.000Z',
+              updatedAt: '2026-08-29T12:00:00.000Z',
             },
-          }),
-        ),
-      executions: vi
-        .fn()
-        .mockReturnValue(
-          of({
-            data: [
-              {
-                id: 'execution-1',
-                capability: 'NOTIFICATION_EMAIL',
-                provider: 'SIMULATOR',
-                adapterVersion: '1',
-                idempotencyKey: 'key',
-                correlationId: 'request',
-                status: 'TIMED_OUT',
-                attemptCount: 2,
-                errorCode: 'ADAPTER_TIMEOUT',
-                providerReference: null,
-                durationMs: 100,
-                createdAt: '2026-08-29T12:00:00.000Z',
-                updatedAt: '2026-08-29T12:00:00.000Z',
-              },
-            ],
-            meta: { apiVersion: '1' },
-          }),
-        ),
+          ],
+          meta: { apiVersion: '1' },
+        }),
+      ),
       update: vi.fn().mockReturnValue(of({ data: configuration, meta: { apiVersion: '1' } })),
       diagnose: vi
         .fn()
