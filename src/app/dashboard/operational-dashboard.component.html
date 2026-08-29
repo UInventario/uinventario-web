@@ -1,0 +1,195 @@
+<section class="dashboard" aria-labelledby="dashboard-title">
+  <div class="heading">
+    <div>
+      <p class="eyebrow">Resumen operativo</p>
+      <h1 id="dashboard-title">Dashboard</h1>
+      <p class="context">
+        {{ session()?.context?.branch?.name || 'Sin sucursal' }} ·
+        {{ session()?.context?.warehouse?.name || 'Sin bodega' }} · zona horaria por sucursal
+      </p>
+    </div>
+    <button type="button" class="secondary" (click)="refresh()">Actualizar</button>
+  </div>
+
+  <form class="controls" [formGroup]="periodForm" (ngSubmit)="refresh()">
+    <label>Desde <input type="date" formControlName="dateFrom" /></label>
+    <label>Hasta <input type="date" formControlName="dateTo" /></label>
+    <button type="submit" class="secondary">Aplicar periodo</button>
+    <fieldset>
+      <legend>Widgets visibles</legend>
+      @if (canViewSales()) {
+        <label
+          ><input
+            type="checkbox"
+            [checked]="widgetEnabled('sales')"
+            (change)="toggleWidget('sales', $event)"
+          />
+          Ventas/caja</label
+        >
+      }
+      @if (canViewMargin()) {
+        <label
+          ><input
+            type="checkbox"
+            [checked]="widgetEnabled('margin')"
+            (change)="toggleWidget('margin', $event)"
+          />
+          Margen</label
+        >
+      }
+      @if (canViewStock()) {
+        <label
+          ><input
+            type="checkbox"
+            [checked]="widgetEnabled('stock')"
+            (change)="toggleWidget('stock', $event)"
+          />
+          Stock bajo</label
+        >
+      }
+      @if (canViewPurchases()) {
+        <label
+          ><input
+            type="checkbox"
+            [checked]="widgetEnabled('purchases')"
+            (change)="toggleWidget('purchases', $event)"
+          />
+          Compras</label
+        >
+      }
+      <label
+        ><input
+          type="checkbox"
+          [checked]="widgetEnabled('sync')"
+          (change)="toggleWidget('sync', $event)"
+        />
+        Sincronización</label
+      >
+    </fieldset>
+  </form>
+
+  <div class="widgets">
+    @if (canViewSales() && widgetEnabled('sales')) {
+      <article [attr.aria-busy]="salesLoading()">
+        <h2>Ventas y caja</h2>
+        <p class="definition">
+          Ventas completadas del periodo; pagos aplicados y diferencia de turnos conciliados.
+        </p>
+        @if (salesLoading()) {
+          <p role="status">Cargando ventas…</p>
+        } @else if (salesError()) {
+          <p class="error" role="alert">{{ salesError() }}</p>
+        } @else if (sales(); as report) {
+          <strong class="metric">{{ report.summary.sales.net }}</strong>
+          @if (salesEmpty(report)) {
+            <span>Sin ventas para el periodo.</span>
+          } @else {
+            <span
+              >{{ report.summary.sales.completed }} venta(s) · caja
+              {{ report.summary.cash.difference }}</span
+            >
+          }
+          <span [class.warning]="!report.summary.reconciliation.matches">
+            {{
+              report.summary.reconciliation.matches ? 'Pagos conciliados' : 'Diferencia en pagos'
+            }}
+          </span>
+          <span>Zona horaria: {{ periodTimezones() }}</span>
+          <a routerLink="/app" fragment="sales-cash-report-title">Abrir ventas y caja</a>
+          <small>Consultado {{ salesUpdatedAt() | date: 'short' }}</small>
+        } @else {
+          <p>Sin ventas para el periodo.</p>
+        }
+      </article>
+    }
+
+    @if (canViewMargin() && widgetEnabled('margin')) {
+      <article [attr.aria-busy]="marginLoading()">
+        <h2>Margen</h2>
+        <p class="definition">Ingreso sin impuestos menos costo histórico neto de devoluciones.</p>
+        @if (marginLoading()) {
+          <p role="status">Calculando margen…</p>
+        } @else if (marginError()) {
+          <p class="error" role="alert">{{ marginError() }}</p>
+        } @else if (profitability(); as report) {
+          @for (currency of report.currencies; track currency.currency) {
+            <strong class="metric">{{ currency.margin }} {{ currency.currency }}</strong>
+            <span>Ingreso {{ currency.netRevenue }} · costo {{ currency.netCost }}</span>
+          }
+          @if (report.currencies.length === 0) {
+            <p>Sin resultados para el periodo.</p>
+          }
+          <a routerLink="/app" fragment="sales-cash-report-title">Abrir rentabilidad</a>
+          <small>Consultado {{ marginUpdatedAt() | date: 'short' }}</small>
+        }
+      </article>
+    }
+
+    @if (canViewStock() && widgetEnabled('stock')) {
+      <article [attr.aria-busy]="stockLoading()">
+        <h2>Stock bajo</h2>
+        <p class="definition">Productos bajo el umbral o sin disponibilidad en la bodega activa.</p>
+        @if (stockLoading()) {
+          <p role="status">Consultando existencias…</p>
+        } @else if (stockError()) {
+          <p class="error" role="alert">{{ stockError() }}</p>
+        } @else {
+          <strong class="metric">{{ stockAlerts().low + stockAlerts().outOfStock }}</strong>
+          @if (stockAlerts().low + stockAlerts().outOfStock === 0) {
+            <span>Sin alertas activas.</span>
+          } @else {
+            <span
+              >{{ stockAlerts().outOfStock }} agotado(s) · {{ stockAlerts().low }} bajo umbral</span
+            >
+          }
+          <a routerLink="/app" fragment="stock-alerts-title">Resolver alertas</a>
+          <small>Consultado {{ stockUpdatedAt() | date: 'short' }}</small>
+        }
+      </article>
+    }
+
+    @if (canViewPurchases() && widgetEnabled('purchases')) {
+      <article [attr.aria-busy]="purchaseLoading()">
+        <h2>Compras</h2>
+        <p class="definition">Órdenes de compra registradas y accesibles para el tenant actual.</p>
+        @if (purchaseLoading()) {
+          <p role="status">Consultando compras…</p>
+        } @else if (purchaseError()) {
+          <p class="error" role="alert">{{ purchaseError() }}</p>
+        } @else {
+          <strong class="metric">{{ purchaseTotal() }}</strong>
+          <span>{{
+            purchaseTotal() === 0 ? 'Sin órdenes registradas' : 'Órdenes registradas'
+          }}</span>
+          <a routerLink="/app" fragment="purchase-orders-title">Abrir órdenes de compra</a>
+          <small>Consultado {{ purchaseUpdatedAt() | date: 'short' }}</small>
+        }
+      </article>
+    }
+
+    @if (widgetEnabled('sync')) {
+      <article [attr.aria-busy]="syncLoading()">
+        <h2>Sincronización</h2>
+        <p class="definition">
+          Vigencia del catálogo local y operaciones pendientes de este usuario/dispositivo.
+        </p>
+        @if (syncLoading()) {
+          <p role="status">Leyendo estado local…</p>
+        } @else if (syncError()) {
+          <p class="error" role="alert">{{ syncError() }}</p>
+        } @else if (sync(); as state) {
+          <strong class="metric">{{ freshnessLabel(state.freshness) }}</strong>
+          <span>{{ state.pending }} pendiente(s) · {{ state.conflicts }} conflicto(s)</span>
+          <span>{{ state.entities }} entidad(es) locales</span>
+          <a routerLink="/app" fragment="offline-bootstrap-title">Abrir sincronización</a>
+          <small>
+            Datos {{ state.generatedAt ? (state.generatedAt | date: 'short') : 'sin descargar' }} ·
+            consultado {{ syncUpdatedAt() | date: 'short' }}
+          </small>
+        } @else {
+          <p>Sin datos offline preparados.</p>
+        }
+      </article>
+    }
+  </div>
+</section>

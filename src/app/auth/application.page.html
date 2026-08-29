@@ -7,6 +7,7 @@
     <button class="secondary" type="button" (click)="logout()">Cerrar sesión</button>
   </header>
   <nav aria-label="Módulos principales">
+    <a routerLink="/app" fragment="dashboard-title">Dashboard</a>
     @if (canManageTenant()) {
       <a routerLink="/onboarding">Empresa</a>
       <a routerLink="/app" fragment="organization-title">Sucursales</a>
@@ -44,6 +45,12 @@
       <a routerLink="/app" fragment="privacy-title">Privacidad</a>
     }
   </nav>
+
+  @defer (on immediate) {
+    <app-operational-dashboard />
+  } @placeholder {
+    <section aria-busy="true"><p role="status">Cargando dashboard…</p></section>
+  }
 
   <app-offline-bootstrap-panel />
   @if (canExportAudit()) {
