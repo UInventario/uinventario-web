@@ -45,12 +45,19 @@
     @if (canManagePrivacy()) {
       <a routerLink="/app" fragment="privacy-title">Privacidad</a>
     }
+    @if (canViewNotifications()) {
+      <a routerLink="/app" fragment="notifications-title">Notificaciones</a>
+    }
   </nav>
 
   @defer (on immediate) {
     <app-operational-dashboard />
   } @placeholder {
     <section aria-busy="true"><p role="status">Cargando dashboard…</p></section>
+  }
+
+  @if (canViewNotifications()) {
+    <app-notification-panel [canManage]="canManageNotifications()" />
   }
 
   <app-offline-bootstrap-panel />

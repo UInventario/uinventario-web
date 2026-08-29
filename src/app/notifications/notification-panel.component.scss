@@ -1,0 +1,134 @@
+:host {
+  display: block;
+}
+
+.notification-panel {
+  display: grid;
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 1.25rem;
+  border: 1px solid var(--line, #d8dee8);
+  border-radius: 1rem;
+  background: var(--surface, #fff);
+}
+
+.heading,
+.subheading,
+.actions,
+.add-rule,
+.rule-list article,
+.delivery-list article {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.heading,
+.subheading,
+.notification-list article,
+.delivery-list article {
+  justify-content: space-between;
+}
+.heading h2,
+.heading p,
+.subheading h3,
+.subheading p,
+article p {
+  margin: 0.2rem 0;
+}
+.eyebrow,
+.status,
+small {
+  color: var(--muted, #566274);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.eyebrow,
+.status {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.notification-list,
+.rule-list,
+.delivery-list,
+.settings,
+.deliveries {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.notification-list article,
+.rule-list article,
+.delivery-list article {
+  padding: 0.85rem 1rem;
+  border: 1px solid #d8dee8;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+}
+
+.notification-list article {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+.notification-list article > div,
+.rule-name,
+.delivery-list article > div {
+  display: grid;
+  gap: 0.25rem;
+}
+.notification-list article.unread {
+  border-color: #5d88bd;
+  background: #f1f7ff;
+}
+.notification-list article.critical {
+  border-color: #d98d82;
+  background: #fff2f0;
+}
+.settings,
+.deliveries {
+  padding-top: 1rem;
+  border-top: 1px solid var(--line, #d8dee8);
+}
+.add-rule label {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 13rem;
+  flex: 1;
+}
+.rule-list article label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.rule-name {
+  min-width: 16rem;
+  flex: 1;
+}
+.healthy,
+.success {
+  color: #176b3a;
+  font-weight: 700;
+}
+.form-error,
+.failed code {
+  color: #9e251d;
+}
+.danger {
+  color: #9e251d;
+}
+
+@media (max-width: 720px) {
+  .notification-list article,
+  .rule-list article,
+  .delivery-list article {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .actions button,
+  .subheading button,
+  .add-rule button {
+    width: 100%;
+  }
+}
