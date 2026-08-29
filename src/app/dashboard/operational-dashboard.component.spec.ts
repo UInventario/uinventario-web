@@ -203,11 +203,62 @@ describe('OperationalDashboardComponent', () => {
     ) as HTMLInputElement;
     marginToggle.checked = false;
     marginToggle.dispatchEvent(new Event('change'));
+    const dates = fixture.nativeElement.querySelectorAll(
+      'input[type="date"]',
+    ) as NodeListOf<HTMLInputElement>;
+    dates[0].value = '2026-08-01';
+    dates[0].dispatchEvent(new Event('input'));
+    dates[1].value = '2026-08-29';
+    dates[1].dispatchEvent(new Event('input'));
+    fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit'));
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).not.toContain(
       'Ingreso sin impuestos menos costo histórico',
     );
     expect(localStorage.getItem('uinventario:dashboard:tenant:user')).toContain('"margin":false');
+    expect(localStorage.getItem('uinventario:dashboard:tenant:user')).toContain(
+      '"period":{"dateFrom":"2026-08-01","dateTo":"2026-08-29"}',
+    );
+
+    fixture.destroy();
+    fixture = TestBed.createComponent(OperationalDashboardComponent);
+    fixture.detectChanges();
+    const restoredDates = fixture.nativeElement.querySelectorAll(
+      'input[type="date"]',
+    ) as NodeListOf<HTMLInputElement>;
+    expect(restoredDates[0].value).toBe('2026-08-01');
+    expect(restoredDates[1].value).toBe('2026-08-29');
+    expect(fixture.nativeElement.textContent).not.toContain(
+      'Ingreso sin impuestos menos costo histórico',
+    );
+  });
+
+  it('announces an invalid period without requesting new metrics', async () => {
+    fixture = TestBed.createComponent(OperationalDashboardComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    pos.salesCashReport.mockClear();
+    pos.profitabilityReport.mockClear();
+    inventory.listStockAlerts.mockClear();
+    purchases.list.mockClear();
+
+    const dates = fixture.nativeElement.querySelectorAll(
+      'input[type="date"]',
+    ) as NodeListOf<HTMLInputElement>;
+    dates[0].value = '2026-08-30';
+    dates[0].dispatchEvent(new Event('input'));
+    dates[1].value = '2026-08-29';
+    dates[1].dispatchEvent(new Event('input'));
+    fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('[role="alert"]').textContent).toContain(
+      'La fecha inicial no puede ser posterior',
+    );
+    expect(pos.salesCashReport).not.toHaveBeenCalled();
+    expect(pos.profitabilityReport).not.toHaveBeenCalled();
+    expect(inventory.listStockAlerts).not.toHaveBeenCalled();
+    expect(purchases.list).not.toHaveBeenCalled();
   });
 });

@@ -2495,6 +2495,7 @@
   <section
     class="sales-workspace"
     aria-labelledby="sales-cash-report-title"
+    aria-describedby="sales-cash-report-description"
     [hidden]="!canManageSales()"
     [attr.aria-busy]="loadingSalesCashReport()"
   >
@@ -2502,7 +2503,11 @@
     <div class="sales-heading">
       <div>
         <h2 id="sales-cash-report-title">Reporte de ventas y caja</h2>
-        <p class="context">Los periodos se interpretan en la zona horaria de cada sucursal.</p>
+        <p id="sales-cash-report-description" class="context">
+          Resumen textual reconciliado. Los periodos se interpretan en la zona horaria de cada
+          sucursal; todos los datos visibles también pueden recorrerse con teclado y lector de
+          pantalla.
+        </p>
       </div>
     </div>
     <form
@@ -2550,14 +2555,22 @@
       <button class="secondary" type="submit" [disabled]="loadingSalesCashReport()">
         Actualizar reporte
       </button>
+      @if (canExportAudit()) {
+        <a class="secondary report-export-link" routerLink="/app" fragment="data-exports-title">
+          Exportar ventas en CSV o Excel
+        </a>
+      }
     </form>
+    @if (reportFilterStatus()) {
+      <p class="catalog-state" role="status">{{ reportFilterStatus() }}</p>
+    }
     @if (salesCashReportError()) {
       <div class="form-error" role="alert">{{ salesCashReportError() }}</div>
     }
     @if (loadingSalesCashReport()) {
       <p class="catalog-state" role="status">Conciliando ventas, pagos y cajas…</p>
     } @else if (salesCashReport(); as report) {
-      <div class="cart-totals">
+      <dl class="cart-totals" aria-label="Resumen de ventas y caja">
         <div>
           <dt>Ventas netas</dt>
           <dd>{{ report.summary.sales.net }}</dd>
@@ -2582,7 +2595,7 @@
           <dt>Diferencia de caja</dt>
           <dd>{{ report.summary.cash.difference }}</dd>
         </div>
-      </div>
+      </dl>
       <div
         class="success"
         [class.form-error]="!report.summary.reconciliation.matches"
@@ -2599,7 +2612,7 @@
         </span>
       </div>
       <h3>Pagos</h3>
-      <ul class="sale-lines">
+      <ul class="sale-lines" aria-label="Pagos conciliados por método y estado">
         @for (payment of report.summary.payments; track payment.method + payment.status) {
           <li>
             <span>
@@ -2621,9 +2634,9 @@
       </ul>
       <h3>Turnos de caja</h3>
       @if (report.shifts.length === 0) {
-        <p class="catalog-state">Sin turnos en el periodo.</p>
+        <p class="catalog-state" role="status">Sin turnos en el periodo.</p>
       } @else {
-        <ul class="sale-lines">
+        <ul class="sale-lines" aria-label="Turnos de caja del periodo">
           @for (shift of report.shifts; track shift.id) {
             <li>
               <span>
@@ -2640,9 +2653,9 @@
       }
       <h3>Ventas del periodo</h3>
       @if (report.sales.length === 0) {
-        <p class="catalog-state">Sin ventas para los filtros seleccionados.</p>
+        <p class="catalog-state" role="status">Sin ventas para los filtros seleccionados.</p>
       } @else {
-        <ul class="sale-lines">
+        <ul class="sale-lines" aria-label="Ventas del periodo">
           @for (sale of report.sales; track sale.id) {
             <li>
               <span>
@@ -2702,7 +2715,10 @@
         } @else if (profitabilityReport(); as profitability) {
           @for (currency of profitability.currencies; track currency.currency) {
             <h4>{{ currency.currency }}</h4>
-            <div class="cart-totals">
+            <dl
+              class="cart-totals"
+              [attr.aria-label]="'Resumen de rentabilidad en ' + currency.currency"
+            >
               <div>
                 <dt>Ingreso neto</dt>
                 <dd>{{ currency.netRevenue }}</dd>
@@ -2735,7 +2751,7 @@
                 <dt>Ventas a crédito</dt>
                 <dd>{{ currency.creditSales }}</dd>
               </div>
-            </div>
+            </dl>
             <div class="success" [class.form-error]="!currency.salesMatchPayments" role="status">
               <strong>
                 {{
@@ -2749,13 +2765,15 @@
             </div>
           }
           @if (profitability.currencies.length === 0) {
-            <p class="catalog-state">Sin actividad financiera para los filtros seleccionados.</p>
+            <p class="catalog-state" role="status">
+              Sin actividad financiera para los filtros seleccionados.
+            </p>
           }
           <h4>Resultado por producto</h4>
           @if (profitability.products.length === 0) {
-            <p class="catalog-state">Sin productos con actividad en el periodo.</p>
+            <p class="catalog-state" role="status">Sin productos con actividad en el periodo.</p>
           } @else {
-            <ul class="sale-lines">
+            <ul class="sale-lines" aria-label="Rentabilidad por producto">
               @for (
                 product of profitability.products;
                 track product.product.id + product.currency
@@ -2778,9 +2796,9 @@
           }
           <h4>Detalle reconciliable</h4>
           @if (profitability.activities.length === 0) {
-            <p class="catalog-state">Sin movimientos para el periodo.</p>
+            <p class="catalog-state" role="status">Sin movimientos para el periodo.</p>
           } @else {
-            <ul class="sale-lines">
+            <ul class="sale-lines" aria-label="Actividades reconciliables de rentabilidad">
               @for (activity of profitability.activities; track activity.type + activity.id) {
                 <li>
                   <span>
@@ -2840,6 +2858,13 @@
       }
     }
   </section>
+
+  @if (!canManageSales()) {
+    <section class="empty report-permission" role="status" aria-labelledby="reports-denied-title">
+      <h2 id="reports-denied-title">Reportes de ventas no disponibles</h2>
+      <p>Tu rol no incluye permiso para consultar ventas, caja ni rentabilidad.</p>
+    </section>
+  }
 
   <section
     class="sales-workspace"

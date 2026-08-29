@@ -67,12 +67,15 @@
       >
     </fieldset>
   </form>
+  @if (periodError()) {
+    <p class="error period-error" role="alert">{{ periodError() }}</p>
+  }
 
   <div class="widgets">
     @if (canViewSales() && widgetEnabled('sales')) {
-      <article [attr.aria-busy]="salesLoading()">
+      <article aria-describedby="dashboard-sales-definition" [attr.aria-busy]="salesLoading()">
         <h2>Ventas y caja</h2>
-        <p class="definition">
+        <p id="dashboard-sales-definition" class="definition">
           Ventas completadas del periodo; pagos aplicados y diferencia de turnos conciliados.
         </p>
         @if (salesLoading()) {
@@ -104,9 +107,11 @@
     }
 
     @if (canViewMargin() && widgetEnabled('margin')) {
-      <article [attr.aria-busy]="marginLoading()">
+      <article aria-describedby="dashboard-margin-definition" [attr.aria-busy]="marginLoading()">
         <h2>Margen</h2>
-        <p class="definition">Ingreso sin impuestos menos costo histórico neto de devoluciones.</p>
+        <p id="dashboard-margin-definition" class="definition">
+          Ingreso sin impuestos menos costo histórico neto de devoluciones.
+        </p>
         @if (marginLoading()) {
           <p role="status">Calculando margen…</p>
         } @else if (marginError()) {
@@ -126,9 +131,11 @@
     }
 
     @if (canViewStock() && widgetEnabled('stock')) {
-      <article [attr.aria-busy]="stockLoading()">
+      <article aria-describedby="dashboard-stock-definition" [attr.aria-busy]="stockLoading()">
         <h2>Stock bajo</h2>
-        <p class="definition">Productos bajo el umbral o sin disponibilidad en la bodega activa.</p>
+        <p id="dashboard-stock-definition" class="definition">
+          Productos bajo el umbral o sin disponibilidad en la bodega activa.
+        </p>
         @if (stockLoading()) {
           <p role="status">Consultando existencias…</p>
         } @else if (stockError()) {
@@ -149,9 +156,14 @@
     }
 
     @if (canViewPurchases() && widgetEnabled('purchases')) {
-      <article [attr.aria-busy]="purchaseLoading()">
+      <article
+        aria-describedby="dashboard-purchases-definition"
+        [attr.aria-busy]="purchaseLoading()"
+      >
         <h2>Compras</h2>
-        <p class="definition">Órdenes de compra registradas y accesibles para el tenant actual.</p>
+        <p id="dashboard-purchases-definition" class="definition">
+          Órdenes de compra registradas y accesibles para el tenant actual.
+        </p>
         @if (purchaseLoading()) {
           <p role="status">Consultando compras…</p>
         } @else if (purchaseError()) {
@@ -168,9 +180,9 @@
     }
 
     @if (widgetEnabled('sync')) {
-      <article [attr.aria-busy]="syncLoading()">
+      <article aria-describedby="dashboard-sync-definition" [attr.aria-busy]="syncLoading()">
         <h2>Sincronización</h2>
-        <p class="definition">
+        <p id="dashboard-sync-definition" class="definition">
           Vigencia del catálogo local y operaciones pendientes de este usuario/dispositivo.
         </p>
         @if (syncLoading()) {

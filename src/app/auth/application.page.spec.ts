@@ -143,6 +143,7 @@ describe('ApplicationPage', () => {
   let sessionState: ReturnType<typeof signal<SessionData | null>>;
 
   beforeEach(async () => {
+    localStorage.clear();
     products = {
       getOptions: vi
         .fn()
@@ -2558,6 +2559,60 @@ describe('ApplicationPage', () => {
     expect(fixture.nativeElement.textContent).toContain('Margen 37.50');
     expect(fixture.nativeElement.textContent).toContain('V-REPORT000001');
     expect(fixture.nativeElement.textContent).toContain('Diferencia 0.00');
+    expect(fixture.nativeElement.querySelectorAll('dl.cart-totals')).toHaveLength(2);
+    expect(fixture.nativeElement.querySelector('[aria-label="Ventas del periodo"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.report-export-link').textContent).toContain(
+      'CSV o Excel',
+    );
+    expect(localStorage.getItem('uinventario:reports:tenant:user')).toContain(
+      '"dateFrom":"2026-08-27"',
+    );
+
+    fixture.destroy();
+    fixture = TestBed.createComponent(ApplicationPage);
+    fixture.detectChanges();
+
+    const restored = (
+      fixture.componentInstance as unknown as {
+        salesCashReportForm: {
+          getRawValue(): Record<string, string>;
+        };
+      }
+    ).salesCashReportForm.getRawValue();
+    expect(restored).toEqual({
+      dateFrom: '2026-08-27',
+      dateTo: '2026-08-27',
+      branchId: 'branch',
+      cashRegisterId: '',
+      userId: '',
+      status: 'ALL',
+    });
+  });
+
+  it('announces an invalid report period without replacing reconciled data', () => {
+    const component = fixture.componentInstance as unknown as {
+      salesCashReportForm: {
+        controls: {
+          dateFrom: { setValue(value: string): void };
+          dateTo: { setValue(value: string): void };
+        };
+      };
+      filterSalesCashReport(): void;
+    };
+    pos.salesCashReport.mockClear();
+    pos.profitabilityReport.mockClear();
+    component.salesCashReportForm.controls.dateFrom.setValue('2026-08-30');
+    component.salesCashReportForm.controls.dateTo.setValue('2026-08-29');
+
+    component.filterSalesCashReport();
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[aria-labelledby="sales-cash-report-title"] .form-error')
+        .textContent,
+    ).toContain('La fecha inicial no puede ser posterior');
+    expect(pos.salesCashReport).not.toHaveBeenCalled();
+    expect(pos.profitabilityReport).not.toHaveBeenCalled();
   });
 
   it('creates a customer only after contact consent and selects it for the sale', () => {
