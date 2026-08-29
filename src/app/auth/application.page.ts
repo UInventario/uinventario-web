@@ -85,6 +85,7 @@ import { DataExportPanelComponent } from '../exports/data-export-panel.component
 import { ProductImportPanelComponent } from '../catalog/product-import-panel.component';
 import { PrivacyPanelComponent } from '../privacy/privacy-panel.component';
 import { PriceListPanelComponent } from '../pricing/price-list-panel.component';
+import { ProductVariantPanelComponent } from '../catalog/product-variant-panel.component';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const POSITIVE_MONEY_PATTERN = /^(?:[1-9]\d{0,11}(?:\.\d{1,2})?|0\.(?:0[1-9]|[1-9]\d?))$/;
@@ -130,6 +131,7 @@ interface CartEntry {
     ProductImportPanelComponent,
     PrivacyPanelComponent,
     PriceListPanelComponent,
+    ProductVariantPanelComponent,
   ],
   templateUrl: './application.page.html',
   styleUrl: './application.page.scss',
@@ -1463,6 +1465,7 @@ export class ApplicationPage implements OnInit {
           : {}),
         page: 1,
         pageSize: 5,
+        sellableOnly: true,
       })
       .pipe(finalize(() => this.searchingPos.set(false)))
       .subscribe({
@@ -1585,6 +1588,10 @@ export class ApplicationPage implements OnInit {
     if (!this.assertOpenCashRegisterShift()) return;
     if (!product.active) {
       this.posError.set('El producto está inactivo y no puede venderse.');
+      return;
+    }
+    if (product.sellable === false) {
+      this.posError.set('Selecciona una variante con SKU propio para vender este producto.');
       return;
     }
     const existing = this.cart().find((entry) => entry.product.id === product.id);
@@ -2077,6 +2084,12 @@ export class ApplicationPage implements OnInit {
 
   protected filterSales(): void {
     this.loadSales(1);
+  }
+
+  protected productVariantsSaved(product: ProductData): void {
+    this.selectedProduct.set(product);
+    this.loadProducts(1);
+    if (this.canViewAudit()) this.loadAuditEvents();
   }
 
   protected viewSerialHistory(serialId: string): void {
