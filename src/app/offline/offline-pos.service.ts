@@ -211,10 +211,11 @@ export class OfflinePosService {
       currency: policy.currency,
       taxRate: policy.taxRate,
       discount: null,
-      lines: quoteLines,
+      lines: quoteLines.map((line) => ({ ...line, promotions: [] })),
       totals: {
         gross: this.money(totalCents),
         lineDiscount: '0.00',
+        promotionDiscount: '0.00',
         saleDiscount: '0.00',
         discount: '0.00',
         subtotal: this.money(subtotalCents),

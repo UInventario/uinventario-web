@@ -12,6 +12,18 @@ export interface AppliedSaleDiscount extends SaleDiscountInput {
   amount: string;
 }
 
+export interface AppliedPromotion {
+  promotion: {
+    id: string;
+    name: string;
+    type: 'BUY_X_GET_Y' | 'SECOND_UNIT_PERCENT' | 'BUNDLE_FIXED' | 'QUANTITY_PERCENT';
+    priority: number;
+  };
+  amount: string;
+  explanation: string;
+  ruleSnapshot: Record<string, unknown>;
+}
+
 export interface PosCartQuote {
   context: {
     branch: { id: string; name: string };
@@ -37,6 +49,7 @@ export interface PosCartQuote {
       sale: AppliedSaleDiscount | null;
       total: string;
     };
+    promotions?: AppliedPromotion[];
     subtotal: string;
     tax: string;
     total: string;
@@ -44,6 +57,7 @@ export interface PosCartQuote {
   totals: {
     gross: string;
     lineDiscount: string;
+    promotionDiscount?: string;
     saleDiscount: string;
     discount: string;
     subtotal: string;
