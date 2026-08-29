@@ -7,7 +7,7 @@ import {
 } from './offline-bootstrap-api.service';
 
 const DATABASE_NAME = 'uinventario-offline';
-export const OFFLINE_SCHEMA_VERSION = 3;
+export const OFFLINE_SCHEMA_VERSION = 4;
 
 interface MetaRecord {
   key: string;
@@ -36,6 +36,20 @@ interface EntityRecord {
   storageKey: string;
   scopeKey: string;
   value: OfflineBootstrapEntity;
+}
+
+interface SessionRecord {
+  key: 'active';
+  scope: OfflineScopeIdentity;
+  scopeKey: string;
+  session: unknown;
+  sessionExpiresAt: string;
+  storedAt: string;
+}
+
+export interface OfflineSessionSnapshot<TSession> {
+  session: TSession;
+  sessionExpiresAt: string;
 }
 
 export interface OfflineScopeIdentity {
@@ -512,12 +526,63 @@ export class OfflineStoreService {
 
   async clearAll(): Promise<void> {
     const database = await this.open();
-    const transaction = database.transaction(['scopes', 'entities', 'outbox'], 'readwrite');
+    const transaction = database.transaction(
+      ['scopes', 'entities', 'outbox', 'sessions'],
+      'readwrite',
+    );
     transaction.objectStore('scopes').clear();
     transaction.objectStore('entities').clear();
     transaction.objectStore('outbox').clear();
+    transaction.objectStore('sessions').clear();
     await this.safeTransaction(transaction);
     this.notifyOutbox('*');
+  }
+
+  async saveSession<TSession>(
+    scope: OfflineScopeIdentity,
+    session: TSession,
+    sessionExpiresAt: string,
+  ): Promise<void> {
+    const expiresAt = new Date(sessionExpiresAt).getTime();
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) return;
+    const database = await this.open();
+    const transaction = database.transaction('sessions', 'readwrite');
+    transaction.objectStore('sessions').put({
+      key: 'active',
+      scope,
+      scopeKey: this.scopeKey(scope),
+      session,
+      sessionExpiresAt,
+      storedAt: new Date().toISOString(),
+    } satisfies SessionRecord);
+    await this.safeTransaction(transaction);
+  }
+
+  async restoreSession<TSession>(
+    now = Date.now(),
+  ): Promise<OfflineSessionSnapshot<TSession> | null> {
+    const database = await this.open();
+    const record = await this.request<SessionRecord | undefined>(
+      database.transaction('sessions').objectStore('sessions').get('active'),
+    );
+    if (!record) return null;
+    const expiresAt = new Date(record.sessionExpiresAt).getTime();
+    const scope = await this.request<ScopeRecord | undefined>(
+      database.transaction('scopes').objectStore('scopes').get(record.scopeKey),
+    );
+    if (!Number.isFinite(expiresAt) || expiresAt <= now || !scope) {
+      await this.clearAll();
+      return null;
+    }
+    const freshness = await this.freshness(record.scope, now);
+    if (['SESSION_EXPIRED', 'NOT_PREPARED'].includes(freshness.condition)) {
+      await this.clearAll();
+      return null;
+    }
+    if (freshness.condition === 'CLOCK_INVALID') {
+      return null;
+    }
+    return { session: record.session as TSession, sessionExpiresAt: record.sessionExpiresAt };
   }
 
   scopeKey(scope: OfflineScopeIdentity): string {
@@ -604,6 +669,9 @@ export class OfflineStoreService {
         if (!database.objectStoreNames.contains('scopes')) {
           database.createObjectStore('scopes', { keyPath: 'key' });
         }
+        if (!database.objectStoreNames.contains('sessions')) {
+          database.createObjectStore('sessions', { keyPath: 'key' });
+        }
         if (!database.objectStoreNames.contains('entities')) {
           const entities = database.createObjectStore('entities', { keyPath: 'storageKey' });
           entities.createIndex('scopeKey', 'scopeKey', { unique: false });
@@ -636,7 +704,7 @@ export class OfflineStoreService {
 
   private validSchema(database: IDBDatabase): boolean {
     if (
-      !['meta', 'scopes', 'entities', 'outbox'].every((name) =>
+      !['meta', 'scopes', 'entities', 'outbox', 'sessions'].every((name) =>
         database.objectStoreNames.contains(name),
       )
     ) {

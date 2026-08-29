@@ -41,7 +41,7 @@ describe('OfflineStoreService', () => {
   });
 
   it('persists a versioned bootstrap across service instances and clears it on logout', async () => {
-    expect(OFFLINE_SCHEMA_VERSION).toBe(3);
+    expect(OFFLINE_SCHEMA_VERSION).toBe(4);
     const store = new OfflineStoreService();
     const deviceId = await store.deviceId();
     const bootstrap = response(firstScope);
@@ -54,6 +54,44 @@ describe('OfflineStoreService', () => {
     );
     await afterReload.clearAll();
     expect(await afterReload.summary(firstScope)).toBeNull();
+  });
+
+  it('restores only a prepared, unexpired session and removes it on logout', async () => {
+    const store = new OfflineStoreService();
+    const bootstrap = response(firstScope);
+    const session = {
+      tenant: { id: firstScope.tenantId, name: 'Tenant' },
+      user: {
+        id: firstScope.userId,
+        email: 'admin@example.com',
+        roles: ['ADMIN'],
+        permissions: [],
+      },
+      context: {
+        branch: { id: 'branch-1', name: 'Principal' },
+        warehouse: { id: 'warehouse-1', name: 'General' },
+        cashRegister: null,
+      },
+      nextStep: 'APPLICATION',
+    };
+
+    await store.saveSession(firstScope, session, bootstrap.sessionExpiresAt);
+    expect(await store.restoreSession()).toBeNull();
+
+    await store.replaceBootstrap(bootstrap, bootstrap.page.entities);
+    await store.saveSession(firstScope, session, bootstrap.sessionExpiresAt);
+    const afterReload = new OfflineStoreService();
+    expect(await afterReload.restoreSession()).toEqual({
+      session,
+      sessionExpiresAt: bootstrap.sessionExpiresAt,
+    });
+    expect(
+      await afterReload.restoreSession(new Date(bootstrap.sessionExpiresAt).getTime() + 1),
+    ).toBeNull();
+    expect(await afterReload.summary(firstScope)).toBeNull();
+
+    await afterReload.clearAll();
+    expect(await new OfflineStoreService().restoreSession()).toBeNull();
   });
 
   it('removes incompatible identities and keeps outbox commands scope-isolated', async () => {

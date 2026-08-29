@@ -1,7 +1,7 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { catchError, finalize, tap, throwError } from 'rxjs';
+import { catchError, finalize, from, mergeMap, of, tap, throwError } from 'rxjs';
 import { RuntimeConfigService } from '../core/runtime-config.service';
 import { OfflineStoreService } from '../offline/offline-store.service';
 
@@ -64,8 +64,22 @@ export class SessionApiService {
       .pipe(
         tap((response) => this.acceptSession(response)),
         catchError((error: unknown) => {
-          if (this.isAuthorizationRejection(error)) this.clearLocalState();
-          return throwError(() => error);
+          if (this.isAuthorizationRejection(error)) {
+            this.clearLocalState();
+            return throwError(() => error);
+          }
+          if (!this.isConnectivityFailure(error)) return throwError(() => error);
+          return from(this.offlineStore.restoreSession<SessionData>()).pipe(
+            mergeMap((snapshot) => {
+              if (!snapshot) return throwError(() => error);
+              this.session.set(snapshot.session);
+              this.scheduleRenewal(snapshot.sessionExpiresAt);
+              return of({
+                data: snapshot.session,
+                meta: { apiVersion: '1' as const, sessionExpiresAt: snapshot.sessionExpiresAt },
+              });
+            }),
+          );
         }),
       );
   }
@@ -111,15 +125,17 @@ export class SessionApiService {
     this.session.set(response.data);
     void this.offlineStore
       .deviceId()
-      .then((deviceId) =>
-        this.offlineStore.clearIncompatible({
+      .then(async (deviceId) => {
+        const scope = {
           tenantId: response.data.tenant.id,
           userId: response.data.user.id,
           deviceId,
           branchId: response.data.context.branch?.id ?? null,
           cashRegisterId: response.data.context.cashRegister?.id ?? null,
-        }),
-      )
+        };
+        await this.offlineStore.clearIncompatible(scope);
+        await this.offlineStore.saveSession(scope, response.data, response.meta.sessionExpiresAt);
+      })
       .catch(() => undefined);
     this.scheduleRenewal(response.meta.sessionExpiresAt);
   }
@@ -163,6 +179,10 @@ export class SessionApiService {
     return error instanceof HttpErrorResponse && [401, 403].includes(error.status);
   }
 
+  private isConnectivityFailure(error: unknown): boolean {
+    return error instanceof HttpErrorResponse && [0, 502, 503, 504].includes(error.status);
+  }
+
   private cancelRenewal(): void {
     if (this.renewalTimer !== undefined) {
       clearTimeout(this.renewalTimer);
@@ -172,6 +192,9 @@ export class SessionApiService {
 
   private closeLocalSession(broadcast: boolean): void {
     this.clearLocalState();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('uinventario:session-closed'));
+    }
     if (broadcast) {
       this.channel?.postMessage('SESSION_CLOSED' satisfies SessionEvent);
     }
