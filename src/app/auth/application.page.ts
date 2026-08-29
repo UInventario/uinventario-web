@@ -89,6 +89,7 @@ import { DataExportPanelComponent } from '../exports/data-export-panel.component
 import { ProductImportPanelComponent } from '../catalog/product-import-panel.component';
 import { PrivacyPanelComponent } from '../privacy/privacy-panel.component';
 import { PriceListPanelComponent } from '../pricing/price-list-panel.component';
+import { PromotionPanelComponent } from '../promotions/promotion-panel.component';
 import { ProductVariantPanelComponent } from '../catalog/product-variant-panel.component';
 import { ProductKitPanelComponent } from '../catalog/product-kit-panel.component';
 import { InventoryKitPanelComponent } from '../inventory/inventory-kit-panel.component';
@@ -146,6 +147,7 @@ interface CartEntry {
     ProductImportPanelComponent,
     PrivacyPanelComponent,
     PriceListPanelComponent,
+    PromotionPanelComponent,
     ProductVariantPanelComponent,
     ProductKitPanelComponent,
     InventoryKitPanelComponent,

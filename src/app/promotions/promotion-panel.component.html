@@ -1,0 +1,231 @@
+<section
+  class="promotions"
+  aria-labelledby="promotions-title"
+  [attr.aria-busy]="loading() || saving()"
+>
+  <div class="heading">
+    <div>
+      <p>Venta automática</p>
+      <h2 id="promotions-title">Promociones</h2>
+      <span>La prioridad más alta gana. Sólo se acumulan reglas marcadas como acumulables.</span>
+    </div>
+    <strong>{{ promotions().length }} regla(s)</strong>
+  </div>
+  @if (error()) {
+    <div class="message error" role="alert">{{ error() }}</div>
+  }
+  @if (success()) {
+    <div class="message success" role="status">{{ success() }}</div>
+  }
+  <div class="workspace">
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <h3>{{ editing() ? 'Editar promoción' : 'Nueva promoción' }}</h3>
+      <label>Nombre <input id="promotionName" formControlName="name" maxlength="120" /></label>
+      <div class="grid">
+        <label
+          >Tipo
+          <select id="promotionType" formControlName="type">
+            <option value="BUY_X_GET_Y">Compra X y recibe Y</option>
+            <option value="SECOND_UNIT_PERCENT">Descuento en segunda unidad</option>
+            <option value="BUNDLE_FIXED">Combo a precio fijo</option>
+            <option value="QUANTITY_PERCENT">Escalas por cantidad</option>
+          </select>
+        </label>
+        <label
+          >Prioridad <input id="promotionPriority" type="number" formControlName="priority"
+        /></label>
+        <label
+          >Sucursal
+          <select id="promotionBranch" formControlName="branchId">
+            <option value="">Todas</option>
+            @for (branch of branches(); track branch.id) {
+              <option [value]="branch.id">{{ branch.name }}</option>
+            }
+          </select>
+        </label>
+        <label
+          >Cliente
+          <select id="promotionCustomer" formControlName="customerId">
+            <option value="">Todos</option>
+            @for (customer of customers(); track customer.id) {
+              <option [value]="customer.id">{{ customer.name }}</option>
+            }
+          </select>
+        </label>
+        <label
+          >Canal
+          <select id="promotionChannel" formControlName="channel">
+            <option value="">Todos</option>
+            <option value="POS">POS</option>
+            <option value="WEB">Web</option>
+            <option value="MOBILE">Mobile</option>
+            <option value="DESKTOP">Desktop</option>
+          </select>
+        </label>
+        <label
+          >Inicio <input id="promotionValidFrom" type="datetime-local" formControlName="validFrom"
+        /></label>
+        <label
+          >Fin opcional
+          <input id="promotionValidTo" type="datetime-local" formControlName="validTo"
+        /></label>
+        <label class="check"
+          ><input id="promotionStackable" type="checkbox" formControlName="stackable" />
+          Acumulable</label
+        >
+        <label class="check"
+          ><input id="promotionActive" type="checkbox" formControlName="active" /> Activa</label
+        >
+      </div>
+
+      @if (form.controls.type.value === 'BUY_X_GET_Y') {
+        <div class="grid rule-fields">
+          <label
+            >Cantidad comprada
+            <input id="promotionBuyQuantity" formControlName="buyQuantity" inputmode="decimal"
+          /></label>
+          <label
+            >Cantidad beneficiada
+            <input
+              id="promotionRewardQuantity"
+              formControlName="rewardQuantity"
+              inputmode="decimal"
+          /></label>
+          <label
+            >Descuento del beneficio (%)
+            <input
+              id="promotionDiscountPercent"
+              formControlName="discountPercent"
+              inputmode="decimal"
+          /></label>
+        </div>
+      } @else if (form.controls.type.value === 'SECOND_UNIT_PERCENT') {
+        <label
+          >Descuento en segunda unidad (%)
+          <input
+            id="promotionDiscountPercent"
+            formControlName="discountPercent"
+            inputmode="decimal"
+        /></label>
+      } @else if (form.controls.type.value === 'BUNDLE_FIXED') {
+        <label
+          >Precio fijo del combo
+          <input id="promotionFixedPrice" formControlName="fixedPrice" inputmode="decimal"
+        /></label>
+      }
+
+      <div formArrayName="products" class="items">
+        <div class="items-heading">
+          <h4>
+            {{ form.controls.type.value === 'BUNDLE_FIXED' ? 'Productos del combo' : 'Producto' }}
+          </h4>
+          @if (form.controls.type.value === 'BUNDLE_FIXED') {
+            <button type="button" class="secondary" (click)="addProduct()">Agregar producto</button>
+          }
+        </div>
+        @for (item of promotionProducts.controls; track item; let index = $index) {
+          <div class="item" [formGroupName]="index">
+            <label
+              >Producto
+              <select [id]="'promotionProduct' + index" formControlName="productId">
+                <option value="">Selecciona</option>
+                @for (product of products(); track product.id) {
+                  <option [value]="product.id">{{ product.name }} ({{ product.sku }})</option>
+                }
+              </select>
+            </label>
+            <label
+              >Cantidad
+              <input
+                [id]="'promotionProductQuantity' + index"
+                formControlName="quantity"
+                inputmode="decimal"
+            /></label>
+            @if (form.controls.type.value === 'BUNDLE_FIXED') {
+              <button
+                type="button"
+                class="danger"
+                (click)="removeProduct(index)"
+                [disabled]="promotionProducts.length === 1"
+              >
+                Quitar
+              </button>
+            }
+          </div>
+        }
+      </div>
+
+      @if (form.controls.type.value === 'QUANTITY_PERCENT') {
+        <div formArrayName="tiers" class="items">
+          <div class="items-heading">
+            <h4>Escalas</h4>
+            <button type="button" class="secondary" (click)="addTier()">Agregar escala</button>
+          </div>
+          @for (tier of tiers.controls; track tier; let index = $index) {
+            <div class="item" [formGroupName]="index">
+              <label
+                >Desde cantidad
+                <input
+                  [id]="'promotionTierQuantity' + index"
+                  formControlName="minimumQuantity"
+                  inputmode="decimal"
+              /></label>
+              <label
+                >Descuento (%)
+                <input
+                  [id]="'promotionTierPercent' + index"
+                  formControlName="discountPercent"
+                  inputmode="decimal"
+              /></label>
+              <button
+                type="button"
+                class="danger"
+                (click)="removeTier(index)"
+                [disabled]="tiers.length === 1"
+              >
+                Quitar
+              </button>
+            </div>
+          }
+        </div>
+      }
+      <div class="actions">
+        @if (editing()) {
+          <button type="button" class="secondary" (click)="cancel()">Cancelar</button>
+        }
+        <button id="savePromotion" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Guardando...' : 'Guardar promoción' }}
+        </button>
+      </div>
+    </form>
+    <div class="results">
+      @if (loading()) {
+        <p role="status">Cargando promociones...</p>
+      } @else if (promotions().length === 0) {
+        <p>No hay promociones; el POS mantiene los precios vigentes.</p>
+      } @else {
+        <ul aria-label="Promociones">
+          @for (promotion of promotions(); track promotion.id) {
+            <li [class.inactive]="!promotion.active">
+              <div>
+                <strong>{{ promotion.name }}</strong>
+                <span>{{ typeLabel(promotion.type) }} · prioridad {{ promotion.priority }}</span>
+              </div>
+              <small>
+                {{ promotion.scope.branch?.name || 'Todas las sucursales' }} ·
+                {{ promotion.scope.customer?.name || 'Todos los clientes' }} ·
+                {{ promotion.scope.channel || 'Todos los canales' }}
+              </small>
+              <small>
+                {{ promotion.products.length }} producto(s) ·
+                {{ promotion.stackable ? 'Acumulable' : 'Exclusiva' }} ·
+                {{ promotion.active ? 'Activa' : 'Inactiva' }}
+              </small>
+              <button type="button" class="secondary" (click)="edit(promotion)">Editar</button>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  </div>
+</section>

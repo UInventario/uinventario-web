@@ -1724,6 +1724,7 @@
 
   @if (canManageProducts()) {
     <app-price-list-panel />
+    <app-promotion-panel />
   }
 
   <section
@@ -2272,6 +2273,9 @@
                         Descuento {{ cartQuote()?.currency }} {{ priced.discount.total }}
                       </small>
                     }
+                    @for (promotion of priced.promotions || []; track promotion.promotion.id) {
+                      <small class="promotion-note">{{ promotion.explanation }}</small>
+                    }
                   }
                 </div>
                 <label>
@@ -2397,6 +2401,12 @@
                   <dt>Descuentos</dt>
                   <dd>-{{ quote.currency }} {{ quote.totals.discount }}</dd>
                 </div>
+                @if (quote.totals.promotionDiscount && quote.totals.promotionDiscount !== '0.00') {
+                  <div>
+                    <dt>Incluye promociones</dt>
+                    <dd>-{{ quote.currency }} {{ quote.totals.promotionDiscount }}</dd>
+                  </div>
+                }
               }
               <div>
                 <dt>Subtotal</dt>
@@ -3198,6 +3208,12 @@
                   <dt>Descuentos</dt>
                   <dd>-{{ sale.currency }} {{ sale.totals.discount }}</dd>
                 </div>
+                @if (sale.totals.promotionDiscount && sale.totals.promotionDiscount !== '0.00') {
+                  <div>
+                    <dt>Incluye promociones</dt>
+                    <dd>-{{ sale.currency }} {{ sale.totals.promotionDiscount }}</dd>
+                  </div>
+                }
               }
               <div>
                 <dt>Total</dt>
@@ -3244,9 +3260,9 @@
             <ul class="sale-lines">
               @for (line of sale.lines; track line.id) {
                 <li>
-                  <span
-                    ><strong>{{ line.product.name }}</strong
-                    ><small>{{ line.product.sku }} · {{ line.quantity }}</small>
+                  <span>
+                    <strong>{{ line.product.name }}</strong>
+                    <small>{{ line.product.sku }} · {{ line.quantity }}</small>
                     @if (line.discount.total !== '0.00') {
                       <small>
                         Descuento {{ sale.currency }} {{ line.discount.total }}
@@ -3257,8 +3273,12 @@
                           · Venta: {{ saleDiscount.reason }}
                         }
                       </small>
-                    }</span
-                  ><strong>{{ sale.currency }} {{ line.total }}</strong>
+                    }
+                    @for (promotion of line.promotions || []; track promotion.promotion.id) {
+                      <small class="promotion-note">{{ promotion.explanation }}</small>
+                    }
+                  </span>
+                  <strong>{{ sale.currency }} {{ line.total }}</strong>
                 </li>
               }
             </ul>
