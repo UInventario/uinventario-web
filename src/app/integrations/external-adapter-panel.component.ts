@@ -5,8 +5,10 @@ import { finalize, forkJoin } from 'rxjs';
 import {
   ExternalAdapterApiService,
   ExternalAdapterCapability,
+  ExternalAdapterCatalogItem,
   ExternalAdapterConfigData,
   ExternalAdapterExecutionData,
+  ExternalEmailEventData,
   ExternalAdapterScenario,
 } from './external-adapter-api.service';
 
@@ -21,6 +23,8 @@ export class ExternalAdapterPanelComponent implements OnInit {
 
   protected readonly configurations = signal<ExternalAdapterConfigData[]>([]);
   protected readonly executions = signal<ExternalAdapterExecutionData[]>([]);
+  protected readonly emailEvents = signal<ExternalEmailEventData[]>([]);
+  protected readonly catalog = signal<ExternalAdapterCatalogItem[]>([]);
   protected readonly scenario = signal<ExternalAdapterScenario>('SUCCESS');
   protected readonly loading = signal(true);
   protected readonly busy = signal<string | null>(null);
@@ -44,6 +48,19 @@ export class ExternalAdapterPanelComponent implements OnInit {
     this.configurations.update((items) =>
       items.map((item) => (item.capability === capability ? { ...item, ...change } : item)),
     );
+  }
+
+  protected providerOptions(capability: ExternalAdapterCapability): ExternalAdapterCatalogItem[] {
+    return this.catalog().filter((item) => item.capability === capability);
+  }
+
+  protected selectProvider(capability: ExternalAdapterCapability, provider: string): void {
+    const selected = this.providerOptions(capability).find((item) => item.provider === provider);
+    if (!selected) return;
+    this.update(capability, {
+      provider: selected.provider,
+      adapterVersion: selected.version,
+    });
   }
 
   protected save(configuration: ExternalAdapterConfigData): void {
@@ -80,12 +97,18 @@ export class ExternalAdapterPanelComponent implements OnInit {
 
   private load(): void {
     this.loading.set(true);
-    forkJoin({ configurations: this.api.configurations(), executions: this.api.executions() })
+    forkJoin({
+      configurations: this.api.configurations(),
+      executions: this.api.executions(),
+      emailEvents: this.api.emailEvents(),
+    })
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
-        next: ({ configurations, executions }) => {
+        next: ({ configurations, executions, emailEvents }) => {
           this.configurations.set(configurations.data);
+          this.catalog.set(configurations.meta.catalog);
           this.executions.set(executions.data);
+          this.emailEvents.set(emailEvents.data);
         },
         error: (error: HttpErrorResponse) => this.error.set(this.message(error)),
       });

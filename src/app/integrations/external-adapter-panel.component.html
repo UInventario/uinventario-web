@@ -21,7 +21,10 @@
     </label>
   </header>
 
-  <p class="notice">La API sólo acepta el nombre del secret externo; nunca su valor.</p>
+  <p class="notice">
+    La API sólo acepta el nombre del secret externo; nunca su valor. Los escenarios distintos de
+    éxito son exclusivos del simulador.
+  </p>
   @if (error()) {
     <p class="error" role="alert">{{ error() }}</p>
   }
@@ -65,8 +68,18 @@
                 "
             /></label>
             <label
-              >Proveedor<select [value]="configuration.provider">
-                <option value="SIMULATOR">SIMULATOR</option>
+              >Proveedor<select
+                [value]="configuration.provider"
+                (change)="selectProvider(configuration.capability, $any($event.target).value)"
+              >
+                @for (
+                  adapter of providerOptions(configuration.capability);
+                  track adapter.provider
+                ) {
+                  <option [value]="adapter.provider">
+                    {{ adapter.provider }} · {{ adapter.mode }}
+                  </option>
+                }
               </select></label
             >
             <label
@@ -142,6 +155,33 @@
             >
             @if (execution.errorCode) {
               <code>{{ execution.errorCode }}</code>
+            }
+          </article>
+        }
+      }
+    </section>
+
+    <section class="executions" aria-labelledby="email-events-title">
+      <h3 id="email-events-title">Entrega de correo</h3>
+      @if (emailEvents().length === 0) {
+        <p>No hay eventos del proveedor. El simulador no genera webhooks.</p>
+      } @else {
+        @for (event of emailEvents(); track event.webhookEventId) {
+          <article
+            [class.failed]="
+              event.eventType === 'BOUNCED' ||
+              event.eventType === 'FAILED' ||
+              event.eventType === 'SUPPRESSED' ||
+              event.eventType === 'COMPLAINED'
+            "
+          >
+            <div>
+              <strong>{{ event.eventType }}</strong>
+              <small>{{ event.provider }} · {{ event.occurredAt | date: 'short' }}</small>
+            </div>
+            <span>Referencia {{ event.providerReference }}</span>
+            @if (event.errorCode) {
+              <code>{{ event.errorCode }}</code>
             }
           </article>
         }
