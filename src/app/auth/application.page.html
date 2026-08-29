@@ -48,6 +48,9 @@
     @if (canViewNotifications()) {
       <a routerLink="/app" fragment="notifications-title">Notificaciones</a>
     }
+    @if (canManageTenant()) {
+      <a routerLink="/app" fragment="integrations-title">Integraciones</a>
+    }
   </nav>
 
   @defer (on immediate) {
@@ -58,6 +61,10 @@
 
   @if (canViewNotifications()) {
     <app-notification-panel [canManage]="canManageNotifications()" />
+  }
+
+  @if (canManageTenant()) {
+    <app-external-adapter-panel />
   }
 
   <app-offline-bootstrap-panel />

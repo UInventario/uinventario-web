@@ -1,0 +1,95 @@
+:host {
+  display: block;
+}
+.adapter-panel {
+  display: grid;
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 1.25rem;
+  border: 1px solid var(--line, #d8dee8);
+  border-radius: 1rem;
+  background: var(--surface, #fff);
+}
+header,
+.title,
+.actions,
+.executions article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+header h2,
+header p,
+article p,
+h3 {
+  margin: 0.2rem 0;
+}
+.eyebrow,
+small {
+  color: var(--muted, #566274);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.eyebrow {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.config-list,
+.executions {
+  display: grid;
+  gap: 0.75rem;
+}
+.config-list > article,
+.executions article {
+  padding: 1rem;
+  border: 1px solid #d8dee8;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+}
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.65rem;
+  margin: 0.8rem 0;
+}
+label,
+.executions article > div {
+  display: grid;
+  gap: 0.25rem;
+}
+.enabled {
+  display: flex;
+  align-items: center;
+}
+.notice {
+  padding: 0.65rem;
+  border-radius: 0.5rem;
+  background: #eef5ff;
+  color: #27496d;
+}
+.success {
+  color: #176b3a;
+  font-weight: 700;
+}
+.error,
+.failed code {
+  color: #9e251d;
+}
+.executions {
+  padding-top: 1rem;
+  border-top: 1px solid var(--line, #d8dee8);
+}
+@media (max-width: 720px) {
+  header,
+  .title,
+  .actions,
+  .executions article {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .actions button {
+    width: 100%;
+  }
+}

@@ -93,6 +93,7 @@ import { CustomerOrderPanelComponent } from '../orders/customer-order-panel.comp
 import { SalesQuotationPanelComponent } from '../quotations/sales-quotation-panel.component';
 import { OperationalDashboardComponent } from '../dashboard/operational-dashboard.component';
 import { NotificationPanelComponent } from '../notifications/notification-panel.component';
+import { ExternalAdapterPanelComponent } from '../integrations/external-adapter-panel.component';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const POSITIVE_MONEY_PATTERN = /^(?:[1-9]\d{0,11}(?:\.\d{1,2})?|0\.(?:0[1-9]|[1-9]\d?))$/;
@@ -147,6 +148,7 @@ interface CartEntry {
     SalesQuotationPanelComponent,
     OperationalDashboardComponent,
     NotificationPanelComponent,
+    ExternalAdapterPanelComponent,
   ],
   templateUrl: './application.page.html',
   styleUrl: './application.page.scss',
