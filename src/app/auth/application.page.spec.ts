@@ -121,6 +121,7 @@ describe('ApplicationPage', () => {
     list: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
+    configureCredit: ReturnType<typeof vi.fn>;
     deactivate: ReturnType<typeof vi.fn>;
     history: ReturnType<typeof vi.fn>;
   };
@@ -479,6 +480,7 @@ describe('ApplicationPage', () => {
       ),
       create: vi.fn(),
       update: vi.fn(),
+      configureCredit: vi.fn(),
       deactivate: vi.fn(),
       history: vi.fn(),
     };
@@ -498,6 +500,7 @@ describe('ApplicationPage', () => {
           'SALES_VOID',
           'SALES_RETURN',
           'SALES_DISCOUNT',
+          'SALES_CREDIT',
           'SALE_REPRINT',
           'CASH_DRAWER_OPEN',
           'CASH_REGISTER_OPEN',
@@ -2488,6 +2491,141 @@ describe('ApplicationPage', () => {
         }
       ).cashForm.controls.customerId.value,
     ).toBe('customer');
+  });
+
+  it('configures customer credit and submits a credit sale without a cash collection', () => {
+    const customer = {
+      id: 'credit-customer',
+      name: 'Cliente Crédito',
+      identifier: 'CREDIT-1',
+      email: null,
+      phone: null,
+      dataProcessingConsent: false,
+      privacyStatus: 'ACTIVE' as const,
+      anonymizedAt: null,
+      privacyRetentionUntil: null,
+      active: true,
+      version: 1,
+      createdAt: '2026-08-29T13:00:00.000Z',
+      updatedAt: '2026-08-29T13:00:00.000Z',
+      credit: null,
+    };
+    const configured = {
+      ...customer,
+      version: 2,
+      credit: {
+        enabled: true,
+        limit: '500.00',
+        currency: 'MXN',
+        termDays: 30,
+        maxInstallments: 3,
+        balance: '0.00',
+        available: '500.00',
+        overdueAmount: '0.00',
+        status: 'AVAILABLE' as const,
+      },
+    };
+    customers.create.mockReturnValue(of({ data: customer, meta: { apiVersion: '1' } }));
+    customers.configureCredit.mockReturnValue(of({ data: configured, meta: { apiVersion: '1' } }));
+    fill('customerName', customer.name);
+    const enabled = fixture.nativeElement.querySelector(
+      '[formControlName="creditEnabled"]',
+    ) as HTMLInputElement;
+    enabled.click();
+    fixture.detectChanges();
+    fill('customerCreditLimit', '500.00');
+    (fixture.nativeElement.querySelector('#customerName') as HTMLElement)
+      .closest('form')
+      ?.dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+
+    expect(customers.configureCredit).toHaveBeenCalledWith('credit-customer', {
+      enabled: true,
+      creditLimit: '500.00',
+      currency: 'MXN',
+      termDays: 30,
+      maxInstallments: 3,
+      version: 1,
+    });
+
+    const product = {
+      id: 'product-credit',
+      name: 'Producto Crédito',
+      sku: 'CREDIT-PRODUCT',
+      barcode: null,
+      category: null,
+      brand: null,
+      cost: '50.00',
+      price: '100.00',
+      active: true,
+      version: 1,
+    };
+    const quote = {
+      context: {
+        branch: { id: 'branch', name: 'Sucursal' },
+        warehouse: { id: 'warehouse', name: 'Bodega' },
+        cashRegister: { id: 'register', name: 'Caja', code: 'MAIN' },
+      },
+      currency: 'MXN',
+      taxRate: '0.1600',
+      discount: null,
+      lines: [
+        {
+          product: { id: product.id, name: product.name, sku: product.sku },
+          quantity: '1.000',
+          availableQuantity: '5.000',
+          unitPrice: '100.00',
+          priceSource: 'BASE' as const,
+          priceList: null,
+          grossTotal: '100.00',
+          discount: { line: null, sale: null, total: '0.00' },
+          subtotal: '86.21',
+          tax: '13.79',
+          total: '100.00',
+        },
+      ],
+      totals: {
+        gross: '100.00',
+        lineDiscount: '0.00',
+        saleDiscount: '0.00',
+        discount: '0.00',
+        subtotal: '86.21',
+        tax: '13.79',
+        total: '100.00',
+      },
+    };
+    const component = fixture.componentInstance as unknown as {
+      customers: { set(value: (typeof configured)[]): void };
+      cart: { set(value: Array<{ product: typeof product; quantity: string }>): void };
+      cartQuote: { set(value: typeof quote): void };
+      cashForm: {
+        controls: {
+          customerId: { setValue(value: string): void };
+          creditSale: { setValue(value: boolean): void };
+          installmentCount: { setValue(value: number): void };
+        };
+      };
+      completeCashSale(): void;
+    };
+    component.customers.set([configured]);
+    component.cart.set([{ product, quantity: '1' }]);
+    component.cartQuote.set(quote);
+    component.cashForm.controls.customerId.setValue(configured.id);
+    component.cashForm.controls.creditSale.setValue(true);
+    component.cashForm.controls.installmentCount.setValue(2);
+    pos.createSale.mockReturnValue(new Subject());
+    fixture.detectChanges();
+    component.completeCashSale();
+
+    expect(pos.createSale).toHaveBeenCalledWith(
+      {
+        lines: [{ productId: product.id, quantity: '1' }],
+        customerId: configured.id,
+        credit: { installmentCount: 2 },
+      },
+      expect.stringMatching(/^web-sale-/),
+    );
+    expect(fixture.nativeElement.textContent).toContain('Confirmar venta a crédito');
   });
 
   it('voids a completed sale once and exposes the compensation result', () => {

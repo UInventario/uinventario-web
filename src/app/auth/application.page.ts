@@ -3,7 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { finalize, forkJoin } from 'rxjs';
+import { finalize, forkJoin, of, switchMap } from 'rxjs';
 import {
   ProductApiService,
   ProductData,
@@ -41,6 +41,7 @@ import {
   CashRegisterMovementData,
   CashRegisterShiftData,
   CashSaleData,
+  CollectedPaymentMethod,
   PaymentMethod,
   PosApiService,
   PosCartQuote,
@@ -178,12 +179,13 @@ export class ApplicationPage implements OnInit {
       discount?: SaleDiscountInput;
       customerId?: string;
       suspendedSaleId?: string;
-      payments: Array<{
-        method: PaymentMethod;
+      payments?: Array<{
+        method: CollectedPaymentMethod;
         amount: string;
         amountReceived?: string;
         reference?: string;
       }>;
+      credit?: { installmentCount: number };
     };
     key: string;
   } | null = null;
@@ -253,6 +255,9 @@ export class ApplicationPage implements OnInit {
   );
   protected readonly canApplyDiscount = computed(
     () => this.session()?.user.permissions.includes('SALES_DISCOUNT') ?? false,
+  );
+  protected readonly canSellCredit = computed(
+    () => this.session()?.user.permissions.includes('SALES_CREDIT') ?? false,
   );
   protected readonly canReturnSales = computed(
     () => this.session()?.user.permissions.includes('SALES_RETURN') ?? false,
@@ -448,7 +453,7 @@ export class ApplicationPage implements OnInit {
   protected readonly suspendedSaleSuccess = signal<string | null>(null);
   protected readonly resumedSuspendedSaleId = signal<string | null>(null);
   protected readonly suspendedSaleConflicts = signal<SuspendedSaleConflict[]>([]);
-  protected readonly paymentMethods = signal<PaymentMethod[]>(['CASH']);
+  protected readonly paymentMethods = signal<CollectedPaymentMethod[]>(['CASH']);
   protected readonly nonCashProvider = signal<'SIMULATOR' | 'DISABLED'>('DISABLED');
   protected readonly customers = signal<CustomerData[]>([]);
   protected readonly customerHistoryCustomer = signal<CustomerData | null>(null);
@@ -530,6 +535,8 @@ export class ApplicationPage implements OnInit {
   protected readonly paymentRows = this.formBuilder.array([this.createPaymentRow()]);
   protected readonly cashForm = this.formBuilder.nonNullable.group({
     customerId: [''],
+    creditSale: [false],
+    installmentCount: [1, [Validators.required, Validators.min(1), Validators.max(36)]],
     notes: ['', [Validators.maxLength(500)]],
     discountType: ['' as '' | 'PERCENT' | 'AMOUNT'],
     discountValue: ['', [Validators.pattern(POSITIVE_MONEY_PATTERN)]],
@@ -542,6 +549,11 @@ export class ApplicationPage implements OnInit {
     email: ['', [Validators.email, Validators.maxLength(254)]],
     phone: ['', [Validators.pattern(/^\+?[0-9 ()-]{7,32}$/)]],
     dataProcessingConsent: [false],
+    creditEnabled: [false],
+    creditLimit: ['1000.00', [Validators.required, Validators.pattern(POSITIVE_MONEY_PATTERN)]],
+    creditCurrency: ['MXN', [Validators.required, Validators.pattern(/^[A-Z]{3}$/)]],
+    creditTermDays: [30, [Validators.required, Validators.min(1), Validators.max(365)]],
+    creditMaxInstallments: [3, [Validators.required, Validators.min(1), Validators.max(36)]],
   });
   protected readonly cashRegisterShiftForm = this.formBuilder.nonNullable.group({
     openingAmount: ['0.00', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
@@ -1509,6 +1521,11 @@ export class ApplicationPage implements OnInit {
       email: customer.email ?? '',
       phone: customer.phone ?? '',
       dataProcessingConsent: customer.dataProcessingConsent,
+      creditEnabled: customer.credit?.enabled ?? false,
+      creditLimit: customer.credit?.limit ?? '1000.00',
+      creditCurrency: customer.credit?.currency ?? 'MXN',
+      creditTermDays: customer.credit?.termDays ?? 30,
+      creditMaxInstallments: customer.credit?.maxInstallments ?? 3,
     });
     this.customerError.set(null);
   }
@@ -1521,6 +1538,11 @@ export class ApplicationPage implements OnInit {
       email: '',
       phone: '',
       dataProcessingConsent: false,
+      creditEnabled: false,
+      creditLimit: '1000.00',
+      creditCurrency: 'MXN',
+      creditTermDays: 30,
+      creditMaxInstallments: 3,
     });
   }
 
@@ -1549,24 +1571,41 @@ export class ApplicationPage implements OnInit {
     const operation = current
       ? this.customersApi.update(current.id, { ...input, version: current.version })
       : this.customersApi.create(input);
-    operation.pipe(finalize(() => this.savingCustomer.set(false))).subscribe({
-      next: ({ data }) => {
-        this.customerSuccess.set(current ? 'Cliente actualizado.' : 'Cliente creado.');
-        if (this.customerHistoryCustomer()?.id === data.id) {
-          this.customerHistoryCustomer.set(data);
-        }
-        this.cancelCustomerEdit();
-        this.loadCustomers();
-        this.cashForm.controls.customerId.setValue(data.id);
-      },
-      error: (error: HttpErrorResponse) => {
-        this.customerError.set(
-          typeof error.error?.message === 'string'
-            ? error.error.message
-            : 'No fue posible guardar el cliente.',
-        );
-      },
-    });
+    operation
+      .pipe(
+        switchMap((response) => {
+          const shouldConfigureCredit =
+            this.canSellCredit() && (raw.creditEnabled || Boolean(current?.credit));
+          if (!shouldConfigureCredit) return of(response);
+          return this.customersApi.configureCredit(response.data.id, {
+            enabled: raw.creditEnabled,
+            creditLimit: raw.creditLimit.trim(),
+            currency: raw.creditCurrency.trim().toUpperCase(),
+            termDays: raw.creditTermDays,
+            maxInstallments: raw.creditMaxInstallments,
+            version: response.data.version,
+          });
+        }),
+        finalize(() => this.savingCustomer.set(false)),
+      )
+      .subscribe({
+        next: ({ data }) => {
+          this.customerSuccess.set(current ? 'Cliente actualizado.' : 'Cliente creado.');
+          if (this.customerHistoryCustomer()?.id === data.id) {
+            this.customerHistoryCustomer.set(data);
+          }
+          this.cancelCustomerEdit();
+          this.loadCustomers();
+          this.cashForm.controls.customerId.setValue(data.id);
+        },
+        error: (error: HttpErrorResponse) => {
+          this.customerError.set(
+            typeof error.error?.message === 'string'
+              ? error.error.message
+              : 'No fue posible guardar el cliente.',
+          );
+        },
+      });
   }
 
   protected deactivateCustomer(customer: CustomerData): void {
@@ -1722,8 +1761,16 @@ export class ApplicationPage implements OnInit {
   }
 
   protected quoteForCustomer(): void {
+    if (!this.creditCustomer()?.credit?.enabled) {
+      this.cashForm.controls.creditSale.setValue(false);
+    }
     this.resetCompletedSale();
     if (this.cart().length > 0) this.quoteCart();
+  }
+
+  protected creditCustomer(): CustomerData | null {
+    const customerId = this.cashForm.controls.customerId.value;
+    return this.customers().find((customer) => customer.id === customerId) ?? null;
   }
 
   protected taxPercent(rate: string): string {
@@ -1737,7 +1784,25 @@ export class ApplicationPage implements OnInit {
       this.cashForm.markAllAsTouched();
       return;
     }
-    if (!this.paymentsMatchTotal(quote.totals.total)) {
+    const creditSale = this.cashForm.controls.creditSale.value;
+    const creditCustomer = this.creditCustomer();
+    if (creditSale && (!creditCustomer?.credit?.enabled || !this.canSellCredit())) {
+      this.posError.set('Selecciona un cliente habilitado para crédito.');
+      return;
+    }
+    if (
+      creditSale &&
+      (this.cashForm.controls.installmentCount.invalid ||
+        this.cashForm.controls.installmentCount.value > creditCustomer!.credit!.maxInstallments)
+    ) {
+      this.posError.set('El número de cuotas excede el plan autorizado del cliente.');
+      return;
+    }
+    if (creditSale && Number(quote.totals.total) > Number(creditCustomer!.credit!.available)) {
+      this.posError.set('El total excede el crédito disponible del cliente.');
+      return;
+    }
+    if (!creditSale && !this.paymentsMatchTotal(quote.totals.total)) {
       this.posError.set('La suma de pagos debe coincidir exactamente con el total de la venta.');
       this.paymentRows.markAllAsTouched();
       return;
@@ -1751,23 +1816,39 @@ export class ApplicationPage implements OnInit {
       this.posError.set(error instanceof Error ? error.message : 'Revisa los descuentos.');
       return;
     }
-    const input = {
+    const input: {
+      lines: ReturnType<ApplicationPage['saleLinesInput']>;
+      discount?: SaleDiscountInput;
+      customerId?: string;
+      suspendedSaleId?: string;
+      payments?: Array<{
+        method: CollectedPaymentMethod;
+        amount: string;
+        amountReceived?: string;
+        reference?: string;
+      }>;
+      credit?: { installmentCount: number };
+    } = {
       lines,
       ...(discount ? { discount } : {}),
       ...(this.cashForm.controls.customerId.value
         ? { customerId: this.cashForm.controls.customerId.value }
         : {}),
       ...(this.resumedSuspendedSaleId() ? { suspendedSaleId: this.resumedSuspendedSaleId()! } : {}),
-      payments: this.paymentRows.controls.map((row) => {
-        const value = row.getRawValue();
-        return {
-          method: value.method,
-          amount: value.amount.trim(),
-          ...(value.method === 'CASH'
-            ? { amountReceived: value.amountReceived.trim() }
-            : { reference: value.reference.trim() }),
-        };
-      }),
+      ...(creditSale
+        ? { credit: { installmentCount: this.cashForm.controls.installmentCount.value } }
+        : {
+            payments: this.paymentRows.controls.map((row) => {
+              const value = row.getRawValue();
+              return {
+                method: value.method,
+                amount: value.amount.trim(),
+                ...(value.method === 'CASH'
+                  ? { amountReceived: value.amountReceived.trim() }
+                  : { reference: value.reference.trim() }),
+              };
+            }),
+          }),
     };
     const pending = this.pendingSale;
     const idempotencyKey =
@@ -1776,13 +1857,18 @@ export class ApplicationPage implements OnInit {
         : `web-sale-${globalThis.crypto.randomUUID()}`;
     this.pendingSale = { input, key: idempotencyKey };
     if (this.browserOffline()) {
+      if (creditSale) {
+        this.pendingSale = null;
+        this.posError.set('Las ventas a crédito requieren conexión al servidor.');
+        return;
+      }
       if (discount || lines.some((line) => Boolean(line.discount))) {
         this.pendingSale = null;
         this.posError.set('Los descuentos requieren conexión para validar permisos y límites.');
         return;
       }
-      const offlinePayment = input.payments[0];
-      if (input.payments.length !== 1 || offlinePayment?.method !== 'CASH') {
+      const offlinePayment = input.payments?.[0];
+      if (input.payments?.length !== 1 || offlinePayment?.method !== 'CASH') {
         this.pendingSale = null;
         this.posError.set('Los pagos distintos de efectivo requieren conexión al servidor.');
         return;
@@ -1790,7 +1876,8 @@ export class ApplicationPage implements OnInit {
       void this.queueOfflineCashSale(
         {
           lines: input.lines,
-          cashReceived: 'amountReceived' in offlinePayment ? offlinePayment.amountReceived : '',
+          cashReceived:
+            'amountReceived' in offlinePayment ? (offlinePayment.amountReceived ?? '') : '',
           ...(input.customerId ? { customerId: input.customerId } : {}),
         },
         idempotencyKey,
@@ -1825,13 +1912,13 @@ export class ApplicationPage implements OnInit {
       },
       error: (error: HttpErrorResponse) => {
         if (error.status === 0) {
-          const offlinePayment = input.payments[0];
-          if (input.payments.length === 1 && offlinePayment?.method === 'CASH') {
+          const offlinePayment = input.payments?.[0];
+          if (input.payments?.length === 1 && offlinePayment?.method === 'CASH') {
             void this.queueOfflineCashSale(
               {
                 lines: input.lines,
                 cashReceived:
-                  'amountReceived' in offlinePayment ? offlinePayment.amountReceived : '',
+                  'amountReceived' in offlinePayment ? (offlinePayment.amountReceived ?? '') : '',
                 ...(input.customerId ? { customerId: input.customerId } : {}),
               },
               idempotencyKey,
@@ -2101,7 +2188,7 @@ export class ApplicationPage implements OnInit {
     return this.paymentRows.length < this.paymentMethods().length;
   }
 
-  protected availablePaymentMethods(index: number): PaymentMethod[] {
+  protected availablePaymentMethods(index: number): CollectedPaymentMethod[] {
     const current = this.paymentRows.at(index).controls.method.value;
     const used = new Set(this.paymentRows.controls.map((row) => row.controls.method.value));
     return this.paymentMethods().filter((method) => method === current || !used.has(method));
@@ -2113,6 +2200,7 @@ export class ApplicationPage implements OnInit {
       CARD: 'Tarjeta',
       TRANSFER: 'Transferencia',
       VOUCHER: 'Vale',
+      CREDIT: 'Crédito',
       MIXED: 'Mixto',
     }[method];
   }
@@ -2748,6 +2836,7 @@ export class ApplicationPage implements OnInit {
       SALES_VOID: 'Anular ventas',
       SALES_RETURN: 'Registrar devoluciones y cambios',
       SALES_DISCOUNT: 'Aplicar descuentos',
+      SALES_CREDIT: 'Configurar y vender a crédito',
       SALE_REPRINT: 'Reimprimir comprobantes',
       CASH_DRAWER_OPEN: 'Abrir cajon de dinero',
       CASH_REGISTER_OPEN: 'Abrir caja',
@@ -3602,6 +3691,8 @@ export class ApplicationPage implements OnInit {
   private resetPaymentForm(): void {
     this.cashForm.reset({
       customerId: '',
+      creditSale: false,
+      installmentCount: 1,
       notes: '',
       discountType: '',
       discountValue: '',
@@ -3612,7 +3703,7 @@ export class ApplicationPage implements OnInit {
     this.syncSinglePaymentAmount();
   }
 
-  private createPaymentRow(method: PaymentMethod = 'CASH') {
+  private createPaymentRow(method: CollectedPaymentMethod = 'CASH') {
     const row = this.formBuilder.nonNullable.group({
       method: [method, [Validators.required]],
       amount: ['', [Validators.required, Validators.pattern(POSITIVE_MONEY_PATTERN)]],

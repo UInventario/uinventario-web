@@ -68,7 +68,13 @@
               @for (payment of sale.payments; track payment.method) {
                 <span>
                   {{ payment.method }} · {{ payment.amountApplied }} ·
-                  {{ payment.status === 'COMPLETED' ? 'Aplicado' : 'Reversado' }}
+                  {{
+                    payment.status === 'COMPLETED'
+                      ? 'Aplicado'
+                      : payment.status === 'PENDING'
+                        ? 'Pendiente'
+                        : 'Reversado'
+                  }}
                 </span>
               }
               @if (sale.reversal) {
