@@ -1630,6 +1630,13 @@ export class ApplicationPage implements OnInit {
     this.customerHistoryCustomer.set(customer);
   }
 
+  protected updateCustomerCredit(customer: CustomerData): void {
+    this.customers.update((current) =>
+      current.map((item) => (item.id === customer.id ? customer : item)),
+    );
+    this.customerHistoryCustomer.set(customer);
+  }
+
   protected openCustomerSale(saleId: string): void {
     this.selectSale(saleId);
     document.getElementById('sales-title')?.scrollIntoView({ behavior: 'smooth' });

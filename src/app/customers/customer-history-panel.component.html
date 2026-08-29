@@ -31,6 +31,150 @@
   }
 
   @if (history(); as data) {
+    @if (data.credit; as credit) {
+      <section class="credit-statement" aria-labelledby="customer-credit-statement-title">
+        <div class="credit-heading">
+          <div>
+            <p class="eyebrow">Cuenta por cobrar</p>
+            <h4 id="customer-credit-statement-title">Deuda y cuotas</h4>
+          </div>
+          <strong>{{ credit.currency }} {{ credit.balance }}</strong>
+        </div>
+        <dl class="credit-summary">
+          <div>
+            <dt>Saldo</dt>
+            <dd>{{ credit.currency }} {{ credit.balance }}</dd>
+          </div>
+          <div>
+            <dt>Vencido</dt>
+            <dd>{{ credit.currency }} {{ credit.overdueAmount }}</dd>
+          </div>
+          <div>
+            <dt>Estado</dt>
+            <dd>
+              {{
+                credit.status === 'DISABLED'
+                  ? 'Crédito deshabilitado'
+                  : credit.status === 'OVERDUE'
+                    ? 'En mora'
+                    : 'Al corriente'
+              }}
+            </dd>
+          </div>
+        </dl>
+
+        @if (canManageCredit() && credit.balance !== '0.00') {
+          <form
+            class="credit-payment-form"
+            [formGroup]="paymentForm"
+            (ngSubmit)="submitCreditPayment()"
+          >
+            <label for="creditPaymentAmount">Importe</label>
+            <input
+              id="creditPaymentAmount"
+              formControlName="amount"
+              inputmode="decimal"
+              [placeholder]="credit.balance"
+            />
+            <label for="creditPaymentMethod">Medio</label>
+            <select id="creditPaymentMethod" formControlName="method">
+              @if (paymentMethods().includes('CASH')) {
+                <option value="CASH">Efectivo</option>
+              }
+              @if (paymentMethods().includes('CARD')) {
+                <option value="CARD">Tarjeta</option>
+              }
+              @if (paymentMethods().includes('TRANSFER')) {
+                <option value="TRANSFER">Transferencia</option>
+              }
+            </select>
+            @if (paymentForm.controls.method.value !== 'CASH') {
+              <label for="creditPaymentReference">Referencia</label>
+              <input id="creditPaymentReference" formControlName="reference" autocomplete="off" />
+            }
+            <button type="submit" [disabled]="paymentSaving()">Aplicar abono</button>
+          </form>
+        }
+        @if (paymentError()) {
+          <div class="form-error" role="alert">{{ paymentError() }}</div>
+        }
+        @if (paymentSuccess()) {
+          <div class="form-success" role="status">{{ paymentSuccess() }}</div>
+        }
+
+        <div class="credit-account-list">
+          @for (account of credit.accounts; track account.id) {
+            <article>
+              <div>
+                <strong>{{ account.sale.receiptNumber }}</strong>
+                <small
+                  >Vence {{ account.dueDate | date: 'shortDate' }} · {{ account.status }}</small
+                >
+              </div>
+              <strong>{{ credit.currency }} {{ account.balance }}</strong>
+              <div class="installment-list">
+                @for (installment of account.installments; track installment.id) {
+                  <span [class.overdue]="installment.status === 'OVERDUE'">
+                    Cuota {{ installment.number }} · {{ installment.dueDate | date: 'shortDate' }} ·
+                    {{ credit.currency }} {{ installment.balance }} pendiente
+                  </span>
+                }
+              </div>
+              <button class="secondary" type="button" (click)="saleSelected.emit(account.sale.id)">
+                Ver venta
+              </button>
+            </article>
+          }
+        </div>
+
+        @if (credit.payments.length > 0) {
+          <h5>Abonos y reversas</h5>
+          <div class="credit-payment-list">
+            @for (payment of credit.payments; track payment.id) {
+              <article [class.reversed]="payment.status === 'REVERSED'">
+                <div>
+                  <strong>{{ payment.receiptNumber }}</strong>
+                  <small>
+                    {{ payment.createdAt | date: 'short' }} · {{ payment.method }} ·
+                    {{ payment.context.cashRegister.name }}
+                  </small>
+                </div>
+                <div>
+                  <strong>{{ payment.currency }} {{ payment.amount }}</strong>
+                  <small>{{ payment.status === 'COMPLETED' ? 'Aplicado' : 'Reversado' }}</small>
+                </div>
+                @if (payment.reversal) {
+                  <small>Motivo: {{ payment.reversal.reason }}</small>
+                } @else if (canManageCredit() && reversingPaymentId() !== payment.id) {
+                  <button class="secondary" type="button" (click)="beginReversal(payment)">
+                    Reversar
+                  </button>
+                }
+                @if (reversingPaymentId() === payment.id) {
+                  <form
+                    class="reversal-form"
+                    [formGroup]="reversalForm"
+                    (ngSubmit)="reverseCreditPayment(payment)"
+                  >
+                    <label [for]="'creditPaymentReversalReason-' + payment.id">Motivo</label>
+                    <input
+                      [id]="'creditPaymentReversalReason-' + payment.id"
+                      formControlName="reason"
+                      autocomplete="off"
+                    />
+                    <button type="submit" [disabled]="paymentSaving()">Confirmar reversa</button>
+                    <button class="secondary" type="button" (click)="cancelReversal()">
+                      Cancelar
+                    </button>
+                  </form>
+                }
+              </article>
+            }
+          </div>
+        }
+      </section>
+    }
+
     <dl class="history-summary">
       <div>
         <dt>Operaciones</dt>

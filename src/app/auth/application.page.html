@@ -1964,7 +1964,10 @@
           @if (customerHistoryCustomer(); as historyCustomer) {
             <app-customer-history-panel
               [customer]="historyCustomer"
+              [canManageCredit]="canSellCredit()"
+              [paymentMethods]="paymentMethods()"
               (saleSelected)="openCustomerSale($event)"
+              (customerUpdated)="updateCustomerCredit($event)"
               (dismissed)="customerHistoryCustomer.set(null)"
             />
           }
