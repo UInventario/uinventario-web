@@ -31,6 +31,7 @@
     @if (canManageSales()) {
       <a routerLink="/app" fragment="pos-title">Punto de venta</a>
       <a routerLink="/app" fragment="customer-orders-title">Pedidos</a>
+      <a routerLink="/app" fragment="sales-quotations-title">Cotizaciones</a>
       <a routerLink="/app" fragment="sales-title">Historial</a>
     }
     @if (canViewAudit()) {
@@ -2480,6 +2481,7 @@
 
   @if (canManageSales()) {
     <app-customer-order-panel />
+    <app-sales-quotation-panel />
     <app-product-reservation-panel />
   }
 
