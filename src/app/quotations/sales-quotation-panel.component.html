@@ -1,0 +1,272 @@
+<section class="quotations" aria-labelledby="sales-quotations-title" [attr.aria-busy]="loading()">
+  <div class="heading">
+    <div>
+      <p>Propuestas comerciales</p>
+      <h2 id="sales-quotations-title">Cotizaciones</h2>
+      <span>Prepara precios y vigencia sin afectar inventario ni caja hasta convertir.</span>
+    </div>
+    <strong>{{ total() }} cotización(es)</strong>
+  </div>
+
+  @if (error()) {
+    <div class="message error" role="alert">{{ error() }}</div>
+  }
+  @if (success()) {
+    <div class="message success" role="status">{{ success() }}</div>
+  }
+
+  <div class="workspace">
+    <form class="editor" [formGroup]="form" (ngSubmit)="submit()">
+      <div class="section-title">
+        <h3>{{ editing() ? 'Editar ' + editing()!.quotationNumber : 'Nueva cotización' }}</h3>
+        @if (editing()) {
+          <button type="button" class="secondary" (click)="cancelEditing()">
+            Cancelar edición
+          </button>
+        }
+      </div>
+      <div class="form-grid">
+        <label>
+          Cliente opcional
+          <select id="quotationCustomer" formControlName="customerId">
+            <option value="">Público general</option>
+            @for (customer of customers(); track customer.id) {
+              <option [value]="customer.id">
+                {{ customer.name }}{{ customer.identifier ? ' · ' + customer.identifier : '' }}
+              </option>
+            }
+          </select>
+        </label>
+        <label>
+          Reserva explícita opcional
+          <select
+            id="quotationReservation"
+            formControlName="reservationId"
+            (change)="reservationChanged()"
+          >
+            <option value="">Sin reservar stock</option>
+            @for (reservation of reservations(); track reservation.id) {
+              <option [value]="reservation.id">
+                {{ reservation.reservationNumber }} · {{ reservation.customer.name }}
+              </option>
+            }
+          </select>
+        </label>
+        <label>
+          Canal
+          <select id="quotationChannel" formControlName="channel">
+            <option value="POS">POS</option>
+            <option value="WEB">Web</option>
+            <option value="MOBILE">Mobile</option>
+            <option value="DESKTOP">Desktop</option>
+          </select>
+        </label>
+        <label>
+          Vigente hasta
+          <input id="quotationValidity" type="datetime-local" formControlName="validUntil" />
+        </label>
+      </div>
+      <label>
+        Notas
+        <textarea id="quotationNotes" rows="3" maxlength="1000" formControlName="notes"></textarea>
+      </label>
+
+      <div class="section-title">
+        <h4>Productos</h4>
+        <button type="button" class="secondary" (click)="addLine()">Agregar línea</button>
+      </div>
+      <div class="lines" formArrayName="lines">
+        @for (line of lines.controls; track line; let index = $index) {
+          <fieldset [formGroupName]="index">
+            <legend>Línea {{ index + 1 }}</legend>
+            <label>
+              Producto
+              <select [id]="'quotationProduct' + index" formControlName="productId">
+                <option value="">Selecciona un producto</option>
+                @for (product of products(); track product.id) {
+                  <option [value]="product.id">{{ product.sku }} · {{ product.name }}</option>
+                }
+              </select>
+            </label>
+            <label>
+              Cantidad
+              <input
+                [id]="'quotationQuantity' + index"
+                inputmode="decimal"
+                formControlName="quantity"
+              />
+            </label>
+            <button
+              type="button"
+              class="secondary"
+              (click)="removeLine(index)"
+              [disabled]="lines.length === 1"
+            >
+              Quitar
+            </button>
+          </fieldset>
+        }
+      </div>
+      <small>Sin una reserva seleccionada, guardar o editar nunca descuenta ni aparta stock.</small>
+      <button id="saveSalesQuotation" type="submit" [disabled]="saving() || loading()">
+        {{ saving() ? 'Guardando…' : editing() ? 'Guardar cambios' : 'Crear cotización' }}
+      </button>
+    </form>
+
+    <div class="queue">
+      <form class="filters" [formGroup]="filterForm" (ngSubmit)="filter()">
+        <label>
+          Estado
+          <select id="quotationStatusFilter" formControlName="status">
+            <option value="">Todos</option>
+            <option value="ACTIVE">Vigentes</option>
+            <option value="EXPIRED">Vencidas</option>
+            <option value="CONVERTED">Convertidas</option>
+          </select>
+        </label>
+        <button type="submit" class="secondary">Filtrar</button>
+      </form>
+
+      @if (conversion(); as previewData) {
+        <aside class="conversion" aria-labelledby="quotation-conversion-title">
+          <div class="section-title">
+            <div>
+              <h3 id="quotation-conversion-title">
+                Convertir {{ previewData.quotation.quotationNumber }}
+              </h3>
+              <small
+                >Recalculado: {{ previewData.recalculated.totals.total }}
+                {{ previewData.recalculated.currency }}</small
+              >
+            </div>
+            <button type="button" class="secondary" (click)="dismissConversion()">Cerrar</button>
+          </div>
+          @if (previewData.differences.length) {
+            <div class="differences" role="status">
+              <strong>Diferencias detectadas</strong>
+              <ul>
+                @for (
+                  difference of previewData.differences;
+                  track difference.field + difference.product.id
+                ) {
+                  <li [class.blocking]="difference.blocking">
+                    {{ differenceLabel(difference.field) }} · {{ difference.product.sku }}:
+                    {{ difference.quoted }} → {{ difference.current }}
+                  </li>
+                }
+              </ul>
+            </div>
+          } @else {
+            <p class="unchanged">Precio y disponibilidad no cambiaron.</p>
+          }
+          <form [formGroup]="paymentForm" (ngSubmit)="convert()" class="payment-form">
+            <label>
+              Medio de pago
+              <select
+                id="quotationPaymentMethod"
+                formControlName="method"
+                (change)="paymentChanged()"
+              >
+                @for (method of paymentMethods(); track method) {
+                  <option [value]="method">{{ method }}</option>
+                }
+              </select>
+            </label>
+            @if (paymentForm.controls.method.value === 'CASH') {
+              <label
+                >Efectivo recibido<input
+                  id="quotationCashReceived"
+                  inputmode="decimal"
+                  formControlName="amountReceived"
+              /></label>
+            } @else {
+              <label
+                >Referencia<input
+                  id="quotationPaymentReference"
+                  autocomplete="off"
+                  formControlName="reference"
+              /></label>
+            }
+            <button
+              id="convertSalesQuotation"
+              type="submit"
+              [disabled]="converting() || !previewData.canConvert"
+            >
+              {{ converting() ? 'Convirtiendo…' : 'Aceptar diferencias y vender' }}
+            </button>
+          </form>
+          @if (!previewData.canConvert) {
+            <p class="blocking">La falta de stock impide convertir.</p>
+          }
+        </aside>
+      }
+
+      @if (!loading() && quotations().length === 0) {
+        <p class="empty">No hay cotizaciones para este filtro.</p>
+      }
+      @for (quotation of quotations(); track quotation.id) {
+        <article [class]="'quotation-card ' + quotation.status.toLowerCase()">
+          <div class="quotation-title">
+            <span
+              ><strong>{{ quotation.quotationNumber }}</strong>
+              <small
+                >{{ quotation.customer?.name || 'Público general' }} · {{ quotation.channel }} ·
+                {{ quotation.context.branch.name }}</small
+              >
+            </span>
+            <b [class]="'status ' + quotation.status.toLowerCase()">{{
+              statusLabel(quotation.status)
+            }}</b>
+          </div>
+          <ul>
+            @for (line of quotation.lines; track line.product.id) {
+              <li>
+                {{ line.product.sku }} · {{ line.product.name }} · {{ line.quantity }} ×
+                {{ line.unitPrice }}
+              </li>
+            }
+          </ul>
+          <div class="summary">
+            <strong>{{ quotation.totals.total }} {{ quotation.currency }}</strong>
+            <span>Vence {{ quotation.validUntil | date: 'short' }}</span>
+          </div>
+          @if (quotation.notes) {
+            <p>{{ quotation.notes }}</p>
+          }
+          <small>
+            {{
+              quotation.reservation
+                ? 'Reserva ' + quotation.reservation.reservationNumber
+                : 'Sin reserva de stock'
+            }}
+            @if (quotation.sale) {
+              · Venta {{ quotation.sale.receiptNumber }}
+            }
+          </small>
+          @if (quotation.status === 'ACTIVE') {
+            <div class="actions">
+              <button type="button" class="secondary" (click)="edit(quotation)">Editar</button>
+              <button type="button" (click)="preview(quotation)" [disabled]="!!previewingId()">
+                {{ previewingId() === quotation.id ? 'Recalculando…' : 'Recalcular y convertir' }}
+              </button>
+            </div>
+          }
+        </article>
+      }
+      <div class="pagination" aria-label="Paginación de cotizaciones">
+        <button type="button" class="secondary" (click)="previousPage()" [disabled]="page() <= 1">
+          Anterior
+        </button>
+        <span>Página {{ page() }} de {{ totalPages() || 1 }}</span>
+        <button
+          type="button"
+          class="secondary"
+          (click)="nextPage()"
+          [disabled]="page() >= totalPages()"
+        >
+          Siguiente
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
