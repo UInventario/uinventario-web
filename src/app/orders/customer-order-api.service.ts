@@ -6,6 +6,14 @@ import type { CollectedPaymentMethod } from '../pos/pos-api.service';
 export type CustomerOrderStatus =
   'DRAFT' | 'CONFIRMED' | 'PREPARING' | 'READY' | 'DELIVERED' | 'CANCELLED';
 export type CustomerOrderPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+export type CustomerOrderFulfillmentStatus =
+  | 'PENDING'
+  | 'PREPARING'
+  | 'READY'
+  | 'RETRYABLE_FAILURE'
+  | 'DISPATCHED'
+  | 'DELIVERED'
+  | 'CANCELLED';
 
 export interface CustomerOrderData {
   id: string;
@@ -24,6 +32,30 @@ export interface CustomerOrderData {
   currency: string;
   totals: { subtotal: string; tax: string; total: string };
   expiresInHours: number;
+  fulfillment: {
+    method: 'PICKUP' | 'DELIVERY';
+    status: CustomerOrderFulfillmentStatus;
+    deliveryCost: string;
+    window: { start: string; end: string };
+    address: {
+      recipientNameMasked: string;
+      phoneMasked: string;
+      summary: string;
+      countryCode: string;
+    } | null;
+    carrier: {
+      code: 'SIMULATED' | 'SIMULATED_RETRY';
+      name: string;
+      trackingReference: string | null;
+      attempts: number;
+      lastErrorCode: string | null;
+      lastAttemptAt: string | null;
+    } | null;
+    responsible: {
+      preparation: { id: string; email: string } | null;
+      delivery: { id: string; email: string } | null;
+    };
+  };
   reservation: { id: string; reservationNumber: string; status: string } | null;
   sale: { id: string; receiptNumber: string } | null;
   lines: Array<{
@@ -60,6 +92,21 @@ export interface CustomerOrderInput {
   locationId: string;
   priority: CustomerOrderPriority;
   expiresInHours: number;
+  fulfillment: {
+    method: 'PICKUP' | 'DELIVERY';
+    windowStart: string;
+    windowEnd: string;
+    deliveryCost: string;
+    recipientName?: string;
+    recipientPhone?: string;
+    addressLine1?: string;
+    addressLine2?: string;
+    city?: string;
+    region?: string;
+    postalCode?: string;
+    countryCode?: string;
+    carrierCode?: 'SIMULATED' | 'SIMULATED_RETRY';
+  };
   lines: Array<{ productId: string; quantity: string; serialNumbers?: string[] }>;
   payments: Array<{
     method: CollectedPaymentMethod;
@@ -107,7 +154,7 @@ export class CustomerOrderApiService {
 
   transition(
     id: string,
-    action: 'confirm' | 'prepare' | 'ready' | 'deliver' | 'cancel',
+    action: 'confirm' | 'prepare' | 'ready' | 'dispatch' | 'deliver' | 'cancel',
     version: number,
     key: string,
     reason?: string,

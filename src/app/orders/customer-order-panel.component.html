@@ -69,6 +69,87 @@
         </label>
       </div>
 
+      <fieldset class="fulfillment-box">
+        <legend>Entrega</legend>
+        <div class="form-grid">
+          <label>
+            Modalidad
+            <select
+              id="orderFulfillmentMethod"
+              formControlName="fulfillmentMethod"
+              (change)="fulfillmentChanged()"
+            >
+              <option value="PICKUP">Retiro en tienda</option>
+              <option value="DELIVERY">Despacho</option>
+            </select>
+          </label>
+          <label>
+            Inicio de ventana
+            <input id="orderWindowStart" type="datetime-local" formControlName="windowStart" />
+          </label>
+          <label>
+            Fin de ventana
+            <input id="orderWindowEnd" type="datetime-local" formControlName="windowEnd" />
+          </label>
+          @if (form.controls.fulfillmentMethod.value === 'DELIVERY') {
+            <label>
+              Costo logístico estimado
+              <input id="orderDeliveryCost" inputmode="decimal" formControlName="deliveryCost" />
+            </label>
+            <label>
+              Destinatario
+              <input id="orderRecipientName" formControlName="recipientName" autocomplete="name" />
+            </label>
+            <label>
+              Teléfono
+              <input id="orderRecipientPhone" formControlName="recipientPhone" autocomplete="tel" />
+            </label>
+            <label class="wide">
+              Dirección
+              <input
+                id="orderAddressLine1"
+                formControlName="addressLine1"
+                autocomplete="address-line1"
+              />
+            </label>
+            <label class="wide">
+              Complemento
+              <input
+                id="orderAddressLine2"
+                formControlName="addressLine2"
+                autocomplete="address-line2"
+              />
+            </label>
+            <label>
+              Ciudad
+              <input id="orderCity" formControlName="city" autocomplete="address-level2" />
+            </label>
+            <label>
+              Región/estado
+              <input id="orderRegion" formControlName="region" autocomplete="address-level1" />
+            </label>
+            <label>
+              Código postal
+              <input id="orderPostalCode" formControlName="postalCode" autocomplete="postal-code" />
+            </label>
+            <label>
+              País
+              <input id="orderCountryCode" formControlName="countryCode" maxlength="2" />
+            </label>
+            <label class="wide">
+              Transportista
+              <select id="orderCarrier" formControlName="carrierCode">
+                <option value="SIMULATED">Simulado local</option>
+                <option value="SIMULATED_RETRY">
+                  Simulado: falla una vez y permite reintentar
+                </option>
+              </select>
+            </label>
+          }
+        </div>
+        <small>Los datos personales se muestran enmascarados y no se copian a auditoría.</small>
+      </fieldset>
+
       <div class="line-heading">
         <h4>Productos</h4>
         <button type="button" class="secondary" (click)="addLine()">Agregar línea</button>
@@ -232,6 +313,41 @@
             <span>{{ order.context.location.code }}</span>
             <span>Creado {{ order.createdAt | date: 'short' }}</span>
           </div>
+          <div class="fulfillment-summary">
+            <strong>
+              {{ order.fulfillment.method === 'PICKUP' ? 'Retiro en tienda' : 'Despacho' }}
+              · {{ fulfillmentStatusLabel(order.fulfillment.status) }}
+            </strong>
+            <span>
+              Ventana {{ order.fulfillment.window.start | date: 'short' }} –
+              {{ order.fulfillment.window.end | date: 'short' }}
+              · Costo logístico {{ order.fulfillment.deliveryCost }} {{ order.currency }}
+            </span>
+            @if (order.fulfillment.address) {
+              <span>
+                {{ order.fulfillment.address.recipientNameMasked }} ·
+                {{ order.fulfillment.address.phoneMasked }} ·
+                {{ order.fulfillment.address.summary }}
+              </span>
+            }
+            @if (order.fulfillment.carrier; as carrier) {
+              <span>
+                {{ carrier.name }} · {{ carrier.attempts }} intento(s)
+                @if (carrier.trackingReference) {
+                  · Guía {{ carrier.trackingReference }}
+                }
+                @if (carrier.lastErrorCode) {
+                  · {{ carrier.lastErrorCode }}
+                }
+              </span>
+            }
+            @if (order.fulfillment.responsible.preparation) {
+              <span>Preparó {{ order.fulfillment.responsible.preparation.email }}</span>
+            }
+            @if (order.fulfillment.responsible.delivery) {
+              <span>Entregó {{ order.fulfillment.responsible.delivery.email }}</span>
+            }
+          </div>
           <small>
             Pago: {{ order.payments[0].method }} · {{ order.payments[0].status }}
             @if (order.reservation) {
@@ -261,6 +377,22 @@
             } @else if (order.status === 'PREPARING') {
               <button type="button" (click)="transition(order, 'ready')" [disabled]="!!actionId()">
                 Marcar listo
+              </button>
+            } @else if (
+              order.status === 'READY' &&
+              order.fulfillment.method === 'DELIVERY' &&
+              ['READY', 'RETRYABLE_FAILURE'].includes(order.fulfillment.status)
+            ) {
+              <button
+                type="button"
+                (click)="transition(order, 'dispatch')"
+                [disabled]="!!actionId()"
+              >
+                {{
+                  order.fulfillment.status === 'RETRYABLE_FAILURE'
+                    ? 'Reintentar despacho'
+                    : 'Solicitar despacho'
+                }}
               </button>
             } @else if (order.status === 'READY') {
               <button

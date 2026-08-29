@@ -26,6 +26,18 @@ describe('CustomerOrderPanelComponent', () => {
     currency: 'MXN',
     totals: { subtotal: '100.00', tax: '16.00', total: '116.00' },
     expiresInHours: 48,
+    fulfillment: {
+      method: 'PICKUP',
+      status: 'PENDING',
+      deliveryCost: '0.00',
+      window: {
+        start: '2026-08-29T13:00:00.000Z',
+        end: '2026-08-29T15:00:00.000Z',
+      },
+      address: null,
+      carrier: null,
+      responsible: { preparation: null, delivery: null },
+    },
     reservation: null,
     sale: null,
     lines: [
@@ -179,15 +191,21 @@ describe('CustomerOrderPanelComponent', () => {
 
     expect(api.create).toHaveBeenCalledTimes(1);
     expect(api.create).toHaveBeenCalledWith(
-      {
+      expect.objectContaining({
         channel: 'WEB',
         customerId: 'customer-id',
         locationId: 'location-id',
         priority: 'NORMAL',
         expiresInHours: 48,
+        fulfillment: {
+          method: 'PICKUP',
+          deliveryCost: '0.00',
+          windowStart: expect.any(String),
+          windowEnd: expect.any(String),
+        },
         lines: [{ productId: 'product-id', quantity: '1' }],
         payments: [{ method: 'CASH', amountReceived: '150.00' }],
-      },
+      }),
       expect.stringMatching(/^web-order-create-/),
     );
     response.next({ data: order, meta: { apiVersion: '1', idempotentReplay: false } });
@@ -225,5 +243,73 @@ describe('CustomerOrderPanelComponent', () => {
 
     expect(api.list).toHaveBeenCalledTimes(2);
     expect(fixture.nativeElement.textContent).toContain('confirmado');
+  });
+
+  it('retries a recoverable simulated dispatch with a retained request key', () => {
+    const response = new Subject<{
+      data: CustomerOrderData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>();
+    api.transition.mockReturnValue(response);
+    const deliveryOrder: CustomerOrderData = {
+      ...order,
+      status: 'READY',
+      version: 4,
+      fulfillment: {
+        method: 'DELIVERY',
+        status: 'RETRYABLE_FAILURE',
+        deliveryCost: '85.50',
+        window: order.fulfillment.window,
+        address: {
+          recipientNameMasked: 'P***',
+          phoneMasked: '***9876',
+          summary: 'Ciudad de México, CDMX, MX',
+          countryCode: 'MX',
+        },
+        carrier: {
+          code: 'SIMULATED_RETRY',
+          name: 'Transportista simulado con reintento',
+          trackingReference: null,
+          attempts: 1,
+          lastErrorCode: 'SIMULATED_CARRIER_UNAVAILABLE',
+          lastAttemptAt: '2026-08-29T13:00:00.000Z',
+        },
+        responsible: { preparation: null, delivery: null },
+      },
+    };
+    const component = fixture.componentInstance as unknown as {
+      transition(order: CustomerOrderData, action: 'dispatch'): void;
+    };
+    component.transition(deliveryOrder, 'dispatch');
+    component.transition(deliveryOrder, 'dispatch');
+
+    expect(api.transition).toHaveBeenCalledTimes(1);
+    expect(api.transition).toHaveBeenCalledWith(
+      'order-id',
+      'dispatch',
+      4,
+      expect.stringMatching(/^web-order-dispatch-/),
+      undefined,
+    );
+    response.next({
+      data: {
+        ...deliveryOrder,
+        version: 5,
+        fulfillment: {
+          ...deliveryOrder.fulfillment,
+          status: 'DISPATCHED',
+          carrier: {
+            ...deliveryOrder.fulfillment.carrier!,
+            attempts: 2,
+            trackingReference: 'SIM-O-123-2',
+            lastErrorCode: null,
+          },
+        },
+      },
+      meta: { apiVersion: '1', idempotentReplay: false },
+    });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('en tránsito');
   });
 });
