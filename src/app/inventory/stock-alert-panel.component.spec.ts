@@ -13,6 +13,7 @@ describe('StockAlertPanelComponent', () => {
   let fixture: ComponentFixture<StockAlertPanelComponent>;
   let inventory: {
     listStockAlerts: ReturnType<typeof vi.fn>;
+    listLotExpirationAlerts: ReturnType<typeof vi.fn>;
     setStockAlertThreshold: ReturnType<typeof vi.fn>;
   };
 
@@ -56,6 +57,22 @@ describe('StockAlertPanelComponent', () => {
           },
         }),
       ),
+      listLotExpirationAlerts: vi.fn().mockReturnValue(
+        of({
+          data: [
+            {
+              id: 'lot-1:location-1',
+              status: 'EXPIRING' as const,
+              product: { id: 'product-1', name: 'Café', sku: 'CAFE-1' },
+              lot: { id: 'lot-1', code: 'LOT-1', expiresOn: '2026-09-05' },
+              location: { id: 'location-1', name: 'General', code: 'GEN' },
+              quantity: '2.000',
+              daysUntilExpiration: 7,
+            },
+          ],
+          meta: { apiVersion: '1' as const, businessDate: '2026-08-29' },
+        }),
+      ),
       setStockAlertThreshold: vi.fn().mockReturnValue(
         of({
           data: { ...alert, threshold: '7.000' },
@@ -90,6 +107,8 @@ describe('StockAlertPanelComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Stock bajo');
     expect(fixture.nativeElement.textContent).toContain('CAFE-1');
     expect(fixture.nativeElement.textContent).toContain('Umbral predeterminado: 5.000');
+    expect(fixture.nativeElement.textContent).toContain('Próximo a caducar');
+    expect(fixture.nativeElement.textContent).toContain('LOT-1');
 
     const emitted: string[] = [];
     fixture.componentInstance.viewStock.subscribe((sku) => emitted.push(sku));

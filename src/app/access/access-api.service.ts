@@ -9,6 +9,7 @@ export const INVENTORY_PERMISSIONS = [
   'INVENTORY_COUNT',
   'INVENTORY_APPROVE',
   'INVENTORY_VALUATION_MANAGE',
+  'INVENTORY_EXPIRED_STOCK_OVERRIDE',
 ] as const;
 
 export type InventoryPermission = (typeof INVENTORY_PERMISSIONS)[number];

@@ -112,6 +112,7 @@ interface CartEntry {
   discountType: '' | 'PERCENT' | 'AMOUNT';
   discountValue: string;
   discountReason: string;
+  expiredLotOverrideReason: string;
 }
 
 @Component({
@@ -267,6 +268,9 @@ export class ApplicationPage implements OnInit {
   );
   protected readonly canApplyDiscount = computed(
     () => this.session()?.user.permissions.includes('SALES_DISCOUNT') ?? false,
+  );
+  protected readonly canOverrideExpiredStock = computed(
+    () => this.session()?.user.permissions.includes('INVENTORY_EXPIRED_STOCK_OVERRIDE') ?? false,
   );
   protected readonly canSellCredit = computed(
     () => this.session()?.user.permissions.includes('SALES_CREDIT') ?? false,
@@ -623,6 +627,9 @@ export class ApplicationPage implements OnInit {
     cost: ['', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
     price: ['', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
     trackLots: [false],
+    lotExpirationPolicy: ['NONE' as 'NONE' | 'OPTIONAL' | 'REQUIRED'],
+    lotExpirationAlertDays: [30, [Validators.required, Validators.min(1), Validators.max(365)]],
+    allowExpiredStockOverride: [false],
     trackSerials: [false],
   });
   protected readonly stockForm = this.formBuilder.nonNullable.group({
@@ -632,6 +639,8 @@ export class ApplicationPage implements OnInit {
     reason: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
     reference: ['', [Validators.maxLength(120)]],
     lotCode: ['', [Validators.maxLength(64)]],
+    manufacturedOn: [''],
+    expiresOn: [''],
     serialNumbers: ['', [Validators.maxLength(120999)]],
   });
   protected readonly stateTransitionForm = this.formBuilder.nonNullable.group({
@@ -770,6 +779,9 @@ export class ApplicationPage implements OnInit {
       cost: product.cost,
       price: product.price,
       trackLots: product.trackLots,
+      lotExpirationPolicy: product.lotExpirationPolicy ?? 'NONE',
+      lotExpirationAlertDays: product.lotExpirationAlertDays ?? 30,
+      allowExpiredStockOverride: product.allowExpiredStockOverride ?? false,
       trackSerials: product.trackSerials ?? false,
     });
   }
@@ -1693,6 +1705,7 @@ export class ApplicationPage implements OnInit {
               discountType: '',
               discountValue: '',
               discountReason: '',
+              expiredLotOverrideReason: '',
             },
           ],
     );
@@ -1713,9 +1726,29 @@ export class ApplicationPage implements OnInit {
   protected updateCartLot(productId: string, lotId: string): void {
     this.resetCompletedSale();
     this.cart.update((entries) =>
-      entries.map((entry) => (entry.product.id === productId ? { ...entry, lotId } : entry)),
+      entries.map((entry) =>
+        entry.product.id === productId ? { ...entry, lotId, expiredLotOverrideReason: '' } : entry,
+      ),
     );
     this.quoteCart();
+  }
+
+  protected updateExpiredLotReason(productId: string, reason: string): void {
+    this.resetCompletedSale();
+    this.cart.update((entries) =>
+      entries.map((entry) =>
+        entry.product.id === productId ? { ...entry, expiredLotOverrideReason: reason } : entry,
+      ),
+    );
+    this.quoteCart();
+  }
+
+  protected selectedCartLot(entry: CartEntry): InventoryLotData | null {
+    return entry.lots?.find((lot) => lot.id === entry.lotId) ?? null;
+  }
+
+  protected isExpiredLotSelected(entry: CartEntry): boolean {
+    return this.selectedCartLot(entry)?.expirationStatus === 'EXPIRED';
   }
 
   protected updateCartQuantity(productId: string, quantity: string): void {
@@ -2105,6 +2138,7 @@ export class ApplicationPage implements OnInit {
               discountType: '',
               discountValue: '',
               discountReason: '',
+              expiredLotOverrideReason: '',
             })),
           );
           this.cashForm.patchValue({
@@ -2574,6 +2608,8 @@ export class ApplicationPage implements OnInit {
       reason: value.reason.trim(),
       ...(value.reference.trim() ? { reference: value.reference.trim() } : {}),
       ...(value.lotCode.trim() ? { lotCode: value.lotCode.trim() } : {}),
+      ...(value.manufacturedOn ? { manufacturedOn: value.manufacturedOn } : {}),
+      ...(value.expiresOn ? { expiresOn: value.expiresOn } : {}),
       ...(value.serialNumbers.trim()
         ? {
             serialNumbers: value.serialNumbers
@@ -2604,6 +2640,8 @@ export class ApplicationPage implements OnInit {
             reason: '',
             reference: '',
             lotCode: '',
+            manufacturedOn: '',
+            expiresOn: '',
             serialNumbers: '',
           });
           this.movementTypeChanged();
@@ -2935,6 +2973,7 @@ export class ApplicationPage implements OnInit {
       INVENTORY_COUNT: 'Realizar conteos',
       INVENTORY_APPROVE: 'Despachar, cancelar y aprobar operaciones',
       INVENTORY_VALUATION_MANAGE: 'Cambiar el método de valorización',
+      INVENTORY_EXPIRED_STOCK_OVERRIDE: 'Autorizar stock caducado con motivo',
     }[permission];
   }
 
@@ -3603,6 +3642,7 @@ export class ApplicationPage implements OnInit {
         productId: entry.product.id,
         quantity: entry.quantity,
         ...(entry.lotId ? { lotId: entry.lotId } : {}),
+        ...(this.isExpiredLotSelected(entry) ? this.expiredLotOverrideInput(entry) : {}),
         ...((entry.serialNumbers ?? '').trim()
           ? {
               serialNumbers: entry.serialNumbers
@@ -3614,6 +3654,17 @@ export class ApplicationPage implements OnInit {
         ...(discount ? { discount } : {}),
       };
     });
+  }
+
+  private expiredLotOverrideInput(entry: CartEntry): { expiredLotOverrideReason: string } {
+    const reason = entry.expiredLotOverrideReason.trim();
+    if (!this.canOverrideExpiredStock() || !entry.product.allowExpiredStockOverride) {
+      throw new Error('No tienes permiso para vender el lote caducado seleccionado.');
+    }
+    if (reason.length < 3) {
+      throw new Error('Captura el motivo de la excepción para el lote caducado.');
+    }
+    return { expiredLotOverrideReason: reason };
   }
 
   private saleDiscountInput(): SaleDiscountInput | undefined {
@@ -3862,6 +3913,7 @@ export class ApplicationPage implements OnInit {
 
   private toInput(): ProductInput {
     const value = this.form.getRawValue();
+    const hadExpirationPolicy = (this.editingProduct()?.lotExpirationPolicy ?? 'NONE') !== 'NONE';
     return {
       name: value.name.trim(),
       sku: value.sku.trim(),
@@ -3871,6 +3923,16 @@ export class ApplicationPage implements OnInit {
       cost: value.cost.trim(),
       price: value.price.trim(),
       trackLots: value.trackLots,
+      ...((value.trackLots && value.lotExpirationPolicy !== 'NONE') || hadExpirationPolicy
+        ? {
+            lotExpirationPolicy: value.trackLots ? value.lotExpirationPolicy : 'NONE',
+            lotExpirationAlertDays: value.lotExpirationAlertDays,
+            allowExpiredStockOverride:
+              value.trackLots && value.lotExpirationPolicy !== 'NONE'
+                ? value.allowExpiredStockOverride
+                : false,
+          }
+        : {}),
       ...(value.trackSerials || this.editingProduct()?.trackSerials
         ? { trackSerials: value.trackSerials }
         : {}),
@@ -3887,6 +3949,9 @@ export class ApplicationPage implements OnInit {
       cost: '',
       price: '',
       trackLots: product?.trackLots ?? false,
+      lotExpirationPolicy: product?.lotExpirationPolicy ?? 'NONE',
+      lotExpirationAlertDays: product?.lotExpirationAlertDays ?? 30,
+      allowExpiredStockOverride: product?.allowExpiredStockOverride ?? false,
       trackSerials: product?.trackSerials ?? false,
     });
   }
@@ -3915,6 +3980,15 @@ export class ApplicationPage implements OnInit {
     }
     if (code === 'MOVEMENT_REFERENCE_REQUIRED') {
       return 'Agrega una referencia o evidencia para este movimiento.';
+    }
+    if (code === 'INVENTORY_LOT_EXPIRATION_REQUIRED') {
+      return 'Captura la fecha de caducidad obligatoria para este lote.';
+    }
+    if (code === 'INVALID_INVENTORY_LOT_DATES') {
+      return 'Revisa las fechas: fabricación no puede ser posterior a caducidad.';
+    }
+    if (code === 'EXPIRED_INVENTORY_LOT') {
+      return 'El lote está caducado y no puede salir del inventario.';
     }
     if (error.status === 403) return this.permissionMessage();
     if (error.status === 0) return 'No pudimos conectar con el servicio. Intenta nuevamente.';
@@ -3992,6 +4066,15 @@ export class ApplicationPage implements OnInit {
     if (code === 'INSUFFICIENT_STOCK') return 'No hay existencia suficiente para esa cantidad.';
     if (code === 'PRODUCT_NOT_AVAILABLE') return 'Uno de los productos ya no está disponible.';
     if (code === 'PRODUCT_NOT_FOUND') return 'Uno de los productos ya no existe.';
+    if (code === 'EXPIRED_INVENTORY_LOT') {
+      return 'El lote seleccionado está caducado.';
+    }
+    if (code === 'EXPIRED_INVENTORY_LOT_PERMISSION_REQUIRED') {
+      return 'No tienes permiso para autorizar stock caducado.';
+    }
+    if (code === 'EXPIRED_INVENTORY_LOT_REASON_REQUIRED') {
+      return 'Captura el motivo de la excepción de caducidad.';
+    }
     if (code === 'INSUFFICIENT_CASH_RECEIVED') {
       return 'El efectivo recibido no cubre el total de la venta.';
     }

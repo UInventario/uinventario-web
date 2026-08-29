@@ -354,6 +354,8 @@ export class PurchaseOrderPanelComponent implements OnInit {
         purchaseOrderLineId: line.purchaseOrderLineId,
         receivedQuantity: line.receivedQuantity.trim(),
         ...(line.lotCode.trim() ? { lotCode: line.lotCode.trim() } : {}),
+        ...(line.manufacturedOn ? { manufacturedOn: line.manufacturedOn } : {}),
+        ...(line.expiresOn ? { expiresOn: line.expiresOn } : {}),
         ...(line.serialNumbers.trim()
           ? {
               serialNumbers: line.serialNumbers
@@ -612,6 +614,8 @@ export class PurchaseOrderPanelComponent implements OnInit {
         [Validators.required, Validators.pattern(RECEIPT_QUANTITY_PATTERN)],
       ],
       lotCode: ['', [Validators.maxLength(64)]],
+      manufacturedOn: [''],
+      expiresOn: [''],
       serialNumbers: [''],
     });
   }

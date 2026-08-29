@@ -25,6 +25,7 @@ export interface PosCartQuote {
     product: { id: string; name: string; sku: string };
     quantity: string;
     lotId?: string | null;
+    expiredLotOverrideReason?: string | null;
     serialNumbers?: string[];
     availableQuantity: string;
     unitPrice: string;
@@ -581,6 +582,7 @@ export class PosApiService {
       productId: string;
       quantity: string;
       lotId?: string;
+      expiredLotOverrideReason?: string;
       serialNumbers?: string[];
       discount?: SaleDiscountInput;
     }>,
@@ -614,6 +616,7 @@ export class PosApiService {
         productId: string;
         quantity: string;
         lotId?: string;
+        expiredLotOverrideReason?: string;
         serialNumbers?: string[];
         discount?: SaleDiscountInput;
       }>;
