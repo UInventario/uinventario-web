@@ -2676,6 +2676,161 @@
           Siguiente
         </button>
       </div>
+      @if (canViewProfitability()) {
+        <hr />
+        <div class="sales-heading">
+          <div>
+            <h3>Rentabilidad de POS</h3>
+            <p class="context">
+              Ingresos sin impuestos menos costo histórico. Las devoluciones reducen el resultado
+              una sola vez; reembolsos y cobros de crédito son flujo, no ingreso nuevo.
+            </p>
+          </div>
+        </div>
+        @if (profitabilityReportError()) {
+          <div class="form-error" role="alert">{{ profitabilityReportError() }}</div>
+        }
+        @if (loadingProfitabilityReport()) {
+          <p class="catalog-state" role="status">Calculando costos y margen…</p>
+        } @else if (profitabilityReport(); as profitability) {
+          @for (currency of profitability.currencies; track currency.currency) {
+            <h4>{{ currency.currency }}</h4>
+            <div class="cart-totals">
+              <div>
+                <dt>Ingreso neto</dt>
+                <dd>{{ currency.netRevenue }}</dd>
+              </div>
+              <div>
+                <dt>Costo neto</dt>
+                <dd>{{ currency.netCost }}</dd>
+              </div>
+              <div>
+                <dt>Margen</dt>
+                <dd>{{ currency.margin }}</dd>
+              </div>
+              <div>
+                <dt>Margen %</dt>
+                <dd>{{ currency.marginRate === null ? '—' : currency.marginRate + '%' }}</dd>
+              </div>
+              <div>
+                <dt>Descuentos</dt>
+                <dd>{{ currency.discounts }}</dd>
+              </div>
+              <div>
+                <dt>Devoluciones</dt>
+                <dd>{{ currency.returnTotal }}</dd>
+              </div>
+              <div>
+                <dt>Impuestos netos</dt>
+                <dd>{{ currency.taxes }}</dd>
+              </div>
+              <div>
+                <dt>Ventas a crédito</dt>
+                <dd>{{ currency.creditSales }}</dd>
+              </div>
+            </div>
+            <div class="success" [class.form-error]="!currency.salesMatchPayments" role="status">
+              <strong>
+                {{
+                  currency.salesMatchPayments ? 'Ventas y pagos conciliados' : 'Diferencia en pagos'
+                }}
+              </strong>
+              <span>
+                Ventas {{ currency.salesTotal }} · obligaciones {{ currency.paymentObligations }} ·
+                reembolsos liquidados {{ currency.refundsSettled }}
+              </span>
+            </div>
+          }
+          @if (profitability.currencies.length === 0) {
+            <p class="catalog-state">Sin actividad financiera para los filtros seleccionados.</p>
+          }
+          <h4>Resultado por producto</h4>
+          @if (profitability.products.length === 0) {
+            <p class="catalog-state">Sin productos con actividad en el periodo.</p>
+          } @else {
+            <ul class="sale-lines">
+              @for (
+                product of profitability.products;
+                track product.product.id + product.currency
+              ) {
+                <li>
+                  <span>
+                    <strong>{{ product.product.name }} · {{ product.product.sku }}</strong>
+                    <small>
+                      Vendido {{ product.soldQuantity }} · devuelto {{ product.returnedQuantity }} ·
+                      descuentos {{ product.discounts }} {{ product.currency }}
+                    </small>
+                  </span>
+                  <strong>
+                    Margen {{ product.margin }} · ingreso {{ product.netRevenue }} · costo
+                    {{ product.netCost }} {{ product.currency }}
+                  </strong>
+                </li>
+              }
+            </ul>
+          }
+          <h4>Detalle reconciliable</h4>
+          @if (profitability.activities.length === 0) {
+            <p class="catalog-state">Sin movimientos para el periodo.</p>
+          } @else {
+            <ul class="sale-lines">
+              @for (activity of profitability.activities; track activity.type + activity.id) {
+                <li>
+                  <span>
+                    <strong>
+                      {{ activity.receiptNumber }} ·
+                      {{
+                        activity.type === 'SALE'
+                          ? 'Venta'
+                          : activity.type === 'RETURN'
+                            ? 'Devolución'
+                            : 'Anulación'
+                      }}
+                    </strong>
+                    <small>
+                      {{ activity.branchName }} · {{ activity.cashRegisterName }} ·
+                      {{ dateTime(activity.occurredAt) }}
+                    </small>
+                    <small>
+                      Pago/liquidación {{ activity.paymentOrSettlement }} ·
+                      {{ activity.reconciles ? 'conciliado' : 'pendiente de liquidar' }}
+                    </small>
+                  </span>
+                  <strong>
+                    Margen {{ activity.marginImpact }} · ingreso {{ activity.netRevenue }} · costo
+                    {{ activity.historicalCost }} {{ activity.currency }}
+                  </strong>
+                </li>
+              }
+            </ul>
+          }
+          <div class="pagination" aria-label="Paginación del detalle de rentabilidad">
+            <button
+              type="button"
+              class="secondary"
+              (click)="previousProfitabilityReportPage()"
+              [disabled]="profitabilityReportPage() <= 1 || loadingProfitabilityReport()"
+            >
+              Anterior
+            </button>
+            <span>
+              Página {{ profitabilityReportPage() }} de
+              {{ profitabilityReportTotalPages() || 1 }}
+            </span>
+            <button
+              type="button"
+              class="secondary"
+              (click)="nextProfitabilityReportPage()"
+              [disabled]="
+                profitabilityReportPage() >= profitabilityReportTotalPages() ||
+                loadingProfitabilityReport()
+              "
+            >
+              Siguiente
+            </button>
+          </div>
+        }
+      }
     }
   </section>
 
