@@ -11,6 +11,7 @@ import {
   SaleReturnData,
   SaleSummaryData,
 } from './pos-api.service';
+import { quantityFromUnits, quantityUnits } from '../shared/quantity-policy';
 
 const RETURN_QUANTITY_PATTERN =
   /^(?:[1-9]\d{0,14}(?:\.\d{1,3})?|0\.(?:00[1-9]|0[1-9]\d?|[1-9]\d{0,2}))$/;
@@ -70,10 +71,11 @@ export class SaleReturnPanelComponent {
         sum +
         item.lines
           .filter((returnLine) => returnLine.saleLineId === line.id)
-          .reduce((lineSum, returnLine) => lineSum + this.units(returnLine.quantity), 0),
-      0,
+          .reduce((lineSum, returnLine) => lineSum + quantityUnits(returnLine.quantity), 0n),
+      0n,
     );
-    return this.quantity(Math.max(0, this.units(line.quantity) - returned));
+    const remaining = quantityUnits(line.quantity) - returned;
+    return quantityFromUnits(remaining > 0n ? remaining : 0n);
   }
 
   protected submit(): void {
@@ -283,13 +285,5 @@ export class SaleReturnPanelComponent {
         this.paymentOptions().find(({ status }) => status === 'COMPLETED')?.id ?? '',
       );
     }
-  }
-
-  private units(value: string): number {
-    return Math.round(Number(value) * 1000);
-  }
-
-  private quantity(value: number): string {
-    return (value / 1000).toFixed(3);
   }
 }

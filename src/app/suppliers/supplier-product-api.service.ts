@@ -20,6 +20,9 @@ export interface SupplierProductData {
     sku: string;
     catalogCost: string;
     catalogPrice: string;
+    baseUnit?: import('../catalog/product-api.service').ProductBaseUnit;
+    quantityPrecision?: number;
+    minimumQuantity?: string;
   };
   supplierCode: string;
   minimumQuantity: string | null;

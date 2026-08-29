@@ -146,6 +146,11 @@ export class PurchaseOrderPanelComponent implements OnInit {
     );
     if (!link?.prices[0]) return;
     line.controls.unitCost.setValue(link.prices[0].unitCost);
+    const minimum = this.maximumQuantity(
+      link.minimumQuantity ?? '0.001',
+      link.product.minimumQuantity ?? '0.001',
+    );
+    line.controls.quantity.setValue(minimum);
     if (this.lines.length === 1 || !this.form.controls.currency.dirty) {
       this.form.controls.currency.setValue(link.prices[0].currency);
     }
@@ -231,7 +236,7 @@ export class PurchaseOrderPanelComponent implements OnInit {
       this.receiptLines.push(
         this.receiptLineGroup(
           line.id,
-          Number(line.remainingQuantity) > 0 ? line.remainingQuantity : '0',
+          this.quantityUnits(line.remainingQuantity) > 0n ? line.remainingQuantity : '0',
         ),
       );
     }
@@ -245,7 +250,10 @@ export class PurchaseOrderPanelComponent implements OnInit {
   }
 
   protected requestReturn(order: PurchaseOrderData, receipt: PurchaseReceiptData): void {
-    if (!this.canManage() || !receipt.lines.some((line) => Number(line.returnableQuantity) > 0)) {
+    if (
+      !this.canManage() ||
+      !receipt.lines.some((line) => this.quantityUnits(line.returnableQuantity) > 0n)
+    ) {
       return;
     }
     this.returning.set({ order, receipt });
@@ -255,7 +263,7 @@ export class PurchaseOrderPanelComponent implements OnInit {
       this.returnLines.push(
         this.returnLineGroup(
           line.id,
-          Number(line.returnableQuantity) > 0 ? line.returnableQuantity : '0',
+          this.quantityUnits(line.returnableQuantity) > 0n ? line.returnableQuantity : '0',
         ),
       );
     }
@@ -276,7 +284,7 @@ export class PurchaseOrderPanelComponent implements OnInit {
     }
     const raw = this.returnForm.getRawValue();
     const lines = raw.lines
-      .filter((line) => Number(line.returnedQuantity) > 0)
+      .filter((line) => this.quantityUnits(line.returnedQuantity) > 0n)
       .map((line) => ({
         purchaseReceiptLineId: line.purchaseReceiptLineId,
         returnedQuantity: line.returnedQuantity.trim(),
@@ -295,7 +303,10 @@ export class PurchaseOrderPanelComponent implements OnInit {
     }
     const exceedsReceipt = lines.some((line) => {
       const receiptLine = context.receipt.lines.find(({ id }) => id === line.purchaseReceiptLineId);
-      return Number(line.returnedQuantity) > Number(receiptLine?.returnableQuantity ?? 0);
+      return (
+        this.quantityUnits(line.returnedQuantity) >
+        this.quantityUnits(receiptLine?.returnableQuantity ?? '0')
+      );
     });
     if (exceedsReceipt) {
       this.error.set('La cantidad a devolver supera el saldo recibido disponible.');
@@ -349,7 +360,7 @@ export class PurchaseOrderPanelComponent implements OnInit {
     }
     const raw = this.receiptForm.getRawValue();
     const lines = raw.lines
-      .filter((line) => Number(line.receivedQuantity) > 0)
+      .filter((line) => this.quantityUnits(line.receivedQuantity) > 0n)
       .map((line) => ({
         purchaseOrderLineId: line.purchaseOrderLineId,
         receivedQuantity: line.receivedQuantity.trim(),
@@ -378,7 +389,10 @@ export class PurchaseOrderPanelComponent implements OnInit {
     };
     const hasOverage = lines.some((line) => {
       const orderedLine = order.lines.find(({ id }) => id === line.purchaseOrderLineId);
-      return Number(line.receivedQuantity) > Number(orderedLine?.remainingQuantity ?? 0);
+      return (
+        this.quantityUnits(line.receivedQuantity) >
+        this.quantityUnits(orderedLine?.remainingQuantity ?? '0')
+      );
     });
     if (hasOverage && !this.canOverReceive()) {
       this.error.set('No tienes permiso para recibir cantidades sobrantes.');
@@ -448,7 +462,21 @@ export class PurchaseOrderPanelComponent implements OnInit {
   }
 
   protected canReturnReceipt(receipt: PurchaseReceiptData): boolean {
-    return receipt.lines.some((line) => Number(line.returnableQuantity) > 0);
+    return receipt.lines.some((line) => this.quantityUnits(line.returnableQuantity) > 0n);
+  }
+
+  protected lineQuantityStep(index: number): string {
+    const supplierProductId = this.lines.at(index).controls.supplierProductId.value;
+    const product = this.supplierProducts().find(({ id }) => id === supplierProductId)?.product;
+    return this.step(product?.quantityPrecision ?? 3);
+  }
+
+  protected orderLineQuantityStep(order: PurchaseOrderData, index: number): string {
+    return this.step(order.lines[index]?.quantityPrecision ?? 3);
+  }
+
+  protected orderLineMinimum(order: PurchaseOrderData, index: number): string {
+    return order.lines[index]?.minimumQuantity ?? '0.001';
   }
 
   protected purchaseReturnLineSku(order: PurchaseOrderData, productId: string): string {
@@ -635,6 +663,19 @@ export class PurchaseOrderPanelComponent implements OnInit {
     this.form.reset({ supplierId: '', currency: 'MXN', notes: '' });
     this.lines.clear();
     this.lines.push(this.lineGroup());
+  }
+
+  private step(precision: number): string {
+    return ['1', '0.1', '0.01', '0.001'][precision] ?? '0.001';
+  }
+
+  private maximumQuantity(left: string, right: string): string {
+    return this.quantityUnits(left) >= this.quantityUnits(right) ? left : right;
+  }
+
+  private quantityUnits(value: string): bigint {
+    const [whole, fraction = ''] = value.trim().split('.');
+    return BigInt(whole || '0') * 1000n + BigInt(fraction.padEnd(3, '0'));
   }
 
   private message(error: HttpErrorResponse): string {

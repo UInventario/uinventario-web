@@ -7,6 +7,10 @@ export interface ProductData {
   name: string;
   sku: string;
   barcode: string | null;
+  baseUnit?: ProductBaseUnit;
+  quantityPrecision?: number;
+  quantityRounding?: QuantityRoundingMode;
+  minimumQuantity?: string;
   trackLots?: boolean;
   lotExpirationPolicy?: 'NONE' | 'OPTIONAL' | 'REQUIRED';
   lotExpirationAlertDays?: number;
@@ -40,6 +44,10 @@ export interface ProductInput {
   name: string;
   sku: string;
   barcode?: string;
+  baseUnit: ProductBaseUnit;
+  quantityPrecision: number;
+  quantityRounding: QuantityRoundingMode;
+  minimumQuantity: string;
   trackLots: boolean;
   lotExpirationPolicy?: 'NONE' | 'OPTIONAL' | 'REQUIRED';
   lotExpirationAlertDays?: number;
@@ -50,6 +58,10 @@ export interface ProductInput {
   cost: string;
   price: string;
 }
+
+export type ProductBaseUnit =
+  'UNIT' | 'KILOGRAM' | 'GRAM' | 'LITER' | 'MILLILITER' | 'METER' | 'CENTIMETER';
+export type QuantityRoundingMode = 'HALF_UP' | 'DOWN' | 'UP';
 
 export interface ProductResponse {
   data: ProductData;

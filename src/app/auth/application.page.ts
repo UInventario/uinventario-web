@@ -7,6 +7,7 @@ import { finalize, forkJoin, of, switchMap } from 'rxjs';
 import {
   ProductApiService,
   ProductData,
+  ProductBaseUnit,
   ProductInput,
   ProductStatusFilter,
 } from '../catalog/product-api.service';
@@ -637,6 +638,13 @@ export class ApplicationPage implements OnInit {
     brandName: ['', [Validators.minLength(2), Validators.maxLength(120)]],
     cost: ['', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
     price: ['', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
+    baseUnit: ['UNIT' as ProductBaseUnit, [Validators.required]],
+    quantityPrecision: [0, [Validators.required, Validators.min(0), Validators.max(3)]],
+    quantityRounding: ['HALF_UP' as 'HALF_UP' | 'DOWN' | 'UP', [Validators.required]],
+    minimumQuantity: [
+      '1.000',
+      [Validators.required, Validators.pattern(POSITIVE_QUANTITY_PATTERN)],
+    ],
     trackLots: [false],
     lotExpirationPolicy: ['NONE' as 'NONE' | 'OPTIONAL' | 'REQUIRED'],
     lotExpirationAlertDays: [30, [Validators.required, Validators.min(1), Validators.max(365)]],
@@ -789,6 +797,10 @@ export class ApplicationPage implements OnInit {
       brandName: product.brand?.name ?? '',
       cost: product.cost,
       price: product.price,
+      baseUnit: product.baseUnit ?? 'UNIT',
+      quantityPrecision: product.quantityPrecision ?? 3,
+      quantityRounding: product.quantityRounding ?? 'HALF_UP',
+      minimumQuantity: product.minimumQuantity ?? '0.001',
       trackLots: product.trackLots,
       lotExpirationPolicy: product.lotExpirationPolicy ?? 'NONE',
       lotExpirationAlertDays: product.lotExpirationAlertDays ?? 30,
@@ -1702,14 +1714,20 @@ export class ApplicationPage implements OnInit {
       existing
         ? this.cart().map((entry) =>
             entry.product.id === product.id
-              ? { ...entry, quantity: String(Number(entry.quantity) + 1) }
+              ? {
+                  ...entry,
+                  quantity: this.quantityFromUnits(
+                    this.quantityUnits(entry.quantity) +
+                      this.quantityUnits(product.minimumQuantity ?? '0.001'),
+                  ),
+                }
               : entry,
           )
         : [
             ...this.cart(),
             {
               product,
-              quantity: '1',
+              quantity: product.minimumQuantity ?? '0.001',
               lotId: '',
               lots: [],
               serialNumbers: '',
@@ -1764,8 +1782,15 @@ export class ApplicationPage implements OnInit {
 
   protected updateCartQuantity(productId: string, quantity: string): void {
     const normalized = quantity.trim();
-    if (!CART_QUANTITY_PATTERN.test(normalized) || Number(normalized) <= 0) {
-      this.posError.set('La cantidad del carrito debe ser mayor que cero.');
+    const entry = this.cart().find((item) => item.product.id === productId);
+    if (
+      !entry ||
+      !CART_QUANTITY_PATTERN.test(normalized) ||
+      this.quantityUnits(normalized) < this.quantityUnits(entry.product.minimumQuantity ?? '0.001')
+    ) {
+      this.posError.set(
+        `La cantidad m\u00ednima del carrito es ${entry?.product.minimumQuantity ?? '0.001'}.`,
+      );
       return;
     }
     this.resetCompletedSale();
@@ -2684,7 +2709,7 @@ export class ApplicationPage implements OnInit {
     }
     const value = this.stateTransitionForm.getRawValue();
     if (
-      Number(value.quantity) <= 0 ||
+      this.quantityUnits(value.quantity) <= 0n ||
       !this.transitionTargets().includes(value.toState) ||
       value.fromState === value.toState
     ) {
@@ -2757,7 +2782,7 @@ export class ApplicationPage implements OnInit {
       !product ||
       !product.active ||
       this.transferForm.invalid ||
-      Number(value.quantity) <= 0 ||
+      this.quantityUnits(value.quantity) <= 0n ||
       this.savingTransfer()
     ) {
       this.transferForm.markAllAsTouched();
@@ -2884,18 +2909,19 @@ export class ApplicationPage implements OnInit {
     if (
       !POSITIVE_QUANTITY_PATTERN.test(received) ||
       !POSITIVE_QUANTITY_PATTERN.test(discrepancy) ||
-      Number(received) + Number(discrepancy) <= 0 ||
-      Number(received) + Number(discrepancy) > Number(line.pendingQuantity)
+      this.quantityUnits(received) + this.quantityUnits(discrepancy) <= 0n ||
+      this.quantityUnits(received) + this.quantityUnits(discrepancy) >
+        this.quantityUnits(line.pendingQuantity)
     ) {
       this.transferError.set('La recepción debe ser positiva y no superar lo pendiente.');
       return;
     }
-    if (Number(discrepancy) > 0 && reason.length < 2) {
+    if (this.quantityUnits(discrepancy) > 0n && reason.length < 2) {
       this.transferError.set('Describe el motivo de la diferencia de recepción.');
       return;
     }
     const input: InventoryTransferReceiptInput = {
-      ...(Number(discrepancy) > 0 ? { discrepancyReason: reason } : {}),
+      ...(this.quantityUnits(discrepancy) > 0n ? { discrepancyReason: reason } : {}),
       lines: [
         {
           transferLineId: line.id,
@@ -3924,6 +3950,33 @@ export class ApplicationPage implements OnInit {
     );
   }
 
+  protected quantityStep(product: ProductData): string {
+    return ['1', '0.1', '0.01', '0.001'][product.quantityPrecision ?? 3];
+  }
+
+  protected baseUnitLabel(unit: ProductBaseUnit): string {
+    return (
+      {
+        UNIT: 'unidad',
+        KILOGRAM: 'kg',
+        GRAM: 'g',
+        LITER: 'L',
+        MILLILITER: 'mL',
+        METER: 'm',
+        CENTIMETER: 'cm',
+      } as const
+    )[unit];
+  }
+
+  private quantityUnits(value: string): bigint {
+    const [whole, fraction = ''] = value.split('.');
+    return BigInt(whole) * 1000n + BigInt(fraction.padEnd(3, '0'));
+  }
+
+  private quantityFromUnits(value: bigint): string {
+    return `${value / 1000n}.${String(value % 1000n).padStart(3, '0')}`;
+  }
+
   private toInput(): ProductInput {
     const value = this.form.getRawValue();
     const hadExpirationPolicy = (this.editingProduct()?.lotExpirationPolicy ?? 'NONE') !== 'NONE';
@@ -3935,6 +3988,10 @@ export class ApplicationPage implements OnInit {
       ...(value.brandName.trim() ? { brandName: value.brandName.trim() } : {}),
       cost: value.cost.trim(),
       price: value.price.trim(),
+      baseUnit: value.trackSerials ? 'UNIT' : value.baseUnit,
+      quantityPrecision: value.trackSerials ? 0 : value.quantityPrecision,
+      quantityRounding: value.quantityRounding,
+      minimumQuantity: value.trackSerials ? '1.000' : value.minimumQuantity.trim(),
       trackLots: value.trackLots,
       ...((value.trackLots && value.lotExpirationPolicy !== 'NONE') || hadExpirationPolicy
         ? {
@@ -3961,6 +4018,10 @@ export class ApplicationPage implements OnInit {
       brandName: product?.brand?.name ?? '',
       cost: '',
       price: '',
+      baseUnit: product?.baseUnit ?? 'UNIT',
+      quantityPrecision: product ? (product.quantityPrecision ?? 3) : 0,
+      quantityRounding: product?.quantityRounding ?? 'HALF_UP',
+      minimumQuantity: product ? (product.minimumQuantity ?? '0.001') : '1.000',
       trackLots: product?.trackLots ?? false,
       lotExpirationPolicy: product?.lotExpirationPolicy ?? 'NONE',
       lotExpirationAlertDays: product?.lotExpirationAlertDays ?? 30,
@@ -3974,6 +4035,9 @@ export class ApplicationPage implements OnInit {
     if (code === 'SKU_ALREADY_EXISTS') return 'Ya existe un producto con ese SKU.';
     if (code === 'BARCODE_ALREADY_EXISTS') {
       return 'Ya existe un producto con ese código de barras.';
+    }
+    if (code === 'PRODUCT_QUANTITY_POLICY_LOCKED') {
+      return 'La medici\u00f3n del producto no puede cambiar despu\u00e9s del primer movimiento.';
     }
     if (code === 'PRODUCT_VERSION_CONFLICT') {
       return 'El producto cambió desde que lo abriste. Cancela y vuelve a abrirlo antes de guardar.';

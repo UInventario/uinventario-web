@@ -11,6 +11,9 @@ export interface PurchaseOrderLineData {
   productId: string;
   productName: string;
   productSku: string;
+  baseUnit?: import('../catalog/product-api.service').ProductBaseUnit;
+  quantityPrecision?: number;
+  minimumQuantity?: string;
   supplierCode: string;
   quantity: string;
   receivedQuantity: string;
