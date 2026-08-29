@@ -1,7 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
 import { of } from 'rxjs';
 import { PosApiService, PosPeripheralProfileData, SaleReceiptData } from './pos-api.service';
 import { SaleReceiptPanelComponent } from './sale-receipt-panel.component';
+import { DesktopPeripheralService } from './desktop-peripheral.service';
 
 describe('SaleReceiptPanelComponent', () => {
   let fixture: ComponentFixture<SaleReceiptPanelComponent>;
@@ -12,6 +14,11 @@ describe('SaleReceiptPanelComponent', () => {
     updatePeripheralProfile: ReturnType<typeof vi.fn>;
     printSaleReceipt: ReturnType<typeof vi.fn>;
     openCashDrawer: ReturnType<typeof vi.fn>;
+  };
+  const desktop = {
+    available: signal(false),
+    printReceipt: vi.fn(),
+    openDrawer: vi.fn(),
   };
 
   const receipt: SaleReceiptData = {
@@ -67,6 +74,17 @@ describe('SaleReceiptPanelComponent', () => {
   };
 
   beforeEach(async () => {
+    desktop.available.set(false);
+    desktop.printReceipt.mockReset().mockResolvedValue({
+      status: 'COMPLETED',
+      adapter: 'SYSTEM',
+      replayed: false,
+    });
+    desktop.openDrawer.mockReset().mockResolvedValue({
+      status: 'COMPLETED',
+      adapter: 'SIMULATOR',
+      replayed: false,
+    });
     pos = {
       reprintSaleReceipt: vi
         .fn()
@@ -132,7 +150,10 @@ describe('SaleReceiptPanelComponent', () => {
     };
     await TestBed.configureTestingModule({
       imports: [SaleReceiptPanelComponent],
-      providers: [{ provide: PosApiService, useValue: pos }],
+      providers: [
+        { provide: PosApiService, useValue: pos },
+        { provide: DesktopPeripheralService, useValue: desktop },
+      ],
     }).compileComponents();
     fixture = TestBed.createComponent(SaleReceiptPanelComponent);
     fixture.componentRef.setInput('saleId', 'sale-1');
@@ -198,5 +219,40 @@ describe('SaleReceiptPanelComponent', () => {
       expect.stringMatching(/^web-drawer-manual-/),
     );
     expect(fixture.nativeElement.textContent).toContain('Pulso de cajon enviado');
+  });
+
+  it('sends only confirmed peripheral operations to Desktop without repeating the sale', async () => {
+    desktop.available.set(true);
+    fixture.componentRef.setInput('tenantId', 'tenant-1');
+    (fixture.nativeElement.querySelector('.receipt-launch button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    const print = vi.spyOn(window, 'print').mockImplementation(() => undefined);
+    (fixture.nativeElement.querySelector('.receipt-actions > button') as HTMLButtonElement).click();
+    await Promise.resolve();
+
+    expect(pos.printSaleReceipt).toHaveBeenCalledOnce();
+    expect(desktop.printReceipt).toHaveBeenCalledWith(
+      { tenantId: 'tenant-1', cashRegisterId: 'register-1', deviceId: profile.deviceId },
+      'operation-1',
+      expect.objectContaining({ receiptNumber: receipt.receiptNumber, total: '119.90' }),
+    );
+    expect(print).not.toHaveBeenCalled();
+
+    const drawer = Array.from(
+      fixture.nativeElement.querySelectorAll('.receipt-actions > button'),
+    ).find((button) =>
+      (button as HTMLButtonElement).textContent?.includes('Abrir'),
+    ) as HTMLButtonElement;
+    drawer.click();
+    await Promise.resolve();
+
+    expect(pos.openCashDrawer).toHaveBeenCalledOnce();
+    expect(desktop.openDrawer).toHaveBeenCalledWith(
+      { tenantId: 'tenant-1', cashRegisterId: 'register-1', deviceId: profile.deviceId },
+      'operation-2',
+      'MANUAL',
+    );
+    print.mockRestore();
   });
 });

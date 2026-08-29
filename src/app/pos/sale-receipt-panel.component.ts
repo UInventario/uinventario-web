@@ -9,6 +9,7 @@ import {
   SaleReceiptData,
   SaleReceiptDeliveryData,
 } from './pos-api.service';
+import { DesktopPeripheralContext, DesktopPeripheralService } from './desktop-peripheral.service';
 
 @Component({
   selector: 'app-sale-receipt-panel',
@@ -18,11 +19,13 @@ import {
 })
 export class SaleReceiptPanelComponent {
   private readonly pos = inject(PosApiService);
+  private readonly desktop = inject(DesktopPeripheralService);
   private readonly formBuilder = inject(FormBuilder);
 
   readonly saleId = input.required<string>();
   readonly canConfigure = input(false);
   readonly canOpenDrawer = input(false);
+  readonly tenantId = input<string | null>(null);
 
   protected readonly receipt = signal<SaleReceiptData | null>(null);
   protected readonly loading = signal(false);
@@ -87,8 +90,7 @@ export class SaleReceiptPanelComponent {
             );
             return;
           }
-          this.launchBrowserPrint();
-          this.peripheralMessage.set(`Trabajo enviado a ${data.operation.deviceId}.`);
+          void this.printOnDesktop(data.operation.id, data.receipt);
         },
         error: (error: HttpErrorResponse) => {
           if (error.status > 0) this.pendingPrint = null;
@@ -110,12 +112,15 @@ export class SaleReceiptPanelComponent {
       .openCashDrawer({ trigger: 'MANUAL' }, `web-drawer-manual-${globalThis.crypto.randomUUID()}`)
       .pipe(finalize(() => this.openingDrawer.set(false)))
       .subscribe({
-        next: ({ data }) =>
-          this.peripheralMessage.set(
-            data.status === 'COMPLETED'
-              ? `Pulso de cajon enviado a ${data.deviceId}.`
-              : 'El cajon no respondio. Aplica el procedimiento manual; no se modifico la venta.',
-          ),
+        next: ({ data }) => {
+          if (data.status !== 'COMPLETED') {
+            this.peripheralMessage.set(
+              'El cajon no respondio. Aplica el procedimiento manual; no se modifico la venta.',
+            );
+            return;
+          }
+          void this.openDesktopDrawer(data.id, data.deviceId);
+        },
         error: (error: HttpErrorResponse) => this.error.set(this.peripheralMessageFor(error)),
       });
   }
@@ -164,6 +169,77 @@ export class SaleReceiptPanelComponent {
       drawerEnabled: data.drawerEnabled,
       autoOpenCashSale: data.autoOpenCashSale,
     });
+  }
+
+  private async printOnDesktop(operationId: string, receipt: SaleReceiptData): Promise<void> {
+    const context = this.desktopContext();
+    if (!this.desktop.available() || !context) {
+      this.launchBrowserPrint();
+      this.peripheralMessage.set(
+        `Trabajo enviado a ${context?.deviceId ?? 'la impresora del navegador'}.`,
+      );
+      return;
+    }
+    try {
+      const result = await this.desktop.printReceipt(context, operationId, {
+        receiptNumber: receipt.receiptNumber,
+        merchantName: receipt.merchant.name,
+        currency: receipt.currency,
+        total: receipt.totals.total,
+        lines: receipt.lines.map((line) => ({
+          name: line.productName,
+          quantity: line.quantity,
+          total: line.total,
+        })),
+      });
+      if (result.status === 'FAILED') {
+        this.peripheralMessage.set(
+          'La impresora Desktop no respondio. Usa la impresion manual; la venta permanece registrada.',
+        );
+        return;
+      }
+      if (result.adapter === 'SIMULATOR') this.launchBrowserPrint();
+      this.peripheralMessage.set(
+        result.replayed
+          ? 'La operacion de impresion ya habia sido procesada; no se duplico.'
+          : `Trabajo Desktop completado con ${result.adapter}.`,
+      );
+    } catch {
+      this.peripheralMessage.set(
+        'No fue posible operar la impresora Desktop. La venta permanece registrada.',
+      );
+    }
+  }
+
+  private async openDesktopDrawer(operationId: string, deviceId: string): Promise<void> {
+    const context = this.desktopContext();
+    if (!this.desktop.available() || !context) {
+      this.peripheralMessage.set(`Pulso de cajon enviado a ${deviceId}.`);
+      return;
+    }
+    try {
+      const result = await this.desktop.openDrawer(context, operationId, 'MANUAL');
+      this.peripheralMessage.set(
+        result.status === 'COMPLETED'
+          ? result.replayed
+            ? 'La apertura ya habia sido procesada; no se repitio.'
+            : `Cajon Desktop operado con ${result.adapter}.`
+          : 'El cajon Desktop no respondio. La venta permanece registrada.',
+      );
+    } catch {
+      this.peripheralMessage.set('El puente Desktop no respondio. La venta permanece registrada.');
+    }
+  }
+
+  private desktopContext(): DesktopPeripheralContext | null {
+    const tenantId = this.tenantId();
+    const profile = this.profile();
+    if (!tenantId || !profile) return null;
+    return {
+      tenantId,
+      cashRegisterId: profile.cashRegister.id,
+      deviceId: profile.deviceId,
+    };
   }
 
   protected sendReceipt(): void {

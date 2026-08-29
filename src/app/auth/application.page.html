@@ -1903,6 +1903,16 @@
             [globalCapture]="!!currentCashRegisterShift()"
             (resolved)="addToCart($event)"
           />
+          @if (session()?.context.cashRegister; as desktopCashRegister) {
+            <app-desktop-peripheral-panel
+              [tenantId]="session()!.tenant.id"
+              [cashRegisterId]="desktopCashRegister.id"
+              [canConfigure]="canManageTenant()"
+              [canOpenDrawer]="canOpenCashDrawer()"
+              [canPrint]="canReprintSales()"
+              [display]="desktopCustomerDisplay()"
+            />
+          }
           <form class="search" [formGroup]="posSearchForm" (ngSubmit)="searchPos()">
             <label for="posSearch">Buscar producto para venta por nombre, SKU o código</label>
             <div>
@@ -2632,6 +2642,7 @@
             @if (canReprintSales()) {
               <app-sale-receipt-panel
                 [saleId]="sale.id"
+                [tenantId]="session()!.tenant.id"
                 [canConfigure]="canManageTenant()"
                 [canOpenDrawer]="canOpenCashDrawer()"
               />

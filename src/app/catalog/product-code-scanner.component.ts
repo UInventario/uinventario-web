@@ -5,6 +5,7 @@ import {
   HostListener,
   inject,
   input,
+  NgZone,
   OnDestroy,
   output,
   signal,
@@ -13,6 +14,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs';
 import { ProductApiService, ProductData } from './product-api.service';
+import { DesktopPeripheralService } from '../pos/desktop-peripheral.service';
 
 interface DetectedBarcode {
   rawValue: string;
@@ -32,6 +34,8 @@ type BarcodeDetectorConstructor = new (options?: { formats?: string[] }) => Barc
 })
 export class ProductCodeScannerComponent implements OnDestroy {
   private readonly api = inject(ProductApiService);
+  private readonly desktop = inject(DesktopPeripheralService);
+  private readonly zone = inject(NgZone);
   private readonly video = viewChild<ElementRef<HTMLVideoElement>>('camera');
   readonly globalCapture = input(true);
   readonly resolved = output<ProductData>();
@@ -45,8 +49,12 @@ export class ProductCodeScannerComponent implements OnDestroy {
   private stream: MediaStream | null = null;
   private animationFrame: number | null = null;
   private detector: BarcodeDetectorLike | null = null;
+  private readonly removeDesktopScanListener = this.desktop.onScan((code) => {
+    if (this.globalCapture()) this.zone.run(() => this.resolve(code));
+  });
 
   ngOnDestroy(): void {
+    this.removeDesktopScanListener();
     this.stopCamera();
   }
 
