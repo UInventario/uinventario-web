@@ -92,6 +92,7 @@ import { ProductVariantPanelComponent } from '../catalog/product-variant-panel.c
 import { CustomerOrderPanelComponent } from '../orders/customer-order-panel.component';
 import { SalesQuotationPanelComponent } from '../quotations/sales-quotation-panel.component';
 import { OperationalDashboardComponent } from '../dashboard/operational-dashboard.component';
+import { NotificationPanelComponent } from '../notifications/notification-panel.component';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const POSITIVE_MONEY_PATTERN = /^(?:[1-9]\d{0,11}(?:\.\d{1,2})?|0\.(?:0[1-9]|[1-9]\d?))$/;
@@ -145,6 +146,7 @@ interface CartEntry {
     CustomerOrderPanelComponent,
     SalesQuotationPanelComponent,
     OperationalDashboardComponent,
+    NotificationPanelComponent,
   ],
   templateUrl: './application.page.html',
   styleUrl: './application.page.scss',
@@ -302,6 +304,12 @@ export class ApplicationPage implements OnInit {
   protected readonly canManagePrivacy = computed(
     () => this.session()?.user.permissions.includes('PRIVACY_MANAGE') ?? false,
   );
+  protected readonly canViewNotifications = computed(
+    () => this.session()?.user.permissions.includes('NOTIFICATIONS_VIEW') ?? false,
+  );
+  protected readonly canManageNotifications = computed(
+    () => this.session()?.user.permissions.includes('NOTIFICATIONS_MANAGE') ?? false,
+  );
   protected readonly hasNoCoreAccess = computed(
     () =>
       !this.canManageTenant() &&
@@ -312,7 +320,8 @@ export class ApplicationPage implements OnInit {
       !this.canManageSales() &&
       !this.canManageAccess() &&
       !this.canViewAudit() &&
-      !this.canManagePrivacy(),
+      !this.canManagePrivacy() &&
+      !this.canViewNotifications(),
   );
   protected readonly rolePermissions = OPERATIONAL_PERMISSIONS;
   protected readonly accessRoles = signal<AccessRoleData[]>([]);
@@ -2974,6 +2983,8 @@ export class ApplicationPage implements OnInit {
       INVENTORY_APPROVE: 'Despachar, cancelar y aprobar operaciones',
       INVENTORY_VALUATION_MANAGE: 'Cambiar el método de valorización',
       INVENTORY_EXPIRED_STOCK_OVERRIDE: 'Autorizar stock caducado con motivo',
+      NOTIFICATIONS_VIEW: 'Consultar notificaciones operativas',
+      NOTIFICATIONS_MANAGE: 'Configurar notificaciones y reintentos',
     }[permission];
   }
 

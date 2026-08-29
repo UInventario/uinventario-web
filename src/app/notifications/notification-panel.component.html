@@ -1,0 +1,189 @@
+<section
+  class="notification-panel"
+  id="notifications-title"
+  aria-labelledby="notification-heading"
+  [attr.aria-busy]="loading()"
+>
+  <div class="heading">
+    <div>
+      <p class="eyebrow">Centro operativo</p>
+      <h2 id="notification-heading">Notificaciones</h2>
+      <p>Alertas deduplicadas y configurables, sin depender de un proveedor externo.</p>
+    </div>
+    <div class="actions">
+      <strong>{{ unread() }} sin leer</strong>
+      <button type="button" class="secondary" (click)="refresh()" [disabled]="loading()">
+        Actualizar
+      </button>
+      <button type="button" class="secondary" (click)="markAllRead()" [disabled]="unread() === 0">
+        Leer todas
+      </button>
+    </div>
+  </div>
+
+  @if (error()) {
+    <p class="form-error" role="alert">{{ error() }}</p>
+  }
+  @if (success()) {
+    <p class="success" role="status">{{ success() }}</p>
+  }
+
+  @if (loading()) {
+    <p role="status">Conciliando eventos operativos…</p>
+  } @else if (notifications().length === 0) {
+    <p class="healthy" role="status">No hay notificaciones para este usuario.</p>
+  } @else {
+    <div class="notification-list" aria-label="Bandeja de notificaciones">
+      @for (notification of notifications(); track notification.id) {
+        <article
+          [class.unread]="!notification.readAt"
+          [class.critical]="notification.severity === 'CRITICAL'"
+        >
+          <div>
+            <span class="status"
+              >{{ eventLabel(notification.eventType) }} · {{ notification.severity }}</span
+            >
+            <strong>{{ notification.title }}</strong>
+            <p>{{ notification.body }}</p>
+            <small>{{ notification.sourceOccurredAt | date: 'short' }}</small>
+          </div>
+          @if (!notification.readAt) {
+            <button type="button" class="secondary" (click)="markRead(notification)">
+              Marcar leída
+            </button>
+          }
+        </article>
+      }
+    </div>
+  }
+
+  @if (canManage()) {
+    <section class="settings" aria-labelledby="notification-settings-title">
+      <div class="subheading">
+        <div>
+          <h3 id="notification-settings-title">Destinatarios y frecuencia</h3>
+          <p>In-app es local; email y push usan simuladores hasta conectar proveedores.</p>
+        </div>
+        <button type="button" (click)="savePreferences()" [disabled]="saving()">
+          {{ saving() ? 'Guardando…' : 'Guardar reglas' }}
+        </button>
+      </div>
+
+      <div class="add-rule">
+        <label
+          >Destinatario
+          <select
+            [value]="newRecipientId()"
+            (change)="newRecipientId.set($any($event.target).value)"
+          >
+            @for (recipient of recipients(); track recipient.id) {
+              <option [value]="recipient.id">{{ recipient.email }}</option>
+            }
+          </select>
+        </label>
+        <label
+          >Evento
+          <select [value]="newEventType()" (change)="newEventType.set($any($event.target).value)">
+            @for (eventType of eventTypes; track eventType) {
+              <option [value]="eventType">{{ eventLabel(eventType) }}</option>
+            }
+          </select>
+        </label>
+        <button type="button" class="secondary" (click)="addPreference()">Añadir regla</button>
+      </div>
+
+      <div class="rule-list">
+        @for (preference of preferences(); track preference.id) {
+          <article>
+            <div class="rule-name">
+              <strong>{{ preference.recipient.email }}</strong>
+              <span>{{ eventLabel(preference.eventType) }}</span>
+            </div>
+            <label
+              ><input
+                type="checkbox"
+                [checked]="preference.enabled"
+                (change)="setEnabled(preference.id, $any($event.target).checked)"
+              />
+              Activa</label
+            >
+            <label
+              ><input
+                type="checkbox"
+                [checked]="preference.channels.inApp"
+                (change)="setChannel(preference.id, 'inApp', $any($event.target).checked)"
+              />
+              In-app</label
+            >
+            <label
+              ><input
+                type="checkbox"
+                [checked]="preference.channels.email"
+                (change)="setChannel(preference.id, 'email', $any($event.target).checked)"
+              />
+              Email</label
+            >
+            <label
+              ><input
+                type="checkbox"
+                [checked]="preference.channels.push"
+                (change)="setChannel(preference.id, 'push', $any($event.target).checked)"
+              />
+              Push</label
+            >
+            <select
+              aria-label="Frecuencia"
+              [value]="preference.frequency"
+              (change)="setFrequency(preference.id, $any($event.target).value)"
+            >
+              <option value="IMMEDIATE">Inmediata</option>
+              <option value="DAILY_DIGEST">Resumen diario</option>
+            </select>
+            <button
+              type="button"
+              class="danger secondary"
+              (click)="removePreference(preference.id)"
+            >
+              Quitar
+            </button>
+          </article>
+        }
+      </div>
+    </section>
+
+    <section class="deliveries" aria-labelledby="notification-deliveries-title">
+      <div class="subheading">
+        <div>
+          <h3 id="notification-deliveries-title">Entregas externas</h3>
+          <p>
+            Los errores conservan código, intentos y siguiente ejecución sin guardar credenciales.
+          </p>
+        </div>
+        <button type="button" class="secondary" (click)="retryDeliveries()" [disabled]="retrying()">
+          {{ retrying() ? 'Procesando…' : 'Reintentar fallidas' }}
+        </button>
+      </div>
+      @if (deliveries().length === 0) {
+        <p class="healthy">No hay entregas externas configuradas.</p>
+      } @else {
+        <div class="delivery-list">
+          @for (delivery of deliveries(); track delivery.id) {
+            <article [class.failed]="delivery.status === 'FAILED'">
+              <div>
+                <strong>{{ delivery.channel }} · {{ delivery.recipient.email }}</strong
+                ><span>{{ delivery.title }}</span>
+              </div>
+              <span
+                >{{ deliveryLabel(delivery.status) }} · intento {{ delivery.attemptCount }}/5</span
+              >
+              @if (delivery.errorCode) {
+                <code>{{ delivery.errorCode }}</code>
+              }
+              <small>{{ delivery.deliveredAt || delivery.nextAttemptAt | date: 'short' }}</small>
+            </article>
+          }
+        </div>
+      }
+    </section>
+  }
+</section>
