@@ -16,6 +16,11 @@
         <li>
           <span>
             <strong>{{ item.totals.total }} · {{ item.returnedBy.email }}</strong>
+            @if (item.loyaltyValueRestored && item.loyaltyValueRestored !== '0.00') {
+              <small>
+                {{ item.loyaltyValueRestored }} restituido como puntos; no se reembolsa dos veces.
+              </small>
+            }
             <small>
               {{ item.createdAt | date: 'short' }} · {{ item.reason }} ·
               {{ settlementLabel(item) }} · pendiente {{ item.refundableAmount }}

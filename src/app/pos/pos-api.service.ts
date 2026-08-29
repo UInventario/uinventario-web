@@ -24,6 +24,25 @@ export interface AppliedPromotion {
   ruleSnapshot: Record<string, unknown>;
 }
 
+export interface LoyaltyQuoteData {
+  rule: {
+    id: string;
+    version: number;
+    active: boolean;
+    earnAmount: string;
+    earnPoints: number;
+    redeemPoints: number;
+    redeemAmount: string;
+    expirationDays: number | null;
+    createdAt: string;
+  };
+  balanceBefore: number;
+  pointsRedeemed: number;
+  redemptionValue: string;
+  pointsEarned: number;
+  balanceAfter: number;
+}
+
 export interface PosCartQuote {
   context: {
     branch: { id: string; name: string };
@@ -33,6 +52,7 @@ export interface PosCartQuote {
   currency: string;
   taxRate: string;
   discount: AppliedSaleDiscount | null;
+  loyalty?: LoyaltyQuoteData | null;
   lines: Array<{
     product: { id: string; name: string; sku: string };
     quantity: string;
@@ -63,6 +83,7 @@ export interface PosCartQuote {
     subtotal: string;
     tax: string;
     total: string;
+    payable?: string;
   };
 }
 
@@ -175,6 +196,12 @@ export interface CashSaleData {
   currency: string;
   taxRate: string;
   discount: AppliedSaleDiscount | null;
+  loyalty?: {
+    ruleVersion: number;
+    pointsRedeemed: number;
+    redemptionValue: string;
+    pointsEarned: number;
+  } | null;
   lines: Array<
     Omit<PosCartQuote['lines'][number], 'availableQuantity'> & {
       id: string;
@@ -272,6 +299,11 @@ export interface SaleReceiptData {
     provider: string;
     authorizationCode: string | null;
   }>;
+  loyalty?: {
+    pointsRedeemed: number;
+    redemptionValue: string;
+    pointsEarned: number;
+  } | null;
   totals: { gross: string; discount: string; subtotal: string; tax: string; total: string };
   issuedAt: string;
   saleStatus: 'COMPLETED' | 'VOIDED';
@@ -335,6 +367,7 @@ export interface SaleReturnData {
   reason: string;
   settlementStatus: 'PENDING' | 'PARTIALLY_SETTLED' | 'SETTLED';
   refundableAmount: string;
+  loyaltyValueRestored?: string;
   totals: { subtotal: string; tax: string; total: string };
   returnedBy: { id: string; email: string };
   createdAt: string;
@@ -603,6 +636,7 @@ export class PosApiService {
     reservationId?: string,
     customerId?: string,
     discount?: SaleDiscountInput,
+    loyaltyPointsToRedeem?: number,
   ) {
     return this.http.post<PosCartQuoteResponse>(
       `${this.config.apiBaseUrl()}/pos/cart/quote`,
@@ -612,6 +646,7 @@ export class PosApiService {
         ...(reservationId ? { reservationId } : {}),
         ...(customerId ? { customerId } : {}),
         ...(discount ? { discount } : {}),
+        ...(loyaltyPointsToRedeem ? { loyaltyPointsToRedeem } : {}),
       },
       { withCredentials: true },
     );
@@ -638,6 +673,7 @@ export class PosApiService {
       customerId?: string;
       reservationId?: string;
       suspendedSaleId?: string;
+      loyaltyPointsToRedeem?: number;
       payment?: {
         method: CollectedPaymentMethod;
         amountReceived?: string;

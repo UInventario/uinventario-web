@@ -1727,6 +1727,10 @@
     <app-promotion-panel />
   }
 
+  @if (canManageSales()) {
+    <app-loyalty-panel />
+  }
+
   <section
     class="pos-workspace"
     aria-labelledby="pos-title"
@@ -2420,6 +2424,16 @@
                 <dt>Total</dt>
                 <dd>{{ quote.currency }} {{ quote.totals.total }}</dd>
               </div>
+              @if (quote.loyalty && quote.loyalty.pointsRedeemed > 0) {
+                <div>
+                  <dt>Canje de {{ quote.loyalty.pointsRedeemed }} puntos</dt>
+                  <dd>-{{ quote.currency }} {{ quote.loyalty.redemptionValue }}</dd>
+                </div>
+                <div class="grand-total">
+                  <dt>Por cobrar</dt>
+                  <dd>{{ quote.currency }} {{ quote.totals.payable || quote.totals.total }}</dd>
+                </div>
+              }
             </dl>
             <div class="success cart-ready" role="status">Carrito validado y listo para cobrar</div>
             <form class="cash-payment" [formGroup]="cashForm" (ngSubmit)="completeCashSale()">
@@ -2427,9 +2441,33 @@
               <select id="posCustomer" formControlName="customerId" (change)="quoteForCustomer()">
                 <option value="">Venta anónima</option>
                 @for (customer of customers(); track customer.id) {
-                  <option [value]="customer.id">{{ customer.name }}</option>
+                  <option [value]="customer.id">
+                    {{ customer.name }} · {{ customer.loyalty?.balance || 0 }} puntos
+                  </option>
                 }
               </select>
+              @if (creditCustomer(); as loyaltyCustomer) {
+                <fieldset class="sale-discount">
+                  <legend>Canjear puntos</legend>
+                  <p>Disponibles: {{ loyaltyCustomer.loyalty?.balance || 0 }} puntos</p>
+                  <label for="loyaltyPointsToRedeem">Puntos a canjear</label>
+                  <input
+                    id="loyaltyPointsToRedeem"
+                    formControlName="loyaltyPointsToRedeem"
+                    type="number"
+                    min="0"
+                    [max]="loyaltyCustomer.loyalty?.balance || 0"
+                    [attr.disabled]="offlinePosActive() ? '' : null"
+                    (change)="updateLoyaltyRedemption()"
+                  />
+                  @if (quote.loyalty; as loyalty) {
+                    <small>
+                      Canje: -{{ quote.currency }} {{ loyalty.redemptionValue }} · Acumulará
+                      {{ loyalty.pointsEarned }} puntos · Saldo final {{ loyalty.balanceAfter }}
+                    </small>
+                  }
+                </fieldset>
+              }
               @if (canSellCredit() && creditCustomer()?.credit?.enabled) {
                 <fieldset class="sale-discount credit-sale-config">
                   <legend>Condición de venta</legend>

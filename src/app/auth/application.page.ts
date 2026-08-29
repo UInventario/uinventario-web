@@ -98,6 +98,7 @@ import { SalesQuotationPanelComponent } from '../quotations/sales-quotation-pane
 import { OperationalDashboardComponent } from '../dashboard/operational-dashboard.component';
 import { NotificationPanelComponent } from '../notifications/notification-panel.component';
 import { ExternalAdapterPanelComponent } from '../integrations/external-adapter-panel.component';
+import { LoyaltyPanelComponent } from '../loyalty/loyalty-panel.component';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const POSITIVE_MONEY_PATTERN = /^(?:[1-9]\d{0,11}(?:\.\d{1,2})?|0\.(?:0[1-9]|[1-9]\d?))$/;
@@ -156,6 +157,7 @@ interface CartEntry {
     OperationalDashboardComponent,
     NotificationPanelComponent,
     ExternalAdapterPanelComponent,
+    LoyaltyPanelComponent,
   ],
   templateUrl: './application.page.html',
   styleUrl: './application.page.scss',
@@ -458,7 +460,7 @@ export class ApplicationPage implements OnInit {
     return {
       currency:
         quote?.currency ?? completed?.currency ?? this.currentCashRegisterShift()?.currency ?? '',
-      total: quote?.totals.total ?? completed?.totals.total ?? '0.00',
+      total: quote?.totals.payable ?? quote?.totals.total ?? completed?.totals.total ?? '0.00',
       message: quote?.lines.length
         ? 'Venta en curso'
         : completed
@@ -575,6 +577,7 @@ export class ApplicationPage implements OnInit {
   protected readonly paymentRows = this.formBuilder.array([this.createPaymentRow()]);
   protected readonly cashForm = this.formBuilder.nonNullable.group({
     customerId: [''],
+    loyaltyPointsToRedeem: [0, [Validators.min(0), Validators.max(10_000_000)]],
     creditSale: [false],
     installmentCount: [1, [Validators.required, Validators.min(1), Validators.max(36)]],
     notes: ['', [Validators.maxLength(500)]],
@@ -1864,9 +1867,15 @@ export class ApplicationPage implements OnInit {
   }
 
   protected quoteForCustomer(): void {
+    this.cashForm.controls.loyaltyPointsToRedeem.setValue(0);
     if (!this.creditCustomer()?.credit?.enabled) {
       this.cashForm.controls.creditSale.setValue(false);
     }
+    this.resetCompletedSale();
+    if (this.cart().length > 0) this.quoteCart();
+  }
+
+  protected updateLoyaltyRedemption(): void {
     this.resetCompletedSale();
     if (this.cart().length > 0) this.quoteCart();
   }
@@ -1901,11 +1910,12 @@ export class ApplicationPage implements OnInit {
       this.posError.set('El número de cuotas excede el plan autorizado del cliente.');
       return;
     }
-    if (creditSale && Number(quote.totals.total) > Number(creditCustomer!.credit!.available)) {
+    const payableTotal = quote.totals.payable ?? quote.totals.total;
+    if (creditSale && Number(payableTotal) > Number(creditCustomer!.credit!.available)) {
       this.posError.set('El total excede el crédito disponible del cliente.');
       return;
     }
-    if (!creditSale && !this.paymentsMatchTotal(quote.totals.total)) {
+    if (!creditSale && !this.paymentsMatchTotal(payableTotal)) {
       this.posError.set('La suma de pagos debe coincidir exactamente con el total de la venta.');
       this.paymentRows.markAllAsTouched();
       return;
@@ -1924,6 +1934,7 @@ export class ApplicationPage implements OnInit {
       discount?: SaleDiscountInput;
       customerId?: string;
       suspendedSaleId?: string;
+      loyaltyPointsToRedeem?: number;
       payments?: Array<{
         method: CollectedPaymentMethod;
         amount: string;
@@ -1938,6 +1949,9 @@ export class ApplicationPage implements OnInit {
         ? { customerId: this.cashForm.controls.customerId.value }
         : {}),
       ...(this.resumedSuspendedSaleId() ? { suspendedSaleId: this.resumedSuspendedSaleId()! } : {}),
+      ...(this.cashForm.controls.loyaltyPointsToRedeem.value > 0
+        ? { loyaltyPointsToRedeem: this.cashForm.controls.loyaltyPointsToRedeem.value }
+        : {}),
       ...(creditSale
         ? { credit: { installmentCount: this.cashForm.controls.installmentCount.value } }
         : {
@@ -1968,6 +1982,11 @@ export class ApplicationPage implements OnInit {
       if (discount || lines.some((line) => Boolean(line.discount))) {
         this.pendingSale = null;
         this.posError.set('Los descuentos requieren conexión para validar permisos y límites.');
+        return;
+      }
+      if (input.loyaltyPointsToRedeem) {
+        this.pendingSale = null;
+        this.posError.set('El canje de puntos requiere conexión al servidor.');
         return;
       }
       const offlinePayment = input.payments?.[0];
@@ -2005,6 +2024,7 @@ export class ApplicationPage implements OnInit {
         this.loadStockList(this.stockPage());
         this.loadMovementHistory(1);
         this.loadSales(1);
+        this.loadCustomers();
         this.loadCashMovements();
         this.loadAuditEvents();
         const selected = this.selectedProduct();
@@ -2015,6 +2035,12 @@ export class ApplicationPage implements OnInit {
       },
       error: (error: HttpErrorResponse) => {
         if (error.status === 0) {
+          if (input.loyaltyPointsToRedeem) {
+            this.savingSale.set(false);
+            this.pendingSale = null;
+            this.posError.set('El canje de puntos requiere conexión al servidor.');
+            return;
+          }
           const offlinePayment = input.payments?.[0];
           if (input.payments?.length === 1 && offlinePayment?.method === 'CASH') {
             void this.queueOfflineCashSale(
@@ -2250,7 +2276,7 @@ export class ApplicationPage implements OnInit {
       reference.clearValidators();
       reference.setValue('');
       if (this.paymentRows.length === 1 && this.cartQuote()) {
-        cash.setValue(this.cartQuote()!.totals.total);
+        cash.setValue(this.cartQuote()!.totals.payable ?? this.cartQuote()!.totals.total);
       }
     } else {
       cash.clearValidators();
@@ -3773,9 +3799,12 @@ export class ApplicationPage implements OnInit {
     this.quotingCart.set(true);
     this.posError.set(null);
     const customerId = this.cashForm.controls.customerId.value || undefined;
-    const quoteRequest = discount
-      ? this.pos.quote(lines, undefined, customerId, discount)
-      : this.pos.quote(lines, undefined, customerId);
+    const points = this.cashForm.controls.loyaltyPointsToRedeem.value || undefined;
+    const quoteRequest = points
+      ? this.pos.quote(lines, undefined, customerId, discount, points)
+      : discount
+        ? this.pos.quote(lines, undefined, customerId, discount)
+        : this.pos.quote(lines, undefined, customerId);
     quoteRequest.pipe(finalize(() => this.quotingCart.set(false))).subscribe({
       next: ({ data }) => {
         this.offlinePosActive.set(false);
@@ -3912,6 +3941,7 @@ export class ApplicationPage implements OnInit {
   private resetPaymentForm(): void {
     this.cashForm.reset({
       customerId: '',
+      loyaltyPointsToRedeem: 0,
       creditSale: false,
       installmentCount: 1,
       notes: '',
@@ -3952,9 +3982,10 @@ export class ApplicationPage implements OnInit {
   private syncSinglePaymentAmount(): void {
     if (this.paymentRows.length !== 1 || !this.cartQuote()) return;
     const row = this.paymentRows.at(0);
-    row.controls.amount.setValue(this.cartQuote()!.totals.total);
+    const payable = this.cartQuote()!.totals.payable ?? this.cartQuote()!.totals.total;
+    row.controls.amount.setValue(payable);
     if (row.controls.method.value === 'CASH') {
-      row.controls.amountReceived.setValue(this.cartQuote()!.totals.total);
+      row.controls.amountReceived.setValue(payable);
     }
   }
 

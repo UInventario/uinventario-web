@@ -267,7 +267,7 @@ export class SaleReceiptPanelComponent {
       CASH: 'Efectivo',
       CARD: 'Tarjeta',
       TRANSFER: 'Transferencia',
-      VOUCHER: 'Vale',
+      VOUCHER: 'Vale / puntos',
       CREDIT: 'Crédito',
     }[method];
   }
