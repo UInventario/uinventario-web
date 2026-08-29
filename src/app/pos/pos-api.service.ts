@@ -2,6 +2,16 @@ import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { RuntimeConfigService } from '../core/runtime-config.service';
 
+export interface SaleDiscountInput {
+  type: 'PERCENT' | 'AMOUNT';
+  value: string;
+  reason: string;
+}
+
+export interface AppliedSaleDiscount extends SaleDiscountInput {
+  amount: string;
+}
+
 export interface PosCartQuote {
   context: {
     branch: { id: string; name: string };
@@ -10,6 +20,7 @@ export interface PosCartQuote {
   };
   currency: string;
   taxRate: string;
+  discount: AppliedSaleDiscount | null;
   lines: Array<{
     product: { id: string; name: string; sku: string };
     quantity: string;
@@ -19,11 +30,25 @@ export interface PosCartQuote {
     unitPrice: string;
     priceSource: 'BASE' | 'PRICE_LIST';
     priceList: { id: string; name: string } | null;
+    grossTotal: string;
+    discount: {
+      line: AppliedSaleDiscount | null;
+      sale: AppliedSaleDiscount | null;
+      total: string;
+    };
     subtotal: string;
     tax: string;
     total: string;
   }>;
-  totals: { subtotal: string; tax: string; total: string };
+  totals: {
+    gross: string;
+    lineDiscount: string;
+    saleDiscount: string;
+    discount: string;
+    subtotal: string;
+    tax: string;
+    total: string;
+  };
 }
 
 interface PosCartQuoteResponse {
@@ -133,8 +158,14 @@ export interface CashSaleData {
   customer?: { id: string; name: string; identifier: string | null } | null;
   currency: string;
   taxRate: string;
-  lines: Array<Omit<PosCartQuote['lines'][number], 'availableQuantity'> & { id: string }>;
-  totals: PosCartQuote['totals'];
+  discount: AppliedSaleDiscount | null;
+  lines: Array<
+    Omit<PosCartQuote['lines'][number], 'availableQuantity'> & {
+      id: string;
+      grossProfit: string | null;
+    }
+  >;
+  totals: PosCartQuote['totals'] & { grossProfit: string | null };
   payment: SalePaymentData;
   payments: SalePaymentData[];
   createdAt: string;
@@ -196,6 +227,10 @@ export interface SaleReceiptData {
     productSku: string;
     quantity: string;
     unitPrice: string;
+    grossTotal: string;
+    discountTotal: string;
+    lineDiscountReason: string | null;
+    saleDiscountReason: string | null;
     subtotal: string;
     tax: string;
     total: string;
@@ -209,7 +244,7 @@ export interface SaleReceiptData {
     provider: string;
     authorizationCode: string | null;
   }>;
-  totals: { subtotal: string; tax: string; total: string };
+  totals: { gross: string; discount: string; subtotal: string; tax: string; total: string };
   issuedAt: string;
   saleStatus: 'COMPLETED' | 'VOIDED';
   void: { reason: string; voidedAt: string } | null;
@@ -466,9 +501,11 @@ export class PosApiService {
       quantity: string;
       lotId?: string;
       serialNumbers?: string[];
+      discount?: SaleDiscountInput;
     }>,
     reservationId?: string,
     customerId?: string,
+    discount?: SaleDiscountInput,
   ) {
     return this.http.post<PosCartQuoteResponse>(
       `${this.config.apiBaseUrl()}/pos/cart/quote`,
@@ -477,6 +514,7 @@ export class PosApiService {
         channel: 'POS',
         ...(reservationId ? { reservationId } : {}),
         ...(customerId ? { customerId } : {}),
+        ...(discount ? { discount } : {}),
       },
       { withCredentials: true },
     );
@@ -496,7 +534,9 @@ export class PosApiService {
         quantity: string;
         lotId?: string;
         serialNumbers?: string[];
+        discount?: SaleDiscountInput;
       }>;
+      discount?: SaleDiscountInput;
       customerId?: string;
       reservationId?: string;
       suspendedSaleId?: string;

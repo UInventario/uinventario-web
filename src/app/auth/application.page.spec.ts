@@ -1842,6 +1842,72 @@ describe('ApplicationPage', () => {
     );
     expect(fixture.nativeElement.querySelector('.cart-panel').textContent).toContain('MXN 239.80');
 
+    const discounts = fixture.componentInstance as unknown as {
+      updateCartDiscount(
+        productId: string,
+        field: 'type' | 'value' | 'reason',
+        value: string,
+      ): void;
+      updateSaleDiscount(): void;
+      cashForm: {
+        controls: {
+          discountType: { setValue(value: string): void };
+          discountValue: { setValue(value: string): void };
+          discountReason: { setValue(value: string): void };
+        };
+      };
+    };
+    discounts.updateCartDiscount('product', 'type', 'PERCENT');
+    discounts.updateCartDiscount('product', 'value', '10');
+    discounts.updateCartDiscount('product', 'reason', 'Empaque deteriorado');
+    expect(pos.quote).toHaveBeenLastCalledWith(
+      [
+        {
+          productId: 'product',
+          quantity: '2',
+          discount: {
+            type: 'PERCENT',
+            value: '10',
+            reason: 'Empaque deteriorado',
+          },
+        },
+      ],
+      undefined,
+      undefined,
+    );
+    discounts.cashForm.controls.discountType.setValue('AMOUNT');
+    discounts.cashForm.controls.discountValue.setValue('5.00');
+    discounts.cashForm.controls.discountReason.setValue('Cortesía autorizada');
+    discounts.updateSaleDiscount();
+    expect(pos.quote).toHaveBeenLastCalledWith(
+      [
+        {
+          productId: 'product',
+          quantity: '2',
+          discount: {
+            type: 'PERCENT',
+            value: '10',
+            reason: 'Empaque deteriorado',
+          },
+        },
+      ],
+      undefined,
+      undefined,
+      { type: 'AMOUNT', value: '5.00', reason: 'Cortesía autorizada' },
+    );
+    discounts.updateCartDiscount('product', 'value', '');
+    discounts.updateCartDiscount('product', 'reason', '');
+    discounts.updateCartDiscount('product', 'type', '');
+    discounts.cashForm.controls.discountValue.setValue('');
+    discounts.cashForm.controls.discountReason.setValue('');
+    discounts.cashForm.controls.discountType.setValue('');
+    discounts.updateSaleDiscount();
+    expect(pos.quote).toHaveBeenLastCalledWith(
+      [{ productId: 'product', quantity: '2' }],
+      undefined,
+      undefined,
+    );
+
     const saleResponse = new Subject<{
       data: CashSaleData;
       meta: { apiVersion: '1'; idempotentReplay: boolean };
@@ -1881,6 +1947,7 @@ describe('ApplicationPage', () => {
         userId: 'user',
         currency: 'MXN',
         taxRate: '0.1600',
+        discount: null,
         lines: [
           {
             id: 'sale-line-1',
@@ -1889,12 +1956,24 @@ describe('ApplicationPage', () => {
             unitPrice: '119.90',
             priceSource: 'BASE',
             priceList: null,
+            grossTotal: '239.80',
+            discount: { line: null, sale: null, total: '0.00' },
             subtotal: '206.72',
             tax: '33.08',
             total: '239.80',
+            grossProfit: '46.72',
           },
         ],
-        totals: { subtotal: '206.72', tax: '33.08', total: '239.80' },
+        totals: {
+          gross: '239.80',
+          lineDiscount: '0.00',
+          saleDiscount: '0.00',
+          discount: '0.00',
+          subtotal: '206.72',
+          tax: '33.08',
+          total: '239.80',
+          grossProfit: '46.72',
+        },
         payment: {
           id: 'payment-1',
           method: 'CASH',
@@ -1959,6 +2038,7 @@ describe('ApplicationPage', () => {
       },
       currency: 'MXN',
       taxRate: '0.1600',
+      discount: null,
       lines: [
         {
           product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
@@ -1967,12 +2047,24 @@ describe('ApplicationPage', () => {
           serialNumbers: [],
           availableQuantity: '5.000',
           unitPrice: '119.90',
+          priceSource: 'BASE' as const,
+          priceList: null,
+          grossTotal: '119.90',
+          discount: { line: null, sale: null, total: '0.00' },
           subtotal: '103.36',
           tax: '16.54',
           total: '119.90',
         },
       ],
-      totals: { subtotal: '103.36', tax: '16.54', total: '119.90' },
+      totals: {
+        gross: '119.90',
+        lineDiscount: '0.00',
+        saleDiscount: '0.00',
+        discount: '0.00',
+        subtotal: '103.36',
+        tax: '16.54',
+        total: '119.90',
+      },
     };
     const suspended = {
       id: '11111111-1111-4111-8111-111111111111',
@@ -2411,6 +2503,7 @@ describe('ApplicationPage', () => {
       user: { id: 'user', email: 'admin@example.com' },
       currency: 'MXN',
       taxRate: '0.1600',
+      discount: null,
       lines: [
         {
           id: 'sale-line-detail-1',
@@ -2419,12 +2512,24 @@ describe('ApplicationPage', () => {
           unitPrice: '119.90',
           priceSource: 'BASE',
           priceList: null,
+          grossTotal: '119.90',
+          discount: { line: null, sale: null, total: '0.00' },
           subtotal: '103.36',
           tax: '16.54',
           total: '119.90',
+          grossProfit: '23.36',
         },
       ],
-      totals: { subtotal: '103.36', tax: '16.54', total: '119.90' },
+      totals: {
+        gross: '119.90',
+        lineDiscount: '0.00',
+        saleDiscount: '0.00',
+        discount: '0.00',
+        subtotal: '103.36',
+        tax: '16.54',
+        total: '119.90',
+        grossProfit: '23.36',
+      },
       payment: {
         id: 'payment-detail-1',
         method: 'CASH',
