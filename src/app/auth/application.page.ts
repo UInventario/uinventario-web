@@ -88,6 +88,7 @@ import { ProductImportPanelComponent } from '../catalog/product-import-panel.com
 import { PrivacyPanelComponent } from '../privacy/privacy-panel.component';
 import { PriceListPanelComponent } from '../pricing/price-list-panel.component';
 import { ProductVariantPanelComponent } from '../catalog/product-variant-panel.component';
+import { CustomerOrderPanelComponent } from '../orders/customer-order-panel.component';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const POSITIVE_MONEY_PATTERN = /^(?:[1-9]\d{0,11}(?:\.\d{1,2})?|0\.(?:0[1-9]|[1-9]\d?))$/;
@@ -137,6 +138,7 @@ interface CartEntry {
     PrivacyPanelComponent,
     PriceListPanelComponent,
     ProductVariantPanelComponent,
+    CustomerOrderPanelComponent,
   ],
   templateUrl: './application.page.html',
   styleUrl: './application.page.scss',

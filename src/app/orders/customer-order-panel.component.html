@@ -1,0 +1,321 @@
+<section class="orders" aria-labelledby="customer-orders-title" [attr.aria-busy]="loading()">
+  <div class="heading">
+    <div>
+      <p>Ventas no inmediatas</p>
+      <h2 id="customer-orders-title">Pedidos y preparación</h2>
+      <span>Reserva existencias, organiza la preparación y cobra una sola vez al entregar.</span>
+    </div>
+    <strong>{{ total() }} pedido(s)</strong>
+  </div>
+
+  @if (error()) {
+    <div class="message error" role="alert">{{ error() }}</div>
+  }
+  @if (success()) {
+    <div class="message success" role="status">{{ success() }}</div>
+  }
+
+  <div class="workspace">
+    <form class="editor" [formGroup]="form" (ngSubmit)="submit()">
+      <h3>Nuevo pedido</h3>
+      <label>
+        Cliente
+        <select id="orderCustomer" formControlName="customerId">
+          <option value="">Selecciona un cliente</option>
+          @for (customer of customers(); track customer.id) {
+            <option [value]="customer.id">
+              {{ customer.name }}{{ customer.identifier ? ' · ' + customer.identifier : '' }}
+            </option>
+          }
+        </select>
+      </label>
+      <div class="form-grid">
+        <label>
+          Canal
+          <select id="orderChannel" formControlName="channel">
+            <option value="POS">POS</option>
+            <option value="WEB">Web</option>
+            <option value="MOBILE">Mobile</option>
+            <option value="DESKTOP">Desktop</option>
+          </select>
+        </label>
+        <label>
+          Prioridad
+          <select id="orderPriority" formControlName="priority">
+            <option value="LOW">Baja</option>
+            <option value="NORMAL">Normal</option>
+            <option value="HIGH">Alta</option>
+            <option value="URGENT">Urgente</option>
+          </select>
+        </label>
+        <label>
+          Ubicación de reserva
+          <select id="orderLocation" formControlName="locationId">
+            <option value="">Selecciona una ubicación</option>
+            @for (location of locations(); track location.id) {
+              <option [value]="location.id">{{ location.code }} · {{ location.name }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          Vigencia (horas)
+          <input
+            id="orderExpiry"
+            type="number"
+            min="1"
+            max="720"
+            formControlName="expiresInHours"
+          />
+        </label>
+      </div>
+
+      <div class="line-heading">
+        <h4>Productos</h4>
+        <button type="button" class="secondary" (click)="addLine()">Agregar línea</button>
+      </div>
+      <div class="lines" formArrayName="lines">
+        @for (line of lines.controls; track line; let index = $index) {
+          <fieldset [formGroupName]="index">
+            <legend>Línea {{ index + 1 }}</legend>
+            <label>
+              Producto
+              <select [id]="'orderProduct' + index" formControlName="productId">
+                <option value="">Selecciona un producto</option>
+                @for (product of products(); track product.id) {
+                  <option [value]="product.id">{{ product.sku }} · {{ product.name }}</option>
+                }
+              </select>
+            </label>
+            <label>
+              Cantidad
+              <input
+                [id]="'orderQuantity' + index"
+                inputmode="decimal"
+                formControlName="quantity"
+              />
+            </label>
+            <label>
+              Series (una por línea si aplica)
+              <textarea
+                [id]="'orderSerials' + index"
+                rows="2"
+                formControlName="serialNumbers"
+              ></textarea>
+            </label>
+            <button
+              type="button"
+              class="secondary"
+              (click)="removeLine(index)"
+              [disabled]="lines.length === 1"
+            >
+              Quitar
+            </button>
+          </fieldset>
+        }
+      </div>
+
+      <div class="payment-box">
+        <h4>Pago al entregar</h4>
+        <label>
+          Medio
+          <select
+            id="orderPaymentMethod"
+            formControlName="paymentMethod"
+            (change)="paymentChanged()"
+          >
+            @for (method of paymentMethods(); track method) {
+              <option [value]="method">{{ method }}</option>
+            }
+          </select>
+        </label>
+        @if (form.controls.paymentMethod.value === 'CASH') {
+          <label>
+            Efectivo previsto
+            <input id="orderCashReceived" inputmode="decimal" formControlName="amountReceived" />
+          </label>
+        } @else {
+          <label>
+            Referencia a autorizar
+            <input id="orderPaymentReference" formControlName="reference" autocomplete="off" />
+          </label>
+        }
+        <small
+          >El cobro y el descuento de stock ocurren únicamente al marcar el pedido como
+          entregado.</small
+        >
+      </div>
+      <button id="saveCustomerOrder" type="submit" [disabled]="saving() || loading()">
+        {{ saving() ? 'Guardando…' : 'Crear pedido' }}
+      </button>
+    </form>
+
+    <div class="queue">
+      <form class="filters" [formGroup]="filterForm" (ngSubmit)="filter()">
+        <label>
+          Estado
+          <select id="orderStatusFilter" formControlName="status">
+            <option value="">Todos</option>
+            <option value="DRAFT">Borrador</option>
+            <option value="CONFIRMED">Confirmado</option>
+            <option value="PREPARING">En preparación</option>
+            <option value="READY">Listo</option>
+            <option value="DELIVERED">Entregado</option>
+            <option value="CANCELLED">Cancelado</option>
+          </select>
+        </label>
+        <label>
+          Prioridad
+          <select id="orderPriorityFilter" formControlName="priority">
+            <option value="">Todas</option>
+            <option value="URGENT">Urgente</option>
+            <option value="HIGH">Alta</option>
+            <option value="NORMAL">Normal</option>
+            <option value="LOW">Baja</option>
+          </select>
+        </label>
+        <button type="submit" class="secondary">Filtrar</button>
+      </form>
+
+      @if (cancelling(); as order) {
+        <form class="cancel-box" (ngSubmit)="confirmCancellation()">
+          <strong>Cancelar {{ order.orderNumber }}</strong>
+          <label>
+            Motivo
+            <textarea
+              id="orderCancellationReason"
+              rows="2"
+              [formControl]="cancellationReason"
+            ></textarea>
+          </label>
+          <div class="actions">
+            <button
+              type="submit"
+              class="danger"
+              [disabled]="cancellationReason.invalid || !!actionId()"
+            >
+              Confirmar cancelación
+            </button>
+            <button type="button" class="secondary" (click)="dismissCancellation()">Volver</button>
+          </div>
+        </form>
+      }
+
+      @if (!loading() && orders().length === 0) {
+        <p class="empty">No hay pedidos para estos filtros.</p>
+      }
+      @for (order of orders(); track order.id) {
+        <article [class]="'order-card priority-' + order.priority.toLowerCase()">
+          <div class="order-title">
+            <span>
+              <strong>{{ order.orderNumber }}</strong>
+              <small
+                >{{ order.customer.name }} · {{ order.channel }} ·
+                {{ order.context.branch.name }}</small
+              >
+            </span>
+            <span class="badges">
+              <b [class]="'priority ' + order.priority.toLowerCase()">{{
+                priorityLabel(order.priority)
+              }}</b>
+              <b [class]="'status ' + order.status.toLowerCase()">{{
+                statusLabel(order.status)
+              }}</b>
+            </span>
+          </div>
+          <ul>
+            @for (line of order.lines; track line.id) {
+              <li>{{ line.product.sku }} · {{ line.product.name }} · {{ line.quantity }}</li>
+            }
+          </ul>
+          <div class="summary">
+            <span>{{ order.totals.total }} {{ order.currency }}</span>
+            <span>{{ order.context.location.code }}</span>
+            <span>Creado {{ order.createdAt | date: 'short' }}</span>
+          </div>
+          <small>
+            Pago: {{ order.payments[0].method }} · {{ order.payments[0].status }}
+            @if (order.reservation) {
+              · Reserva {{ order.reservation.reservationNumber }} ({{ order.reservation.status }})
+            }
+            @if (order.sale) {
+              · Venta {{ order.sale.receiptNumber }}
+            }
+          </small>
+          <div class="actions">
+            @if (order.status === 'DRAFT') {
+              <button
+                type="button"
+                (click)="transition(order, 'confirm')"
+                [disabled]="!!actionId()"
+              >
+                Confirmar y reservar
+              </button>
+            } @else if (order.status === 'CONFIRMED') {
+              <button
+                type="button"
+                (click)="transition(order, 'prepare')"
+                [disabled]="!!actionId()"
+              >
+                Iniciar preparación
+              </button>
+            } @else if (order.status === 'PREPARING') {
+              <button type="button" (click)="transition(order, 'ready')" [disabled]="!!actionId()">
+                Marcar listo
+              </button>
+            } @else if (order.status === 'READY') {
+              <button
+                type="button"
+                (click)="transition(order, 'deliver')"
+                [disabled]="!!actionId()"
+              >
+                Entregar y cobrar
+              </button>
+            }
+            @if (!['DELIVERED', 'CANCELLED'].includes(order.status)) {
+              <button
+                type="button"
+                class="secondary"
+                (click)="requestCancellation(order)"
+                [disabled]="!!actionId()"
+              >
+                Cancelar
+              </button>
+            }
+          </div>
+          @if (order.transitions.length) {
+            <details>
+              <summary>Historial ({{ order.transitions.length }})</summary>
+              <ol>
+                @for (transition of order.transitions; track transition.id) {
+                  <li>
+                    {{ statusLabel(transition.fromStatus) }} →
+                    {{ statusLabel(transition.toStatus) }} · {{ transition.actor.email }} ·
+                    {{ transition.createdAt | date: 'short' }}
+                    @if (transition.reason) {
+                      · {{ transition.reason }}
+                    }
+                  </li>
+                }
+              </ol>
+            </details>
+          }
+        </article>
+      }
+
+      <div class="pagination" aria-label="Paginación de pedidos">
+        <button type="button" class="secondary" (click)="previousPage()" [disabled]="page() <= 1">
+          Anterior
+        </button>
+        <span>Página {{ page() }} de {{ totalPages() || 1 }}</span>
+        <button
+          type="button"
+          class="secondary"
+          (click)="nextPage()"
+          [disabled]="page() >= totalPages()"
+        >
+          Siguiente
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
