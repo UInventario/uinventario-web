@@ -33,6 +33,8 @@ import { InventoryReconciliationPanelComponent } from '../inventory/inventory-re
 import { StockAlertPanelComponent } from '../inventory/stock-alert-panel.component';
 import { SaleReceiptPanelComponent } from '../pos/sale-receipt-panel.component';
 import { SaleReturnPanelComponent } from '../pos/sale-return-panel.component';
+import { DesktopPeripheralPanelComponent } from '../pos/desktop-peripheral-panel.component';
+import { DesktopPeripheralService } from '../pos/desktop-peripheral.service';
 import { SessionApiService } from './session-api.service';
 import {
   CashRegisterClosureData,
@@ -115,6 +117,7 @@ interface CartEntry {
     StockAlertPanelComponent,
     SaleReceiptPanelComponent,
     SaleReturnPanelComponent,
+    DesktopPeripheralPanelComponent,
     CustomerHistoryPanelComponent,
     SupplierPanelComponent,
     PurchaseOrderPanelComponent,
@@ -143,6 +146,7 @@ export class ApplicationPage implements OnInit {
   private readonly access = inject(AccessApiService);
   private readonly customersApi = inject(CustomerApiService);
   private readonly offlinePos = inject(OfflinePosService);
+  private readonly desktopPeripherals = inject(DesktopPeripheralService);
   private pendingMovement: { input: InventoryMovementInput; key: string } | null = null;
   private pendingStateTransition: {
     input: InventoryStateTransitionInput;
@@ -398,6 +402,26 @@ export class ApplicationPage implements OnInit {
   protected readonly cart = signal<CartEntry[]>([]);
   protected readonly cartQuote = signal<PosCartQuote | null>(null);
   protected readonly completedSale = signal<CashSaleData | null>(null);
+  protected readonly desktopCustomerDisplay = computed(() => {
+    const quote = this.cartQuote();
+    const completed = this.completedSale();
+    return {
+      currency:
+        quote?.currency ?? completed?.currency ?? this.currentCashRegisterShift()?.currency ?? '',
+      total: quote?.totals.total ?? completed?.totals.total ?? '0.00',
+      message: quote?.lines.length
+        ? 'Venta en curso'
+        : completed
+          ? `Gracias · ${completed.receiptNumber}`
+          : 'Bienvenido',
+      lines:
+        quote?.lines.map((line) => ({
+          name: line.product.name,
+          quantity: line.quantity,
+          total: line.total,
+        })) ?? [],
+    };
+  });
   protected readonly searchingPos = signal(false);
   protected readonly quotingCart = signal(false);
   protected readonly savingSale = signal(false);
@@ -1774,12 +1798,14 @@ export class ApplicationPage implements OnInit {
         `web-drawer-sale-${sale.id}`,
       )
       .subscribe({
-        next: ({ data }) =>
+        next: ({ data }) => {
           this.peripheralNotice.set(
             data.status === 'COMPLETED'
               ? `Cajon abierto en ${data.deviceId}.`
               : 'El cajon no respondio; abrelo manualmente. La venta ya quedo registrada una sola vez.',
-          ),
+          );
+          if (data.status === 'COMPLETED') void this.openDesktopDrawer(data.id, data.deviceId);
+        },
         error: (error: HttpErrorResponse) => {
           const code = (error.error as { code?: string } | null)?.code;
           if (code === 'PERIPHERAL_AUTO_OPEN_DISABLED') return;
@@ -1788,6 +1814,30 @@ export class ApplicationPage implements OnInit {
           );
         },
       });
+  }
+
+  private async openDesktopDrawer(operationId: string, deviceId: string): Promise<void> {
+    const session = this.session();
+    const cashRegister = session?.context.cashRegister;
+    if (!this.desktopPeripherals.available() || !session || !cashRegister) return;
+    try {
+      const result = await this.desktopPeripherals.openDrawer(
+        { tenantId: session.tenant.id, cashRegisterId: cashRegister.id, deviceId },
+        operationId,
+        'CASH_SALE_COMPLETED',
+      );
+      if (result.status === 'FAILED') {
+        this.peripheralNotice.set(
+          'El cajon Desktop no respondio; abrelo manualmente. La venta permanece registrada.',
+        );
+      } else if (result.replayed) {
+        this.peripheralNotice.set('La apertura Desktop ya habia sido procesada; no se repitio.');
+      }
+    } catch {
+      this.peripheralNotice.set(
+        'El puente Desktop no respondio; abre el cajon manualmente. La venta permanece registrada.',
+      );
+    }
   }
 
   protected suspendCurrentSale(): void {

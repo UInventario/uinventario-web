@@ -1,7 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
 import { of } from 'rxjs';
 import { ProductApiService, ProductData } from './product-api.service';
 import { ProductCodeScannerComponent } from './product-code-scanner.component';
+import { DesktopPeripheralService } from '../pos/desktop-peripheral.service';
 
 describe('ProductCodeScannerComponent', () => {
   let fixture: ComponentFixture<ProductCodeScannerComponent>;
@@ -18,15 +20,28 @@ describe('ProductCodeScannerComponent', () => {
     version: 1,
   };
   const api = { resolveCode: vi.fn() };
+  let desktopScan: ((code: string) => void) | undefined;
+  const desktop = {
+    available: signal(true),
+    onScan: vi.fn((handler: (code: string) => void) => {
+      desktopScan = handler;
+      return vi.fn();
+    }),
+  };
   const originalMediaDevices = Object.getOwnPropertyDescriptor(navigator, 'mediaDevices');
   const originalDetector = Object.getOwnPropertyDescriptor(window, 'BarcodeDetector');
   const originalPlay = HTMLMediaElement.prototype.play;
 
   beforeEach(async () => {
     api.resolveCode.mockReset().mockReturnValue(of({ data: product }));
+    desktop.onScan.mockClear();
+    desktopScan = undefined;
     await TestBed.configureTestingModule({
       imports: [ProductCodeScannerComponent],
-      providers: [{ provide: ProductApiService, useValue: api }],
+      providers: [
+        { provide: ProductApiService, useValue: api },
+        { provide: DesktopPeripheralService, useValue: desktop },
+      ],
     }).compileComponents();
     fixture = TestBed.createComponent(ProductCodeScannerComponent);
     fixture.detectChanges();
@@ -61,6 +76,16 @@ describe('ProductCodeScannerComponent', () => {
     component.keyboardScan(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     expect(api.resolveCode).toHaveBeenLastCalledWith('7501');
     expect(resolved).toHaveBeenCalledTimes(2);
+  });
+
+  it('resolves a code emitted by the isolated Desktop HID bridge', () => {
+    const resolved = vi.fn();
+    fixture.componentInstance.resolved.subscribe(resolved);
+
+    desktopScan?.(' DESKTOP-HID-1 ');
+
+    expect(api.resolveCode).toHaveBeenCalledWith('DESKTOP-HID-1');
+    expect(resolved).toHaveBeenCalledWith(product);
   });
 
   it('requests camera permission only on demand and resolves a simulated QR code', async () => {
