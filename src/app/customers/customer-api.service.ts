@@ -16,6 +16,28 @@ export interface CustomerData {
   version: number;
   createdAt: string;
   updatedAt: string;
+  credit?: CustomerCreditData | null;
+}
+
+export interface CustomerCreditData {
+  enabled: boolean;
+  limit: string;
+  currency: string;
+  termDays: number;
+  maxInstallments: number;
+  balance: string;
+  available: string;
+  overdueAmount: string;
+  status: 'DISABLED' | 'AVAILABLE' | 'LIMIT_REACHED' | 'OVERDUE';
+}
+
+export interface CustomerCreditInput {
+  enabled: boolean;
+  creditLimit: string;
+  currency: string;
+  termDays: number;
+  maxInstallments: number;
+  version: number;
 }
 
 export interface CustomerInput {
@@ -50,7 +72,7 @@ export interface CustomerHistoryData {
     responsible: { id: string; email: string };
     payments: Array<{
       method: string;
-      status: 'COMPLETED' | 'REVERSED';
+      status: 'COMPLETED' | 'PENDING' | 'REVERSED';
       amountApplied: string;
       amountReceived: string;
       change: string;
@@ -107,6 +129,14 @@ export class CustomerApiService {
   deactivate(id: string) {
     return this.http.delete<{ data: CustomerData; meta: { apiVersion: '1' } }>(
       `${this.config.apiBaseUrl()}/customers/${id}`,
+      { withCredentials: true },
+    );
+  }
+
+  configureCredit(id: string, input: CustomerCreditInput) {
+    return this.http.patch<{ data: CustomerData; meta: { apiVersion: '1' } }>(
+      `${this.config.apiBaseUrl()}/customers/${id}/credit`,
+      input,
       { withCredentials: true },
     );
   }

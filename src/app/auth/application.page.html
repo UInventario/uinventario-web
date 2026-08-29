@@ -1869,6 +1869,47 @@
               <input type="checkbox" formControlName="dataProcessingConsent" />
               Autorizó guardar sus datos de contacto
             </label>
+            @if (canSellCredit()) {
+              <fieldset class="sale-discount customer-credit-config">
+                <legend>Crédito del cliente</legend>
+                <label class="customer-consent">
+                  <input type="checkbox" formControlName="creditEnabled" />
+                  Habilitar ventas a crédito
+                </label>
+                @if (customerForm.controls.creditEnabled.value) {
+                  <label for="customerCreditLimit">Límite</label>
+                  <input
+                    id="customerCreditLimit"
+                    formControlName="creditLimit"
+                    inputmode="decimal"
+                    autocomplete="off"
+                  />
+                  <label for="customerCreditCurrency">Moneda</label>
+                  <input
+                    id="customerCreditCurrency"
+                    formControlName="creditCurrency"
+                    maxlength="3"
+                    autocomplete="off"
+                  />
+                  <label for="customerCreditTerm">Plazo máximo (días)</label>
+                  <input
+                    id="customerCreditTerm"
+                    formControlName="creditTermDays"
+                    type="number"
+                    min="1"
+                    max="365"
+                  />
+                  <label for="customerCreditInstallments">Cuotas máximas</label>
+                  <input
+                    id="customerCreditInstallments"
+                    formControlName="creditMaxInstallments"
+                    type="number"
+                    min="1"
+                    max="36"
+                  />
+                }
+              </fieldset>
+            }
             <button type="submit" [disabled]="savingCustomer()">
               {{
                 savingCustomer()
@@ -1892,6 +1933,19 @@
                         'Sin datos adicionales'
                     }}</small>
                   </div>
+                  @if (customer.credit; as credit) {
+                    <small>
+                      Crédito
+                      {{
+                        credit.status === 'OVERDUE'
+                          ? 'vencido'
+                          : credit.enabled
+                            ? 'activo'
+                            : 'deshabilitado'
+                      }}
+                      - Disponible {{ credit.currency }} {{ credit.available }}
+                    </small>
+                  }
                   <div class="customer-actions">
                     <button class="secondary" type="button" (click)="openCustomerHistory(customer)">
                       Historial
@@ -2178,6 +2232,30 @@
                   <option [value]="customer.id">{{ customer.name }}</option>
                 }
               </select>
+              @if (canSellCredit() && creditCustomer()?.credit?.enabled) {
+                <fieldset class="sale-discount credit-sale-config">
+                  <legend>Condición de venta</legend>
+                  <label class="customer-consent">
+                    <input type="checkbox" formControlName="creditSale" />
+                    Vender a crédito
+                  </label>
+                  @if (cashForm.controls.creditSale.value) {
+                    <p>
+                      Disponible: {{ creditCustomer()!.credit!.currency }}
+                      {{ creditCustomer()!.credit!.available }} - Plazo
+                      {{ creditCustomer()!.credit!.termDays }} días
+                    </p>
+                    <label for="creditInstallmentCount">Número de cuotas</label>
+                    <input
+                      id="creditInstallmentCount"
+                      formControlName="installmentCount"
+                      type="number"
+                      min="1"
+                      [max]="creditCustomer()!.credit!.maxInstallments"
+                    />
+                  }
+                </fieldset>
+              }
               @if (canApplyDiscount()) {
                 <fieldset class="sale-discount">
                   <legend>Descuento sobre la venta</legend>
@@ -2222,72 +2300,76 @@
                 maxlength="500"
                 placeholder="Referencia para recuperar la venta"
               ></textarea>
-              @for (payment of paymentRows.controls; track payment; let index = $index) {
-                <div class="sale-payment" [formGroup]="payment">
-                  <label [for]="'paymentMethod-' + index">Método de pago {{ index + 1 }}</label>
-                  <select
-                    [id]="'paymentMethod-' + index"
-                    formControlName="method"
-                    (change)="changePaymentMethod(index)"
-                  >
-                    @for (method of availablePaymentMethods(index); track method) {
-                      <option [value]="method">{{ paymentMethodLabel(method) }}</option>
-                    }
-                  </select>
-                  <label [for]="'paymentAmount-' + index">Importe aplicado</label>
-                  <input
-                    [id]="'paymentAmount-' + index"
-                    formControlName="amount"
-                    inputmode="decimal"
-                    autocomplete="off"
-                  />
-                  @if (payment.controls.amount.touched && payment.controls.amount.invalid) {
-                    <small class="field-error">Escribe un importe mayor a cero.</small>
-                  }
-                  @if (payment.controls.method.value === 'CASH') {
-                    <label [for]="index === 0 ? 'cashReceived' : 'cashReceived-' + index"
-                      >Efectivo recibido</label
+              @if (!cashForm.controls.creditSale.value) {
+                @for (payment of paymentRows.controls; track payment; let index = $index) {
+                  <div class="sale-payment" [formGroup]="payment">
+                    <label [for]="'paymentMethod-' + index">Método de pago {{ index + 1 }}</label>
+                    <select
+                      [id]="'paymentMethod-' + index"
+                      formControlName="method"
+                      (change)="changePaymentMethod(index)"
                     >
+                      @for (method of availablePaymentMethods(index); track method) {
+                        <option [value]="method">{{ paymentMethodLabel(method) }}</option>
+                      }
+                    </select>
+                    <label [for]="'paymentAmount-' + index">Importe aplicado</label>
                     <input
-                      [id]="index === 0 ? 'cashReceived' : 'cashReceived-' + index"
-                      formControlName="amountReceived"
+                      [id]="'paymentAmount-' + index"
+                      formControlName="amount"
                       inputmode="decimal"
                       autocomplete="off"
                     />
-                    @if (
-                      payment.controls.amountReceived.touched &&
-                      payment.controls.amountReceived.invalid
-                    ) {
-                      <small class="field-error">Escribe un importe válido.</small>
+                    @if (payment.controls.amount.touched && payment.controls.amount.invalid) {
+                      <small class="field-error">Escribe un importe mayor a cero.</small>
                     }
-                  } @else {
-                    <label [for]="'paymentReference-' + index">Referencia de autorización</label>
-                    <input
-                      [id]="'paymentReference-' + index"
-                      formControlName="reference"
-                      autocomplete="off"
-                    />
-                    @if (payment.controls.reference.touched && payment.controls.reference.invalid) {
-                      <small class="field-error"
-                        >Usa de 4 a 120 letras, números o los caracteres . _ : / -</small
+                    @if (payment.controls.method.value === 'CASH') {
+                      <label [for]="index === 0 ? 'cashReceived' : 'cashReceived-' + index"
+                        >Efectivo recibido</label
                       >
+                      <input
+                        [id]="index === 0 ? 'cashReceived' : 'cashReceived-' + index"
+                        formControlName="amountReceived"
+                        inputmode="decimal"
+                        autocomplete="off"
+                      />
+                      @if (
+                        payment.controls.amountReceived.touched &&
+                        payment.controls.amountReceived.invalid
+                      ) {
+                        <small class="field-error">Escribe un importe válido.</small>
+                      }
+                    } @else {
+                      <label [for]="'paymentReference-' + index">Referencia de autorización</label>
+                      <input
+                        [id]="'paymentReference-' + index"
+                        formControlName="reference"
+                        autocomplete="off"
+                      />
+                      @if (
+                        payment.controls.reference.touched && payment.controls.reference.invalid
+                      ) {
+                        <small class="field-error"
+                          >Usa de 4 a 120 letras, números o los caracteres . _ : / -</small
+                        >
+                      }
+                      @if (nonCashProvider() === 'SIMULATOR') {
+                        <small role="status">Autorización simulada para este ambiente.</small>
+                      }
                     }
-                    @if (nonCashProvider() === 'SIMULATOR') {
-                      <small role="status">Autorización simulada para este ambiente.</small>
+                    @if (paymentRows.length > 1) {
+                      <button type="button" class="remove" (click)="removePayment(index)">
+                        Quitar pago
+                      </button>
                     }
-                  }
-                  @if (paymentRows.length > 1) {
-                    <button type="button" class="remove" (click)="removePayment(index)">
-                      Quitar pago
-                    </button>
-                  }
-                </div>
-              }
-              @if (canAddPayment()) {
-                <button type="button" (click)="addPayment()">Agregar otro pago</button>
-              }
-              @if (paymentRows.invalid) {
-                <small class="field-error">Completa todos los datos del desglose de pago.</small>
+                  </div>
+                }
+                @if (canAddPayment()) {
+                  <button type="button" (click)="addPayment()">Agregar otro pago</button>
+                }
+                @if (paymentRows.invalid) {
+                  <small class="field-error">Completa todos los datos del desglose de pago.</small>
+                }
               }
               <button
                 type="button"
@@ -2303,7 +2385,9 @@
                     ? 'Registrando venta…'
                     : offlinePosActive()
                       ? 'Guardar venta offline'
-                      : 'Confirmar pago'
+                      : cashForm.controls.creditSale.value
+                        ? 'Confirmar venta a crédito'
+                        : 'Confirmar pago'
                 }}
               </button>
             </form>
@@ -2507,8 +2591,14 @@
             <span>
               <strong>{{ paymentMethodLabel(payment.method) }}</strong>
               <small
-                >{{ payment.status === 'REVERSED' ? 'Revertido' : 'Aplicado' }} ·
-                {{ payment.count }}</small
+                >{{
+                  payment.status === 'REVERSED'
+                    ? 'Revertido'
+                    : payment.status === 'PENDING'
+                      ? 'Pendiente'
+                      : 'Aplicado'
+                }}
+                · {{ payment.count }}</small
               >
             </span>
             <strong>{{ payment.amount }}</strong>
@@ -2697,6 +2787,31 @@
               {{ dateTime(sale.createdAt) }}
             </p>
             <p><strong>Cliente:</strong> {{ sale.customer?.name || 'Venta anónima' }}</p>
+            @if (sale.credit; as credit) {
+              <div class="success" role="status">
+                <strong>
+                  Crédito
+                  {{
+                    credit.status === 'CANCELLED'
+                      ? 'cancelado'
+                      : credit.status === 'OVERDUE'
+                        ? 'vencido'
+                        : credit.status === 'PAID'
+                          ? 'pagado'
+                          : 'abierto'
+                  }}
+                </strong>
+                <p>Saldo {{ credit.currency }} {{ credit.balance }} - Vence {{ credit.dueDate }}</p>
+                <ul class="sale-lines">
+                  @for (installment of credit.installments; track installment.number) {
+                    <li>
+                      <span>Cuota {{ installment.number }} - {{ installment.dueDate }}</span>
+                      <strong>{{ credit.currency }} {{ installment.amount }}</strong>
+                    </li>
+                  }
+                </ul>
+              </div>
+            }
             @if (sale.void; as voidData) {
               <div class="success" role="status">
                 <strong>Anulada por {{ voidData.user.email }}</strong>
@@ -2743,7 +2858,15 @@
                 }
                 <div>
                   <dt>Estado</dt>
-                  <dd>{{ payment.status === 'REVERSED' ? 'Revertido' : 'Aplicado' }}</dd>
+                  <dd>
+                    {{
+                      payment.status === 'REVERSED'
+                        ? 'Revertido'
+                        : payment.status === 'PENDING'
+                          ? 'Pendiente'
+                          : 'Aplicado'
+                    }}
+                  </dd>
                 </div>
               }
             </dl>

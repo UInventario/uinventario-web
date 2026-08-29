@@ -263,9 +263,13 @@ export class SaleReceiptPanelComponent {
   }
 
   protected paymentLabel(method: SaleReceiptData['payments'][number]['method']): string {
-    return { CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia', VOUCHER: 'Vale' }[
-      method
-    ];
+    return {
+      CASH: 'Efectivo',
+      CARD: 'Tarjeta',
+      TRANSFER: 'Transferencia',
+      VOUCHER: 'Vale',
+      CREDIT: 'Crédito',
+    }[method];
   }
 
   private messageFor(error: HttpErrorResponse): string {

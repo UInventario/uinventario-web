@@ -135,12 +135,13 @@ export interface CashRegisterClosureData {
   closedAt: string;
 }
 
-export type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER' | 'VOUCHER';
+export type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER' | 'VOUCHER' | 'CREDIT';
+export type CollectedPaymentMethod = Exclude<PaymentMethod, 'CREDIT'>;
 
 export interface SalePaymentData {
   id: string;
   method: PaymentMethod;
-  status: 'COMPLETED' | 'REVERSED';
+  status: 'COMPLETED' | 'PENDING' | 'REVERSED';
   amountReceived: string;
   amountApplied: string;
   change: string;
@@ -168,12 +169,24 @@ export interface CashSaleData {
   totals: PosCartQuote['totals'] & { grossProfit: string | null };
   payment: SalePaymentData;
   payments: SalePaymentData[];
+  credit?: SaleCreditPlanData | null;
   createdAt: string;
   void: {
     reason: string;
     user: { id: string; email: string };
     voidedAt: string;
   } | null;
+}
+
+export interface SaleCreditPlanData {
+  accountId: string;
+  originalAmount: string;
+  balance: string;
+  currency: string;
+  termDays: number;
+  status: 'OPEN' | 'OVERDUE' | 'PAID' | 'CANCELLED';
+  dueDate: string;
+  installments: Array<{ number: number; dueDate: string; amount: string }>;
 }
 
 interface CashSaleResponse {
@@ -350,7 +363,7 @@ export interface SalesCashReportData {
     };
     payments: Array<{
       method: PaymentMethod;
-      status: 'COMPLETED' | 'REVERSED';
+      status: 'COMPLETED' | 'PENDING' | 'REVERSED';
       count: number;
       amount: string;
     }>;
@@ -375,7 +388,7 @@ export interface SalesCashReportData {
     total: string;
     payments: Array<{
       method: PaymentMethod;
-      status: 'COMPLETED' | 'REVERSED';
+      status: 'COMPLETED' | 'PENDING' | 'REVERSED';
       amount: string;
       change: string;
       reference: string | null;
@@ -522,7 +535,7 @@ export class PosApiService {
 
   getPaymentOptions() {
     return this.http.get<{
-      data: { methods: PaymentMethod[]; nonCashProvider: 'SIMULATOR' | 'DISABLED' };
+      data: { methods: CollectedPaymentMethod[]; nonCashProvider: 'SIMULATOR' | 'DISABLED' };
       meta: { apiVersion: '1' };
     }>(`${this.config.apiBaseUrl()}/pos/payment-options`, { withCredentials: true });
   }
@@ -540,13 +553,18 @@ export class PosApiService {
       customerId?: string;
       reservationId?: string;
       suspendedSaleId?: string;
-      payment?: { method: PaymentMethod; amountReceived?: string; reference?: string };
+      payment?: {
+        method: CollectedPaymentMethod;
+        amountReceived?: string;
+        reference?: string;
+      };
       payments?: Array<{
-        method: PaymentMethod;
+        method: CollectedPaymentMethod;
         amount: string;
         amountReceived?: string;
         reference?: string;
       }>;
+      credit?: { installmentCount: number };
     },
     idempotencyKey: string,
   ) {
