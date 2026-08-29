@@ -494,6 +494,7 @@ export class ApplicationPage implements OnInit {
   protected readonly profitabilityReportError = signal<string | null>(null);
   protected readonly profitabilityReportPage = signal(1);
   protected readonly profitabilityReportTotalPages = signal(0);
+  protected readonly reportFilterStatus = signal<string | null>(null);
   protected readonly auditEvents = signal<AuditEventData[]>([]);
   protected readonly loadingAudit = signal(true);
   protected readonly exportingAudit = signal(false);
@@ -699,6 +700,7 @@ export class ApplicationPage implements OnInit {
   });
 
   ngOnInit(): void {
+    this.restoreSalesCashReportFilters();
     this.loadOrganization();
     if (this.canManageProducts() || this.canManageStock() || this.canManageSales()) {
       this.loadOptions();
@@ -2276,6 +2278,13 @@ export class ApplicationPage implements OnInit {
   }
 
   protected filterSalesCashReport(): void {
+    const { dateFrom, dateTo } = this.salesCashReportForm.getRawValue();
+    if (dateFrom && dateTo && dateFrom > dateTo) {
+      this.salesCashReportError.set('La fecha inicial no puede ser posterior a la fecha final.');
+      return;
+    }
+    this.persistSalesCashReportFilters();
+    this.reportFilterStatus.set('Filtros aplicados y guardados para este usuario.');
     this.loadSalesCashReport(1);
     if (this.canViewProfitability()) this.loadProfitabilityReport(1);
   }
@@ -2395,6 +2404,37 @@ export class ApplicationPage implements OnInit {
 
   protected dateTime(value: string): string {
     return new Date(value).toLocaleString('es-MX');
+  }
+
+  private salesCashReportStorageKey(): string | null {
+    const session = this.session();
+    return session ? `uinventario:reports:${session.tenant.id}:${session.user.id}` : null;
+  }
+
+  private restoreSalesCashReportFilters(): void {
+    const key = this.salesCashReportStorageKey();
+    if (!key || typeof localStorage === 'undefined') return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(key) ?? '{}') as Record<string, unknown>;
+      const status = saved['status'];
+      this.salesCashReportForm.patchValue({
+        dateFrom: typeof saved['dateFrom'] === 'string' ? saved['dateFrom'] : '',
+        dateTo: typeof saved['dateTo'] === 'string' ? saved['dateTo'] : '',
+        branchId: typeof saved['branchId'] === 'string' ? saved['branchId'] : '',
+        cashRegisterId: typeof saved['cashRegisterId'] === 'string' ? saved['cashRegisterId'] : '',
+        userId: typeof saved['userId'] === 'string' ? saved['userId'] : '',
+        status: status === 'COMPLETED' || status === 'VOIDED' || status === 'ALL' ? status : 'ALL',
+      });
+    } catch {
+      // An invalid personal preference must not block access to reconciled reports.
+    }
+  }
+
+  private persistSalesCashReportFilters(): void {
+    const key = this.salesCashReportStorageKey();
+    if (key && typeof localStorage !== 'undefined') {
+      localStorage.setItem(key, JSON.stringify(this.salesCashReportForm.getRawValue()));
+    }
   }
 
   protected auditActionLabel(action: string): string {

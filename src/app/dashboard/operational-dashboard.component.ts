@@ -24,6 +24,10 @@ interface SyncSummary {
   freshness: OfflineFreshnessState['condition'];
 }
 
+interface DashboardPreferences extends Partial<Record<DashboardWidget, unknown>> {
+  period?: { dateFrom?: unknown; dateTo?: unknown };
+}
+
 @Component({
   selector: 'app-operational-dashboard',
   imports: [DatePipe, ReactiveFormsModule, RouterLink],
@@ -71,6 +75,7 @@ export class OperationalDashboardComponent implements OnInit {
     purchases: true,
     sync: true,
   });
+  protected readonly periodError = signal<string | null>(null);
   protected readonly sales = signal<SalesCashReportData | null>(null);
   protected readonly periodTimezones = computed(() => {
     const timezones = [...new Set(this.sales()?.scope.map(({ timezone }) => timezone) ?? [])];
@@ -102,6 +107,13 @@ export class OperationalDashboardComponent implements OnInit {
   }
 
   protected refresh(): void {
+    const { dateFrom, dateTo } = this.periodForm.getRawValue();
+    if (dateFrom && dateTo && dateFrom > dateTo) {
+      this.periodError.set('La fecha inicial no puede ser posterior a la fecha final.');
+      return;
+    }
+    this.periodError.set(null);
+    this.persistConfiguration();
     if (this.canViewSales() && this.widgetEnabled('sales')) this.loadSales();
     if (this.canViewMargin() && this.widgetEnabled('margin')) this.loadMargin();
     if (this.canViewStock() && this.widgetEnabled('stock')) this.loadStock();
@@ -276,9 +288,7 @@ export class OperationalDashboardComponent implements OnInit {
     const key = this.storageKey();
     if (!key || typeof localStorage === 'undefined') return;
     try {
-      const saved = JSON.parse(localStorage.getItem(key) ?? '{}') as Partial<
-        Record<DashboardWidget, unknown>
-      >;
+      const saved = JSON.parse(localStorage.getItem(key) ?? '{}') as DashboardPreferences;
       this.configured.update(
         (current) =>
           Object.fromEntries(
@@ -290,6 +300,12 @@ export class OperationalDashboardComponent implements OnInit {
             ]),
           ) as Record<DashboardWidget, boolean>,
       );
+      if (typeof saved.period?.dateFrom === 'string' && typeof saved.period?.dateTo === 'string') {
+        this.periodForm.setValue({
+          dateFrom: saved.period.dateFrom,
+          dateTo: saved.period.dateTo,
+        });
+      }
     } catch {
       // A malformed personal preference must not block the operational dashboard.
     }
@@ -298,7 +314,10 @@ export class OperationalDashboardComponent implements OnInit {
   private persistConfiguration(): void {
     const key = this.storageKey();
     if (key && typeof localStorage !== 'undefined') {
-      localStorage.setItem(key, JSON.stringify(this.configured()));
+      localStorage.setItem(
+        key,
+        JSON.stringify({ ...this.configured(), period: this.periodForm.getRawValue() }),
+      );
     }
   }
 

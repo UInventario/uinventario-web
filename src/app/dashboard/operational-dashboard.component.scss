@@ -107,6 +107,10 @@ article a {
 .warning {
   color: #a4262c;
 }
+.period-error {
+  margin: 0.75rem 0 0;
+  font-weight: 700;
+}
 .secondary {
   min-height: 2.6rem;
   padding: 0.6rem 0.8rem;
@@ -118,6 +122,12 @@ article a {
   font: inherit;
   font-weight: 700;
 }
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 3px solid rgba(11, 92, 171, 0.45);
+  outline-offset: 2px;
+}
 @media (max-width: 40rem) {
   .heading {
     align-items: stretch;
@@ -125,5 +135,16 @@ article a {
   }
   .heading button {
     width: 100%;
+  }
+  .dashboard {
+    padding-inline: 1rem;
+  }
+  .controls,
+  fieldset {
+    min-width: 0;
+  }
+  fieldset {
+    flex-basis: 100%;
+    padding: 0;
   }
 }

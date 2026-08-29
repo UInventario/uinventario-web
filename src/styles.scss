@@ -96,8 +96,31 @@ app-application-page .suspended-sale-actions {
   gap: 0.4rem;
 }
 
+app-application-page .report-export-link {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+app-application-page .report-permission {
+  max-width: 76rem;
+  margin: 1rem auto;
+}
+
+app-application-page .sale-lines li > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 48rem) {
   app-application-page .suspended-sale-list li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  app-application-page .sales-workspace .sale-lines li {
     align-items: stretch;
     flex-direction: column;
   }
