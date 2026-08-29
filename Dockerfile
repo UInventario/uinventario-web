@@ -4,7 +4,7 @@ FROM node:24-alpine@sha256:d32cdf619f63fe0471182d08996dd516c6275bb5fd31ae06e55a5
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
-COPY angular.json tsconfig.json tsconfig.app.json ./
+COPY angular.json ngsw-config.json tsconfig.json tsconfig.app.json ./
 COPY public ./public
 COPY src ./src
 RUN npm run build
