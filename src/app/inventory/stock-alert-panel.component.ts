@@ -17,6 +17,7 @@ import { SessionApiService } from '../auth/session-api.service';
 import {
   InventoryApiService,
   InventoryLocationData,
+  InventoryLotExpirationAlertData,
   InventoryStockAlertData,
   InventoryStockAlertStatus,
   InventoryStockItem,
@@ -44,6 +45,8 @@ export class StockAlertPanelComponent implements OnInit, OnChanges {
     () => this.sessions.session()?.user.permissions.includes('INVENTORY_ADJUST') ?? false,
   );
   protected readonly alerts = signal<InventoryStockAlertData[]>([]);
+  protected readonly expirationAlerts = signal<InventoryLotExpirationAlertData[]>([]);
+  protected readonly expirationBusinessDate = signal<string | null>(null);
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -114,6 +117,10 @@ export class StockAlertPanelComponent implements OnInit, OnChanges {
     }[status];
   }
 
+  protected expirationLabel(status: 'EXPIRING' | 'EXPIRED'): string {
+    return status === 'EXPIRED' ? 'Caducado' : 'Próximo a caducar';
+  }
+
   private load(page: number): void {
     const value = this.filterForm.getRawValue();
     this.loading.set(true);
@@ -136,6 +143,17 @@ export class StockAlertPanelComponent implements OnInit, OnChanges {
         },
         error: (error: HttpErrorResponse) => this.error.set(this.messageFor(error)),
       });
+    if (typeof this.inventory.listLotExpirationAlerts !== 'function') return;
+    this.inventory.listLotExpirationAlerts().subscribe({
+      next: ({ data, meta }) => {
+        this.expirationAlerts.set(data);
+        this.expirationBusinessDate.set(meta.businessDate);
+      },
+      error: () => {
+        this.expirationAlerts.set([]);
+        this.expirationBusinessDate.set(null);
+      },
+    });
   }
 
   private messageFor(error: HttpErrorResponse): string {

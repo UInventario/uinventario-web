@@ -119,6 +119,8 @@ export interface InventoryMovementInput {
   reason: string;
   reference?: string;
   lotCode?: string;
+  manufacturedOn?: string;
+  expiresOn?: string;
   serialNumbers?: string[];
 }
 
@@ -208,6 +210,10 @@ export interface InventoryLotData {
   unitCost: string;
   currency: string;
   inventoryValue: string;
+  manufacturedOn: string | null;
+  expiresOn: string | null;
+  expirationStatus: 'NO_EXPIRATION' | 'ACTIVE' | 'EXPIRING' | 'EXPIRED' | 'EXHAUSTED';
+  daysUntilExpiration: number | null;
   createdAt: string;
   origins: Array<{
     purchaseReceiptLineId: string;
@@ -218,6 +224,16 @@ export interface InventoryLotData {
     purchaseOrder: { id: string; folio: string };
   }>;
   balances: Array<{ location: InventoryLocationData; quantity: string }>;
+}
+
+export interface InventoryLotExpirationAlertData {
+  id: string;
+  status: 'EXPIRING' | 'EXPIRED';
+  product: { id: string; name: string; sku: string };
+  lot: { id: string; code: string; expiresOn: string };
+  location: InventoryLocationData;
+  quantity: string;
+  daysUntilExpiration: number;
 }
 
 export interface InventoryFifoLayerData {
@@ -593,6 +609,15 @@ export class InventoryApiService {
         inventoryValue: string;
       };
     }>(`${this.config.apiBaseUrl()}/inventory/products/${productId}/lots`, {
+      withCredentials: true,
+    });
+  }
+
+  listLotExpirationAlerts() {
+    return this.http.get<{
+      data: InventoryLotExpirationAlertData[];
+      meta: { apiVersion: '1'; businessDate: string };
+    }>(`${this.config.apiBaseUrl()}/inventory/lot-expiration-alerts`, {
       withCredentials: true,
     });
   }

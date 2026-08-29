@@ -449,6 +449,35 @@
               >Las entradas solicitarán un código y cada salida conservará su trazabilidad.</small
             >
           </div>
+          @if (form.controls.trackLots.value) {
+            <div class="field">
+              <label for="lotExpirationPolicy">Caducidad</label>
+              <select id="lotExpirationPolicy" formControlName="lotExpirationPolicy">
+                <option value="NONE">No controlar</option>
+                <option value="OPTIONAL">Fecha opcional</option>
+                <option value="REQUIRED">Fecha obligatoria</option>
+              </select>
+            </div>
+            @if (form.controls.lotExpirationPolicy.value !== 'NONE') {
+              <div class="field">
+                <label for="lotExpirationAlertDays">Alertar con anticipación (días)</label>
+                <input
+                  id="lotExpirationAlertDays"
+                  type="number"
+                  min="1"
+                  max="365"
+                  formControlName="lotExpirationAlertDays"
+                />
+              </div>
+              <div class="field wide">
+                <label>
+                  <input type="checkbox" formControlName="allowExpiredStockOverride" />
+                  Permitir excepción documentada para stock caducado
+                </label>
+                <small>Además exige el permiso específico y un motivo en cada venta.</small>
+              </div>
+            }
+          }
         </div>
 
         @if (errorMessage()) {
@@ -631,6 +660,15 @@
                 <dt>Lotes</dt>
                 <dd>{{ product.trackLots ? 'Controlados' : 'No controlados' }}</dd>
               </div>
+              @if (product.trackLots) {
+                <div>
+                  <dt>Caducidad</dt>
+                  <dd>
+                    {{ product.lotExpirationPolicy || 'NONE' }} · alerta
+                    {{ product.lotExpirationAlertDays || 30 }} días
+                  </dd>
+                </div>
+              }
               <div>
                 <dt>Series</dt>
                 <dd>{{ product.trackSerials ? 'Controladas' : 'No controladas' }}</dd>
@@ -679,7 +717,10 @@
                   @for (lot of selectedProductLots(); track lot.id) {
                     <span>
                       {{ lot.code }} · {{ lot.quantity }} · {{ lot.currency }} {{ lot.unitCost }}/u
-                      · valor {{ lot.inventoryValue }}
+                      · valor {{ lot.inventoryValue }} · {{ lot.expirationStatus }}
+                      @if (lot.expiresOn) {
+                        · caduca {{ lot.expiresOn | date: 'mediumDate' }}
+                      }
                     </span>
                     @for (origin of lot.origins; track origin.purchaseReceiptLineId) {
                       <small>
@@ -836,6 +877,26 @@
                         >En entradas crea o reutiliza el lote; en salidas permite elegirlo.</small
                       >
                     </div>
+                    @if (
+                      stockForm.controls.type.value === 'INITIAL' ||
+                      stockForm.controls.type.value === 'ENTRY' ||
+                      stockForm.controls.type.value === 'RETURN' ||
+                      (stockForm.controls.type.value === 'ADJUSTMENT' &&
+                        !stockForm.controls.quantity.value.startsWith('-'))
+                    ) {
+                      <div class="field">
+                        <label for="stockManufacturedOn">Fabricación</label>
+                        <input
+                          id="stockManufacturedOn"
+                          type="date"
+                          formControlName="manufacturedOn"
+                        />
+                      </div>
+                      <div class="field">
+                        <label for="stockExpiresOn">Caducidad</label>
+                        <input id="stockExpiresOn" type="date" formControlName="expiresOn" />
+                      </div>
+                    }
                   }
                   @if (product.trackSerials) {
                     <div class="field wide">
@@ -2140,12 +2201,34 @@
                       [value]="entry.lotId"
                       (change)="updateCartLot(entry.product.id, $any($event.target).value)"
                     >
-                      <option value="">Automático (primero recibido)</option>
+                      <option value="">Automático FEFO (caducidad más cercana)</option>
                       @for (lot of entry.lots; track lot.id) {
-                        <option [value]="lot.id">{{ lot.code }} · {{ lot.quantity }}</option>
+                        <option
+                          [value]="lot.id"
+                          [disabled]="
+                            lot.expirationStatus === 'EXPIRED' &&
+                            (!canOverrideExpiredStock() || !entry.product.allowExpiredStockOverride)
+                          "
+                        >
+                          {{ lot.code }} · {{ lot.quantity }} ·
+                          {{ lot.expiresOn || 'sin caducidad' }} · {{ lot.expirationStatus }}
+                        </option>
                       }
                     </select>
                   </label>
+                  @if (isExpiredLotSelected(entry)) {
+                    <label>
+                      Motivo de excepción de caducidad
+                      <input
+                        [value]="entry.expiredLotOverrideReason"
+                        minlength="3"
+                        maxlength="240"
+                        (change)="
+                          updateExpiredLotReason(entry.product.id, $any($event.target).value)
+                        "
+                      />
+                    </label>
+                  }
                 }
                 @if (entry.product.trackSerials) {
                   <label>
