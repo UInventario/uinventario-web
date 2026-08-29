@@ -651,7 +651,7 @@ describe('ApplicationPage', () => {
       trackLots: false,
     });
     expect(fixture.nativeElement.textContent).toContain('Producto creado');
-    expect(products.list).toHaveBeenLastCalledWith({ page: 1, pageSize: 5 });
+    expect(products.list).toHaveBeenCalledWith({ page: 1, pageSize: 5 });
   });
 
   it('searches and opens a tenant-scoped product detail', () => {

@@ -27,6 +27,18 @@ export interface ProductData {
   variantValues?: Array<{ attribute: string; value: string }>;
   sellable?: boolean;
   variants?: ProductData[];
+  kit?: ProductKitData | null;
+}
+
+export interface ProductKitData {
+  stockMode: 'DERIVED' | 'ASSEMBLED';
+  priceRule: 'FIXED' | 'COMPONENT_SUM';
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
+  components: Array<{
+    product: { id: string; name: string; sku: string };
+    quantity: string;
+  }>;
 }
 
 export interface ProductVariantInput {
@@ -183,6 +195,23 @@ export class ProductApiService {
       input,
       { withCredentials: true },
     );
+  }
+
+  updateKit(
+    id: string,
+    input: {
+      version: number;
+      enabled: boolean;
+      stockMode?: ProductKitData['stockMode'];
+      priceRule?: ProductKitData['priceRule'];
+      effectiveFrom?: string;
+      effectiveTo?: string;
+      components?: Array<{ productId: string; quantity: string }>;
+    },
+  ) {
+    return this.http.put<ProductResponse>(`${this.config.apiBaseUrl()}/products/${id}/kit`, input, {
+      withCredentials: true,
+    });
   }
 
   get(id: string) {

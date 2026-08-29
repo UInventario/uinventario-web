@@ -1,0 +1,37 @@
+<section class="kit-operation" aria-labelledby="kit-operation-title">
+  <div>
+    <p class="eyebrow">Inventario ensamblado</p>
+    <h4 id="kit-operation-title">Transformar componentes</h4>
+    <p>El movimiento del kit y de todos sus componentes se registra en una sola operación.</p>
+  </div>
+  <form (ngSubmit)="submit()">
+    <label>
+      Operación
+      <select [(ngModel)]="operationType" name="operationType">
+        <option value="ASSEMBLE">Ensamblar</option>
+        <option value="DISASSEMBLE">Desensamblar</option>
+      </select>
+    </label>
+    <label>
+      Ubicación
+      <select [(ngModel)]="locationId" name="locationId">
+        @for (location of locations; track location.id) {
+          <option [value]="location.id">{{ location.name }} · {{ location.code }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      Kits
+      <input [(ngModel)]="quantity" name="quantity" inputmode="numeric" />
+    </label>
+    <button class="primary" type="submit" [disabled]="saving || locations.length === 0">
+      {{ saving ? 'Registrando…' : operationType === 'ASSEMBLE' ? 'Ensamblar' : 'Desensamblar' }}
+    </button>
+  </form>
+  @if (error) {
+    <div class="form-error" role="alert">{{ error }}</div>
+  }
+  @if (success) {
+    <div class="success" role="status">{{ success }}</div>
+  }
+</section>
