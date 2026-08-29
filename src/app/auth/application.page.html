@@ -516,7 +516,15 @@
                 <button type="button" (click)="selectProduct(product.id)">
                   <span
                     ><strong>{{ product.name }}</strong
-                    ><small>{{ product.sku }}</small></span
+                    ><small
+                      >{{
+                        product.parentProductId
+                          ? 'Variante · '
+                          : product.sellable === false
+                            ? 'Producto padre · '
+                            : ''
+                      }}{{ product.sku }}</small
+                    ></span
                   >
                   <span
                     ><strong>{{ product.price }}</strong
@@ -619,7 +627,18 @@
               </div>
             </dl>
 
-            <section class="stock-card" aria-labelledby="stock-title" [hidden]="!canManageStock()">
+            @if (canManageProducts() && product.active && !product.parentProductId) {
+              <app-product-variant-panel
+                [product]="product"
+                (saved)="productVariantsSaved($event)"
+              />
+            }
+
+            <section
+              class="stock-card"
+              aria-labelledby="stock-title"
+              [hidden]="!canManageStock() || product.sellable === false"
+            >
               <div class="stock-heading">
                 <div>
                   <p class="eyebrow">Inventario</p>

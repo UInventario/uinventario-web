@@ -15,6 +15,22 @@ export interface ProductData {
   price: string;
   active: boolean;
   version: number;
+  parentProductId?: string | null;
+  variantAttributes?: Array<{ name: string; values: string[] }>;
+  variantValues?: Array<{ attribute: string; value: string }>;
+  sellable?: boolean;
+  variants?: ProductData[];
+}
+
+export interface ProductVariantInput {
+  id?: string;
+  version?: number;
+  values: string[];
+  sku: string;
+  barcode?: string;
+  cost: string;
+  price: string;
+  active: boolean;
 }
 
 export interface ProductInput {
@@ -120,6 +136,7 @@ export class ProductApiService {
     status?: ProductStatusFilter;
     categoryId?: string;
     brandId?: string;
+    sellableOnly?: boolean;
     page: number;
     pageSize: number;
   }) {
@@ -128,10 +145,26 @@ export class ProductApiService {
     if (query.status) params = params.set('status', query.status);
     if (query.categoryId) params = params.set('categoryId', query.categoryId);
     if (query.brandId) params = params.set('brandId', query.brandId);
+    if (query.sellableOnly !== undefined) params = params.set('sellableOnly', query.sellableOnly);
     return this.http.get<ProductListResponse>(`${this.config.apiBaseUrl()}/products`, {
       params,
       withCredentials: true,
     });
+  }
+
+  updateVariants(
+    id: string,
+    input: {
+      version: number;
+      attributes: Array<{ name: string; values: string[] }>;
+      variants: ProductVariantInput[];
+    },
+  ) {
+    return this.http.put<ProductResponse>(
+      `${this.config.apiBaseUrl()}/products/${id}/variants`,
+      input,
+      { withCredentials: true },
+    );
   }
 
   get(id: string) {
