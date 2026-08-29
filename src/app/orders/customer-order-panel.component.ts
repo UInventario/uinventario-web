@@ -35,7 +35,7 @@ export class CustomerOrderPanelComponent implements OnInit {
   private pendingCreate: { signature: string; key: string } | null = null;
   private pendingAction: {
     orderId: string;
-    action: 'confirm' | 'prepare' | 'ready' | 'deliver' | 'cancel';
+    action: 'confirm' | 'prepare' | 'ready' | 'dispatch' | 'deliver' | 'cancel';
     version: number;
     reason?: string;
     key: string;
@@ -66,6 +66,19 @@ export class CustomerOrderPanelComponent implements OnInit {
     channel: ['WEB' as CustomerOrderData['channel'], Validators.required],
     priority: ['NORMAL' as CustomerOrderPriority, Validators.required],
     expiresInHours: [48, [Validators.required, Validators.min(1), Validators.max(720)]],
+    fulfillmentMethod: ['PICKUP' as 'PICKUP' | 'DELIVERY', Validators.required],
+    windowStart: [this.localDateTime(1), Validators.required],
+    windowEnd: [this.localDateTime(3), Validators.required],
+    deliveryCost: ['0.00', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
+    recipientName: ['', [Validators.maxLength(120)]],
+    recipientPhone: ['', [Validators.pattern(/^\+?[0-9 ()-]{7,40}$/)]],
+    addressLine1: ['', [Validators.maxLength(180)]],
+    addressLine2: ['', [Validators.maxLength(180)]],
+    city: ['', [Validators.maxLength(100)]],
+    region: ['', [Validators.maxLength(100)]],
+    postalCode: ['', [Validators.pattern(/^[A-Za-z0-9 -]{3,24}$/)]],
+    countryCode: ['MX', [Validators.pattern(/^[A-Z]{2}$/)]],
+    carrierCode: ['SIMULATED' as 'SIMULATED' | 'SIMULATED_RETRY'],
     paymentMethod: ['CASH' as CollectedPaymentMethod, Validators.required],
     amountReceived: ['', [Validators.pattern(MONEY_PATTERN)]],
     reference: ['', [Validators.pattern(REFERENCE_PATTERN)]],
@@ -98,6 +111,23 @@ export class CustomerOrderPanelComponent implements OnInit {
     this.form.controls.reference.setValue('');
   }
 
+  protected fulfillmentChanged(): void {
+    if (this.form.controls.fulfillmentMethod.value === 'PICKUP') {
+      this.form.patchValue({
+        deliveryCost: '0.00',
+        recipientName: '',
+        recipientPhone: '',
+        addressLine1: '',
+        addressLine2: '',
+        city: '',
+        region: '',
+        postalCode: '',
+        countryCode: 'MX',
+        carrierCode: 'SIMULATED',
+      });
+    }
+  }
+
   protected submit(): void {
     if (this.form.invalid || this.saving()) {
       this.form.markAllAsTouched();
@@ -116,12 +146,60 @@ export class CustomerOrderPanelComponent implements OnInit {
       this.error.set('Indica la referencia que se autorizará al entregar.');
       return;
     }
+    const windowStart = new Date(raw.windowStart);
+    const windowEnd = new Date(raw.windowEnd);
+    if (
+      Number.isNaN(windowStart.getTime()) ||
+      Number.isNaN(windowEnd.getTime()) ||
+      windowEnd <= windowStart
+    ) {
+      this.error.set('La ventana de entrega debe terminar después de iniciar.');
+      return;
+    }
+    if (
+      raw.fulfillmentMethod === 'DELIVERY' &&
+      [
+        raw.recipientName,
+        raw.recipientPhone,
+        raw.addressLine1,
+        raw.city,
+        raw.region,
+        raw.postalCode,
+        raw.countryCode,
+      ].some((value) => !value.trim())
+    ) {
+      this.error.set('Completa los datos mínimos del despacho.');
+      return;
+    }
     const input: CustomerOrderInput = {
       channel: raw.channel,
       customerId: raw.customerId,
       locationId: raw.locationId,
       priority: raw.priority,
       expiresInHours: raw.expiresInHours,
+      fulfillment:
+        raw.fulfillmentMethod === 'PICKUP'
+          ? {
+              method: 'PICKUP',
+              deliveryCost: '0.00',
+              windowStart: windowStart.toISOString(),
+              windowEnd: windowEnd.toISOString(),
+            }
+          : {
+              method: 'DELIVERY',
+              deliveryCost: raw.deliveryCost.trim(),
+              windowStart: windowStart.toISOString(),
+              windowEnd: windowEnd.toISOString(),
+              recipientName: raw.recipientName.trim(),
+              recipientPhone: raw.recipientPhone.trim(),
+              addressLine1: raw.addressLine1.trim(),
+              ...(raw.addressLine2.trim() ? { addressLine2: raw.addressLine2.trim() } : {}),
+              city: raw.city.trim(),
+              region: raw.region.trim(),
+              postalCode: raw.postalCode.trim(),
+              countryCode: raw.countryCode.trim(),
+              carrierCode: raw.carrierCode,
+            },
       lines: raw.lines.map((line) => ({
         productId: line.productId,
         quantity: line.quantity.trim(),
@@ -171,7 +249,7 @@ export class CustomerOrderPanelComponent implements OnInit {
 
   protected transition(
     order: CustomerOrderData,
-    action: 'confirm' | 'prepare' | 'ready' | 'deliver',
+    action: 'confirm' | 'prepare' | 'ready' | 'dispatch' | 'deliver',
   ): void {
     this.runAction(order, action);
   }
@@ -222,9 +300,21 @@ export class CustomerOrderPanelComponent implements OnInit {
     return { LOW: 'Baja', NORMAL: 'Normal', HIGH: 'Alta', URGENT: 'Urgente' }[priority];
   }
 
+  protected fulfillmentStatusLabel(status: CustomerOrderData['fulfillment']['status']): string {
+    return {
+      PENDING: 'Pendiente',
+      PREPARING: 'En preparación',
+      READY: 'Listo para entregar',
+      RETRYABLE_FAILURE: 'Despacho reintentable',
+      DISPATCHED: 'En tránsito',
+      DELIVERED: 'Entregado',
+      CANCELLED: 'Cancelado',
+    }[status];
+  }
+
   private runAction(
     order: CustomerOrderData,
-    action: 'confirm' | 'prepare' | 'ready' | 'deliver' | 'cancel',
+    action: 'confirm' | 'prepare' | 'ready' | 'dispatch' | 'deliver' | 'cancel',
     reason?: string,
   ): void {
     if (this.actionId()) return;
@@ -254,7 +344,9 @@ export class CustomerOrderPanelComponent implements OnInit {
           this.pendingAction = null;
           this.cancelling.set(null);
           this.success.set(
-            `Pedido ${data.orderNumber}: ${this.statusLabel(data.status).toLowerCase()}.`,
+            action === 'dispatch'
+              ? `Pedido ${data.orderNumber}: ${this.fulfillmentStatusLabel(data.fulfillment.status).toLowerCase()}.`
+              : `Pedido ${data.orderNumber}: ${this.statusLabel(data.status).toLowerCase()}.`,
           );
           this.loadOrders(this.page());
         },
@@ -332,6 +424,19 @@ export class CustomerOrderPanelComponent implements OnInit {
       channel: 'WEB',
       priority: 'NORMAL',
       expiresInHours: 48,
+      fulfillmentMethod: 'PICKUP',
+      windowStart: this.localDateTime(1),
+      windowEnd: this.localDateTime(3),
+      deliveryCost: '0.00',
+      recipientName: '',
+      recipientPhone: '',
+      addressLine1: '',
+      addressLine2: '',
+      city: '',
+      region: '',
+      postalCode: '',
+      countryCode: 'MX',
+      carrierCode: 'SIMULATED',
       paymentMethod: this.paymentMethods()[0] ?? 'CASH',
       amountReceived: '',
       reference: '',
@@ -344,5 +449,11 @@ export class CustomerOrderPanelComponent implements OnInit {
     if (typeof error.error?.message === 'string') return error.error.message;
     if (error.status === 0) return 'No fue posible conectar con el servicio de pedidos.';
     return 'No fue posible completar la operación del pedido.';
+  }
+
+  private localDateTime(offsetHours: number): string {
+    const value = new Date(Date.now() + offsetHours * 60 * 60_000);
+    value.setMinutes(value.getMinutes() - value.getTimezoneOffset());
+    return value.toISOString().slice(0, 16);
   }
 }

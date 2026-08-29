@@ -42,9 +42,29 @@
 .queue,
 .lines,
 .payment-box,
+.fulfillment-box,
 .cancel-box {
   display: grid;
   gap: 0.8rem;
+}
+
+.fulfillment-box {
+  grid-template-columns: 1fr;
+  align-items: stretch;
+}
+
+.fulfillment-box .wide {
+  grid-column: 1 / -1;
+}
+
+.fulfillment-summary {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0.65rem 0;
+  padding: 0.65rem;
+  border-radius: 0.5rem;
+  background: #f3f7fa;
+  color: #415466;
 }
 
 .editor,
@@ -179,7 +199,8 @@ button:disabled {
 
 .summary,
 .order-card small,
-.payment-box small {
+.payment-box small,
+.fulfillment-box small {
   color: #637587;
 }
 
