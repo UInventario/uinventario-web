@@ -139,8 +139,7 @@
             <span>Sin alertas activas.</span>
           } @else {
             <span
-              >{{ stockAlerts().outOfStock }} agotado(s) ·
-              {{ stockAlerts().low }} bajo umbral</span
+              >{{ stockAlerts().outOfStock }} agotado(s) · {{ stockAlerts().low }} bajo umbral</span
             >
           }
           <a routerLink="/app" fragment="stock-alerts-title">Resolver alertas</a>
