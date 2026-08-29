@@ -88,6 +88,7 @@ describe('ApplicationPage', () => {
     resumeSuspendedSale: ReturnType<typeof vi.fn>;
     cancelSuspendedSale: ReturnType<typeof vi.fn>;
     salesCashReport: ReturnType<typeof vi.fn>;
+    profitabilityReport: ReturnType<typeof vi.fn>;
   };
   let audit: {
     list: ReturnType<typeof vi.fn>;
@@ -394,6 +395,33 @@ describe('ApplicationPage', () => {
             },
             sales: [],
             shifts: [],
+            total: 0,
+          },
+          meta: {
+            apiVersion: '1',
+            pagination: { page: 1, pageSize: 10, total: 0, totalPages: 0 },
+            periodTimezone: 'BRANCH_LOCAL',
+          },
+        }),
+      ),
+      profitabilityReport: vi.fn().mockReturnValue(
+        of({
+          data: {
+            scope: [{ id: 'branch', name: 'Sucursal', timezone: 'America/Mexico_City' }],
+            formulas: {
+              grossRevenue: 'gross',
+              discounts: 'discounts',
+              netRevenue: 'revenue',
+              taxes: 'taxes',
+              cost: 'cost',
+              margin: 'margin',
+              returnsAndRefunds: 'returns',
+              credit: 'credit',
+              cancellations: 'voids',
+            },
+            currencies: [],
+            products: [],
+            activities: [],
             total: 0,
           },
           meta: {
@@ -2411,6 +2439,87 @@ describe('ApplicationPage', () => {
         },
       }),
     );
+    pos.profitabilityReport.mockReturnValue(
+      of({
+        data: {
+          scope: [{ id: 'branch', name: 'Sucursal', timezone: 'America/Mexico_City' }],
+          formulas: {
+            grossRevenue: 'gross',
+            discounts: 'discounts',
+            netRevenue: 'revenue',
+            taxes: 'taxes',
+            cost: 'cost',
+            margin: 'margin',
+            returnsAndRefunds: 'returns once',
+            credit: 'credit once',
+            cancellations: 'excluded',
+          },
+          currencies: [
+            {
+              currency: 'MXN',
+              sales: 1,
+              returns: 1,
+              cancellations: 1,
+              grossRevenue: '119.90',
+              discounts: '10.00',
+              salesTotal: '109.90',
+              returnTotal: '20.00',
+              netTotal: '89.90',
+              netRevenue: '77.50',
+              taxes: '12.40',
+              historicalCost: '50.00',
+              returnedCost: '10.00',
+              netCost: '40.00',
+              margin: '37.50',
+              marginRate: 48.39,
+              paymentObligations: '109.90',
+              creditSales: '20.00',
+              refundsSettled: '20.00',
+              voidedAmount: '119.90',
+              salesMatchPayments: true,
+            },
+          ],
+          products: [
+            {
+              product: { id: 'product', name: 'Producto', sku: 'SKU-1' },
+              currency: 'MXN',
+              soldQuantity: '1.000',
+              returnedQuantity: '0.200',
+              grossRevenue: '119.90',
+              discounts: '10.00',
+              netRevenue: '77.50',
+              taxes: '12.40',
+              netCost: '40.00',
+              margin: '37.50',
+            },
+          ],
+          activities: [
+            {
+              id: 'sale-report',
+              type: 'SALE' as const,
+              saleId: 'sale-report',
+              receiptNumber: 'V-REPORT000001',
+              branchName: 'Sucursal',
+              cashRegisterName: 'Caja',
+              currency: 'MXN',
+              netRevenue: '93.02',
+              taxes: '16.88',
+              historicalCost: '50.00',
+              marginImpact: '43.02',
+              paymentOrSettlement: '109.90',
+              reconciles: true,
+              occurredAt: '2026-08-27T14:00:00.000Z',
+            },
+          ],
+          total: 1,
+        },
+        meta: {
+          apiVersion: '1' as const,
+          pagination: { page: 1, pageSize: 10, total: 1, totalPages: 1 },
+          periodTimezone: 'BRANCH_LOCAL' as const,
+        },
+      }),
+    );
     const component = fixture.componentInstance as unknown as {
       salesCashReportForm: {
         controls: {
@@ -2437,7 +2546,16 @@ describe('ApplicationPage', () => {
       page: 1,
       pageSize: 10,
     });
+    expect(pos.profitabilityReport).toHaveBeenLastCalledWith({
+      dateFrom: '2026-08-27',
+      dateTo: '2026-08-27',
+      branchId: 'branch',
+      page: 1,
+      pageSize: 10,
+    });
     expect(fixture.nativeElement.textContent).toContain('Conciliación correcta');
+    expect(fixture.nativeElement.textContent).toContain('Rentabilidad de POS');
+    expect(fixture.nativeElement.textContent).toContain('Margen 37.50');
     expect(fixture.nativeElement.textContent).toContain('V-REPORT000001');
     expect(fixture.nativeElement.textContent).toContain('Diferencia 0.00');
   });

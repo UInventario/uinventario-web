@@ -413,6 +413,74 @@ export interface SalesCashReportData {
   total: number;
 }
 
+export interface PosProfitabilityReportData {
+  scope: Array<{ id: string; name: string; timezone: string }>;
+  formulas: Record<
+    | 'grossRevenue'
+    | 'discounts'
+    | 'netRevenue'
+    | 'taxes'
+    | 'cost'
+    | 'margin'
+    | 'returnsAndRefunds'
+    | 'credit'
+    | 'cancellations',
+    string
+  >;
+  currencies: Array<{
+    currency: string;
+    sales: number;
+    returns: number;
+    cancellations: number;
+    grossRevenue: string;
+    discounts: string;
+    salesTotal: string;
+    returnTotal: string;
+    netTotal: string;
+    netRevenue: string;
+    taxes: string;
+    historicalCost: string;
+    returnedCost: string;
+    netCost: string;
+    margin: string;
+    marginRate: number | null;
+    paymentObligations: string;
+    creditSales: string;
+    refundsSettled: string;
+    voidedAmount: string;
+    salesMatchPayments: boolean;
+  }>;
+  products: Array<{
+    product: { id: string; name: string; sku: string };
+    currency: string;
+    soldQuantity: string;
+    returnedQuantity: string;
+    grossRevenue: string;
+    discounts: string;
+    netRevenue: string;
+    taxes: string;
+    netCost: string;
+    margin: string;
+  }>;
+  activities: Array<{
+    id: string;
+    type: 'SALE' | 'RETURN' | 'VOID';
+    saleId: string;
+    receiptNumber: string;
+    branchName: string;
+    cashRegisterName: string;
+    currency: string;
+    netRevenue: string;
+    taxes: string;
+    historicalCost: string;
+    marginImpact: string;
+    paymentOrSettlement: string;
+    reconciles: boolean;
+    occurredAt: string;
+  }>;
+  total: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class PosApiService {
   private readonly http = inject(HttpClient);
@@ -822,6 +890,32 @@ export class PosApiService {
         periodTimezone: 'BRANCH_LOCAL';
       };
     }>(`${this.config.apiBaseUrl()}/pos/reports/sales-cash`, {
+      params,
+      withCredentials: true,
+    });
+  }
+
+  profitabilityReport(query: {
+    dateFrom?: string;
+    dateTo?: string;
+    branchId?: string;
+    cashRegisterId?: string;
+    userId?: string;
+    page: number;
+    pageSize: number;
+  }) {
+    let params = new HttpParams().set('page', query.page).set('pageSize', query.pageSize);
+    for (const [key, value] of Object.entries(query)) {
+      if (key !== 'page' && key !== 'pageSize' && value) params = params.set(key, value);
+    }
+    return this.http.get<{
+      data: PosProfitabilityReportData;
+      meta: {
+        apiVersion: '1';
+        pagination: { page: number; pageSize: number; total: number; totalPages: number };
+        periodTimezone: 'BRANCH_LOCAL';
+      };
+    }>(`${this.config.apiBaseUrl()}/pos/reports/profitability`, {
       params,
       withCredentials: true,
     });

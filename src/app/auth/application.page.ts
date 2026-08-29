@@ -45,6 +45,7 @@ import {
   PaymentMethod,
   PosApiService,
   PosCartQuote,
+  PosProfitabilityReportData,
   SaleDetailData,
   SaleDiscountInput,
   SaleSummaryData,
@@ -253,6 +254,11 @@ export class ApplicationPage implements OnInit {
     () =>
       Boolean(this.session()?.context.cashRegister) &&
       (this.session()?.user.permissions.includes('SALES_MANAGE') ?? false),
+  );
+  protected readonly canViewProfitability = computed(
+    () =>
+      this.canManageSales() &&
+      (this.session()?.user.permissions.includes('INVENTORY_VALUATION_MANAGE') ?? false),
   );
   protected readonly canVoidSales = computed(
     () => this.session()?.user.permissions.includes('SALES_VOID') ?? false,
@@ -481,6 +487,11 @@ export class ApplicationPage implements OnInit {
   protected readonly salesCashReportError = signal<string | null>(null);
   protected readonly salesCashReportPage = signal(1);
   protected readonly salesCashReportTotalPages = signal(0);
+  protected readonly profitabilityReport = signal<PosProfitabilityReportData | null>(null);
+  protected readonly loadingProfitabilityReport = signal(false);
+  protected readonly profitabilityReportError = signal<string | null>(null);
+  protected readonly profitabilityReportPage = signal(1);
+  protected readonly profitabilityReportTotalPages = signal(0);
   protected readonly auditEvents = signal<AuditEventData[]>([]);
   protected readonly loadingAudit = signal(true);
   protected readonly exportingAudit = signal(false);
@@ -703,6 +714,7 @@ export class ApplicationPage implements OnInit {
       this.loadLatestCashClosure();
       this.loadSales(1);
       this.loadSalesCashReport(1);
+      if (this.canViewProfitability()) this.loadProfitabilityReport(1);
       this.loadCustomers();
       this.loadSuspendedSales();
     }
@@ -2263,6 +2275,19 @@ export class ApplicationPage implements OnInit {
 
   protected filterSalesCashReport(): void {
     this.loadSalesCashReport(1);
+    if (this.canViewProfitability()) this.loadProfitabilityReport(1);
+  }
+
+  protected previousProfitabilityReportPage(): void {
+    if (this.profitabilityReportPage() > 1) {
+      this.loadProfitabilityReport(this.profitabilityReportPage() - 1);
+    }
+  }
+
+  protected nextProfitabilityReportPage(): void {
+    if (this.profitabilityReportPage() < this.profitabilityReportTotalPages()) {
+      this.loadProfitabilityReport(this.profitabilityReportPage() + 1);
+    }
   }
 
   protected previousSalesCashReportPage(): void {
@@ -3379,6 +3404,36 @@ export class ApplicationPage implements OnInit {
           this.salesCashReport.set(null);
           this.salesCashReportError.set(
             this.operationMessage(error, 'No fue posible cargar el reporte de ventas y caja.'),
+          );
+        },
+      });
+  }
+
+  private loadProfitabilityReport(page: number): void {
+    this.loadingProfitabilityReport.set(true);
+    this.profitabilityReportError.set(null);
+    const value = this.salesCashReportForm.getRawValue();
+    this.pos
+      .profitabilityReport({
+        ...(value.dateFrom ? { dateFrom: value.dateFrom } : {}),
+        ...(value.dateTo ? { dateTo: value.dateTo } : {}),
+        ...(value.branchId ? { branchId: value.branchId } : {}),
+        ...(value.cashRegisterId ? { cashRegisterId: value.cashRegisterId } : {}),
+        ...(value.userId ? { userId: value.userId } : {}),
+        page,
+        pageSize: 10,
+      })
+      .pipe(finalize(() => this.loadingProfitabilityReport.set(false)))
+      .subscribe({
+        next: ({ data, meta }) => {
+          this.profitabilityReport.set(data);
+          this.profitabilityReportPage.set(meta.pagination.page);
+          this.profitabilityReportTotalPages.set(meta.pagination.totalPages);
+        },
+        error: (error: HttpErrorResponse) => {
+          this.profitabilityReport.set(null);
+          this.profitabilityReportError.set(
+            this.operationMessage(error, 'No fue posible cargar el reporte de rentabilidad.'),
           );
         },
       });
