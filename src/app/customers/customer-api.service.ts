@@ -1,4 +1,4 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { RuntimeConfigService } from '../core/runtime-config.service';
 
@@ -51,8 +51,66 @@ export interface CustomerInput {
 
 export type CustomerHistoryStatus = 'ALL' | 'COMPLETED' | 'VOIDED';
 
+export type CustomerCreditPaymentMethod = 'CASH' | 'CARD' | 'TRANSFER';
+
+export interface CustomerCreditPaymentData {
+  id: string;
+  receiptNumber: string;
+  currency: string;
+  amount: string;
+  method: CustomerCreditPaymentMethod;
+  status: 'COMPLETED' | 'REVERSED';
+  reference: string | null;
+  provider: string;
+  providerReference: string | null;
+  responsible: { id: string; email: string };
+  context: {
+    branch: { id: string; name: string };
+    cashRegister: { id: string; name: string; code: string };
+  };
+  allocations: Array<{
+    accountId: string;
+    installmentId: string;
+    installmentNumber: number;
+    amount: string;
+  }>;
+  reversal: {
+    reason: string;
+    user: { id: string; email: string };
+    providerReference: string | null;
+    reversedAt: string;
+  } | null;
+  createdAt: string;
+}
+
+export interface CustomerCreditStatementData {
+  currency: string;
+  balance: string;
+  overdueAmount: string;
+  status: 'DISABLED' | 'AVAILABLE' | 'LIMIT_REACHED' | 'OVERDUE';
+  accounts: Array<{
+    id: string;
+    sale: { id: string; receiptNumber: string };
+    originalAmount: string;
+    balance: string;
+    dueDate: string;
+    status: 'OPEN' | 'PARTIAL' | 'PAID' | 'OVERDUE' | 'CANCELLED';
+    installments: Array<{
+      id: string;
+      number: number;
+      dueDate: string;
+      amount: string;
+      paidAmount: string;
+      balance: string;
+      status: 'OPEN' | 'PARTIAL' | 'PAID' | 'OVERDUE' | 'CANCELLED';
+    }>;
+  }>;
+  payments: CustomerCreditPaymentData[];
+}
+
 export interface CustomerHistoryData {
   customer: CustomerData;
+  credit: CustomerCreditStatementData | null;
   summary: {
     currency: string | null;
     salesCount: number;
@@ -138,6 +196,58 @@ export class CustomerApiService {
       `${this.config.apiBaseUrl()}/customers/${id}/credit`,
       input,
       { withCredentials: true },
+    );
+  }
+
+  creditStatement(id: string) {
+    return this.http.get<{
+      data: CustomerCreditStatementData | null;
+      meta: { apiVersion: '1' };
+    }>(`${this.config.apiBaseUrl()}/customers/${id}/credit`, {
+      withCredentials: true,
+    });
+  }
+
+  createCreditPayment(
+    id: string,
+    input: {
+      amount: string;
+      method: CustomerCreditPaymentMethod;
+      reference?: string;
+    },
+    idempotencyKey: string,
+  ) {
+    return this.http.post<{
+      data: {
+        payment: CustomerCreditPaymentData;
+        credit: CustomerCreditStatementData | null;
+      };
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(`${this.config.apiBaseUrl()}/customers/${id}/credit/payments`, input, {
+      headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+      withCredentials: true,
+    });
+  }
+
+  reverseCreditPayment(
+    customerId: string,
+    paymentId: string,
+    reason: string,
+    idempotencyKey: string,
+  ) {
+    return this.http.post<{
+      data: {
+        payment: CustomerCreditPaymentData;
+        credit: CustomerCreditStatementData | null;
+      };
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(
+      `${this.config.apiBaseUrl()}/customers/${customerId}/credit/payments/${paymentId}/reversal`,
+      { reason },
+      {
+        headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+        withCredentials: true,
+      },
     );
   }
 
