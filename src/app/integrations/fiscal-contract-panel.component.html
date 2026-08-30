@@ -158,6 +158,122 @@
       @if (config.updatedAt) {
         <small>Actualizado {{ config.updatedAt | date: 'short' }}</small>
       }
+
+      <section class="simulator" aria-labelledby="fiscal-simulator-heading">
+        <div>
+          <p class="eyebrow">Entorno no productivo</p>
+          <h3 id="fiscal-simulator-heading">Simulador fiscal v1</h3>
+          <p>
+            Prueba emisiÃ³n, rechazo, timeout, consulta, callback y cancelaciÃ³n sin enviar datos a
+            SAT/SII.
+          </p>
+        </div>
+
+        @if (config.enabled && config.providerProfile === 'SIMULATOR' && validation()?.valid) {
+          <div class="simulator-controls">
+            <label>
+              Escenario
+              <select
+                [value]="simulatorScenario()"
+                (change)="simulatorScenario.set($any($event.target).value)"
+              >
+                <option value="SUCCESS">Ã‰xito</option>
+                <option value="REJECT">Rechazo</option>
+                <option value="TIMEOUT">Timeout / estado incierto</option>
+              </select>
+            </label>
+            <label>
+              Referencia no sensible
+              <input
+                maxlength="80"
+                placeholder="Opcional; se genera automÃ¡ticamente"
+                [value]="simulatorReference()"
+                (input)="simulatorReference.set($any($event.target).value)"
+              />
+            </label>
+            <button type="button" (click)="issueSimulatedDocument()" [disabled]="simulatorBusy()">
+              {{ simulatorBusy() ? 'Procesandoâ€¦' : 'Emitir en simulador' }}
+            </button>
+          </div>
+
+          @if (simulatorMessage()) {
+            <p class="success" role="status">{{ simulatorMessage() }}</p>
+          }
+          @if (simulatorDocuments().length === 0) {
+            <p class="empty">TodavÃ­a no hay documentos simulados para esta empresa.</p>
+          } @else {
+            <div class="simulator-list">
+              @for (document of simulatorDocuments(); track document.id) {
+                <article>
+                  <div>
+                    <strong>{{ document.documentType }} Â· {{ document.status }}</strong>
+                    <span>{{ document.reference }} Â· {{ document.scenario }}</span>
+                    <small
+                      >{{ document.providerReference }} Â·
+                      {{ document.updatedAt | date: 'short' }}</small
+                    >
+                    @if (document.errorCode) {
+                      <small class="error">{{ document.errorCode }}</small>
+                    }
+                  </div>
+                  <div class="document-actions">
+                    <button
+                      type="button"
+                      (click)="querySimulatedDocument(document.id)"
+                      [disabled]="simulatorBusy() || document.status === 'CANCELLED'"
+                    >
+                      Consultar
+                    </button>
+                    @if (document.status === 'INDETERMINATE') {
+                      <button
+                        type="button"
+                        (click)="resolveSimulatedCallback(document.id, 'ACCEPTED')"
+                        [disabled]="simulatorBusy()"
+                      >
+                        Callback aceptado
+                      </button>
+                      <button
+                        type="button"
+                        (click)="resolveSimulatedCallback(document.id, 'REJECTED')"
+                        [disabled]="simulatorBusy()"
+                      >
+                        Callback rechazado
+                      </button>
+                    }
+                    @if (document.status === 'ACCEPTED') {
+                      <button
+                        type="button"
+                        (click)="downloadSimulatedArtifact(document.id, 'PDF')"
+                        [disabled]="simulatorBusy()"
+                      >
+                        PDF
+                      </button>
+                      <button
+                        type="button"
+                        (click)="downloadSimulatedArtifact(document.id, 'XML')"
+                        [disabled]="simulatorBusy()"
+                      >
+                        XML
+                      </button>
+                      <button
+                        type="button"
+                        (click)="cancelSimulatedDocument(document.id)"
+                        [disabled]="simulatorBusy()"
+                      >
+                        Cancelar
+                      </button>
+                    }
+                  </div>
+                </article>
+              }
+            </div>
+          }
+        } @else {
+          <p class="warning">
+            Selecciona SIMULATOR, habilita el contrato y guÃ¡rdalo para usar esta consola.
+          </p>
+        }
+      </section>
     }
   }
 </section>
