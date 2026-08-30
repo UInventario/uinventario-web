@@ -351,6 +351,38 @@ export interface SaleReceiptDeliveryData {
   acceptedAt: string;
 }
 
+export type SaleFiscalDocumentStatus =
+  'PENDING' | 'ACCEPTED' | 'REJECTED' | 'INDETERMINATE' | 'CANCELLED';
+
+export interface SaleFiscalDocumentData {
+  id: string;
+  saleId: string;
+  receiptNumber: string;
+  category: 'FISCAL_DOCUMENT';
+  documentType: 'INVOICE' | 'RECEIPT' | 'CREDIT_NOTE' | 'PAYMENT_RECEIPT';
+  provider: 'SIMULATOR';
+  providerVersion: '1';
+  providerReference: string | null;
+  scenario: 'SUCCESS' | 'REJECT' | 'TIMEOUT';
+  status: SaleFiscalDocumentStatus;
+  errorCode: string | null;
+  artifacts: Array<{ kind: 'PDF' | 'XML'; path: string }>;
+  events: Array<{
+    status: SaleFiscalDocumentStatus | 'SENT';
+    occurredAt: string;
+  }>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SaleFiscalDeliveryData {
+  mode: 'SIMULATED' | 'PROVIDER';
+  channel: 'EMAIL';
+  recipient: string;
+  messageId: string;
+  acceptedAt: string;
+}
+
 export interface PosPeripheralProfileData {
   id: string;
   cashRegister: { id: string; name: string; code: string };
@@ -903,6 +935,93 @@ export class PosApiService {
       { email },
       { withCredentials: true },
     );
+  }
+
+  getSaleFiscalDocument(id: string) {
+    return this.http.get<{
+      data: SaleFiscalDocumentData | null;
+      meta: { apiVersion: '1'; provider: 'SIMULATOR'; production: false };
+    }>(`${this.config.apiBaseUrl()}/pos/sales/${id}/fiscal-document`, {
+      withCredentials: true,
+    });
+  }
+
+  issueSaleFiscalDocument(
+    id: string,
+    input: {
+      documentType: SaleFiscalDocumentData['documentType'];
+      scenario: SaleFiscalDocumentData['scenario'];
+    },
+  ) {
+    return this.http.post<{
+      data: SaleFiscalDocumentData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(`${this.config.apiBaseUrl()}/pos/sales/${id}/fiscal-document`, input, {
+      headers: this.fiscalKey('issue'),
+      withCredentials: true,
+    });
+  }
+
+  querySaleFiscalDocument(id: string) {
+    return this.fiscalOperation(id, 'queries');
+  }
+
+  cancelSaleFiscalDocument(id: string) {
+    return this.fiscalOperation(id, 'cancellations');
+  }
+
+  callbackSaleFiscalDocument(
+    id: string,
+    status: Extract<SaleFiscalDocumentStatus, 'ACCEPTED' | 'REJECTED'>,
+  ) {
+    return this.http.post<{
+      data: SaleFiscalDocumentData;
+      meta: { apiVersion: '1'; duplicate: boolean };
+    }>(
+      `${this.config.apiBaseUrl()}/pos/sales/fiscal-document/callbacks`,
+      { eventId: `web-fiscal-${crypto.randomUUID()}`, saleId: id, status },
+      { withCredentials: true },
+    );
+  }
+
+  saleFiscalArtifact(id: string, kind: 'PDF' | 'XML') {
+    return this.http.get<{
+      data: { fileName: string; mediaType: string; contentBase64: string };
+      meta: { apiVersion: '1'; provider: 'SIMULATOR'; production: false };
+    }>(`${this.config.apiBaseUrl()}/pos/sales/${id}/fiscal-document/artifacts/${kind}`, {
+      withCredentials: true,
+    });
+  }
+
+  sendSaleFiscalDocument(id: string, email: string, idempotencyKey: string) {
+    return this.http.post<{
+      data: { document: SaleFiscalDocumentData; delivery: SaleFiscalDeliveryData };
+      meta: { apiVersion: '1' };
+    }>(
+      `${this.config.apiBaseUrl()}/pos/sales/${id}/fiscal-document/deliveries`,
+      { email },
+      {
+        headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+        withCredentials: true,
+      },
+    );
+  }
+
+  private fiscalOperation(id: string, operation: 'queries' | 'cancellations') {
+    return this.http.post<{
+      data: SaleFiscalDocumentData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(
+      `${this.config.apiBaseUrl()}/pos/sales/${id}/fiscal-document/${operation}`,
+      {},
+      { headers: this.fiscalKey(operation), withCredentials: true },
+    );
+  }
+
+  private fiscalKey(action: string) {
+    return new HttpHeaders({
+      'Idempotency-Key': `web-sale-fiscal-${action}-${crypto.randomUUID()}`,
+    });
   }
 
   getPeripheralProfile() {

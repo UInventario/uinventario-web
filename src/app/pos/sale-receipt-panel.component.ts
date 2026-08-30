@@ -2,10 +2,12 @@ import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, input, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { finalize } from 'rxjs';
+import { finalize, Observable } from 'rxjs';
 import {
   PosApiService,
   PosPeripheralProfileData,
+  SaleFiscalDocumentData,
+  SaleFiscalDeliveryData,
   SaleReceiptData,
   SaleReceiptDeliveryData,
 } from './pos-api.service';
@@ -37,7 +39,14 @@ export class SaleReceiptPanelComponent {
   protected readonly peripheralMessage = signal<string | null>(null);
   protected readonly profile = signal<PosPeripheralProfileData | null>(null);
   protected readonly delivery = signal<SaleReceiptDeliveryData | null>(null);
+  protected readonly fiscalDocument = signal<SaleFiscalDocumentData | null>(null);
+  protected readonly fiscalDelivery = signal<SaleFiscalDeliveryData | null>(null);
+  protected readonly fiscalScenario = signal<SaleFiscalDocumentData['scenario']>('SUCCESS');
+  protected readonly fiscalDocumentType = signal<SaleFiscalDocumentData['documentType']>('INVOICE');
+  protected readonly fiscalBusy = signal(false);
+  protected readonly fiscalMessage = signal<string | null>(null);
   private pendingPrint: { saleId: string; key: string } | null = null;
+  private pendingFiscalEmail: { saleId: string; email: string; key: string } | null = null;
   protected readonly emailForm = this.formBuilder.nonNullable.group({
     email: ['', [Validators.required, Validators.email, Validators.maxLength(254)]],
   });
@@ -61,6 +70,7 @@ export class SaleReceiptPanelComponent {
         next: ({ data }) => {
           this.receipt.set(data);
           this.loadProfile();
+          this.loadFiscalDocument();
         },
         error: (error: HttpErrorResponse) => this.error.set(this.messageFor(error)),
       });
@@ -262,6 +272,105 @@ export class SaleReceiptPanelComponent {
       });
   }
 
+  protected issueFiscalDocument(): void {
+    this.runFiscal(
+      this.pos.issueSaleFiscalDocument(this.saleId(), {
+        documentType: this.fiscalDocumentType(),
+        scenario: this.fiscalScenario(),
+      }),
+      'Documento fiscal procesado sin repetir la venta.',
+    );
+  }
+
+  protected retryFiscalDocument(): void {
+    const document = this.fiscalDocument();
+    if (!document || document.status !== 'PENDING') return;
+    this.runFiscal(
+      this.pos.issueSaleFiscalDocument(this.saleId(), {
+        documentType: document.documentType,
+        scenario: document.scenario,
+      }),
+      'EmisiÃ³n fiscal reintentada con la misma identidad.',
+    );
+  }
+
+  protected queryFiscalDocument(): void {
+    this.runFiscal(
+      this.pos.querySaleFiscalDocument(this.saleId()),
+      'Estado fiscal actualizado de forma segura.',
+    );
+  }
+
+  protected cancelFiscalDocument(): void {
+    this.runFiscal(this.pos.cancelSaleFiscalDocument(this.saleId()), 'Documento fiscal cancelado.');
+  }
+
+  protected resolveFiscalCallback(status: 'ACCEPTED' | 'REJECTED'): void {
+    this.runFiscal(
+      this.pos.callbackSaleFiscalDocument(this.saleId(), status),
+      'Callback fiscal procesado.',
+    );
+  }
+
+  protected sendFiscalDocument(): void {
+    if (this.emailForm.invalid || this.fiscalBusy()) {
+      this.emailForm.markAllAsTouched();
+      return;
+    }
+    this.fiscalBusy.set(true);
+    this.error.set(null);
+    this.fiscalDelivery.set(null);
+    const saleId = this.saleId();
+    const email = this.emailForm.controls.email.value;
+    const key =
+      this.pendingFiscalEmail?.saleId === saleId && this.pendingFiscalEmail.email === email
+        ? this.pendingFiscalEmail.key
+        : `web-sale-fiscal-email-${globalThis.crypto.randomUUID()}`;
+    this.pendingFiscalEmail = { saleId, email, key };
+    this.pos
+      .sendSaleFiscalDocument(saleId, email, key)
+      .pipe(finalize(() => this.fiscalBusy.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.pendingFiscalEmail = null;
+          this.fiscalDocument.set(data.document);
+          this.fiscalDelivery.set(data.delivery);
+          this.fiscalMessage.set('Documento fiscal aceptado para entrega digital.');
+        },
+        error: (error: HttpErrorResponse) => this.error.set(this.fiscalMessageFor(error)),
+      });
+  }
+
+  protected downloadFiscalArtifact(kind: 'PDF' | 'XML', print = false): void {
+    if (this.fiscalBusy()) return;
+    this.fiscalBusy.set(true);
+    this.error.set(null);
+    this.pos
+      .saleFiscalArtifact(this.saleId(), kind)
+      .pipe(finalize(() => this.fiscalBusy.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          const bytes = Uint8Array.from(atob(data.contentBase64), (character) =>
+            character.charCodeAt(0),
+          );
+          const url = URL.createObjectURL(new Blob([bytes], { type: data.mediaType }));
+          if (print) {
+            globalThis.open(url, '_blank', 'noopener');
+          } else {
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = data.fileName;
+            anchor.click();
+          }
+          globalThis.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+          this.fiscalMessage.set(
+            print ? 'PDF fiscal abierto para impresiÃ³n.' : `${kind} fiscal descargado.`,
+          );
+        },
+        error: (error: HttpErrorResponse) => this.error.set(this.fiscalMessageFor(error)),
+      });
+  }
+
   protected paymentLabel(method: SaleReceiptData['payments'][number]['method']): string {
     return {
       CASH: 'Efectivo',
@@ -288,5 +397,38 @@ export class SaleReceiptPanelComponent {
     if (error.status === 0)
       return 'El servicio no respondio. La venta permanece registrada; puedes reintentar el periferico.';
     return 'No fue posible operar el dispositivo. Usa el procedimiento manual.';
+  }
+
+  private loadFiscalDocument(): void {
+    this.pos.getSaleFiscalDocument(this.saleId()).subscribe({
+      next: ({ data }) => this.fiscalDocument.set(data),
+      error: (error: HttpErrorResponse) => this.error.set(this.fiscalMessageFor(error)),
+    });
+  }
+
+  private runFiscal(request: Observable<{ data: SaleFiscalDocumentData }>, message: string): void {
+    if (this.fiscalBusy()) return;
+    this.fiscalBusy.set(true);
+    this.error.set(null);
+    this.fiscalMessage.set(null);
+    request.pipe(finalize(() => this.fiscalBusy.set(false))).subscribe({
+      next: ({ data }) => {
+        this.fiscalDocument.set(data);
+        this.fiscalMessage.set(message);
+      },
+      error: (error: HttpErrorResponse) => this.error.set(this.fiscalMessageFor(error)),
+    });
+  }
+
+  private fiscalMessageFor(error: HttpErrorResponse): string {
+    if (error.status === 403) return 'No tienes permiso para operar documentos fiscales.';
+    if (error.status === 404) return 'La venta o el documento fiscal no estÃ¡ disponible.';
+    if (error.status === 400) {
+      return 'El contrato fiscal no estÃ¡ listo o el estado no permite esta operaciÃ³n.';
+    }
+    if (error.status === 0) {
+      return 'Fiscalidad no respondiÃ³. La venta permanece completada; consulta antes de reemitir.';
+    }
+    return 'No fue posible operar el documento fiscal. La venta no fue modificada.';
   }
 }
