@@ -68,7 +68,14 @@
           @for (line of ticket.lines; track line.lineNumber) {
             <tr>
               <td>
-                {{ line.productName }}<small>{{ line.productSku }}</small>
+                {{ line.productName
+                }}<small>{{ line.withoutCode ? 'Sin código' : line.productSku }}</small>
+                @if (line.note) {
+                  <small>Nota: {{ line.note }}</small>
+                }
+                @if (line.priceSource === 'MANUAL') {
+                  <small>Precio manual: {{ line.priceOverrideReason }}</small>
+                }
                 @if (line.discountTotal !== '0.00') {
                   <small>
                     Descuento {{ ticket.currency }} {{ line.discountTotal }}
