@@ -100,6 +100,7 @@ import { OperationalDashboardComponent } from '../dashboard/operational-dashboar
 import { NotificationPanelComponent } from '../notifications/notification-panel.component';
 import { ExternalAdapterPanelComponent } from '../integrations/external-adapter-panel.component';
 import { LoyaltyPanelComponent } from '../loyalty/loyalty-panel.component';
+import { CommerceIntegrationPanelComponent } from '../integrations/commerce-integration-panel.component';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const POSITIVE_MONEY_PATTERN = /^(?:[1-9]\d{0,11}(?:\.\d{1,2})?|0\.(?:0[1-9]|[1-9]\d?))$/;
@@ -164,6 +165,7 @@ type PosSaleInput = Parameters<PosApiService['createSale']>[0];
     NotificationPanelComponent,
     ExternalAdapterPanelComponent,
     LoyaltyPanelComponent,
+    CommerceIntegrationPanelComponent,
   ],
   templateUrl: './application.page.html',
   styleUrl: './application.page.scss',
