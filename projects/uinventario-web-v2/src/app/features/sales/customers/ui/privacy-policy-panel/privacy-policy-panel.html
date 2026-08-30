@@ -1,0 +1,35 @@
+<section class="policy" aria-labelledby="policy-title">
+  <header>
+    <div>
+      <p>Política vigente · {{ policy().policyCode }}</p>
+      <h2 id="policy-title">Retención de transacciones</h2>
+      <span>País {{ policy().countryCode }} · versión {{ policy().version }}</span>
+    </div>
+    <span class="minimum">Mínimo legal: {{ policy().minimumTransactionRetentionDays }} días</span>
+  </header>
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <div class="field">
+      <label for="retentionDays">Días de retención</label>
+      <input id="retentionDays" type="number" formControlName="transactionRetentionDays" />
+    </div>
+    <div class="field wide">
+      <label for="retentionReason">Razón del cambio</label>
+      <input id="retentionReason" formControlName="reason" maxlength="240" />
+    </div>
+    <div class="field">
+      <label for="retentionReference">Referencia</label>
+      <input id="retentionReference" formControlName="requestReference" maxlength="120" />
+    </div>
+    <button class="primary" type="submit" [disabled]="saving()">
+      {{ saving() ? 'Actualizando…' : 'Actualizar política' }}
+    </button>
+  </form>
+  @if (form.touched && form.invalid) {
+    <div class="notice error" role="alert">
+      Respeta el mínimo legal e indica una razón de al menos 8 caracteres.
+    </div>
+  }
+  @if (error()) {
+    <div class="notice error" role="alert">{{ error() }}</div>
+  }
+</section>

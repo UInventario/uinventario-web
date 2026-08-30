@@ -1,0 +1,62 @@
+<div class="backdrop" (click)="closed.emit()">
+  <section
+    class="dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="credit-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <p>Crédito básico</p>
+        <h2 id="credit-title">{{ customer().name }}</h2>
+      </div>
+      <button class="icon" type="button" aria-label="Cerrar" (click)="closed.emit()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <label class="consent full">
+        <input type="checkbox" formControlName="enabled" />
+        <span
+          ><strong>Habilitar crédito</strong
+          ><small>Permite ventas a plazo dentro del límite.</small></span
+        >
+      </label>
+      <div class="field">
+        <label for="creditLimit">Límite</label
+        ><input id="creditLimit" formControlName="creditLimit" inputmode="decimal" />
+      </div>
+      <div class="field">
+        <label for="creditCurrency">Moneda</label
+        ><input id="creditCurrency" formControlName="currency" maxlength="3" />
+      </div>
+      <div class="field">
+        <label for="creditTerm">Plazo (días)</label
+        ><input id="creditTerm" type="number" formControlName="termDays" min="1" max="365" />
+      </div>
+      <div class="field">
+        <label for="creditInstallments">Cuotas máximas</label
+        ><input
+          id="creditInstallments"
+          type="number"
+          formControlName="maxInstallments"
+          min="1"
+          max="36"
+        />
+      </div>
+      @if (form.touched && form.invalid) {
+        <div class="notice error full" role="alert">Revisa límite, moneda, plazo y cuotas.</div>
+      }
+      @if (error()) {
+        <div class="notice error full" role="alert">{{ error() }}</div>
+      }
+      <footer class="actions full">
+        <button class="secondary" type="button" (click)="closed.emit()">Cancelar</button>
+        <button class="primary" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Guardando…' : 'Guardar crédito' }}
+        </button>
+      </footer>
+    </form>
+  </section>
+</div>
