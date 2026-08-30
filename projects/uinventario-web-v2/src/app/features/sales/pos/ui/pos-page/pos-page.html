@@ -1,0 +1,253 @@
+<section class="pos" aria-labelledby="pos-title">
+  <header class="pos-header">
+    <div>
+      <p>Punto de venta</p>
+      <h1 id="pos-title">Venta rápida</h1>
+    </div>
+    <div class="context-strip" aria-label="Contexto del punto de venta">
+      <span><i class="pi pi-building"></i>{{ context()?.branch?.name || 'Sin sucursal' }}</span>
+      <span><i class="pi pi-box"></i>{{ context()?.warehouse?.name || 'Sin bodega' }}</span>
+      <span><i class="pi pi-desktop"></i>{{ context()?.cashRegister?.name || 'Sin caja' }}</span>
+      <strong [class.closed]="shiftLoaded() && !shift()">
+        <i class="pi" [class.pi-lock-open]="shift()" [class.pi-lock]="!shift()"></i>
+        {{ !shiftLoaded() ? 'Consultando turno…' : shift() ? 'Turno abierto' : 'Caja cerrada' }}
+      </strong>
+    </div>
+    <a routerLink="/ventas/clientes"><i class="pi pi-users"></i>Clientes</a>
+  </header>
+
+  <div class="pos-grid">
+    <section class="catalog-pane" aria-labelledby="catalog-title">
+      <header>
+        <div>
+          <span>Catálogo</span>
+          <h2 id="catalog-title">Buscar o escanear</h2>
+        </div>
+        <kbd>F2</kbd>
+      </header>
+      <form class="search" [formGroup]="searchForm" (ngSubmit)="submitSearch()">
+        <i class="pi pi-search" aria-hidden="true"></i>
+        <input
+          #searchInput
+          formControlName="query"
+          autocomplete="off"
+          aria-label="Buscar o escanear producto"
+          placeholder="Nombre, SKU o código"
+          (input)="search()"
+        />
+        <button
+          class="camera"
+          type="button"
+          aria-label="Escanear con cámara"
+          (click)="scannerOpen.set(true)"
+        >
+          <i class="pi pi-camera"></i>
+        </button>
+        <button class="resolve" type="submit" [disabled]="scanning()">
+          {{ scanning() ? 'Leyendo…' : 'Agregar' }}
+        </button>
+      </form>
+      @if (searchError()) {
+        <div class="pane-notice error" role="alert">{{ searchError() }}</div>
+      }
+      <div class="product-results">
+        @if (searching()) {
+          <div class="pane-state" role="status">
+            <i class="pi pi-spin pi-spinner"></i><span>Buscando productos…</span>
+          </div>
+        } @else if (!products()?.products?.length) {
+          <div class="pane-state">
+            <i class="pi pi-search"></i>
+            <strong>Sin coincidencias</strong>
+            <span>Prueba otro nombre o escanea el código.</span>
+          </div>
+        } @else {
+          @for (product of products()!.products; track product.id) {
+            <article class="product-card" [class.unsupported]="requiresAdvancedTracking(product)">
+              <button
+                type="button"
+                [attr.aria-label]="'Agregar ' + product.name"
+                [disabled]="requiresAdvancedTracking(product)"
+                (click)="addProduct(product)"
+              >
+                <span class="product-icon"><i class="pi pi-box"></i></span>
+                <span class="product-copy">
+                  <strong>{{ product.name }}</strong>
+                  <small>{{ product.sku }}</small>
+                  <span>
+                    @if (product.withoutCode) {
+                      <em>Sin código</em>
+                    }
+                    @if (product.stockBehavior === 'UNTRACKED') {
+                      <em>Servicio</em>
+                    }
+                    @if (requiresAdvancedTracking(product)) {
+                      <em>Lote/serie</em>
+                    }
+                  </span>
+                </span>
+                <strong class="price">{{ money(product.price) }}</strong>
+                <i class="pi pi-plus-circle add-icon"></i>
+              </button>
+            </article>
+          }
+        }
+      </div>
+      <footer>
+        <span>{{ products()?.pagination?.total || 0 }} producto(s)</span>
+        <span>Enter resuelve SKU/código · Touch agrega</span>
+      </footer>
+    </section>
+
+    <section class="cart-pane" aria-labelledby="cart-title">
+      <header>
+        <div>
+          <span>Venta actual</span>
+          <h2 id="cart-title">Carrito</h2>
+        </div>
+        <div>
+          <span class="item-count">{{ itemCount() }} línea(s)</span>
+          <button
+            class="clear"
+            type="button"
+            [disabled]="!cart.lines().length"
+            (click)="cart.clear()"
+          >
+            Vaciar
+          </button>
+        </div>
+      </header>
+
+      <div class="cart-lines">
+        @if (!cart.lines().length) {
+          <div class="empty-cart">
+            <span><i class="pi pi-shopping-cart"></i></span>
+            <strong>La venta está vacía</strong>
+            <p>Busca un producto, escanea con el lector o usa la cámara.</p>
+            <button type="button" (click)="searchInput.focus()">Agregar primer producto</button>
+          </div>
+        } @else {
+          @for (line of cart.lines(); track line.product.id) {
+            <article class="cart-line">
+              <div class="line-main">
+                <span class="line-index">{{ $index + 1 }}</span>
+                <div>
+                  <strong>{{ line.product.name }}</strong>
+                  <small>{{ line.product.sku }} · {{ line.product.baseUnit }}</small>
+                  @if (line.note) {
+                    <em>{{ line.note }}</em>
+                  }
+                </div>
+                <strong class="line-total">
+                  {{ money(quotedLine(line.product.id)?.total, quote()?.currency) }}
+                </strong>
+              </div>
+              <div class="line-controls">
+                <div class="stepper" aria-label="Cantidad">
+                  <button
+                    type="button"
+                    [attr.aria-label]="'Restar cantidad de ' + line.product.name"
+                    (click)="cart.change(line.product.id, -1)"
+                  >
+                    <i class="pi pi-minus"></i>
+                  </button>
+                  <strong>{{ line.quantity }}</strong>
+                  <button
+                    type="button"
+                    [attr.aria-label]="'Sumar cantidad de ' + line.product.name"
+                    (click)="cart.change(line.product.id, 1)"
+                  >
+                    <i class="pi pi-plus"></i>
+                  </button>
+                </div>
+                <span class="unit-price">
+                  {{
+                    money(
+                      quotedLine(line.product.id)?.unitPrice ||
+                        line.manualUnitPrice ||
+                        line.product.price,
+                      quote()?.currency
+                    )
+                  }}
+                  c/u
+                  @if (quotedLine(line.product.id)?.priceSource === 'MANUAL') {
+                    <em>Override</em>
+                  }
+                </span>
+                <button
+                  class="line-action"
+                  type="button"
+                  [attr.aria-label]="'Editar ' + line.product.name"
+                  (click)="editing.set(line)"
+                >
+                  <i class="pi pi-pencil"></i>
+                </button>
+                <button
+                  class="line-action danger"
+                  type="button"
+                  [attr.aria-label]="'Quitar ' + line.product.name"
+                  (click)="cart.remove(line.product.id)"
+                >
+                  <i class="pi pi-trash"></i>
+                </button>
+              </div>
+              @if (quotedLine(line.product.id); as quoted) {
+                <div class="availability" [class.low]="+quoted.availableQuantity < +line.quantity">
+                  <i class="pi pi-check-circle"></i>Disponible {{ quoted.availableQuantity }}
+                </div>
+              }
+            </article>
+          }
+        }
+      </div>
+
+      <footer class="totals">
+        @if (quoteError()) {
+          <div class="pane-notice warning" role="status">
+            <i class="pi pi-info-circle"></i>{{ quoteError() }}
+          </div>
+        }
+        <dl [class.loading]="quoteLoading()">
+          <div>
+            <dt>Subtotal</dt>
+            <dd>{{ money(quote()?.totals?.subtotal, quote()?.currency) }}</dd>
+          </div>
+          <div>
+            <dt>Descuentos</dt>
+            <dd>− {{ money(quote()?.totals?.discount, quote()?.currency) }}</dd>
+          </div>
+          <div>
+            <dt>Impuestos</dt>
+            <dd>{{ money(quote()?.totals?.tax, quote()?.currency) }}</dd>
+          </div>
+          <div class="total">
+            <dt>Total</dt>
+            <dd>{{ money(quote()?.totals?.total, quote()?.currency) }}</dd>
+          </div>
+        </dl>
+        <div class="checkout-next">
+          <span><i class="pi pi-save"></i>Carrito guardado para esta caja</span>
+          <button type="button" disabled title="El cobro se habilitará en el siguiente incremento">
+            Continuar al cobro<i class="pi pi-arrow-right"></i>
+          </button>
+        </div>
+      </footer>
+    </section>
+  </div>
+</section>
+
+@if (editing(); as line) {
+  <ui-pos-line-dialog
+    [line]="line"
+    [canOverridePrice]="canOverridePrice()"
+    (closed)="editing.set(null)"
+    (submitted)="saveLine($event)"
+  />
+}
+
+@if (scannerOpen()) {
+  <ui-pos-scanner-dialog
+    (closed)="scannerOpen.set(false)"
+    (codeDetected)="handleCameraCode($event)"
+  />
+}

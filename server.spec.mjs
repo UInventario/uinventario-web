@@ -65,6 +65,10 @@ test('serves dynamic same-origin configuration and health', async () => {
   const healthResponse = await fetch(`${applicationUrl}/health/live`);
   assert.equal(healthResponse.status, 200);
   assert.match(healthResponse.headers.get('content-security-policy'), /frame-ancestors 'none'/);
+  assert.match(
+    healthResponse.headers.get('permissions-policy'),
+    /camera=\(self\).*microphone=\(\)/,
+  );
   assert.equal(healthResponse.headers.get('x-frame-options'), 'DENY');
   assert.equal(healthResponse.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(healthResponse.headers.get('strict-transport-security'), null);

@@ -53,6 +53,7 @@ export class AppShell {
     { requireSync: true },
   );
   protected readonly activeWorkspace = computed(() => workspaceFromUrl(this.currentUrl()));
+  protected readonly posMode = computed(() => /^\/ventas\/pos(?:[/?#]|$)/.test(this.currentUrl()));
   protected readonly accessDenied = computed(() => {
     const query = this.currentUrl().split('?')[1] ?? '';
     return new URLSearchParams(query).get('accessDenied') === 'true';
@@ -74,6 +75,10 @@ export class AppShell {
       .find((candidate) => candidate.id === commandId);
     if (!command || command.disabled) {
       this.commandStatus.set('No tienes permiso para ejecutar este comando.');
+      return;
+    }
+    if (commandId === 'new-sale') {
+      void this.router.navigate(['/ventas/pos']);
       return;
     }
     this.commandStatus.set(`Comando disponible para ${this.activeWorkspace().label}: ${commandId}`);

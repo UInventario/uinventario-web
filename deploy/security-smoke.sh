@@ -19,7 +19,7 @@ status="$(curl --silent --show-error --dump-header "$headers" --output "$body" \
 grep -Eiq '^content-security-policy:.*frame-ancestors .none.' "$headers"
 grep -Eiq '^x-content-type-options:[[:space:]]*nosniff' "$headers"
 grep -Eiq '^x-frame-options:[[:space:]]*DENY' "$headers"
-grep -Eiq '^permissions-policy:.*camera=\(\).*microphone=\(\)' "$headers"
+grep -Eiq '^permissions-policy:.*camera=\(self\).*microphone=\(\)' "$headers"
 grep -Eiq '^strict-transport-security:' "$headers"
 
 status="$(curl --silent --show-error --output "$body" --write-out '%{http_code}' \
