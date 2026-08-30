@@ -1,0 +1,373 @@
+<section class="cash-page" aria-labelledby="cash-title">
+  <header class="page-header">
+    <div>
+      <p>Operación POS</p>
+      <h1 id="cash-title">Caja y turno</h1>
+      <span
+        >{{ context()?.branch?.name }} ·
+        {{ context()?.cashRegister?.name || 'Sin caja activa' }}</span
+      >
+    </div>
+    <div class="header-actions">
+      <a routerLink="/ventas/pos"><i class="pi pi-shopping-cart"></i>Volver al POS</a>
+      <button type="button" (click)="refresh()" [disabled]="loading()">
+        <i class="pi pi-refresh" [class.pi-spin]="loading()"></i>Actualizar
+      </button>
+    </div>
+  </header>
+
+  @if (error() && !dialog()) {
+    <div class="notice error" role="alert">{{ error() }}</div>
+  }
+  @if (notice()) {
+    <div class="notice success" role="status">{{ notice() }}</div>
+  }
+
+  @if (!context()?.cashRegister) {
+    <div class="empty-state">
+      <i class="pi pi-desktop"></i>
+      <h2>Selecciona una caja</h2>
+      <p>Usa el selector de contexto superior para elegir sucursal, bodega y caja.</p>
+    </div>
+  } @else if (loading() && !shift() && !latestClosure()) {
+    <div class="empty-state" role="status"><i class="pi pi-spin pi-spinner"></i>Cargando caja…</div>
+  } @else {
+    @if (shift(); as current) {
+      <section class="shift-summary" aria-label="Turno abierto">
+        <div class="status-copy">
+          <span><i class="pi pi-lock-open"></i>Turno abierto</span>
+          <h2>{{ current.cashRegister.name }}</h2>
+          <p>Abierto por {{ current.openedBy.email }} · {{ date(current.openedAt) }}</p>
+        </div>
+        <dl>
+          <div>
+            <dt>Fondo inicial</dt>
+            <dd>{{ money(current.openingAmount, current.currency) }}</dd>
+          </div>
+          <div class="expected">
+            <dt>Efectivo esperado</dt>
+            <dd>{{ money(expectedCash(), currency()) }}</dd>
+          </div>
+          <div>
+            <dt>Movimientos</dt>
+            <dd>{{ movements().length }}</dd>
+          </div>
+        </dl>
+        <div class="shift-actions">
+          <button type="button" (click)="showMovement('INCOME')" [disabled]="!canMove()">
+            <i class="pi pi-plus-circle"></i>Ingreso
+          </button>
+          <button type="button" (click)="showMovement('WITHDRAWAL')" [disabled]="!canMove()">
+            <i class="pi pi-minus-circle"></i>Retiro
+          </button>
+          <button
+            class="close-shift"
+            type="button"
+            (click)="showClosure()"
+            [disabled]="!canClose()"
+          >
+            <i class="pi pi-lock"></i>Cerrar y arquear
+          </button>
+        </div>
+      </section>
+
+      <section class="movement-panel" aria-labelledby="movements-title">
+        <header>
+          <div>
+            <p>Trazabilidad</p>
+            <h2 id="movements-title">Movimientos del turno</h2>
+          </div>
+          <span>{{ movements().length }} registro(s)</span>
+        </header>
+        @if (!movements().length) {
+          <div class="panel-empty">
+            <i class="pi pi-inbox"></i><strong>Sin ingresos ni retiros</strong
+            ><span>Las ventas en efectivo se reflejan en el esperado.</span>
+          </div>
+        } @else {
+          <div class="movement-list">
+            @for (movement of movements(); track movement.id) {
+              <article
+                [class.reversal]="movement.type === 'REVERSAL'"
+                [class.reversed]="movement.reversed"
+              >
+                <span class="movement-icon"
+                  ><i
+                    class="pi"
+                    [class.pi-arrow-down]="movement.type === 'INCOME'"
+                    [class.pi-arrow-up]="movement.type === 'WITHDRAWAL'"
+                    [class.pi-replay]="movement.type === 'REVERSAL'"
+                  ></i
+                ></span>
+                <div>
+                  <strong>{{ movementLabel(movement) }}</strong>
+                  <p>{{ movement.reason }}</p>
+                  <small>{{ movement.responsible.email }} · {{ date(movement.createdAt) }}</small>
+                </div>
+                <strong
+                  class="amount"
+                  [class.negative]="
+                    movement.type === 'WITHDRAWAL' ||
+                    (movement.type === 'REVERSAL' && movement.reversalOf?.type === 'INCOME')
+                  "
+                >
+                  {{
+                    movement.type === 'WITHDRAWAL' ||
+                    (movement.type === 'REVERSAL' && movement.reversalOf?.type === 'INCOME')
+                      ? '−'
+                      : '+'
+                  }}
+                  {{ money(movement.amount, currency()) }}
+                </strong>
+                @if (movement.type !== 'REVERSAL') {
+                  @if (movement.reversed) {
+                    <span class="reversed-label">Reversado</span>
+                  } @else {
+                    <button
+                      class="reverse"
+                      type="button"
+                      (click)="showReversal(movement)"
+                      [disabled]="!canMove()"
+                    >
+                      Reversar
+                    </button>
+                  }
+                }
+              </article>
+            }
+          </div>
+        }
+      </section>
+    } @else {
+      <section class="open-shift">
+        <div>
+          <span><i class="pi pi-lock"></i>Caja cerrada</span>
+          <h2>Abre un turno para comenzar</h2>
+          <p>El fondo inicial quedará registrado y será la base del efectivo esperado.</p>
+        </div>
+        @if (canOpen()) {
+          <form [formGroup]="openingForm" (ngSubmit)="openShift()">
+            <label
+              >Fondo inicial
+              <span
+                ><b>$</b
+                ><input
+                  formControlName="openingAmount"
+                  inputmode="decimal"
+                  placeholder="0.00"
+                  autocomplete="off"
+              /></span>
+            </label>
+            <button type="submit" [disabled]="submitting() || openingForm.invalid">
+              {{ submitting() ? 'Abriendo…' : 'Abrir turno' }}
+            </button>
+          </form>
+        } @else {
+          <div class="permission-note">No tienes permiso para abrir turnos en esta caja.</div>
+        }
+      </section>
+    }
+
+    @if (latestClosure(); as report) {
+      <section class="closure-report" aria-labelledby="report-title">
+        <header>
+          <div>
+            <p>Último cierre</p>
+            <h2 id="report-title">Reporte de turno</h2>
+          </div>
+          <span>{{ date(report.closedAt) }}</span>
+        </header>
+        <dl>
+          <div>
+            <dt>Fondo</dt>
+            <dd>{{ money(report.openingAmount, report.currency) }}</dd>
+          </div>
+          <div>
+            <dt>Ventas efectivo</dt>
+            <dd>
+              {{ money(report.cashSales, report.currency) }} · {{ report.salesCount }} venta(s)
+            </dd>
+          </div>
+          <div>
+            <dt>Movimientos netos</dt>
+            <dd>{{ money(report.movementsNet, report.currency) }}</dd>
+          </div>
+          <div>
+            <dt>Esperado</dt>
+            <dd>{{ money(report.expectedCash, report.currency) }}</dd>
+          </div>
+          <div>
+            <dt>Contado</dt>
+            <dd>{{ money(report.countedCash, report.currency) }}</dd>
+          </div>
+          <div class="difference" [class.mismatch]="report.difference !== '0.00'">
+            <dt>Diferencia</dt>
+            <dd>{{ money(report.difference, report.currency) }}</dd>
+          </div>
+        </dl>
+        @if (report.differenceReason) {
+          <p class="report-reason"><strong>Motivo:</strong> {{ report.differenceReason }}</p>
+        }
+        @if (report.denominations.length) {
+          <div class="report-denominations">
+            @for (item of report.denominations; track item.denomination) {
+              <span>{{ money(item.denomination, report.currency) }} × {{ item.quantity }}</span>
+            }
+          </div>
+        }
+      </section>
+    }
+  }
+</section>
+
+@if (dialog()) {
+  <div class="backdrop" (click)="closeDialog()">
+    <section
+      class="dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="cash-dialog-title"
+      (click)="$event.stopPropagation()"
+    >
+      @if (dialog() === 'movement') {
+        <header>
+          <div>
+            <p>Movimiento manual</p>
+            <h2 id="cash-dialog-title">
+              {{
+                movementForm.controls.type.value === 'INCOME'
+                  ? 'Registrar ingreso'
+                  : 'Registrar retiro'
+              }}
+            </h2>
+          </div>
+          <button type="button" aria-label="Cerrar" (click)="closeDialog()">
+            <i class="pi pi-times"></i>
+          </button>
+        </header>
+        <form [formGroup]="movementForm" (ngSubmit)="createMovement()">
+          <div class="type-picker">
+            <button
+              type="button"
+              [class.active]="movementForm.controls.type.value === 'INCOME'"
+              (click)="movementForm.controls.type.setValue('INCOME')"
+            >
+              Ingreso</button
+            ><button
+              type="button"
+              [class.active]="movementForm.controls.type.value === 'WITHDRAWAL'"
+              (click)="movementForm.controls.type.setValue('WITHDRAWAL')"
+            >
+              Retiro
+            </button>
+          </div>
+          <label
+            >Monto<input formControlName="amount" inputmode="decimal" autocomplete="off"
+          /></label>
+          <label>Motivo<input formControlName="reason" maxlength="160" autocomplete="off" /></label>
+          @if (error()) {
+            <div class="notice error" role="alert">{{ error() }}</div>
+          }
+          <footer>
+            <button type="button" class="secondary" (click)="closeDialog()">Cancelar</button
+            ><button type="submit" [disabled]="submitting() || movementForm.invalid">
+              Guardar movimiento
+            </button>
+          </footer>
+        </form>
+      } @else if (dialog() === 'reversal') {
+        <header>
+          <div>
+            <p>Corrección trazable</p>
+            <h2 id="cash-dialog-title">Reversar movimiento</h2>
+          </div>
+          <button type="button" aria-label="Cerrar" (click)="closeDialog()">
+            <i class="pi pi-times"></i>
+          </button>
+        </header>
+        <form [formGroup]="reversalForm" (ngSubmit)="reverseMovement()">
+          <div class="reversal-summary">
+            <strong>{{ money(reversing()!.amount, currency()) }}</strong
+            ><span>{{ reversing()!.reason }}</span>
+          </div>
+          <label
+            >Motivo de la reversa<input formControlName="reason" maxlength="160" autocomplete="off"
+          /></label>
+          <p class="help">
+            El registro original no se elimina; se agrega un movimiento compensatorio.
+          </p>
+          @if (error()) {
+            <div class="notice error" role="alert">{{ error() }}</div>
+          }
+          <footer>
+            <button type="button" class="secondary" (click)="closeDialog()">Cancelar</button
+            ><button type="submit" [disabled]="submitting() || reversalForm.invalid">
+              Confirmar reversa
+            </button>
+          </footer>
+        </form>
+      } @else {
+        <header>
+          <div>
+            <p>Arqueo</p>
+            <h2 id="cash-dialog-title">Cerrar turno</h2>
+          </div>
+          <button type="button" aria-label="Cerrar" (click)="closeDialog()">
+            <i class="pi pi-times"></i>
+          </button>
+        </header>
+        <form [formGroup]="closureForm" (ngSubmit)="closeShift()">
+          <div class="close-summary">
+            <span
+              >Esperado <strong>{{ money(expectedCash(), currency()) }}</strong></span
+            ><span
+              >Contado <strong>{{ money(countedAmount() || '0', currency()) }}</strong></span
+            ><span [class.mismatch]="difference() !== '0.00'"
+              >Diferencia <strong>{{ money(difference() || '0', currency()) }}</strong></span
+            >
+          </div>
+          <label
+            >Total contado<input
+              formControlName="countedAmount"
+              inputmode="decimal"
+              autocomplete="off"
+              [readOnly]="hasDenominationCount()"
+          /></label>
+          <fieldset>
+            <legend>Conteo por denominaciones <small>(opcional)</small></legend>
+            <div class="denomination-grid">
+              @for (count of denominationCounts(); track $index) {
+                <label
+                  ><span>{{ money(denomination($index), currency()) }}</span
+                  ><input
+                    type="number"
+                    min="0"
+                    step="1"
+                    [value]="count"
+                    (input)="updateDenomination($index, $event)"
+                /></label>
+              }
+            </div>
+          </fieldset>
+          @if (difference() !== '0.00') {
+            <label
+              >Motivo de la diferencia<input
+                formControlName="differenceReason"
+                maxlength="160"
+                autocomplete="off"
+            /></label>
+          }
+          @if (error()) {
+            <div class="notice error" role="alert">{{ error() }}</div>
+          }
+          <footer>
+            <button type="button" class="secondary" (click)="closeDialog()">Cancelar</button
+            ><button type="submit" [disabled]="submitting() || closureForm.invalid">
+              Cerrar turno
+            </button>
+          </footer>
+        </form>
+      }
+    </section>
+  </div>
+}
