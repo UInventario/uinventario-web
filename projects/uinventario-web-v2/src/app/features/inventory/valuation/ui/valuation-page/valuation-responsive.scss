@@ -1,0 +1,85 @@
+@media (max-width: 1050px) {
+  .context-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .valuation-page {
+    padding: 18px 14px 28px;
+  }
+
+  .page-header,
+  .reconciliation-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .header-actions {
+    width: 100%;
+  }
+
+  .header-actions button {
+    flex: 1;
+  }
+
+  .title-group {
+    align-items: flex-start;
+  }
+
+  .context-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace {
+    display: block;
+  }
+
+  .workspace.has-selection ui-valuation-stock-list {
+    display: none;
+  }
+
+  .workspace:not(.has-selection) ui-valuation-detail {
+    display: none;
+  }
+
+  .workspace.has-selection .back-to-list {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .filters {
+    align-items: stretch;
+  }
+
+  .run-meta {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .findings article {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .findings article > a {
+    grid-column: 2;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-icon {
+    display: none;
+  }
+
+  .header-actions,
+  .filters {
+    flex-direction: column;
+  }
+
+  .filters button {
+    width: 100%;
+  }
+}

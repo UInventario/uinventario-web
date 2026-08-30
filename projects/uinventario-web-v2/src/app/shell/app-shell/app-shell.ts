@@ -101,6 +101,16 @@ export class AppShell {
       void this.router.navigate(['/compras/ordenes']);
       return;
     }
+    if (commandId === 'inventory-valuation') {
+      void this.router.navigate(['/inventario/valorizacion']);
+      return;
+    }
+    if (commandId === 'inventory-reconciliation') {
+      void this.router.navigate(['/inventario/valorizacion'], {
+        queryParams: { view: 'reconciliation' },
+      });
+      return;
+    }
     this.commandStatus.set(`Comando disponible para ${this.activeWorkspace().label}: ${commandId}`);
   }
 

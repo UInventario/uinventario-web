@@ -1,0 +1,262 @@
+:host {
+  min-width: 0;
+}
+
+.detail {
+  background: var(--surface-card);
+  border: 1px solid var(--surface-border);
+  border-radius: 16px;
+  min-height: 480px;
+  overflow: hidden;
+}
+
+header,
+.tabs,
+.layer-summary,
+.pagination {
+  align-items: center;
+  display: flex;
+}
+
+header {
+  justify-content: space-between;
+  padding: 20px;
+}
+
+header p,
+header h2 {
+  margin: 0;
+}
+
+header p {
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+header h2 {
+  font-size: 23px;
+  margin: 4px 0;
+}
+
+header span,
+small,
+.movement-list span {
+  color: var(--text-color-secondary);
+  font-size: 12px;
+}
+
+.health {
+  align-items: center;
+  background: color-mix(in srgb, var(--green-500) 12%, transparent);
+  border-radius: 999px;
+  color: var(--green-700);
+  display: flex;
+  font-weight: 700;
+  gap: 6px;
+  padding: 8px 12px;
+}
+
+.health.warning,
+.layer-summary.warning .status,
+.metric-grid article.warning strong {
+  color: var(--orange-600);
+}
+
+.tabs {
+  border-bottom: 1px solid var(--surface-border);
+  border-top: 1px solid var(--surface-border);
+  gap: 4px;
+  padding: 0 16px;
+}
+
+.tabs button {
+  background: transparent;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  color: var(--text-color-secondary);
+  cursor: pointer;
+  font-weight: 700;
+  padding: 14px 12px 11px;
+}
+
+.tabs button.active {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.metric-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 20px;
+}
+
+.metric-grid article {
+  background: var(--surface-ground);
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+
+.metric-grid strong {
+  font-size: 20px;
+}
+
+.server-note {
+  align-items: flex-start;
+  background: color-mix(in srgb, var(--primary-color) 7%, var(--surface-card));
+  border-radius: 10px;
+  color: var(--text-color-secondary);
+  display: flex;
+  gap: 8px;
+  margin: 0 20px 20px;
+  padding: 12px;
+}
+
+.server-note i {
+  color: var(--primary-color);
+  margin-top: 2px;
+}
+
+.layer-summary {
+  border-bottom: 1px solid var(--surface-border);
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 16px 20px;
+}
+
+.layer-summary > span:not(.status) {
+  display: grid;
+  gap: 4px;
+}
+
+.layer-summary .status {
+  color: var(--green-600);
+  font-size: 13px;
+  font-weight: 700;
+  margin-left: auto;
+}
+
+.layer-head,
+.layer-row {
+  align-items: center;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1.4fr 0.7fr 0.9fr 0.9fr 0.9fr;
+  padding: 12px 20px;
+}
+
+.layer-head {
+  color: var(--text-color-secondary);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.layer-row {
+  border-top: 1px solid var(--surface-border);
+  font-size: 13px;
+}
+
+.layer-row > span:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.movement-list {
+  padding: 8px 20px;
+}
+
+.movement-list article {
+  align-items: center;
+  border-bottom: 1px solid var(--surface-border);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 14px 0;
+}
+
+.movement-list article > div {
+  display: grid;
+  gap: 4px;
+}
+
+.movement-icon {
+  align-items: center;
+  background: color-mix(in srgb, var(--green-500) 12%, transparent);
+  border-radius: 10px;
+  color: var(--green-600) !important;
+  display: flex;
+  height: 38px;
+  justify-content: center;
+  width: 38px;
+}
+
+.movement-icon.out {
+  background: color-mix(in srgb, var(--red-500) 10%, transparent);
+  color: var(--red-600) !important;
+}
+
+.movement-value {
+  text-align: right;
+}
+
+.not-valued {
+  font-style: italic;
+}
+
+.empty,
+.state {
+  color: var(--text-color-secondary);
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.state {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center;
+  min-height: 420px;
+}
+
+.state span {
+  align-items: center;
+  background: var(--highlight-bg);
+  border-radius: 14px;
+  color: var(--primary-color);
+  display: flex;
+  font-size: 24px;
+  height: 52px;
+  justify-content: center;
+  width: 52px;
+}
+
+.state h2,
+.state p {
+  margin: 0;
+}
+
+.pagination {
+  border-top: 1px solid var(--surface-border);
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 14px 20px;
+}
+
+.pagination button {
+  background: var(--surface-ground);
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-color);
+  padding: 8px 12px;
+}
+
+.pagination button:disabled {
+  opacity: 0.4;
+}
