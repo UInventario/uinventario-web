@@ -90,11 +90,27 @@ export const routes: Routes = [
           import('./features/reports/reports.routes').then((module) => module.REPORTS_ROUTES),
       },
       {
-        path: 'administracion',
-        canActivate: [requireAnyPermission(...ADMINISTRATION_ACCESS)],
+        path: 'administracion/empresa',
+        canActivate: [requireAnyPermission('TENANT_MANAGE')],
         loadChildren: () =>
           import('./features/organization/organization.routes').then(
             (module) => module.ORGANIZATION_ADMIN_ROUTES,
+          ),
+      },
+      {
+        path: 'administracion/accesos',
+        canActivate: [requireAnyPermission('ACCESS_MANAGE')],
+        loadChildren: () =>
+          import('./features/administration/administration.routes').then(
+            (module) => module.ACCESS_ADMIN_ROUTES,
+          ),
+      },
+      {
+        path: 'administracion',
+        canActivate: [requireAnyPermission(...ADMINISTRATION_ACCESS)],
+        loadChildren: () =>
+          import('./features/administration/administration.routes').then(
+            (module) => module.ADMINISTRATION_ROUTES,
           ),
       },
     ],

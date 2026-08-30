@@ -49,7 +49,7 @@
           <a
             [routerLink]="item.path"
             routerLinkActive="active"
-            [routerLinkActiveOptions]="{ exact: true }"
+            [routerLinkActiveOptions]="{ exact: item.id === 'dashboard' }"
             [attr.aria-label]="item.label"
             (click)="closeNavigation()"
           >

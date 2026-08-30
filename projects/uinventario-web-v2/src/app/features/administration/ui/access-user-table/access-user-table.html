@@ -1,0 +1,72 @@
+<div class="user-table" role="table" aria-label="Usuarios y alcance operativo">
+  <div class="table-head" role="row">
+    <span role="columnheader">Persona</span><span role="columnheader">Roles</span
+    ><span role="columnheader">Sucursales</span><span role="columnheader">Cajas</span
+    ><span role="columnheader">Estado</span><span></span>
+  </div>
+  @for (user of users(); track user.id) {
+    <article class="user-row" role="row" [class.retired]="!user.active">
+      <div role="cell" data-label="Persona" class="identity">
+        <span class="avatar">{{ user.email.slice(0, 2).toUpperCase() }}</span>
+        <div>
+          <strong>{{ user.email }}</strong>
+          @if (!user.manageable) {
+            <small>Cuenta administradora protegida</small>
+          }
+        </div>
+      </div>
+      <div role="cell" data-label="Roles" class="chips">
+        @for (role of user.roles; track role.id) {
+          <span>{{ role.name }}</span>
+        }
+        @if (!user.roles.length) {
+          <em>Sin roles</em>
+        }
+      </div>
+      <div role="cell" data-label="Sucursales" class="scope-list">
+        @for (branch of user.branches; track branch.id) {
+          <span>{{ branch.name }}</span>
+        }
+        @if (!user.branches.length) {
+          <em>Sin alcance</em>
+        }
+      </div>
+      <div role="cell" data-label="Cajas" class="scope-list">
+        @for (register of user.cashRegisters; track register.id) {
+          <span>{{ register.name }} · {{ register.code }}</span>
+        }
+        @if (!user.cashRegisters.length) {
+          <em>No restringidas por caja</em>
+        }
+      </div>
+      <div role="cell" data-label="Estado">
+        <span class="status" [class.inactive]="!user.active"
+          ><i class="pi" [class.pi-check-circle]="user.active" [class.pi-ban]="!user.active"></i
+          >{{ user.active ? 'Activo' : 'Retirado' }}</span
+        >
+      </div>
+      <div role="cell" class="row-actions">
+        @if (user.manageable) {
+          <button
+            type="button"
+            class="icon-button"
+            [attr.aria-label]="(user.active ? 'Editar ' : 'Reactivar ') + user.email"
+            (click)="edit.emit(user)"
+          >
+            <i class="pi" [class.pi-pencil]="user.active" [class.pi-refresh]="!user.active"></i>
+          </button>
+          @if (user.active) {
+            <button
+              type="button"
+              class="icon-button danger"
+              [attr.aria-label]="'Retirar ' + user.email"
+              (click)="retire.emit(user)"
+            >
+              <i class="pi pi-user-minus"></i>
+            </button>
+          }
+        }
+      </div>
+    </article>
+  }
+</div>

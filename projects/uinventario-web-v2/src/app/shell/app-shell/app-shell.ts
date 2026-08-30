@@ -81,6 +81,14 @@ export class AppShell {
       void this.router.navigate(['/ventas/pos']);
       return;
     }
+    if (commandId === 'company-settings') {
+      void this.router.navigate(['/administracion/empresa']);
+      return;
+    }
+    if (commandId === 'manage-users') {
+      void this.router.navigate(['/administracion/accesos']);
+      return;
+    }
     this.commandStatus.set(`Comando disponible para ${this.activeWorkspace().label}: ${commandId}`);
   }
 

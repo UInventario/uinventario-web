@@ -185,7 +185,7 @@ test('creates and safely retires organization resources', async ({ page }) => {
     });
   });
 
-  await page.goto('./administracion');
+  await page.goto('./administracion/empresa');
   await page.getByRole('button', { name: 'Nueva sucursal' }).click();
   await page.getByLabel('Nombre').fill('Sucursal Norte');
   await page.getByLabel('Bodega inicial').fill('Bodega Norte');

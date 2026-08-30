@@ -1,0 +1,111 @@
+:host {
+  display: block;
+}
+.matrix-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem;
+  border-bottom: 1px solid var(--p-surface-200);
+}
+.matrix-heading strong,
+.matrix-heading span {
+  display: block;
+}
+.matrix-heading > div > span {
+  margin-top: 0.2rem;
+  color: var(--p-text-muted-color);
+  font-size: 0.78rem;
+}
+.risk-legend {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+.risk {
+  display: inline-block;
+  width: fit-content;
+  padding: 0.18rem 0.38rem;
+  border-radius: 999px;
+  font-size: 0.6rem;
+  font-style: normal;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.risk.standard {
+  background: var(--p-green-50);
+  color: var(--p-green-800);
+}
+.risk.elevated {
+  background: var(--p-orange-50);
+  color: var(--p-orange-800);
+}
+.risk.critical {
+  background: var(--p-red-50);
+  color: var(--p-red-800);
+}
+.matrix-scroll {
+  max-height: 36rem;
+  overflow: auto;
+}
+table {
+  width: 100%;
+  min-width: 44rem;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+th,
+td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--p-surface-100);
+  text-align: center;
+}
+thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--p-surface-50);
+}
+thead th:first-child,
+tbody th {
+  text-align: left;
+}
+thead th:not(:first-child) {
+  min-width: 7rem;
+}
+tbody th span,
+tbody th small {
+  display: block;
+}
+tbody th small {
+  max-width: 26rem;
+  margin: 0.1rem 0 0.3rem;
+  color: var(--p-text-muted-color);
+  font-weight: 400;
+}
+.group-row th {
+  position: sticky;
+  top: 2.2rem;
+  z-index: 1;
+  background: var(--p-surface-100);
+  color: var(--p-primary-800);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.group-row i {
+  margin-right: 0.4rem;
+}
+td .pi-minus {
+  color: var(--p-surface-300);
+}
+td .granted {
+  color: var(--p-green-600);
+  font-size: 1rem;
+}
+@media (max-width: 44rem) {
+  .matrix-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
