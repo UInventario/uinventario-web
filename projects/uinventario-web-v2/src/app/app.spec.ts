@@ -1,12 +1,13 @@
 import { TestBed } from '@angular/core/testing';
-import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { provideRouter } from '@angular/router';
 import { App } from './app';
+import { routes } from './app.routes';
 
 describe('App', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideNoopAnimations()],
+      providers: [provideRouter(routes)],
     }).compileComponents();
   });
 
@@ -15,14 +16,9 @@ describe('App', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it('identifies V2 and keeps a route to the stable frontend', async () => {
+  it('delegates screen rendering to the router outlet', () => {
     const fixture = TestBed.createComponent(App);
-    await fixture.whenStable();
-    const element = fixture.nativeElement as HTMLElement;
-
-    expect(element.querySelector('h1')?.textContent).toContain('Una nueva interfaz');
-    expect(element.querySelector<HTMLAnchorElement>('.stable-link')?.getAttribute('href')).toBe(
-      '/',
-    );
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('router-outlet')).toBeTruthy();
   });
 });
