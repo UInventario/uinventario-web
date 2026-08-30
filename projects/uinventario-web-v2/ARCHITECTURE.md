@@ -36,6 +36,20 @@ necesita, respetando esta ubicación.
 Las implementaciones `data` se conectan a puertos `domain` mediante providers en la entrada pública
 del feature. Así los casos de uso no conocen HTTP, storage ni DTO.
 
+## Contratos HTTP
+
+- Los servicios `data` consumen `ApiClient` y declaran DTOs propios; no exponen DTOs como modelos de
+  pantalla. La conversión se realiza mediante `ApiMapper` y `mapApiData`.
+- `ApiRequestContext` recibe el tenant únicamente después de aceptar una sesión. El header de tenant
+  aporta contexto, pero la autorización y el aislamiento continúan siendo responsabilidad de la
+  sesión segura validada por el servidor.
+- Cada request al API obtiene una correlación nueva; ni tenant ni correlación se envían a hosts
+  externos.
+- GET/HEAD/OPTIONS pueden reintentarse una vez ante errores transitorios. Una mutación sólo puede
+  reintentarse si conserva una `Idempotency-Key` explícita.
+- Las búsquedas reactivas usan `switchSearchRequest` para cancelar la solicitud anterior cuando
+  cambian los filtros.
+
 ## Responsabilidad de archivos
 
 - Componentes y páginas sólo coordinan interacción y renderizado.
