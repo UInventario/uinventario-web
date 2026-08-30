@@ -89,6 +89,10 @@ export class AppShell {
       void this.router.navigate(['/administracion/accesos']);
       return;
     }
+    if (commandId === 'manage-suppliers') {
+      void this.router.navigate(['/compras/proveedores']);
+      return;
+    }
     this.commandStatus.set(`Comando disponible para ${this.activeWorkspace().label}: ${commandId}`);
   }
 

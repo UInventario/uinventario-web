@@ -1,0 +1,288 @@
+:host {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+}
+
+.backdrop {
+  display: grid;
+  min-height: 100%;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(15 23 42 / 0.58);
+}
+
+.dialog {
+  width: min(48rem, 100%);
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  border: 1px solid var(--p-surface-200);
+  border-radius: var(--radius-lg);
+  background: white;
+  box-shadow: 0 24px 64px rgb(15 23 42 / 0.25);
+}
+
+header,
+.section-title,
+.actions,
+.contact-heading,
+.product-option,
+.selected-product {
+  display: flex;
+  align-items: center;
+}
+
+header {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--p-surface-200);
+  background: white;
+
+  p,
+  h2 {
+    margin: 0;
+  }
+
+  p {
+    color: var(--p-primary-600);
+    font-size: 0.7rem;
+    font-weight: 750;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  h2 {
+    margin-top: 0.2rem;
+    font-size: 1.25rem;
+  }
+}
+
+form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  padding: 1.25rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+
+  label {
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  small {
+    color: var(--p-text-muted-color);
+  }
+}
+
+input:not([type='checkbox']),
+select {
+  width: 100%;
+  min-height: var(--ui-control-height);
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--p-surface-300);
+  border-radius: var(--radius-md);
+  background: white;
+  color: var(--p-text-color);
+  font: inherit;
+}
+
+.full {
+  grid-column: 1 / -1;
+}
+
+.section-title,
+.contact-heading {
+  justify-content: space-between;
+  gap: 1rem;
+
+  h3,
+  p {
+    margin: 0;
+  }
+
+  p {
+    color: var(--p-text-muted-color);
+    font-size: 0.8rem;
+  }
+}
+
+.contacts {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.contact-card {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid var(--p-surface-200);
+  border-radius: var(--radius-md);
+  background: var(--p-surface-50);
+}
+
+.contact-heading {
+  grid-column: 1 / -1;
+}
+
+.primary-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.primary,
+.secondary,
+.icon,
+.text-button {
+  min-height: var(--ui-control-height);
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.primary,
+.secondary {
+  padding: 0 1rem;
+}
+
+.primary {
+  background: var(--p-primary-600);
+  color: white;
+}
+
+.secondary,
+.icon {
+  background: var(--p-surface-100);
+  color: var(--p-text-color);
+}
+
+.icon {
+  width: var(--ui-control-height);
+}
+
+.text-button {
+  min-height: auto;
+  padding: 0.25rem;
+  background: transparent;
+  color: var(--p-primary-700);
+}
+
+.danger-text {
+  color: var(--p-red-700);
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.notice {
+  padding: 0.7rem;
+  border-radius: var(--radius-md);
+}
+
+.notice.error {
+  border: 1px solid var(--p-red-200);
+  background: var(--p-red-50);
+  color: var(--p-red-800);
+}
+
+.actions {
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-top: 0.25rem;
+}
+
+.product-search {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+}
+
+.product-results {
+  display: grid;
+  max-height: 12rem;
+  overflow: auto;
+  border: 1px solid var(--p-surface-200);
+  border-radius: var(--radius-md);
+}
+
+.product-option {
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 3.25rem;
+  padding: 0.6rem 0.75rem;
+  border: 0;
+  border-bottom: 1px solid var(--p-surface-200);
+  background: white;
+  color: var(--p-text-color);
+  text-align: left;
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  &:hover,
+  &.selected {
+    background: var(--p-primary-50);
+  }
+
+  span {
+    display: grid;
+  }
+
+  small {
+    color: var(--p-text-muted-color);
+  }
+}
+
+.selected-product {
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem;
+  border-radius: var(--radius-md);
+  background: var(--p-primary-50);
+
+  span {
+    display: grid;
+  }
+}
+
+@media (max-width: 40rem) {
+  .backdrop {
+    align-items: end;
+    padding: 0;
+  }
+
+  .dialog {
+    max-height: 94vh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+
+  form,
+  .contact-card {
+    grid-template-columns: 1fr;
+  }
+
+  form {
+    gap: 0.75rem;
+    padding: 0.9rem 1rem;
+  }
+
+  .full,
+  .contact-heading {
+    grid-column: auto;
+  }
+}

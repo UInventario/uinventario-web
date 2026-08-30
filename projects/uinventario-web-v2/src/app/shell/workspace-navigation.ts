@@ -177,6 +177,18 @@ const COMMANDS: Record<WorkspaceId, readonly PolicyGroup[]> = {
   ],
   compras: [
     {
+      id: 'suppliers',
+      label: 'Proveedores',
+      commands: [
+        {
+          id: 'manage-suppliers',
+          label: 'Proveedores',
+          icon: 'pi pi-building',
+          permissionsAny: ['SUPPLIERS_MANAGE'],
+        },
+      ],
+    },
+    {
       id: 'orders',
       label: 'Órdenes',
       commands: [

@@ -1,0 +1,123 @@
+<div class="backdrop" (click)="closed.emit()">
+  <section
+    class="dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="supplier-editor-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <p>{{ supplier() ? 'Editar proveedor' : 'Alta de proveedor' }}</p>
+        <h2 id="supplier-editor-title">{{ supplier()?.legalName || 'Nuevo proveedor' }}</h2>
+      </div>
+      <button class="icon" type="button" aria-label="Cerrar" (click)="closed.emit()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <div class="field full">
+        <label for="supplierLegalName">Razón social</label>
+        <input id="supplierLegalName" formControlName="legalName" maxlength="180" />
+      </div>
+      <div class="field">
+        <label for="supplierTradeName">Nombre comercial</label>
+        <input id="supplierTradeName" formControlName="tradeName" maxlength="180" />
+      </div>
+      <div class="field">
+        <label for="supplierTaxIdentifier">Identificación fiscal</label>
+        <input id="supplierTaxIdentifier" formControlName="taxIdentifier" maxlength="64" />
+        <small>Se valida según el país configurado para la empresa.</small>
+      </div>
+
+      <div class="section-title full">
+        <div>
+          <h3>Contactos</h3>
+          <p>Agrega las personas necesarias para compras, pagos y recepción.</p>
+        </div>
+        <button
+          class="secondary"
+          type="button"
+          [disabled]="contacts.length >= 20"
+          (click)="addContact()"
+        >
+          <i class="pi pi-plus"></i> Agregar
+        </button>
+      </div>
+
+      <div class="contacts full" formArrayName="contacts">
+        @for (contact of contacts.controls; track contact; let index = $index) {
+          <section class="contact-card" [formGroupName]="index">
+            <div class="contact-heading">
+              <strong>Contacto {{ index + 1 }}</strong>
+              <button
+                class="text-button danger-text"
+                type="button"
+                [attr.aria-label]="'Eliminar contacto ' + (index + 1)"
+                (click)="removeContact(index)"
+              >
+                Eliminar
+              </button>
+            </div>
+            <div class="field full">
+              <label [for]="'supplierContactName' + index">Nombre</label>
+              <input [id]="'supplierContactName' + index" formControlName="name" maxlength="120" />
+            </div>
+            <div class="field">
+              <label [for]="'supplierContactEmail' + index">Correo</label>
+              <input
+                [id]="'supplierContactEmail' + index"
+                type="email"
+                formControlName="email"
+                maxlength="254"
+              />
+            </div>
+            <div class="field">
+              <label [for]="'supplierContactPhone' + index">Teléfono</label>
+              <input
+                [id]="'supplierContactPhone' + index"
+                type="tel"
+                formControlName="phone"
+                maxlength="40"
+              />
+            </div>
+            <div class="field">
+              <label [for]="'supplierContactRole' + index">Área o función</label>
+              <input
+                [id]="'supplierContactRole' + index"
+                formControlName="role"
+                maxlength="80"
+                placeholder="Ej. Ventas, pagos, logística"
+              />
+            </div>
+            <label class="primary-check">
+              <input type="checkbox" formControlName="primary" (change)="makePrimary(index)" />
+              Contacto principal
+            </label>
+            @if (contact.touched && contact.invalid) {
+              <div class="notice error full" role="alert">
+                Indica un nombre válido y al menos correo o teléfono.
+              </div>
+            }
+          </section>
+        }
+      </div>
+
+      @if (form.touched && form.invalid) {
+        <div class="notice error full" role="alert">
+          Revisa los datos fiscales y de contacto antes de guardar.
+        </div>
+      }
+      @if (error()) {
+        <div class="notice error full" role="alert">{{ error() }}</div>
+      }
+      <footer class="actions full">
+        <button class="secondary" type="button" (click)="closed.emit()">Cancelar</button>
+        <button class="primary" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Guardando…' : 'Guardar proveedor' }}
+        </button>
+      </footer>
+    </form>
+  </section>
+</div>
