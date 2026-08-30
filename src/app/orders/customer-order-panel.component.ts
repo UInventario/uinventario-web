@@ -40,6 +40,12 @@ export class CustomerOrderPanelComponent implements OnInit {
     reason?: string;
     key: string;
   } | null = null;
+  private pendingShipping: {
+    orderId: string;
+    action: 'cancel' | 'poll';
+    scenario: 'SUCCESS' | 'TIMEOUT' | 'IN_TRANSIT' | 'OUT_FOR_DELIVERY' | 'DELIVERED';
+    key: string;
+  } | null = null;
 
   protected readonly customers = signal<CustomerData[]>([]);
   protected readonly products = signal<ProductData[]>([]);
@@ -49,6 +55,14 @@ export class CustomerOrderPanelComponent implements OnInit {
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
   protected readonly actionId = signal<string | null>(null);
+  protected readonly shippingActionId = signal<string | null>(null);
+  protected readonly shippingQuote = signal<{
+    orderId: string;
+    amount: string;
+    currency: string;
+    service: string;
+    estimatedDeliveryAt: string;
+  } | null>(null);
   protected readonly error = signal<string | null>(null);
   protected readonly success = signal<string | null>(null);
   protected readonly cancelling = signal<CustomerOrderData | null>(null);
@@ -254,6 +268,33 @@ export class CustomerOrderPanelComponent implements OnInit {
     this.runAction(order, action);
   }
 
+  protected quoteShipping(order: CustomerOrderData): void {
+    if (this.shippingActionId()) return;
+    this.shippingActionId.set(order.id);
+    this.error.set(null);
+    this.api
+      .quoteShipping(order.id)
+      .pipe(finalize(() => this.shippingActionId.set(null)))
+      .subscribe({
+        next: ({ data }) => {
+          this.shippingQuote.set({ orderId: order.id, ...data });
+          this.success.set(`Tarifa ${data.service}: ${data.amount} ${data.currency}.`);
+        },
+        error: (error: HttpErrorResponse) => this.error.set(this.message(error)),
+      });
+  }
+
+  protected pollShipping(
+    order: CustomerOrderData,
+    scenario: 'IN_TRANSIT' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'TIMEOUT',
+  ): void {
+    this.runShipping(order, 'poll', scenario);
+  }
+
+  protected cancelShipping(order: CustomerOrderData, scenario: 'SUCCESS' | 'TIMEOUT'): void {
+    this.runShipping(order, 'cancel', scenario);
+  }
+
   protected requestCancellation(order: CustomerOrderData): void {
     this.cancelling.set(order);
     this.cancellationReason.setValue('');
@@ -356,6 +397,53 @@ export class CustomerOrderPanelComponent implements OnInit {
           if (error.status === 409) this.loadOrders(this.page());
         },
       });
+  }
+
+  private runShipping(
+    order: CustomerOrderData,
+    action: 'cancel' | 'poll',
+    scenario: 'SUCCESS' | 'TIMEOUT' | 'IN_TRANSIT' | 'OUT_FOR_DELIVERY' | 'DELIVERED',
+  ): void {
+    if (this.shippingActionId()) return;
+    const pending = this.pendingShipping;
+    const request =
+      pending?.orderId === order.id && pending.action === action && pending.scenario === scenario
+        ? pending
+        : {
+            orderId: order.id,
+            action,
+            scenario,
+            key: `web-shipping-${action}-${crypto.randomUUID()}`,
+          };
+    this.pendingShipping = request;
+    this.shippingActionId.set(order.id);
+    this.error.set(null);
+    this.success.set(null);
+    const operation =
+      action === 'cancel'
+        ? this.api.cancelShipping(order.id, scenario as 'SUCCESS' | 'TIMEOUT', request.key)
+        : this.api.pollShipping(
+            order.id,
+            scenario as 'IN_TRANSIT' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'TIMEOUT',
+            request.key,
+          );
+    operation.pipe(finalize(() => this.shippingActionId.set(null))).subscribe({
+      next: ({ data }) => {
+        this.pendingShipping = null;
+        this.orders.update((current) => [data, ...current.filter(({ id }) => id !== data.id)]);
+        this.success.set(
+          action === 'cancel'
+            ? data.fulfillment.carrier?.manualActionRequired
+              ? 'El proveedor no confirmó la cancelación; continúa manualmente.'
+              : 'Envío cancelado; el pedido permanece disponible.'
+            : `Tracking actualizado: ${data.fulfillment.carrier?.trackingStatus ?? 'sin cambio'}.`,
+        );
+      },
+      error: (error: HttpErrorResponse) => {
+        if (error.status > 0 && error.status < 500) this.pendingShipping = null;
+        this.error.set(this.message(error));
+      },
+    });
   }
 
   private load(): void {

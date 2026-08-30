@@ -67,6 +67,23 @@
   color: #415466;
 }
 
+.carrier-warning {
+  color: #8a4b08;
+}
+
+.shipping-label {
+  max-width: 100%;
+}
+
+.shipping-label pre {
+  max-width: 100%;
+  padding: 0.6rem;
+  overflow: auto;
+  border: 1px dashed var(--line, #d8dee8);
+  background: #fff;
+  white-space: pre-wrap;
+}
+
 .editor,
 .queue {
   align-self: start;

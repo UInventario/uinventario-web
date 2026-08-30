@@ -46,7 +46,20 @@ export interface CustomerOrderData {
     carrier: {
       code: 'SIMULATED' | 'SIMULATED_RETRY';
       name: string;
+      providerVersion: '1';
       trackingReference: string | null;
+      label: { format: 'ZPL'; payload: string } | null;
+      trackingStatus:
+        | 'LABEL_READY'
+        | 'IN_TRANSIT'
+        | 'OUT_FOR_DELIVERY'
+        | 'DELIVERED'
+        | 'EXCEPTION'
+        | 'CANCELLED'
+        | null;
+      latestEventSequence: number;
+      latestEventAt: string | null;
+      manualActionRequired: boolean;
       attempts: number;
       lastErrorCode: string | null;
       lastAttemptAt: string | null;
@@ -167,5 +180,54 @@ export class CustomerOrderApiService {
         headers: new HttpHeaders({ 'Idempotency-Key': key }),
       },
     );
+  }
+
+  quoteShipping(orderId: string) {
+    return this.http.post<{
+      data: {
+        quoteReference: string;
+        service: string;
+        amount: string;
+        currency: string;
+        estimatedDeliveryAt: string;
+      };
+      meta: { apiVersion: '1' };
+    }>(
+      `${this.config.apiBaseUrl()}/shipping/v1/orders/${orderId}/quote`,
+      {},
+      {
+        withCredentials: true,
+      },
+    );
+  }
+
+  cancelShipping(orderId: string, scenario: 'SUCCESS' | 'TIMEOUT', key: string) {
+    return this.shippingAction(orderId, 'cancel', { scenario }, key);
+  }
+
+  pollShipping(
+    orderId: string,
+    scenario: 'IN_TRANSIT' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'TIMEOUT',
+    key: string,
+  ) {
+    return this.shippingAction(orderId, 'poll', { scenario }, key);
+  }
+
+  private shippingAction(
+    orderId: string,
+    action: 'cancel' | 'poll',
+    body: { scenario: string },
+    key: string,
+  ) {
+    return this.http.post<
+      CustomerOrderResponse & {
+        meta: CustomerOrderResponse['meta'] & {
+          eventApplied?: boolean;
+        };
+      }
+    >(`${this.config.apiBaseUrl()}/shipping/v1/orders/${orderId}/${action}`, body, {
+      withCredentials: true,
+      headers: new HttpHeaders({ 'Idempotency-Key': key }),
+    });
   }
 }
