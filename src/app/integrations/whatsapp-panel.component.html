@@ -1,0 +1,119 @@
+<section class="whatsapp-panel" id="whatsapp-title" aria-labelledby="whatsapp-heading">
+  <header>
+    <div>
+      <p class="eyebrow">Canal opcional con consentimiento</p>
+      <h2 id="whatsapp-heading">WhatsApp · contrato v1</h2>
+      <p>Plantillas fijas, baja inmediata y datos de destino enmascarados.</p>
+    </div>
+    <span class="mode">SIMULATOR · NO PRODUCTIVO</span>
+  </header>
+
+  @if (error()) {
+    <p class="error" role="alert">{{ error() }}</p>
+  }
+  @if (success()) {
+    <p class="success" role="status">{{ success() }}</p>
+  }
+
+  @if (loading()) {
+    <p role="status">Cargando WhatsApp…</p>
+  } @else {
+    <div class="compose">
+      <label
+        >Plantilla
+        <select [value]="template()" (change)="template.set($any($event.target).value)">
+          @for (item of templates(); track item) {
+            <option [value]="item">{{ item }}</option>
+          }
+        </select>
+      </label>
+      <label
+        >Referencia
+        <input
+          maxlength="120"
+          [value]="reference()"
+          (input)="reference.set($any($event.target).value)"
+      /></label>
+      <label
+        >Escenario
+        <select [value]="scenario()" (change)="scenario.set($any($event.target).value)">
+          <option value="SUCCESS">Éxito</option>
+          <option value="REJECT">Rechazo</option>
+          <option value="TIMEOUT">Timeout</option>
+          <option value="RETRY">Reintento</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="consents" aria-label="Consentimientos por cliente">
+      @for (customer of consents(); track customer.customerId) {
+        <article>
+          <div>
+            <strong>{{ customer.customerName }}</strong>
+            <small>{{ customer.phoneMasked || 'Sin teléfono' }} · {{ customer.status }}</small>
+          </div>
+          <div class="actions">
+            <button
+              type="button"
+              class="secondary"
+              (click)="consent(customer, customer.status !== 'OPTED_IN')"
+              [disabled]="busy() || (!customer.phoneMasked && customer.status !== 'OPTED_IN')"
+            >
+              {{ customer.status === 'OPTED_IN' ? 'Dar de baja' : 'Registrar consentimiento' }}
+            </button>
+            <button
+              type="button"
+              (click)="send(customer)"
+              [disabled]="busy() || customer.status !== 'OPTED_IN'"
+            >
+              Enviar plantilla
+            </button>
+          </div>
+        </article>
+      } @empty {
+        <p>No hay clientes activos.</p>
+      }
+    </div>
+
+    <div class="webhook-controls">
+      <label
+        >Estado simulado
+        <select [value]="webhookStatus()" (change)="webhookStatus.set($any($event.target).value)">
+          <option value="DELIVERED">Entregado</option>
+          <option value="READ">Leído</option>
+          <option value="FAILED">Fallido</option>
+        </select>
+      </label>
+      <button type="button" class="secondary" (click)="reload()" [disabled]="loading()">
+        Recargar
+      </button>
+    </div>
+
+    <div class="messages" aria-label="Historial WhatsApp">
+      @for (message of messages(); track message.id) {
+        <article>
+          <div>
+            <strong>{{ message.customer.name }} · {{ message.template.key }}</strong>
+            <small>{{ message.recipientMasked }} · {{ message.createdAt | date: 'short' }}</small>
+          </div>
+          <span class="status">{{ message.status }}</span>
+          @if (message.reference) {
+            <code>{{ message.reference }}</code>
+          }
+          @if (message.errorCode) {
+            <code>{{ message.errorCode }}</code>
+          }
+          <button
+            type="button"
+            (click)="webhook(message)"
+            [disabled]="busy() || !canWebhook(message)"
+          >
+            Enviar webhook verificado
+          </button>
+        </article>
+      } @empty {
+        <p>No hay mensajes WhatsApp.</p>
+      }
+    </div>
+  }
+</section>

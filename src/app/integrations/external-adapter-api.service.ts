@@ -2,7 +2,8 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { RuntimeConfigService } from '../core/runtime-config.service';
 
-export type ExternalAdapterCapability = 'NOTIFICATION_EMAIL' | 'NOTIFICATION_PUSH';
+export type ExternalAdapterCapability =
+  'NOTIFICATION_EMAIL' | 'NOTIFICATION_PUSH' | 'NOTIFICATION_WHATSAPP';
 export type ExternalAdapterScenario = 'SUCCESS' | 'REJECT' | 'TIMEOUT' | 'RETRY';
 export type ExternalAdapterStatus =
   'PENDING' | 'SUCCEEDED' | 'REJECTED' | 'RETRYABLE_FAILURE' | 'TIMED_OUT';

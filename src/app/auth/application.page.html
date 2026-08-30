@@ -55,6 +55,7 @@
       <a routerLink="/app" fragment="erp-integrations-title">ERP</a>
       <a routerLink="/app" fragment="psp-title">PSP</a>
       <a routerLink="/app" fragment="accounting-title">Contabilidad</a>
+      <a routerLink="/app" fragment="whatsapp-title">WhatsApp</a>
     }
   </nav>
 
@@ -74,6 +75,7 @@
     <app-erp-integration-panel />
     <app-psp-panel />
     <app-accounting-panel />
+    <app-whatsapp-panel />
     @if (session(); as currentSession) {
       <app-commerce-integration-panel
         [session]="currentSession"
