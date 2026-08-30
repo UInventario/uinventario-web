@@ -1,6 +1,6 @@
 <a class="skip-link" href="#workspace-content">Saltar al contenido</a>
 
-<div class="app-shell">
+<div class="app-shell" [class.pos-mode]="posMode()">
   <header class="topbar">
     <button
       class="navigation-toggle"
@@ -64,7 +64,12 @@
       </a>
     </aside>
 
-    <main id="workspace-content" class="workspace-content" tabindex="-1">
+    <main
+      id="workspace-content"
+      class="workspace-content"
+      [class.pos-workspace]="posMode()"
+      tabindex="-1"
+    >
       <nav class="breadcrumbs" aria-label="Breadcrumb">
         <a routerLink="/dashboard">UInventario</a>
         <i class="pi pi-angle-right" aria-hidden="true"></i>

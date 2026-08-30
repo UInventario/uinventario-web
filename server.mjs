@@ -55,7 +55,7 @@ function setSecurityHeaders(response, environment) {
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('X-Frame-Options', 'DENY');
   response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  response.setHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
   if (environment !== 'local') {
     response.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   }

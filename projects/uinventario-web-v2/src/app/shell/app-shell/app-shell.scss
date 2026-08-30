@@ -26,6 +26,14 @@
   overflow: hidden;
 }
 
+.app-shell.pos-mode {
+  grid-template-rows: auto minmax(0, 1fr);
+
+  > ui-ribbon {
+    display: none;
+  }
+}
+
 .topbar,
 .brand,
 .topbar-context,
@@ -157,6 +165,15 @@
   min-width: 0;
   overflow: auto;
   padding: calc(var(--spacing) * 5) clamp(1rem, 3vw, 2.5rem);
+}
+
+.workspace-content.pos-workspace {
+  overflow: hidden;
+  padding: 0;
+
+  > .breadcrumbs {
+    display: none;
+  }
 }
 
 .breadcrumbs {
