@@ -94,6 +94,10 @@
               {
                 "glob": "**/*",
                 "input": "projects/uinventario-web-v2/public"
+              },
+              {
+                "glob": "config.json",
+                "input": "public"
               }
             ],
             "styles": [
