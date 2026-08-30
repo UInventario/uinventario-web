@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { ApiClient } from '../api/api-client';
-import { LoginInput, SessionResponse } from './session.models';
+import { LoginInput, SessionContextInput, SessionResponse } from './session.models';
 
 @Injectable({ providedIn: 'root' })
 export class SessionApi {
@@ -16,6 +16,13 @@ export class SessionApi {
 
   refresh() {
     return this.api.post<SessionResponse, Record<string, never>>('/auth/sessions/refresh', {});
+  }
+
+  changeContext(input: SessionContextInput) {
+    return this.api.patch<SessionResponse, SessionContextInput>(
+      '/auth/sessions/current/context',
+      input,
+    );
   }
 
   logout() {

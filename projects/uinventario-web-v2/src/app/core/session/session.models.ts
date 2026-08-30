@@ -1,11 +1,12 @@
 import { ApiEnvelope } from '../api/api-contracts';
+import { AppPermission } from '../authorization/app-permission';
 
 export interface SessionData {
   readonly user: {
     readonly id: string;
     readonly email: string;
     readonly roles: readonly string[];
-    readonly permissions: readonly string[];
+    readonly permissions: readonly AppPermission[];
   };
   readonly tenant: { readonly id: string; readonly name: string };
   readonly context: {
@@ -28,4 +29,10 @@ export type SessionResponse = ApiEnvelope<
 export interface LoginInput {
   readonly email: string;
   readonly password: string;
+}
+
+export interface SessionContextInput {
+  readonly branchId: string;
+  readonly warehouseId: string;
+  readonly cashRegisterId?: string;
 }

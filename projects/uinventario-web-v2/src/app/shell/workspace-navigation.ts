@@ -1,3 +1,4 @@
+import { AppPermission } from '../core/authorization/app-permission';
 import { RibbonTab } from '../shared/ui/ribbon/ribbon.models';
 
 export type WorkspaceId =
@@ -8,24 +9,116 @@ export interface WorkspaceNavigationItem {
   readonly label: string;
   readonly icon: string;
   readonly path: string;
+  readonly permissionsAny?: readonly AppPermission[];
 }
+
+interface PolicyCommand {
+  readonly id: string;
+  readonly label: string;
+  readonly icon: string;
+  readonly shortcut?: string;
+  readonly permissionsAny?: readonly AppPermission[];
+}
+
+interface PolicyGroup {
+  readonly id: string;
+  readonly label: string;
+  readonly commands: readonly PolicyCommand[];
+}
+
+interface PolicyTab {
+  readonly id: string;
+  readonly label: string;
+  readonly groups: readonly PolicyGroup[];
+}
+
+export const CATALOG_ACCESS = [
+  'PRODUCTS_MANAGE',
+  'INVENTORY_VIEW',
+  'SUPPLIERS_MANAGE',
+  'SALES_MANAGE',
+] as const satisfies readonly AppPermission[];
+export const INVENTORY_ACCESS = [
+  'INVENTORY_VIEW',
+  'INVENTORY_ADJUST',
+  'INVENTORY_TRANSFER',
+  'INVENTORY_COUNT',
+  'INVENTORY_APPROVE',
+  'INVENTORY_VALUATION_MANAGE',
+] as const satisfies readonly AppPermission[];
+export const PURCHASES_ACCESS = [
+  'SUPPLIERS_MANAGE',
+  'PURCHASE_ORDERS_MANAGE',
+  'PURCHASE_ORDERS_APPROVE',
+] as const satisfies readonly AppPermission[];
+export const SALES_ACCESS = [
+  'SALES_MANAGE',
+  'SALES_VOID',
+  'SALES_RETURN',
+  'SALE_REPRINT',
+  'CASH_REGISTER_OPEN',
+  'CASH_REGISTER_CLOSE',
+] as const satisfies readonly AppPermission[];
+export const REPORTS_ACCESS = [
+  'AUDIT_VIEW',
+  'INVENTORY_VIEW',
+  'INVENTORY_VALUATION_MANAGE',
+] as const satisfies readonly AppPermission[];
+export const ADMINISTRATION_ACCESS = [
+  'TENANT_MANAGE',
+  'ACCESS_MANAGE',
+  'AUDIT_VIEW',
+  'PRIVACY_MANAGE',
+  'NOTIFICATIONS_MANAGE',
+] as const satisfies readonly AppPermission[];
 
 export const WORKSPACE_NAVIGATION: readonly WorkspaceNavigationItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: 'pi pi-home', path: '/dashboard' },
-  { id: 'catalogo', label: 'Catálogo', icon: 'pi pi-box', path: '/catalogo' },
-  { id: 'inventario', label: 'Inventario', icon: 'pi pi-warehouse', path: '/inventario' },
-  { id: 'compras', label: 'Compras', icon: 'pi pi-truck', path: '/compras' },
-  { id: 'ventas', label: 'Ventas', icon: 'pi pi-shopping-cart', path: '/ventas' },
-  { id: 'reportes', label: 'Reportes', icon: 'pi pi-chart-bar', path: '/reportes' },
+  {
+    id: 'catalogo',
+    label: 'Catálogo',
+    icon: 'pi pi-box',
+    path: '/catalogo',
+    permissionsAny: CATALOG_ACCESS,
+  },
+  {
+    id: 'inventario',
+    label: 'Inventario',
+    icon: 'pi pi-warehouse',
+    path: '/inventario',
+    permissionsAny: INVENTORY_ACCESS,
+  },
+  {
+    id: 'compras',
+    label: 'Compras',
+    icon: 'pi pi-truck',
+    path: '/compras',
+    permissionsAny: PURCHASES_ACCESS,
+  },
+  {
+    id: 'ventas',
+    label: 'Ventas',
+    icon: 'pi pi-shopping-cart',
+    path: '/ventas',
+    permissionsAny: SALES_ACCESS,
+  },
+  {
+    id: 'reportes',
+    label: 'Reportes',
+    icon: 'pi pi-chart-bar',
+    path: '/reportes',
+    permissionsAny: REPORTS_ACCESS,
+  },
   {
     id: 'administracion',
     label: 'Administración',
     icon: 'pi pi-cog',
     path: '/administracion',
+    permissionsAny: ADMINISTRATION_ACCESS,
   },
 ];
 
-const COMMANDS: Record<WorkspaceId, RibbonTab['groups']> = {
+const COMMANDS: Record<WorkspaceId, readonly PolicyGroup[]> = {
   dashboard: [
     {
       id: 'overview',
@@ -40,9 +133,20 @@ const COMMANDS: Record<WorkspaceId, RibbonTab['groups']> = {
       id: 'products',
       label: 'Productos',
       commands: [
-        { id: 'new-product', label: 'Nuevo', icon: 'pi pi-plus', shortcut: 'Ctrl+N' },
+        {
+          id: 'new-product',
+          label: 'Nuevo',
+          icon: 'pi pi-plus',
+          shortcut: 'Ctrl+N',
+          permissionsAny: ['PRODUCTS_MANAGE'],
+        },
         { id: 'search-product', label: 'Buscar', icon: 'pi pi-search', shortcut: '/' },
-        { id: 'import-products', label: 'Importar', icon: 'pi pi-upload' },
+        {
+          id: 'import-products',
+          label: 'Importar',
+          icon: 'pi pi-upload',
+          permissionsAny: ['PRODUCTS_MANAGE'],
+        },
       ],
     },
   ],
@@ -51,9 +155,24 @@ const COMMANDS: Record<WorkspaceId, RibbonTab['groups']> = {
       id: 'stock',
       label: 'Existencias',
       commands: [
-        { id: 'stock-entry', label: 'Entrada', icon: 'pi pi-arrow-down-left' },
-        { id: 'stock-adjustment', label: 'Ajuste', icon: 'pi pi-sliders-h' },
-        { id: 'stock-count', label: 'Conteo', icon: 'pi pi-list-check' },
+        {
+          id: 'stock-entry',
+          label: 'Entrada',
+          icon: 'pi pi-arrow-down-left',
+          permissionsAny: ['INVENTORY_ADJUST'],
+        },
+        {
+          id: 'stock-adjustment',
+          label: 'Ajuste',
+          icon: 'pi pi-sliders-h',
+          permissionsAny: ['INVENTORY_ADJUST'],
+        },
+        {
+          id: 'stock-count',
+          label: 'Conteo',
+          icon: 'pi pi-list-check',
+          permissionsAny: ['INVENTORY_COUNT'],
+        },
       ],
     },
   ],
@@ -62,8 +181,18 @@ const COMMANDS: Record<WorkspaceId, RibbonTab['groups']> = {
       id: 'orders',
       label: 'Órdenes',
       commands: [
-        { id: 'new-purchase', label: 'Nueva orden', icon: 'pi pi-plus' },
-        { id: 'receive-purchase', label: 'Recibir', icon: 'pi pi-inbox' },
+        {
+          id: 'new-purchase',
+          label: 'Nueva orden',
+          icon: 'pi pi-plus',
+          permissionsAny: ['PURCHASE_ORDERS_MANAGE'],
+        },
+        {
+          id: 'receive-purchase',
+          label: 'Recibir',
+          icon: 'pi pi-inbox',
+          permissionsAny: ['PURCHASE_ORDERS_MANAGE'],
+        },
       ],
     },
   ],
@@ -72,8 +201,19 @@ const COMMANDS: Record<WorkspaceId, RibbonTab['groups']> = {
       id: 'checkout',
       label: 'Punto de venta',
       commands: [
-        { id: 'new-sale', label: 'Nueva venta', icon: 'pi pi-shopping-cart', shortcut: 'F2' },
-        { id: 'sales-history', label: 'Historial', icon: 'pi pi-history' },
+        {
+          id: 'new-sale',
+          label: 'Nueva venta',
+          icon: 'pi pi-shopping-cart',
+          shortcut: 'F2',
+          permissionsAny: ['SALES_MANAGE'],
+        },
+        {
+          id: 'sales-history',
+          label: 'Historial',
+          icon: 'pi pi-history',
+          permissionsAny: SALES_ACCESS,
+        },
       ],
     },
   ],
@@ -82,8 +222,13 @@ const COMMANDS: Record<WorkspaceId, RibbonTab['groups']> = {
       id: 'analysis',
       label: 'Análisis',
       commands: [
-        { id: 'run-report', label: 'Ejecutar', icon: 'pi pi-play' },
-        { id: 'export-report', label: 'Exportar', icon: 'pi pi-download' },
+        { id: 'run-report', label: 'Ejecutar', icon: 'pi pi-play', permissionsAny: REPORTS_ACCESS },
+        {
+          id: 'export-report',
+          label: 'Exportar',
+          icon: 'pi pi-download',
+          permissionsAny: ['AUDIT_EXPORT', 'INVENTORY_VALUATION_MANAGE'],
+        },
       ],
     },
   ],
@@ -92,8 +237,18 @@ const COMMANDS: Record<WorkspaceId, RibbonTab['groups']> = {
       id: 'settings',
       label: 'Configuración',
       commands: [
-        { id: 'company-settings', label: 'Empresa', icon: 'pi pi-building' },
-        { id: 'manage-users', label: 'Usuarios', icon: 'pi pi-users' },
+        {
+          id: 'company-settings',
+          label: 'Empresa',
+          icon: 'pi pi-building',
+          permissionsAny: ['TENANT_MANAGE'],
+        },
+        {
+          id: 'manage-users',
+          label: 'Usuarios',
+          icon: 'pi pi-users',
+          permissionsAny: ['ACCESS_MANAGE'],
+        },
       ],
     },
   ],
@@ -106,8 +261,21 @@ export function workspaceFromUrl(url: string): WorkspaceNavigationItem {
   );
 }
 
-export function ribbonForWorkspace(workspace: WorkspaceNavigationItem): readonly RibbonTab[] {
-  return [
+export function workspaceAllowed(
+  workspace: WorkspaceNavigationItem,
+  permissions: ReadonlySet<AppPermission>,
+): boolean {
+  return (
+    !workspace.permissionsAny?.length ||
+    workspace.permissionsAny.some((permission) => permissions.has(permission))
+  );
+}
+
+export function ribbonForWorkspace(
+  workspace: WorkspaceNavigationItem,
+  permissions: ReadonlySet<AppPermission> = new Set<AppPermission>(),
+): readonly RibbonTab[] {
+  const tabs: readonly PolicyTab[] = [
     { id: workspace.id, label: workspace.label, groups: COMMANDS[workspace.id] },
     {
       id: 'view',
@@ -124,4 +292,16 @@ export function ribbonForWorkspace(workspace: WorkspaceNavigationItem): readonly
       ],
     },
   ];
+  return tabs.map((tab) => ({
+    ...tab,
+    groups: tab.groups.map((group) => ({
+      ...group,
+      commands: group.commands.map(({ permissionsAny, ...command }) => ({
+        ...command,
+        disabled:
+          Boolean(permissionsAny?.length) &&
+          !permissionsAny?.some((permission) => permissions.has(permission)),
+      })),
+    })),
+  }));
 }

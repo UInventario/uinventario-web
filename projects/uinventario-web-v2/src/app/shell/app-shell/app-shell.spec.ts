@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { of } from 'rxjs';
+import { OperationalContextStore } from '../../core/operational-context/operational-context.store';
 import { SessionManager } from '../../core/session/session-manager';
 import { SessionState } from '../../core/session/session-state';
 import { AppShell } from './app-shell';
@@ -22,8 +23,33 @@ describe('AppShell', () => {
           useValue: {
             session: () => ({
               tenant: { id: 'tenant-1', name: 'Tienda Central' },
-              context: { branch: { id: 'branch-1', name: 'Principal' } },
+              user: {
+                permissions: [
+                  'PRODUCTS_MANAGE',
+                  'INVENTORY_VIEW',
+                  'PURCHASE_ORDERS_MANAGE',
+                  'SALES_MANAGE',
+                  'AUDIT_VIEW',
+                  'TENANT_MANAGE',
+                ],
+              },
+              context: {
+                branch: { id: 'branch-1', name: 'Principal' },
+                warehouse: { id: 'warehouse-1', name: 'Bodega' },
+                cashRegister: null,
+              },
             }),
+          },
+        },
+        {
+          provide: OperationalContextStore,
+          useValue: {
+            branches: () => [],
+            loading: () => false,
+            switching: () => false,
+            error: () => null,
+            load: vi.fn(() => of([])),
+            change: vi.fn(),
           },
         },
         { provide: SessionManager, useValue: { logout: vi.fn(() => of(undefined)) } },

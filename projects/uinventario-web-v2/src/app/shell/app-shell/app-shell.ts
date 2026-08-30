@@ -4,29 +4,42 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter, map, startWith } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
 import { TagModule } from 'primeng/tag';
+import { AuthorizationService } from '../../core/authorization/authorization.service';
 import { SessionManager } from '../../core/session/session-manager';
-import { SessionState } from '../../core/session/session-state';
 import { Ribbon } from '../../shared/ui/ribbon/ribbon';
+import { OperationalContextPicker } from '../operational-context-picker/operational-context-picker';
 import {
   ribbonForWorkspace,
   WORKSPACE_NAVIGATION,
+  workspaceAllowed,
   workspaceFromUrl,
 } from '../workspace-navigation';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ButtonModule, Ribbon, RouterLink, RouterLinkActive, RouterOutlet, TagModule],
+  imports: [
+    ButtonModule,
+    OperationalContextPicker,
+    Ribbon,
+    RouterLink,
+    RouterLinkActive,
+    RouterOutlet,
+    TagModule,
+  ],
   selector: 'ui-app-shell',
   styleUrl: './app-shell.scss',
   templateUrl: './app-shell.html',
 })
 export class AppShell {
   private readonly router = inject(Router);
+  private readonly authorization = inject(AuthorizationService);
   private readonly sessionManager = inject(SessionManager);
-  private readonly sessionState = inject(SessionState);
 
-  protected readonly navigation = WORKSPACE_NAVIGATION;
-  protected readonly session = this.sessionState.session;
+  protected readonly navigation = computed(() =>
+    WORKSPACE_NAVIGATION.filter((workspace) =>
+      workspaceAllowed(workspace, this.authorization.permissions()),
+    ),
+  );
   protected readonly navigationOpen = signal(false);
   protected readonly loggingOut = signal(false);
   protected readonly activeRibbonTab = signal('');
@@ -40,7 +53,13 @@ export class AppShell {
     { requireSync: true },
   );
   protected readonly activeWorkspace = computed(() => workspaceFromUrl(this.currentUrl()));
-  protected readonly ribbonTabs = computed(() => ribbonForWorkspace(this.activeWorkspace()));
+  protected readonly accessDenied = computed(() => {
+    const query = this.currentUrl().split('?')[1] ?? '';
+    return new URLSearchParams(query).get('accessDenied') === 'true';
+  });
+  protected readonly ribbonTabs = computed(() =>
+    ribbonForWorkspace(this.activeWorkspace(), this.authorization.permissions()),
+  );
   protected readonly selectedRibbonTab = computed(() => {
     const selected = this.activeRibbonTab();
     return this.ribbonTabs().some((tab) => tab.id === selected)
@@ -49,6 +68,14 @@ export class AppShell {
   });
 
   protected invokeCommand(commandId: string): void {
+    const command = this.ribbonTabs()
+      .flatMap((tab) => tab.groups)
+      .flatMap((group) => group.commands)
+      .find((candidate) => candidate.id === commandId);
+    if (!command || command.disabled) {
+      this.commandStatus.set('No tienes permiso para ejecutar este comando.');
+      return;
+    }
     this.commandStatus.set(`Comando disponible para ${this.activeWorkspace().label}: ${commandId}`);
   }
 
