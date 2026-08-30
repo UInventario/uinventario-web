@@ -1,0 +1,64 @@
+<a class="skip-link" href="#workspace-content">Saltar al contenido</a>
+
+<div class="app-shell">
+  <header class="topbar">
+    <button
+      class="navigation-toggle"
+      type="button"
+      aria-label="Alternar navegación"
+      [attr.aria-expanded]="navigationOpen()"
+      (click)="navigationOpen.set(!navigationOpen())"
+    >
+      <i class="pi pi-bars" aria-hidden="true"></i>
+    </button>
+    <a class="brand" routerLink="/dashboard" aria-label="UInventario, ir al dashboard">
+      <span class="brand-mark" aria-hidden="true">UI</span>
+      <span><strong>UInventario</strong><small>Operación</small></span>
+    </a>
+    <div class="topbar-context">
+      <span>Sucursal principal</span>
+      <p-tag severity="info" value="Dev" />
+    </div>
+  </header>
+
+  <ui-ribbon
+    [tabs]="ribbonTabs()"
+    [activeTabId]="selectedRibbonTab()"
+    [ariaLabel]="'Comandos de ' + activeWorkspace().label"
+    (tabSelected)="activeRibbonTab.set($event)"
+    (commandInvoked)="invokeCommand($event)"
+  />
+
+  <div class="workspace-layout">
+    <aside class="sidebar" [class.sidebar-open]="navigationOpen()">
+      <nav aria-label="Workspaces de UInventario">
+        @for (item of navigation; track item.id) {
+          <a
+            [routerLink]="item.path"
+            routerLinkActive="active"
+            [routerLinkActiveOptions]="{ exact: true }"
+            [attr.aria-label]="item.label"
+            (click)="closeNavigation()"
+          >
+            <i [class]="item.icon" aria-hidden="true"></i>
+            <span>{{ item.label }}</span>
+          </a>
+        }
+      </nav>
+      <a class="stable-version" href="/">
+        <i class="pi pi-external-link" aria-hidden="true"></i>
+        Versión estable
+      </a>
+    </aside>
+
+    <main id="workspace-content" class="workspace-content" tabindex="-1">
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a routerLink="/dashboard">UInventario</a>
+        <i class="pi pi-angle-right" aria-hidden="true"></i>
+        <span aria-current="page">{{ activeWorkspace().label }}</span>
+      </nav>
+      <p class="command-status" role="status">{{ commandStatus() }}</p>
+      <router-outlet />
+    </main>
+  </div>
+</div>
