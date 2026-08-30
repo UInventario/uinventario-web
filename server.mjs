@@ -163,7 +163,11 @@ export function createApplicationServer({
         return;
       }
       try {
-        await sendFile(response, resolve(normalizedRoot, 'index.html'), 'no-cache');
+        const indexPath =
+          decodedPath === '/v2' || decodedPath.startsWith('/v2/')
+            ? resolve(normalizedRoot, 'v2', 'index.html')
+            : resolve(normalizedRoot, 'index.html');
+        await sendFile(response, indexPath, 'no-cache');
       } catch {
         sendJson(response, 500, { message: 'La aplicación no está disponible.' });
       }

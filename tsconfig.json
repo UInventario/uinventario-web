@@ -26,6 +26,12 @@
     },
     {
       "path": "./tsconfig.spec.json"
+    },
+    {
+      "path": "./projects/uinventario-web-v2/tsconfig.app.json"
+    },
+    {
+      "path": "./projects/uinventario-web-v2/tsconfig.spec.json"
     }
   ]
 }

@@ -1,0 +1,67 @@
+<main class="min-h-screen bg-surface-50 px-5 py-8 text-color sm:px-8 lg:px-12">
+  <section class="mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl flex-col justify-between gap-12">
+    <header class="flex items-center justify-between gap-4">
+      <a class="flex items-center gap-3 no-underline" href="/v2/" aria-label="UInventario Web V2">
+        <span class="brand-mark" aria-hidden="true">UI</span>
+        <span>
+          <strong class="block text-lg tracking-tight text-color">UInventario</strong>
+          <span class="block text-xs font-medium text-muted-color">Web V2</span>
+        </span>
+      </a>
+      <p-tag severity="info" value="Construcción en paralelo" />
+    </header>
+
+    <div class="grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      <div class="max-w-3xl">
+        <p class="mb-4 text-sm font-semibold uppercase tracking-[0.18em] text-primary">
+          Base greenfield
+        </p>
+        <h1
+          class="m-0 text-balance text-4xl font-semibold leading-tight tracking-tight sm:text-6xl"
+        >
+          Una nueva interfaz, construida módulo por módulo.
+        </h1>
+        <p class="mt-6 max-w-2xl text-lg leading-8 text-muted-color">
+          Angular, PrimeNG y Tailwind ya conviven en una aplicación aislada. El frontend actual
+          permanece operativo mientras migramos cada recorrido con datos reales.
+        </p>
+        <div class="mt-8 flex flex-wrap items-center gap-3">
+          <p-button label="Base instalada" [disabled]="true" />
+          <a class="stable-link" href="/">Abrir versión estable</a>
+        </div>
+      </div>
+
+      <aside class="rounded-3xl border border-surface-200 bg-surface-0 p-6 shadow-sm">
+        <h2 class="m-0 text-base font-semibold">Stack verificado</h2>
+        <dl class="mt-6 grid gap-4">
+          <div class="stack-row">
+            <dt>Aplicación</dt>
+            <dd>Angular 22</dd>
+          </div>
+          <div class="stack-row">
+            <dt>Componentes</dt>
+            <dd>PrimeNG</dd>
+          </div>
+          <div class="stack-row">
+            <dt>Estilos</dt>
+            <dd>SCSS + Tailwind 4</dd>
+          </div>
+          <div class="stack-row">
+            <dt>E2E</dt>
+            <dd>Playwright</dd>
+          </div>
+          <div class="stack-row">
+            <dt>Runtime</dt>
+            <dd>/config.json</dd>
+          </div>
+        </dl>
+      </aside>
+    </div>
+
+    <footer class="border-t border-surface-200 pt-5 text-sm text-muted-color">
+      UIN-172 · Inicialización reproducible de Web V2
+    </footer>
+  </section>
+</main>
+
+<router-outlet />
