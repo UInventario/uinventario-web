@@ -1,0 +1,448 @@
+<div class="checkout-backdrop" (click)="close()">
+  <section
+    class="checkout"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="checkout-title"
+    (click)="$event.stopPropagation()"
+  >
+    @if (sale(); as completedSale) {
+      <div class="sale-result">
+        <span class="success-icon"><i class="pi pi-check"></i></span>
+        <p>Venta registrada</p>
+        <h2 id="checkout-title">{{ completedSale.receiptNumber }}</h2>
+        <strong>{{ money(completedSale.totals.total) }}</strong>
+        <div class="receipt-payments">
+          @for (payment of completedSale.payments; track payment.id) {
+            <span>
+              <i class="pi pi-credit-card"></i>
+              {{ payment.method }} · {{ money(payment.amountApplied) }}
+              @if (+payment.change > 0) {
+                · Cambio {{ money(payment.change) }}
+              }
+            </span>
+          }
+        </div>
+        @if (completedSale.credit) {
+          <div class="credit-result">
+            Crédito creado · Saldo {{ money(completedSale.credit.balance) }} ·
+            {{ completedSale.credit.installments.length }} parcialidad(es)
+          </div>
+        }
+        <button class="primary wide" type="button" (click)="closed.emit()">
+          Iniciar otra venta
+        </button>
+      </div>
+    } @else {
+      <header class="checkout-header">
+        <div>
+          <p>Cobro seguro</p>
+          <h2 id="checkout-title">Completar venta</h2>
+          <span>{{ quote().lines.length }} línea(s) · {{ quote().context.cashRegister.name }}</span>
+        </div>
+        <div class="checkout-total">
+          <small>Total a cobrar</small><strong>{{ money(total()) }}</strong>
+        </div>
+        <button
+          class="icon"
+          type="button"
+          aria-label="Cerrar cobro"
+          [disabled]="busy() || unresolvedTerminal()"
+          (click)="close()"
+        >
+          <i class="pi pi-times"></i>
+        </button>
+      </header>
+
+      @if (loadingOptions()) {
+        <div class="checkout-state" role="status">
+          <i class="pi pi-spin pi-spinner"></i>Consultando métodos habilitados…
+        </div>
+      } @else {
+        <nav class="payment-tabs" aria-label="Método de pago">
+          <button
+            type="button"
+            [class.active]="flow() === 'CASH'"
+            [disabled]="!available('CASH')"
+            (click)="selectFlow('CASH')"
+          >
+            <i class="pi pi-money-bill"></i><span>Efectivo</span>
+          </button>
+          <button
+            type="button"
+            [class.active]="flow() === 'MIXED'"
+            [disabled]="!available('CASH') || options()!.methods.length < 2"
+            (click)="selectFlow('MIXED')"
+          >
+            <i class="pi pi-clone"></i><span>Mixto</span>
+          </button>
+          <button
+            type="button"
+            [class.active]="flow() === 'TERMINAL'"
+            [disabled]="!available('CARD')"
+            (click)="selectFlow('TERMINAL')"
+          >
+            <i class="pi pi-credit-card"></i><span>Terminal</span>
+          </button>
+          <button
+            type="button"
+            [class.active]="flow() === 'TRANSFER'"
+            [disabled]="!available('TRANSFER')"
+            (click)="selectFlow('TRANSFER')"
+          >
+            <i class="pi pi-arrow-right-arrow-left"></i><span>Transferencia</span>
+          </button>
+          @if (canCredit()) {
+            <button
+              type="button"
+              [class.active]="flow() === 'CREDIT'"
+              (click)="selectFlow('CREDIT')"
+            >
+              <i class="pi pi-calendar"></i><span>Crédito</span>
+            </button>
+          }
+        </nav>
+
+        <div class="payment-body">
+          @if (flow() === 'CASH') {
+            <form class="payment-form" [formGroup]="cashForm" (ngSubmit)="submitCash()">
+              <div class="method-heading">
+                <span><i class="pi pi-money-bill"></i></span>
+                <div>
+                  <h3>Pago en efectivo</h3>
+                  <p>El cambio se calcula en centavos exactos.</p>
+                </div>
+              </div>
+              <label for="cashReceived">Efectivo recibido</label>
+              <div class="money-input">
+                <span>{{ quote().currency }}</span>
+                <input
+                  id="cashReceived"
+                  formControlName="received"
+                  inputmode="decimal"
+                  autocomplete="off"
+                />
+              </div>
+              <div class="calculation" [class.invalid]="cashChange() === null">
+                <span>Cambio</span>
+                <strong>{{
+                  cashChange() === null ? 'Importe insuficiente' : money(cashChange()!)
+                }}</strong>
+              </div>
+              <button
+                class="primary wide"
+                type="submit"
+                [disabled]="busy() || cashChange() === null"
+              >
+                <i
+                  class="pi"
+                  [class.pi-spin]="busy()"
+                  [class.pi-spinner]="busy()"
+                  [class.pi-check]="!busy()"
+                ></i>
+                {{ busy() ? 'Registrando…' : 'Cobrar y completar venta' }}
+              </button>
+            </form>
+          } @else if (flow() === 'MIXED') {
+            <form class="payment-form" [formGroup]="mixedForm" (ngSubmit)="submitMixed()">
+              <div class="method-heading">
+                <span><i class="pi pi-clone"></i></span>
+                <div>
+                  <h3>Pago mixto</h3>
+                  <p>Divide el total en efectivo y un segundo método.</p>
+                </div>
+              </div>
+              <div class="field-grid">
+                <div>
+                  <label for="mixedCashAmount">Parte en efectivo</label>
+                  <input id="mixedCashAmount" formControlName="cashAmount" inputmode="decimal" />
+                </div>
+                <div>
+                  <label for="mixedCashReceived">Efectivo recibido</label>
+                  <input
+                    id="mixedCashReceived"
+                    formControlName="cashReceived"
+                    inputmode="decimal"
+                  />
+                </div>
+                <div>
+                  <label for="mixedMethod">Segundo método</label>
+                  <select id="mixedMethod" formControlName="otherMethod">
+                    <option value="CARD" [disabled]="!available('CARD')">Tarjeta</option>
+                    <option value="TRANSFER" [disabled]="!available('TRANSFER')">
+                      Transferencia
+                    </option>
+                    <option value="VOUCHER" [disabled]="!available('VOUCHER')">Vale</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="mixedReference">Referencia</label>
+                  <input id="mixedReference" formControlName="reference" maxlength="120" />
+                </div>
+              </div>
+              <div class="split-summary">
+                <span
+                  >Efectivo
+                  <strong>{{ mixedParts() ? money(mixedParts()!.cash) : '—' }}</strong></span
+                >
+                <i class="pi pi-plus"></i>
+                <span
+                  >Segundo método
+                  <strong>{{ mixedParts() ? money(mixedParts()!.remainder) : '—' }}</strong></span
+                >
+                <i class="pi pi-equals"></i>
+                <span
+                  >Total <strong>{{ money(total()) }}</strong></span
+                >
+              </div>
+              @if (mixedParts()) {
+                <div class="calculation" [class.invalid]="mixedChange() === null">
+                  <span>Cambio del efectivo</span>
+                  <strong>{{
+                    mixedChange() === null ? 'Importe insuficiente' : money(mixedChange()!)
+                  }}</strong>
+                </div>
+              }
+              <button
+                class="primary wide"
+                type="submit"
+                [disabled]="busy() || !mixedParts() || mixedChange() === null"
+              >
+                Cobrar {{ money(total()) }}
+              </button>
+            </form>
+          } @else if (flow() === 'TERMINAL') {
+            <div class="payment-form">
+              <div class="method-heading">
+                <span><i class="pi pi-credit-card"></i></span>
+                <div>
+                  <h3>Terminal de pago</h3>
+                  <p>Proveedor: {{ options()!.nonCashProvider }}</p>
+                </div>
+              </div>
+              @if (!terminal()) {
+                <form [formGroup]="terminalForm" (ngSubmit)="startTerminal()">
+                  @if (options()!.nonCashProvider === 'SIMULATOR') {
+                    <div class="simulator-note">
+                      <strong>Terminal de simulación</strong>
+                      <span
+                        >Selecciona el resultado para validar el flujo; no es un cobro real.</span
+                      >
+                    </div>
+                    <label for="terminalScenario">Escenario de prueba</label>
+                    <select id="terminalScenario" formControlName="scenario">
+                      <option value="SUCCESS">Aprobado</option>
+                      <option value="REJECT">Rechazado</option>
+                      <option value="INDETERMINATE">Resultado indeterminado</option>
+                    </select>
+                  }
+                  <button class="primary wide" type="submit" [disabled]="busy()">
+                    Enviar {{ money(total()) }} al terminal
+                  </button>
+                </form>
+              } @else if (terminal(); as operation) {
+                <div class="terminal-status" [attr.data-status]="operation.status">
+                  <i
+                    class="pi"
+                    [class.pi-check-circle]="operation.status === 'CAPTURED'"
+                    [class.pi-times-circle]="
+                      operation.status === 'DECLINED' || operation.status === 'CANCELLED'
+                    "
+                    [class.pi-question-circle]="operation.status === 'INDETERMINATE'"
+                    [class.pi-clock]="
+                      operation.status === 'PENDING' || operation.status === 'AUTHORIZED'
+                    "
+                  ></i>
+                  <div>
+                    <small>Operación {{ operation.id.slice(0, 8) }}</small>
+                    <strong>{{ operation.status }}</strong>
+                    @if (operation.status === 'INDETERMINATE') {
+                      <p>
+                        No repitas el cobro. Consulta el terminal hasta obtener un resultado
+                        concluyente.
+                      </p>
+                    } @else if (operation.status === 'DECLINED') {
+                      <p>El pago fue rechazado y la venta no se registró.</p>
+                    } @else if (operation.status === 'CAPTURED') {
+                      <p>El terminal confirmó el importe. Ya puedes registrar la venta.</p>
+                    }
+                  </div>
+                </div>
+                <div class="terminal-actions">
+                  @if (
+                    operation.status === 'INDETERMINATE' ||
+                    operation.status === 'PENDING' ||
+                    operation.status === 'AUTHORIZED'
+                  ) {
+                    <button
+                      class="secondary"
+                      type="button"
+                      [disabled]="busy()"
+                      (click)="refreshTerminal()"
+                    >
+                      <i class="pi pi-refresh"></i>Consultar estado
+                    </button>
+                    <button
+                      class="danger-link"
+                      type="button"
+                      [disabled]="busy()"
+                      (click)="cancelTerminal()"
+                    >
+                      Cancelar operación
+                    </button>
+                  } @else if (operation.status === 'CAPTURED') {
+                    <button
+                      class="primary wide"
+                      type="button"
+                      [disabled]="busy()"
+                      (click)="completeTerminalSale()"
+                    >
+                      Completar venta con pago confirmado
+                    </button>
+                    <button
+                      class="danger-link wide"
+                      type="button"
+                      [disabled]="busy()"
+                      (click)="cancelTerminal()"
+                    >
+                      Cancelar y liberar el cobro
+                    </button>
+                  } @else {
+                    <button class="secondary wide" type="button" (click)="terminal.set(null)">
+                      Intentar otro cobro
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+          } @else if (flow() === 'TRANSFER') {
+            <form class="payment-form" [formGroup]="transferForm" (ngSubmit)="submitTransfer()">
+              <div class="method-heading">
+                <span><i class="pi pi-arrow-right-arrow-left"></i></span>
+                <div>
+                  <h3>Transferencia</h3>
+                  <p>Verifica el abono antes de registrar la referencia.</p>
+                </div>
+              </div>
+              <label for="transferReference">Referencia bancaria</label>
+              <input
+                id="transferReference"
+                formControlName="reference"
+                maxlength="120"
+                autocomplete="off"
+              />
+              <button
+                class="primary wide"
+                type="submit"
+                [disabled]="busy() || transferForm.invalid"
+              >
+                Registrar transferencia de {{ money(total()) }}
+              </button>
+            </form>
+          } @else {
+            <div class="payment-form" [formGroup]="creditForm">
+              <div class="method-heading">
+                <span><i class="pi pi-calendar"></i></span>
+                <div>
+                  <h3>Venta a crédito</h3>
+                  <p>Selecciona un cliente activo con crédito disponible.</p>
+                </div>
+              </div>
+              <div class="customer-search">
+                <input
+                  formControlName="query"
+                  placeholder="Nombre, identificador o contacto"
+                  aria-label="Buscar cliente para crédito"
+                />
+                <button
+                  class="secondary"
+                  type="button"
+                  [disabled]="searchingCustomers()"
+                  (click)="searchCustomers()"
+                >
+                  Buscar
+                </button>
+              </div>
+              @if (customers().length && !selectedCustomer()) {
+                <div class="customer-results">
+                  @for (customer of customers(); track customer.id) {
+                    <button type="button" (click)="selectCustomer(customer)">
+                      <span
+                        ><strong>{{ customer.name }}</strong
+                        ><small>{{
+                          customer.identifier || customer.email || 'Sin identificador'
+                        }}</small></span
+                      >
+                      <span
+                        ><small>Disponible</small
+                        ><strong
+                          >{{ customer.credit?.available || '0.00' }}
+                          {{ customer.credit?.currency || '' }}</strong
+                        ></span
+                      >
+                    </button>
+                  }
+                </div>
+              }
+              @if (selectedCustomer(); as customer) {
+                <article class="selected-customer" [class.invalid]="!creditAllowed()">
+                  <button
+                    type="button"
+                    aria-label="Cambiar cliente"
+                    (click)="selectedCustomer.set(null)"
+                  >
+                    <i class="pi pi-times"></i>
+                  </button>
+                  <span
+                    ><small>Cliente</small><strong>{{ customer.name }}</strong></span
+                  >
+                  <span
+                    ><small>Crédito disponible</small
+                    ><strong
+                      >{{ customer.credit?.available || '0.00' }}
+                      {{ customer.credit?.currency || '' }}</strong
+                    ></span
+                  >
+                  <span
+                    ><small>Saldo actual</small
+                    ><strong
+                      >{{ customer.credit?.balance || '0.00' }}
+                      {{ customer.credit?.currency || '' }}</strong
+                    ></span
+                  >
+                </article>
+                <label for="installments">Parcialidades</label>
+                <input
+                  id="installments"
+                  type="number"
+                  min="1"
+                  [max]="customer.credit?.maxInstallments || 1"
+                  formControlName="installments"
+                />
+                @if (!creditAllowed()) {
+                  <div class="inline-warning">
+                    El crédito está deshabilitado, vencido o no cubre el total.
+                  </div>
+                }
+                <button
+                  class="primary wide"
+                  type="button"
+                  [disabled]="busy() || !creditAllowed()"
+                  (click)="submitCredit()"
+                >
+                  Autorizar venta a crédito
+                </button>
+              }
+            </div>
+          }
+
+          @if (error()) {
+            <div class="checkout-error" role="alert">
+              <i class="pi pi-exclamation-circle"></i>{{ error() }}
+            </div>
+          }
+        </div>
+      }
+    }
+  </section>
+</div>

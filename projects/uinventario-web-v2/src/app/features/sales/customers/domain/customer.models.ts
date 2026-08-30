@@ -101,7 +101,36 @@ export interface CustomerCreditStatement {
     readonly dueDate: string;
     readonly status: string;
   }[];
-  readonly payments: readonly unknown[];
+  readonly payments: readonly CustomerCreditPayment[];
+}
+
+export type CustomerCreditPaymentMethod = 'CASH' | 'CARD' | 'TRANSFER';
+
+export interface CustomerCreditPayment {
+  readonly id: string;
+  readonly receiptNumber: string;
+  readonly currency: string;
+  readonly amount: string;
+  readonly method: CustomerCreditPaymentMethod;
+  readonly status: 'COMPLETED' | 'REVERSED';
+  readonly reference: string | null;
+  readonly responsible: { readonly id: string; readonly email: string };
+  readonly reversal: {
+    readonly reason: string;
+    readonly reversedAt: string;
+  } | null;
+  readonly createdAt: string;
+}
+
+export interface CustomerCreditPaymentInput {
+  readonly amount: string;
+  readonly method: CustomerCreditPaymentMethod;
+  readonly reference?: string;
+}
+
+export interface CustomerCreditPaymentResult {
+  readonly payment: CustomerCreditPayment;
+  readonly credit: CustomerCreditStatement;
 }
 
 export interface CustomerHistoryPage {

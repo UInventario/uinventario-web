@@ -14,6 +14,8 @@ import { ApiError } from '../../../../../core/api/api-error';
 import { CustomerFacade } from '../../application/customer.facade';
 import {
   Customer,
+  CustomerCreditPayment,
+  CustomerCreditPaymentMethod,
   CustomerCreditStatement,
   CustomerHistoryPage,
   CustomerPrivacyReport,
@@ -26,7 +28,7 @@ type PrivacyAction = 'HOLD' | 'RELEASE' | 'ANONYMIZE';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [DatePipe, ReactiveFormsModule],
   selector: 'ui-customer-detail-dialog',
-  styleUrl: './customer-detail-dialog.scss',
+  styleUrls: ['./customer-detail-dialog.scss', './customer-credit-payment.scss'],
   templateUrl: './customer-detail-dialog.html',
 })
 export class CustomerDetailDialog implements OnInit {
@@ -48,6 +50,22 @@ export class CustomerDetailDialog implements OnInit {
   protected readonly credit = signal<CustomerCreditStatement | null>(null);
   protected readonly privacy = signal<CustomerPrivacyReport | null>(null);
   protected readonly privacyAction = signal<PrivacyAction | null>(null);
+  protected readonly paymentOpen = signal(false);
+  protected readonly reversingPayment = signal<CustomerCreditPayment | null>(null);
+  protected readonly paymentForm = this.formBuilder.nonNullable.group({
+    amount: [
+      '',
+      [
+        Validators.required,
+        Validators.pattern(/^(?:0\.(?:0[1-9]|[1-9]\d)|[1-9]\d{0,13}(?:\.\d{1,2})?)$/),
+      ],
+    ],
+    method: ['CASH' as CustomerCreditPaymentMethod, Validators.required],
+    reference: ['', Validators.maxLength(120)],
+  });
+  protected readonly reversalForm = this.formBuilder.nonNullable.group({
+    reason: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(160)]],
+  });
   protected readonly actionForm = this.formBuilder.nonNullable.group({
     reason: ['', [Validators.required, Validators.minLength(8), Validators.maxLength(240)]],
     requestReference: ['', Validators.maxLength(120)],
@@ -74,6 +92,78 @@ export class CustomerDetailDialog implements OnInit {
     this.notice.set(null);
     this.actionForm.reset({ reason: '', requestReference: '', expiresAt: '', confirmation: '' });
     this.privacyAction.set(action);
+  }
+
+  protected openPayment(): void {
+    const balance = this.credit()?.balance ?? '';
+    this.paymentForm.reset({ amount: balance, method: 'CASH', reference: '' });
+    this.error.set(null);
+    this.notice.set(null);
+    this.paymentOpen.set(true);
+  }
+
+  protected paymentNeedsReference(): boolean {
+    return this.paymentForm.controls.method.value !== 'CASH';
+  }
+
+  protected submitCreditPayment(): void {
+    const value = this.paymentForm.getRawValue();
+    const reference = value.reference.trim();
+    if (this.paymentNeedsReference() && !/^[A-Za-z0-9][A-Za-z0-9._:/-]{3,119}$/.test(reference)) {
+      this.paymentForm.controls.reference.setErrors({ reference: true });
+    }
+    if (this.paymentForm.invalid || this.acting()) {
+      this.paymentForm.markAllAsTouched();
+      return;
+    }
+    this.acting.set(true);
+    this.error.set(null);
+    this.facade
+      .createCreditPayment(this.customer().id, {
+        amount: value.amount.trim(),
+        method: value.method,
+        ...(this.paymentNeedsReference() ? { reference } : {}),
+      })
+      .pipe(finalize(() => this.acting.set(false)))
+      .subscribe({
+        next: ({ payment, credit }) => {
+          this.credit.set(credit);
+          this.paymentOpen.set(false);
+          this.notice.set(`Abono ${payment.receiptNumber} registrado correctamente.`);
+        },
+        error: (error: unknown) => this.error.set(this.messageFor(error)),
+      });
+  }
+
+  protected beginReversal(payment: CustomerCreditPayment): void {
+    this.reversalForm.reset({ reason: '' });
+    this.error.set(null);
+    this.reversingPayment.set(payment);
+  }
+
+  protected submitReversal(): void {
+    const payment = this.reversingPayment();
+    if (!payment || this.reversalForm.invalid || this.acting()) {
+      this.reversalForm.markAllAsTouched();
+      return;
+    }
+    this.acting.set(true);
+    this.error.set(null);
+    this.facade
+      .reverseCreditPayment(
+        this.customer().id,
+        payment.id,
+        this.reversalForm.controls.reason.value.trim(),
+      )
+      .pipe(finalize(() => this.acting.set(false)))
+      .subscribe({
+        next: ({ credit }) => {
+          this.credit.set(credit);
+          this.reversingPayment.set(null);
+          this.notice.set('El abono fue revertido y el saldo se recalculó.');
+        },
+        error: (error: unknown) => this.error.set(this.messageFor(error)),
+      });
   }
 
   protected submitPrivacyAction(): void {
@@ -181,6 +271,17 @@ export class CustomerDetailDialog implements OnInit {
     if (!(error instanceof ApiError)) return 'No fue posible consultar o actualizar al cliente.';
     if (error.code === 'CUSTOMER_ANONYMIZATION_BLOCKED_BY_LEGAL_HOLD')
       return 'No se puede anonimizar mientras exista un bloqueo legal activo.';
+    const messages: Record<string, string> = {
+      CREDIT_PAYMENT_EXCEEDS_BALANCE: 'El abono no puede superar el saldo pendiente.',
+      CREDIT_PAYMENT_REFERENCE_INVALID:
+        'La referencia es obligatoria para tarjeta o transferencia.',
+      CREDIT_PAYMENT_ALREADY_REVERSED: 'Este abono ya fue revertido.',
+      CREDIT_PAYMENT_REVERSAL_EXCEEDS_CASH:
+        'La caja no tiene efectivo suficiente para devolver este abono.',
+      CASH_REGISTER_SHIFT_REQUIRED: 'Abre un turno de caja antes de registrar el abono.',
+      PAYMENT_DECLINED: 'El proveedor rechazó el abono. No se modificó el saldo.',
+    };
+    if (messages[error.code]) return messages[error.code];
     return error.message;
   }
 }

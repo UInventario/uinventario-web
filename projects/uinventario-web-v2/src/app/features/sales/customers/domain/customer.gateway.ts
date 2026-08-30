@@ -2,6 +2,8 @@ import { Observable } from 'rxjs';
 import {
   CreditInput,
   Customer,
+  CustomerCreditPaymentInput,
+  CustomerCreditPaymentResult,
   CustomerCreditStatement,
   CustomerHistoryPage,
   CustomerInput,
@@ -24,6 +26,15 @@ export abstract class CustomerGateway {
   abstract history(id: string): Observable<CustomerHistoryPage>;
   abstract credit(id: string): Observable<CustomerCreditStatement>;
   abstract configureCredit(id: string, input: CreditInput): Observable<Customer>;
+  abstract createCreditPayment(
+    id: string,
+    input: CustomerCreditPaymentInput,
+  ): Observable<CustomerCreditPaymentResult>;
+  abstract reverseCreditPayment(
+    customerId: string,
+    paymentId: string,
+    reason: string,
+  ): Observable<CustomerCreditPaymentResult>;
   abstract privacyPolicy(): Observable<PrivacyPolicy>;
   abstract updatePrivacyPolicy(input: PrivacyPolicyInput): Observable<PrivacyPolicy>;
   abstract privacyReport(id: string): Observable<CustomerPrivacyReport>;

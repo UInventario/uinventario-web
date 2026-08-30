@@ -1,0 +1,75 @@
+.credit-payment-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0 1.5rem;
+  padding: 1rem;
+  border: 1px solid var(--p-primary-200);
+  border-radius: var(--radius-md);
+  background: var(--p-primary-50);
+
+  h3,
+  p,
+  .reference-field,
+  .form-actions,
+  .notice {
+    grid-column: 1 / -1;
+  }
+
+  h3,
+  p {
+    margin: 0;
+  }
+
+  p {
+    color: var(--p-text-muted-color);
+    font-size: 0.85rem;
+  }
+
+  .notice {
+    margin: 0;
+  }
+}
+
+.credit-payment-form.reversal {
+  border-color: var(--p-red-200);
+  background: var(--p-red-50);
+}
+
+.section-caption {
+  margin: 0 1.5rem -0.5rem;
+  color: var(--p-text-muted-color);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.payment-history article {
+  align-items: center;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+}
+
+.secondary.compact {
+  min-height: 2.25rem;
+}
+
+@media (max-width: 45rem) {
+  .credit-payment-form {
+    grid-template-columns: 1fr;
+    margin-inline: 1rem;
+
+    h3,
+    p,
+    .reference-field,
+    .form-actions,
+    .notice {
+      grid-column: auto;
+    }
+  }
+
+  .section-caption {
+    margin-inline: 1rem;
+  }
+}

@@ -24,9 +24,12 @@ import {
   CashRegisterShift,
   PosCartLine,
   PosCartQuote,
+  PosCartRequest,
   PosProduct,
   PosProductPage,
+  PosSale,
 } from '../../domain/pos.models';
+import { PosCheckoutDialog } from '../pos-checkout-dialog/pos-checkout-dialog';
 import { PosLineDialog } from '../pos-line-dialog/pos-line-dialog';
 import { PosScannerDialog } from '../pos-scanner-dialog/pos-scanner-dialog';
 
@@ -37,7 +40,7 @@ interface QuoteState {
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PosLineDialog, PosScannerDialog, ReactiveFormsModule, RouterLink],
+  imports: [PosCheckoutDialog, PosLineDialog, PosScannerDialog, ReactiveFormsModule, RouterLink],
   selector: 'ui-pos-page',
   styleUrls: ['./pos-page.scss', './pos-cart.scss', './pos-responsive.scss'],
   templateUrl: './pos-page.html',
@@ -64,9 +67,14 @@ export class PosPage implements OnInit {
   protected readonly quoteLoading = signal(false);
   protected readonly quoteError = signal<string | null>(null);
   protected readonly editing = signal<PosCartLine | null>(null);
+  protected readonly checkout = signal<{
+    readonly quote: PosCartQuote;
+    readonly request: PosCartRequest;
+  } | null>(null);
   protected readonly canOverridePrice = computed(() =>
     this.authorization.has('SALES_PRICE_OVERRIDE'),
   );
+  protected readonly canCredit = computed(() => this.authorization.has('SALES_CREDIT'));
   protected readonly context = computed(() => this.sessions.session()?.context ?? null);
   protected readonly itemCount = computed(() => this.cart.lines().length);
 
@@ -149,6 +157,24 @@ export class PosPage implements OnInit {
 
   protected requiresAdvancedTracking(product: PosProduct): boolean {
     return product.trackLots || product.trackSerials;
+  }
+
+  protected openCheckout(): void {
+    const quote = this.quote();
+    if (!quote || !this.shift() || this.quoteLoading()) return;
+    this.checkout.set({
+      quote,
+      request: { lines: this.cart.lines().map((line) => this.requestLine(line)) },
+    });
+  }
+
+  protected saleCompleted(sale: PosSale): void {
+    if (sale.status === 'COMPLETED') this.cart.clear();
+  }
+
+  protected closeCheckout(): void {
+    this.checkout.set(null);
+    queueMicrotask(() => this.focusSearch());
   }
 
   private bindSearch(): void {

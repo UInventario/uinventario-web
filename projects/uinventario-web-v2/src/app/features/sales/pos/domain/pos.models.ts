@@ -106,3 +106,113 @@ export interface CashRegisterShift {
   readonly currency: string;
   readonly openedAt: string;
 }
+
+export type PosPaymentMethod = 'CASH' | 'CARD' | 'TRANSFER' | 'VOUCHER';
+
+export interface PosPaymentOptions {
+  readonly methods: readonly PosPaymentMethod[];
+  readonly nonCashProvider: string;
+}
+
+export interface PosCustomer {
+  readonly id: string;
+  readonly name: string;
+  readonly identifier: string | null;
+  readonly email: string | null;
+  readonly phone: string | null;
+  readonly active: boolean;
+  readonly privacyStatus: 'ACTIVE' | 'ANONYMIZED';
+  readonly credit: {
+    readonly enabled: boolean;
+    readonly limit: string;
+    readonly currency: string;
+    readonly maxInstallments: number;
+    readonly balance: string;
+    readonly available: string;
+    readonly overdueAmount: string;
+    readonly status: 'DISABLED' | 'AVAILABLE' | 'LIMIT_REACHED' | 'OVERDUE';
+  } | null;
+}
+
+export interface PosCustomerPage {
+  readonly customers: readonly PosCustomer[];
+  readonly pagination: PosProductPage['pagination'];
+}
+
+export interface SalePaymentInput {
+  readonly method: PosPaymentMethod;
+  readonly amount?: string;
+  readonly amountReceived?: string;
+  readonly reference?: string;
+  readonly terminalOperationId?: string;
+}
+
+export interface CreateSaleInput extends PosCartRequest {
+  readonly customerId?: string;
+  readonly payment?: SalePaymentInput;
+  readonly payments?: readonly SalePaymentInput[];
+  readonly credit?: { readonly installmentCount: number };
+}
+
+export interface CreateCashSaleInput extends PosCartRequest {
+  readonly customerId?: string;
+  readonly cashReceived: string;
+}
+
+export interface PosSale {
+  readonly id: string;
+  readonly receiptNumber: string;
+  readonly status: 'COMPLETED' | 'VOIDED';
+  readonly currency: string;
+  readonly customer: { readonly id: string; readonly name: string } | null;
+  readonly totals: PosCartQuote['totals'];
+  readonly payments: readonly {
+    readonly id: string;
+    readonly method: PosPaymentMethod | 'CREDIT';
+    readonly status: 'COMPLETED' | 'PENDING' | 'REVERSED';
+    readonly amountReceived: string;
+    readonly amountApplied: string;
+    readonly change: string;
+    readonly reference: string | null;
+    readonly provider: string;
+    readonly authorizationCode: string | null;
+  }[];
+  readonly credit: {
+    readonly accountId: string;
+    readonly originalAmount: string;
+    readonly balance: string;
+    readonly currency: string;
+    readonly termDays: number;
+    readonly status: 'OPEN' | 'OVERDUE' | 'PAID' | 'CANCELLED';
+    readonly dueDate: string;
+    readonly installments: readonly {
+      readonly number: number;
+      readonly dueDate: string;
+      readonly amount: string;
+    }[];
+  } | null;
+  readonly createdAt: string;
+}
+
+export type PaymentTerminalScenario = 'SUCCESS' | 'REJECT' | 'INDETERMINATE';
+export type PaymentTerminalStatus =
+  'PENDING' | 'AUTHORIZED' | 'CAPTURED' | 'DECLINED' | 'INDETERMINATE' | 'CANCELLED';
+
+export interface PaymentTerminalOperation {
+  readonly id: string;
+  readonly provider: string;
+  readonly amount: string;
+  readonly currency: string;
+  readonly status: PaymentTerminalStatus;
+  readonly errorCode: string | null;
+  readonly authorizationCode: string | null;
+  readonly queryCount: number;
+  readonly saleId: string | null;
+  readonly updatedAt: string;
+}
+
+export interface StartPaymentTerminalInput {
+  readonly amount: string;
+  readonly currency: string;
+  readonly scenario: PaymentTerminalScenario;
+}
