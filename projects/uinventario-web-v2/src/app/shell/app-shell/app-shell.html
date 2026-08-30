@@ -16,8 +16,24 @@
       <span><strong>UInventario</strong><small>Operación</small></span>
     </a>
     <div class="topbar-context">
-      <span>Sucursal principal</span>
+      <span class="session-context">
+        <strong>{{ session()?.tenant?.name }}</strong>
+        <small>{{ session()?.context?.branch?.name ?? 'Sin sucursal' }}</small>
+      </span>
       <p-tag severity="info" value="Dev" />
+      <button
+        pButton
+        type="button"
+        severity="secondary"
+        [text]="true"
+        class="logout-button"
+        [disabled]="loggingOut()"
+        aria-label="Cerrar sesión"
+        (click)="logout()"
+      >
+        <i class="pi pi-sign-out" aria-hidden="true"></i>
+        <span>{{ loggingOut() ? 'Saliendo…' : 'Salir' }}</span>
+      </button>
     </div>
   </header>
 

@@ -36,7 +36,7 @@ test('registers a company and first administrator', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Cuenta creada' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Iniciar sesión' })).toHaveAttribute(
     'href',
-    '/login',
+    '/v2/login',
   );
   expect(idempotencyKey).toMatch(/^registration:[\w-]{36}$/);
 });

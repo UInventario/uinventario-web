@@ -10,6 +10,31 @@ const workspaces = [
   ['administracion', 'Administración'],
 ] as const;
 
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/v1/auth/sessions/current', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          user: { id: 'user-1', email: 'admin@example.com', roles: ['ADMIN'], permissions: [] },
+          tenant: { id: 'tenant-1', name: 'Tienda Central' },
+          context: {
+            branch: { id: 'branch-1', name: 'Principal' },
+            warehouse: { id: 'warehouse-1', name: 'Bodega' },
+            cashRegister: { id: 'register-1', name: 'Caja', code: 'CAJA-1' },
+          },
+          nextStep: 'APPLICATION',
+        },
+        meta: {
+          apiVersion: '1',
+          sessionExpiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+        },
+      }),
+    });
+  });
+});
+
 test('navigates independent workspaces without hashes or a giant document', async ({ page }) => {
   await page.goto('./');
   await expect(page).toHaveURL(/\/v2\/dashboard$/);

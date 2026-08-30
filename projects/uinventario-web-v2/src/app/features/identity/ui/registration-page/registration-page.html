@@ -23,7 +23,7 @@
           <i class="pi pi-check" aria-hidden="true"></i>
           <h2>Cuenta creada</h2>
           <p>Tu empresa y usuario administrador están listos. Ya puedes iniciar sesión.</p>
-          <a class="result-action" href="/login">
+          <a class="result-action" routerLink="/login">
             Iniciar sesión <i class="pi pi-arrow-right" aria-hidden="true"></i>
           </a>
         </section>
@@ -89,7 +89,7 @@
             <span>{{ submitting() ? 'Creando cuenta…' : 'Crear cuenta' }}</span>
           </button>
         </form>
-        <p class="secondary">¿Ya tienes cuenta? <a href="/login">Inicia sesión</a></p>
+        <p class="secondary">¿Ya tienes cuenta? <a routerLink="/login">Inicia sesión</a></p>
       }
     </div>
   </section>

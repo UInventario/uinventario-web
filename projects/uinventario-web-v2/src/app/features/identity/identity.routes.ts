@@ -19,6 +19,13 @@ export const REGISTRATION_ROUTES: Routes = [
   },
 ];
 
+export const LOGIN_ROUTES: Routes = [
+  {
+    path: '',
+    loadComponent: () => import('./ui/login-page/login-page').then((module) => module.LoginPage),
+  },
+];
+
 export const PASSWORD_RESET_REQUEST_ROUTES: Routes = [
   {
     path: '',

@@ -12,13 +12,20 @@ import { routes } from './app.routes';
 import { apiContextInterceptor } from './core/api/api-context.interceptor';
 import { apiResilienceInterceptor } from './core/api/api-resilience.interceptor';
 import { ApiRuntimeConfig } from './core/api/api-runtime-config';
+import { sessionRefreshInterceptor } from './core/session/session-refresh.interceptor';
 import { UINVENTARIO_PRESET } from './core/theme/uinventario-preset';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideAnimationsAsync(),
-    provideHttpClient(withInterceptors([apiContextInterceptor, apiResilienceInterceptor])),
+    provideHttpClient(
+      withInterceptors([
+        apiContextInterceptor,
+        sessionRefreshInterceptor,
+        apiResilienceInterceptor,
+      ]),
+    ),
     provideAppInitializer(() => inject(ApiRuntimeConfig).load()),
     provideRouter(routes),
     providePrimeNG({
