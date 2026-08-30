@@ -124,6 +124,12 @@
           </p>
         }
       </section>
+      @if (ticket.loyalty; as loyalty) {
+        <p>
+          Fidelización · Canje {{ loyalty.pointsRedeemed }} puntos ({{ ticket.currency }}
+          {{ loyalty.redemptionValue }}) · Acumulados {{ loyalty.pointsEarned }} puntos
+        </p>
+      }
       @if (ticket.void; as voidData) {
         <p class="voided">
           Anulada {{ voidData.voidedAt | date: 'short' }} · {{ voidData.reason }}

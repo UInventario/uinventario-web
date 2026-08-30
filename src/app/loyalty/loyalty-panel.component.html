@@ -1,0 +1,90 @@
+<section class="loyalty-panel" aria-labelledby="loyalty-title" [attr.aria-busy]="loading()">
+  <header>
+    <div>
+      <p class="eyebrow">Clientes</p>
+      <h2 id="loyalty-title">Fidelización</h2>
+      <p>Acumula, canjea y compensa puntos sin modificar ventas históricas.</p>
+    </div>
+    @if (rule(); as current) {
+      <span class="version"
+        >Regla v{{ current.version }} · {{ current.active ? 'Activa' : 'Inactiva' }}</span
+      >
+    }
+  </header>
+
+  @if (error()) {
+    <p class="form-error" role="alert">{{ error() }}</p>
+  }
+  @if (success()) {
+    <p class="success" role="status">{{ success() }}</p>
+  }
+
+  <div class="loyalty-grid">
+    <form [formGroup]="form" (ngSubmit)="save()">
+      <h3>Regla vigente</h3>
+      <label class="check"
+        ><input type="checkbox" formControlName="active" /> Programa activo</label
+      >
+      <label
+        >Importe para acumular <input formControlName="earnAmount" inputmode="decimal"
+      /></label>
+      <label>Puntos acumulados <input formControlName="earnPoints" type="number" min="1" /></label>
+      <label
+        >Incremento de canje <input formControlName="redeemPoints" type="number" min="1"
+      /></label>
+      <label
+        >Valor del incremento <input formControlName="redeemAmount" inputmode="decimal"
+      /></label>
+      <label
+        >Expiración en días
+        <input formControlName="expirationDays" type="number" min="1" max="3650"
+      /></label>
+      <button type="submit" [disabled]="saving()">
+        {{ saving() ? 'Publicando…' : 'Publicar nueva versión' }}
+      </button>
+    </form>
+
+    <section>
+      <h3>Saldo e historial</h3>
+      <label>
+        Cliente
+        <select [formControl]="form.controls.customerId" (change)="loadStatement()">
+          <option value="">Selecciona un cliente</option>
+          @for (customer of customers(); track customer.id) {
+            <option [value]="customer.id">
+              {{ customer.name }} · {{ customer.loyalty?.balance || 0 }} puntos
+            </option>
+          }
+        </select>
+      </label>
+      @if (statement(); as value) {
+        <p class="balance">
+          <strong>{{ value.balance }}</strong> puntos disponibles
+        </p>
+        @if (value.entries.length === 0) {
+          <p>Aún no hay movimientos.</p>
+        } @else {
+          <ol>
+            @for (entry of value.entries; track entry.id) {
+              <li>
+                <span
+                  ><strong>{{ entry.points > 0 ? '+' : '' }}{{ entry.points }}</strong> ·
+                  {{ entryLabel(entry.type) }}</span
+                >
+                <small>
+                  {{ entry.createdAt | date: 'short' }}
+                  @if (entry.sale) {
+                    · {{ entry.sale.receiptNumber }}
+                  }
+                  @if (entry.expiresAt) {
+                    · vence {{ entry.expiresAt | date: 'shortDate' }}
+                  }
+                </small>
+              </li>
+            }
+          </ol>
+        }
+      }
+    </section>
+  </div>
+</section>

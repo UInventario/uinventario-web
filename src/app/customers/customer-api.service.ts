@@ -17,6 +17,7 @@ export interface CustomerData {
   createdAt: string;
   updatedAt: string;
   credit?: CustomerCreditData | null;
+  loyalty?: { balance: number };
 }
 
 export interface CustomerCreditData {
