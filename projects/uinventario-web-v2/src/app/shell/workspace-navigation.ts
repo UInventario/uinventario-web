@@ -60,9 +60,8 @@ export const SALES_ACCESS = [
   'CASH_REGISTER_CLOSE',
 ] as const satisfies readonly AppPermission[];
 export const REPORTS_ACCESS = [
-  'AUDIT_VIEW',
+  'SALES_MANAGE',
   'INVENTORY_VIEW',
-  'INVENTORY_VALUATION_MANAGE',
 ] as const satisfies readonly AppPermission[];
 export const ADMINISTRATION_ACCESS = [
   'TENANT_MANAGE',

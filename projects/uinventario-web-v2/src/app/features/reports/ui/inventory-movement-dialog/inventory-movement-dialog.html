@@ -1,0 +1,58 @@
+<div class="backdrop" (click)="closed.emit()">
+  <section
+    class="detail"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="movement-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <p>Trazabilidad de inventario</p>
+        <h2 id="movement-title">{{ productName() }}</h2>
+      </div>
+      <button type="button" aria-label="Cerrar movimientos" (click)="closed.emit()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+    @if (loading()) {
+      <div class="state"><i class="pi pi-spin pi-spinner"></i>Cargando movimientos…</div>
+    } @else if (error()) {
+      <div class="notice" role="alert">{{ error() }}</div>
+    } @else {
+      <section>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha local</th>
+                <th>Tipo / motivo</th>
+                <th>Sucursal / bodega</th>
+                <th>Ubicación</th>
+                <th class="number">Cambio</th>
+                <th class="number">Existencia</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of rows(); track row.id) {
+                <tr>
+                  <td>{{ date(row.occurredAt, timezone()) }}</td>
+                  <td>{{ row.type }} · {{ row.reason }}</td>
+                  <td>{{ row.branchName }} · {{ row.warehouseName }}</td>
+                  <td>{{ row.locationName }}</td>
+                  <td class="number">{{ row.quantityChange }}</td>
+                  <td class="number">{{ row.resultingQuantity }}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6">No hay movimientos con los filtros seleccionados.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <ui-report-pagination [pagination]="pagination()" (pageChange)="load($event)" />
+      </section>
+    }
+  </section>
+</div>

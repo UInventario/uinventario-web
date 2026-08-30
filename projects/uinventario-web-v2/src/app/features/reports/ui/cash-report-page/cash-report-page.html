@@ -1,0 +1,126 @@
+<section class="report-view" aria-labelledby="cash-report-title">
+  <div class="view-heading">
+    <div>
+      <h2 id="cash-report-title">Reporte de caja</h2>
+      <p>Turnos, medios de pago y diferencias de efectivo.</p>
+    </div>
+    <button
+      class="export"
+      type="button"
+      [disabled]="!result()?.data?.shifts?.length"
+      (click)="export()"
+    >
+      <i class="pi pi-download"></i>Exportar página
+    </button>
+  </div>
+  <ui-report-filter-bar
+    [query]="query()"
+    [branches]="result()?.data?.options?.branches || []"
+    [registers]="result()?.data?.options?.registers || []"
+    [users]="result()?.data?.options?.users || []"
+    (applied)="apply($event)"
+  />
+  @if (loading()) {
+    <div class="state"><i class="pi pi-spin pi-spinner"></i>Consultando caja…</div>
+  } @else if (error()) {
+    <div class="state error" role="alert">{{ error() }}</div>
+  } @else if (result(); as page) {
+    <div class="summary">
+      <span class="metric"
+        ><small>Turnos</small><strong>{{ page.data.summary.cash.shifts }}</strong></span
+      ><span class="metric"
+        ><small>Esperado</small
+        ><strong>{{ page.data.summary.cash.expected }} {{ summaryCurrency() }}</strong></span
+      ><span class="metric"
+        ><small>Contado</small
+        ><strong>{{ page.data.summary.cash.counted }} {{ summaryCurrency() }}</strong></span
+      ><span class="metric"
+        ><small>Diferencia</small
+        ><strong>{{ page.data.summary.cash.difference }} {{ summaryCurrency() }}</strong></span
+      >
+    </div>
+    <section class="card">
+      <div class="card-heading">
+        <div>
+          <h3>Medios de pago</h3>
+          <p>Importes aplicados a ventas del periodo.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Método</th>
+              <th>Estado</th>
+              <th class="number">Operaciones</th>
+              <th class="number">Importe</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (payment of page.data.summary.payments; track payment.method + payment.status) {
+              <tr>
+                <td>{{ payment.method }}</td>
+                <td>{{ payment.status }}</td>
+                <td class="number">{{ payment.count }}</td>
+                <td class="number">{{ payment.amount }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="4">Sin pagos en el periodo.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card">
+      <div class="card-heading">
+        <div>
+          <h3>Turnos de caja</h3>
+          <p>Fechas en la zona horaria de la sucursal.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Caja</th>
+              <th>Responsable</th>
+              <th>Apertura local</th>
+              <th>Estado</th>
+              <th class="number">Esperado</th>
+              <th class="number">Contado</th>
+              <th class="number">Diferencia</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (shift of page.data.shifts; track shift.id) {
+              <tr>
+                <td>{{ shift.branch.name }} · {{ shift.cashRegister.name }}</td>
+                <td>{{ shift.openedByEmail }}</td>
+                <td>{{ date(shift.openedAt, timezone(shift.branch.id)) }}</td>
+                <td>
+                  <span class="badge" [class.good]="shift.status === 'CLOSED'">{{
+                    shift.status === 'OPEN' ? 'Abierto' : 'Cerrado'
+                  }}</span>
+                </td>
+                <td class="number">{{ money(shift.expected, shift.currency) }}</td>
+                <td class="number">
+                  {{ shift.counted === null ? '—' : money(shift.counted, shift.currency) }}
+                </td>
+                <td class="number">
+                  {{ shift.difference === null ? '—' : money(shift.difference, shift.currency) }}
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="7">No hay turnos con los filtros seleccionados.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <ui-report-pagination [pagination]="page.pagination" (pageChange)="goToPage($event)" />
+    </section>
+  }
+</section>
