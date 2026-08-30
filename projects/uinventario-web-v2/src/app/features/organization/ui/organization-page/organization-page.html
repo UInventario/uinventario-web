@@ -1,0 +1,306 @@
+<section class="organization" aria-labelledby="organization-title">
+  <header class="page-header">
+    <div class="title-group">
+      <span class="page-icon" aria-hidden="true"><i class="pi pi-building"></i></span>
+      <div>
+        <p>Administración</p>
+        <h1 id="organization-title">Sucursales y bodegas</h1>
+        <span>Define dónde operas, almacenas inventario y registras ventas.</span>
+      </div>
+    </div>
+    <button class="primary-button" type="button" (click)="openCreateBranch()">
+      <i class="pi pi-plus" aria-hidden="true"></i>Nueva sucursal
+    </button>
+  </header>
+
+  @if (successMessage()) {
+    <div class="notice success" role="status">
+      <i class="pi pi-check-circle"></i>{{ successMessage() }}
+    </div>
+  }
+  @if (errorMessage() && !editorMode() && !retirement()) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle"></i>{{ errorMessage() }}
+    </div>
+  }
+
+  @if (loading()) {
+    <div class="state-panel" role="status">
+      <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+      <p>Cargando organización…</p>
+    </div>
+  } @else if (!branches().length) {
+    <div class="state-panel">
+      <i class="pi pi-building" aria-hidden="true"></i>
+      <h2>Aún no hay sucursales</h2>
+      <p>Crea una sucursal con su primera bodega y ubicación.</p>
+      <button class="primary-button" type="button" (click)="openCreateBranch()">
+        Crear sucursal
+      </button>
+    </div>
+  } @else {
+    <div class="branch-grid">
+      @for (branch of branches(); track branch.id) {
+        <article class="branch-card">
+          <header>
+            <div>
+              <span class="branch-label">Sucursal</span>
+              <h2>{{ branch.name }}</h2>
+              <p><i class="pi pi-clock" aria-hidden="true"></i>{{ branch.timezone }}</p>
+            </div>
+            <div class="menu-actions" aria-label="Acciones de sucursal">
+              <button
+                class="icon-button"
+                type="button"
+                (click)="openEditBranch(branch)"
+                [attr.aria-label]="'Editar ' + branch.name"
+              >
+                <i class="pi pi-pencil" aria-hidden="true"></i>
+              </button>
+              <button
+                class="icon-button danger"
+                type="button"
+                (click)="requestRetirement({ type: 'BRANCH', id: branch.id, name: branch.name })"
+                [attr.aria-label]="'Retirar ' + branch.name"
+              >
+                <i class="pi pi-trash" aria-hidden="true"></i>
+              </button>
+            </div>
+          </header>
+
+          <section class="resource-section" [attr.aria-labelledby]="'warehouses-' + branch.id">
+            <div class="section-heading">
+              <h3 [id]="'warehouses-' + branch.id">Bodegas</h3>
+              <button class="link-button" type="button" (click)="openCreateWarehouse(branch)">
+                <i class="pi pi-plus"></i>Agregar
+              </button>
+            </div>
+            <div class="resource-list">
+              @for (warehouse of branch.warehouses; track warehouse.id) {
+                <div class="resource-row">
+                  <span class="resource-icon"><i class="pi pi-box"></i></span>
+                  <div>
+                    <strong>{{ warehouse.name }}</strong>
+                    <small>
+                      @for (location of warehouse.locations; track location.id) {
+                        <span>{{ location.name }} · {{ location.code }}</span>
+                      }
+                    </small>
+                  </div>
+                  <div class="row-actions">
+                    <button
+                      class="icon-button"
+                      type="button"
+                      (click)="openEditWarehouse(branch, warehouse)"
+                      [attr.aria-label]="'Editar ' + warehouse.name"
+                    >
+                      <i class="pi pi-pencil"></i>
+                    </button>
+                    <button
+                      class="icon-button danger"
+                      type="button"
+                      (click)="
+                        requestRetirement({
+                          type: 'WAREHOUSE',
+                          id: warehouse.id,
+                          name: warehouse.name,
+                        })
+                      "
+                      [attr.aria-label]="'Retirar ' + warehouse.name"
+                    >
+                      <i class="pi pi-trash"></i>
+                    </button>
+                  </div>
+                </div>
+              } @empty {
+                <p class="empty-copy">No hay bodegas activas.</p>
+              }
+            </div>
+          </section>
+
+          <section class="resource-section" [attr.aria-labelledby]="'registers-' + branch.id">
+            <div class="section-heading">
+              <h3 [id]="'registers-' + branch.id">Cajas</h3>
+              <button class="link-button" type="button" (click)="openCreateRegister(branch)">
+                <i class="pi pi-plus"></i>Agregar
+              </button>
+            </div>
+            <div class="register-list">
+              @for (register of branch.cashRegisters; track register.id) {
+                <span
+                  ><i class="pi pi-desktop"></i>{{ register.name
+                  }}<small>{{ register.code }}</small></span
+                >
+              } @empty {
+                <p class="empty-copy">No hay cajas en esta sucursal.</p>
+              }
+            </div>
+          </section>
+        </article>
+      }
+    </div>
+  }
+</section>
+
+@if (editorMode()) {
+  <div class="dialog-backdrop" (click)="closeEditor()">
+    <section
+      class="dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="editor-title"
+      (click)="$event.stopPropagation()"
+    >
+      <header>
+        <div>
+          <p>{{ activeBranch()?.name ?? 'Organización' }}</p>
+          <h2 id="editor-title">{{ editorTitle() }}</h2>
+        </div>
+        <button class="icon-button" type="button" (click)="closeEditor()" aria-label="Cerrar">
+          <i class="pi pi-times"></i>
+        </button>
+      </header>
+
+      @if (isBranchEditor()) {
+        <form [formGroup]="branchForm" (ngSubmit)="saveEditor()" novalidate>
+          <div class="field full">
+            <label for="branchEditorName">Nombre</label
+            ><input id="branchEditorName" formControlName="name" maxlength="120" />
+          </div>
+          <div class="field full">
+            <label for="branchEditorTimezone">Zona horaria</label
+            ><select id="branchEditorTimezone" formControlName="timezone">
+              @for (timezone of timezones; track timezone.value) {
+                <option [value]="timezone.value">{{ timezone.label }}</option>
+              }
+            </select>
+          </div>
+          @if (isCreateMode()) {
+            <div class="field">
+              <label for="branchWarehouse">Bodega inicial</label
+              ><input id="branchWarehouse" formControlName="warehouseName" maxlength="120" />
+            </div>
+            <div class="field">
+              <label for="branchLocation">Ubicación inicial</label
+              ><input id="branchLocation" formControlName="locationName" maxlength="120" />
+            </div>
+            <div class="field full">
+              <label for="branchLocationCode">Código de ubicación</label
+              ><input
+                id="branchLocationCode"
+                formControlName="locationCode"
+                maxlength="40"
+                placeholder="NORTE_GENERAL"
+              /><small>Letras, números, guion o guion bajo.</small>
+            </div>
+          }
+          <ng-container *ngTemplateOutlet="dialogActions"></ng-container>
+        </form>
+      } @else if (isWarehouseEditor()) {
+        <form [formGroup]="warehouseForm" (ngSubmit)="saveEditor()" novalidate>
+          <div class="field full">
+            <label for="warehouseEditorName">Nombre</label
+            ><input id="warehouseEditorName" formControlName="name" maxlength="120" />
+          </div>
+          @if (isCreateMode()) {
+            <div class="field">
+              <label for="warehouseLocation">Ubicación inicial</label
+              ><input id="warehouseLocation" formControlName="locationName" maxlength="120" />
+            </div>
+            <div class="field">
+              <label for="warehouseLocationCode">Código</label
+              ><input
+                id="warehouseLocationCode"
+                formControlName="locationCode"
+                maxlength="40"
+                placeholder="PISO_1"
+              />
+            </div>
+          }
+          <ng-container *ngTemplateOutlet="dialogActions"></ng-container>
+        </form>
+      } @else {
+        <form [formGroup]="registerForm" (ngSubmit)="saveEditor()" novalidate>
+          <div class="field full">
+            <label for="registerEditorName">Nombre</label
+            ><input id="registerEditorName" formControlName="name" maxlength="120" />
+          </div>
+          <div class="field full">
+            <label for="registerEditorCode">Código</label
+            ><input
+              id="registerEditorCode"
+              formControlName="code"
+              maxlength="40"
+              placeholder="CAJA_02"
+            /><small>Letras, números, guion o guion bajo.</small>
+          </div>
+          <ng-container *ngTemplateOutlet="dialogActions"></ng-container>
+        </form>
+      }
+    </section>
+  </div>
+}
+
+<ng-template #dialogActions>
+  @if (errorMessage()) {
+    <div class="notice error full" role="alert">{{ errorMessage() }}</div>
+  }
+  <div class="dialog-actions full">
+    <button class="secondary-button" type="button" (click)="closeEditor()" [disabled]="saving()">
+      Cancelar
+    </button>
+    <button class="primary-button" type="submit" [disabled]="saving()">
+      {{ saving() ? 'Guardando…' : 'Guardar' }}
+    </button>
+  </div>
+</ng-template>
+
+@if (retirement(); as candidate) {
+  <div class="dialog-backdrop" (click)="cancelRetirement()">
+    <section
+      class="dialog danger-dialog"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="retirement-title"
+      (click)="$event.stopPropagation()"
+    >
+      <span class="danger-icon"><i class="pi pi-exclamation-triangle"></i></span>
+      <h2 id="retirement-title">Retirar {{ candidate.name }}</h2>
+      <p>
+        Dejará de estar disponible para nuevas operaciones. Los datos históricos se conservarán.
+      </p>
+      <div class="field full">
+        <label for="retirementConfirmation"
+          >Escribe <strong>{{ candidate.name }}</strong> para confirmar</label
+        >
+        <input
+          id="retirementConfirmation"
+          [value]="retirementConfirmation()"
+          (input)="updateRetirementConfirmation($event)"
+          autocomplete="off"
+        />
+      </div>
+      @if (errorMessage()) {
+        <div class="notice error" role="alert">{{ errorMessage() }}</div>
+      }
+      <div class="dialog-actions">
+        <button
+          class="secondary-button"
+          type="button"
+          (click)="cancelRetirement()"
+          [disabled]="saving()"
+        >
+          Cancelar
+        </button>
+        <button
+          class="danger-button"
+          type="button"
+          (click)="confirmRetirement()"
+          [disabled]="!canConfirmRetirement() || saving()"
+        >
+          {{ saving() ? 'Retirando…' : 'Retirar' }}
+        </button>
+      </div>
+    </section>
+  </div>
+}

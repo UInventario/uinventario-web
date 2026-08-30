@@ -40,6 +40,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'onboarding',
+    title: 'Configuración inicial | UInventario',
+    canActivate: [sessionGuard],
+    loadChildren: () =>
+      import('./features/organization/organization.routes').then(
+        (module) => module.ONBOARDING_ROUTES,
+      ),
+  },
+  {
     path: '',
     canActivate: [sessionGuard],
     loadComponent: () => import('./shell/app-shell/app-shell').then((module) => module.AppShell),
@@ -84,8 +93,8 @@ export const routes: Routes = [
         path: 'administracion',
         canActivate: [requireAnyPermission(...ADMINISTRATION_ACCESS)],
         loadChildren: () =>
-          import('./features/administration/administration.routes').then(
-            (module) => module.ADMINISTRATION_ROUTES,
+          import('./features/organization/organization.routes').then(
+            (module) => module.ORGANIZATION_ADMIN_ROUTES,
           ),
       },
     ],
