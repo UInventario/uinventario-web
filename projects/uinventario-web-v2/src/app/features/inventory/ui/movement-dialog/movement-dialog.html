@@ -1,0 +1,108 @@
+<div class="backdrop" (click)="closed.emit()">
+  <section
+    class="dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="movement-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <p>Movimiento de inventario</p>
+        <h2 id="movement-title">{{ product().name }}</h2>
+        <span>{{ product().sku }} · {{ product().baseUnit }}</span>
+      </div>
+      <button class="icon" type="button" aria-label="Cerrar" (click)="closed.emit()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <div class="field">
+        <label for="movementLocation">Ubicación</label>
+        <select id="movementLocation" formControlName="locationId">
+          @for (location of locations(); track location.id) {
+            <option [value]="location.id">{{ location.name }} · {{ location.code }}</option>
+          }
+        </select>
+      </div>
+      <div class="field">
+        <label for="movementType">Tipo</label>
+        <select id="movementType" formControlName="type">
+          @for (type of movementTypes; track type.value) {
+            <option [value]="type.value">{{ type.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="field">
+        <label for="movementQuantity">Cantidad</label>
+        <input
+          id="movementQuantity"
+          formControlName="quantity"
+          inputmode="decimal"
+          [attr.aria-describedby]="
+            form.controls.type.value === 'ADJUSTMENT' ? 'quantity-help' : null
+          "
+        />
+        @if (form.controls.type.value === 'ADJUSTMENT') {
+          <small id="quantity-help">Usa signo negativo para disminuir.</small>
+        }
+      </div>
+      <div class="field full">
+        <label for="movementReason">Razón</label>
+        <input id="movementReason" formControlName="reason" maxlength="160" />
+      </div>
+      <div class="field full">
+        <label for="movementReference">Referencia o evidencia</label>
+        <input
+          id="movementReference"
+          formControlName="reference"
+          maxlength="120"
+          placeholder="Documento, folio o autorización"
+        />
+      </div>
+
+      @if (product().trackLots) {
+        <div class="field">
+          <label for="movementLot">Lote</label>
+          <input id="movementLot" formControlName="lotCode" maxlength="64" />
+        </div>
+        <div class="field">
+          <label for="movementManufactured">Fabricación</label>
+          <input id="movementManufactured" type="date" formControlName="manufacturedOn" />
+        </div>
+        <div class="field">
+          <label for="movementExpires">Caducidad</label>
+          <input id="movementExpires" type="date" formControlName="expiresOn" />
+        </div>
+      }
+
+      @if (product().trackSerials) {
+        <div class="field full">
+          <label for="movementSerials">Números de serie</label>
+          <textarea
+            id="movementSerials"
+            formControlName="serialNumbers"
+            rows="4"
+            placeholder="Uno por línea o separados por coma"
+          ></textarea>
+        </div>
+      }
+
+      @if (form.touched && form.invalid) {
+        <div class="notice error full" role="alert">
+          Completa ubicación, tipo, cantidad, razón y referencia con valores válidos.
+        </div>
+      }
+      @if (error()) {
+        <div class="notice error full" role="alert">{{ error() }}</div>
+      }
+      <footer class="actions full">
+        <button class="secondary" type="button" (click)="closed.emit()">Cancelar</button>
+        <button class="primary" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Registrando…' : 'Registrar movimiento' }}
+        </button>
+      </footer>
+    </form>
+  </section>
+</div>

@@ -1,0 +1,322 @@
+<section class="inventory" aria-labelledby="inventory-title">
+  <header class="page-header">
+    <div class="title-group">
+      <span class="page-icon"><i class="pi pi-warehouse"></i></span>
+      <div>
+        <p>Operación</p>
+        <h1 id="inventory-title">Inventario</h1>
+        <span>Existencias reales y trazabilidad dentro del contexto operativo activo.</span>
+      </div>
+    </div>
+    @if (canAdjust()) {
+      <button
+        class="primary"
+        type="button"
+        [disabled]="!locations().length"
+        (click)="openChooser()"
+      >
+        <i class="pi pi-plus"></i>Registrar movimiento
+      </button>
+    }
+  </header>
+
+  <nav class="tabs" aria-label="Áreas de inventario">
+    <button type="button" [class.active]="tab() === 'STOCK'" (click)="selectTab('STOCK')">
+      Existencias
+    </button>
+    <button type="button" [class.active]="tab() === 'MOVEMENTS'" (click)="selectTab('MOVEMENTS')">
+      Historial
+    </button>
+  </nav>
+
+  @if (notice()) {
+    <div class="notice success" role="status"><i class="pi pi-check-circle"></i>{{ notice() }}</div>
+  }
+  @if (error() && !dialogMode() && !chooserOpen()) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle"></i>{{ error() }}
+    </div>
+  }
+
+  @if (tab() === 'STOCK') {
+    <form class="filters stock-filters" [formGroup]="stockFilters" (ngSubmit)="applyStockFilters()">
+      <div class="search-field">
+        <i class="pi pi-search"></i>
+        <input
+          formControlName="q"
+          aria-label="Buscar existencias"
+          placeholder="Nombre, SKU o código de barras"
+        />
+      </div>
+      <button class="secondary" type="submit">Buscar</button>
+    </form>
+
+    @if (stockPage(); as page) {
+      <div class="scope-bar">
+        <span><i class="pi pi-building"></i>{{ page.scope.branch.name }}</span>
+        <span><i class="pi pi-warehouse"></i>{{ page.scope.warehouse.name }}</span>
+        <span>Moneda {{ page.currency }}</span>
+      </div>
+    }
+
+    @if (loading()) {
+      <div class="state" role="status">
+        <i class="pi pi-spin pi-spinner"></i>Cargando existencias…
+      </div>
+    } @else if (!stockPage()?.items?.length) {
+      <div class="state">
+        <i class="pi pi-box"></i>
+        <h2>No encontramos productos</h2>
+        <p>Prueba otra búsqueda o crea el producto desde Catálogo.</p>
+      </div>
+    } @else {
+      <div class="stock-table" role="table" aria-label="Existencias por producto">
+        <div class="stock-head" role="row">
+          <span role="columnheader">Producto</span>
+          <span role="columnheader">Disponible</span>
+          <span role="columnheader">Otros estados</span>
+          <span role="columnheader">Valor</span>
+          <span></span>
+        </div>
+        @for (item of stockPage()!.items; track item.product.id) {
+          <article class="stock-row" role="row">
+            <span class="product" role="cell">
+              <strong>{{ item.product.name }}</strong>
+              <small>{{ item.product.sku }} · {{ item.product.baseUnit }}</small>
+            </span>
+            <span class="available" role="cell">
+              <strong>{{ item.availableQuantity }}</strong>
+              <small>Total {{ item.totalQuantity }}</small>
+            </span>
+            <span class="state-chips" role="cell">
+              <span>Reservado {{ stateQuantity(item, 'RESERVED') }}</span>
+              <span>Dañado {{ stateQuantity(item, 'DAMAGED') }}</span>
+              <span>Tránsito {{ stateQuantity(item, 'IN_TRANSIT') }}</span>
+            </span>
+            <span class="valuation" role="cell">
+              <strong>{{ item.inventoryValue }} {{ item.costing.currency }}</strong>
+              <small>Costo medio {{ item.averageUnitCost }}</small>
+            </span>
+            <span class="row-actions">
+              @if (canAdjust() && item.product.active) {
+                <button class="secondary compact" type="button" (click)="openMovement(item)">
+                  Movimiento
+                </button>
+                <button
+                  class="icon"
+                  type="button"
+                  [attr.aria-label]="'Cambiar estado de ' + item.product.name"
+                  (click)="openStateTransition(item)"
+                >
+                  <i class="pi pi-arrows-h"></i>
+                </button>
+              } @else if (!item.product.active) {
+                <span class="retired">Retirado</span>
+              }
+            </span>
+          </article>
+        }
+      </div>
+      <footer class="pagination">
+        <span>{{ stockPage()!.pagination.total }} producto(s)</span>
+        <div>
+          <button
+            class="secondary"
+            type="button"
+            [disabled]="stockPage()!.pagination.page <= 1"
+            (click)="goToPage(stockPage()!.pagination.page - 1)"
+          >
+            Anterior
+          </button>
+          <span>
+            Página {{ stockPage()!.pagination.page }} de
+            {{ stockPage()!.pagination.totalPages || 1 }}
+          </span>
+          <button
+            class="secondary"
+            type="button"
+            [disabled]="stockPage()!.pagination.page >= stockPage()!.pagination.totalPages"
+            (click)="goToPage(stockPage()!.pagination.page + 1)"
+          >
+            Siguiente
+          </button>
+        </div>
+      </footer>
+    }
+  } @else {
+    <form
+      class="filters movement-filters"
+      [formGroup]="movementFilters"
+      (ngSubmit)="applyMovementFilters()"
+    >
+      <div class="search-field">
+        <i class="pi pi-search"></i>
+        <input formControlName="q" aria-label="Buscar movimientos" placeholder="Producto o SKU" />
+      </div>
+      <select formControlName="type" aria-label="Tipo de movimiento">
+        <option value="">Todos los tipos</option>
+        @for (type of movementTypes; track type.value) {
+          <option [value]="type.value">{{ type.label }}</option>
+        }
+      </select>
+      <label>
+        <span>Desde</span><input type="date" formControlName="dateFrom" aria-label="Fecha desde" />
+      </label>
+      <label>
+        <span>Hasta</span><input type="date" formControlName="dateTo" aria-label="Fecha hasta" />
+      </label>
+      <button class="secondary" type="submit">Aplicar</button>
+    </form>
+
+    @if (loading()) {
+      <div class="state" role="status">
+        <i class="pi pi-spin pi-spinner"></i>Cargando movimientos…
+      </div>
+    } @else if (!movementPage()?.items?.length) {
+      <div class="state">
+        <i class="pi pi-history"></i>
+        <h2>No hay movimientos para estos filtros</h2>
+        <p>Los cambios de stock aparecerán aquí con su responsable y referencia.</p>
+      </div>
+    } @else {
+      <div class="movement-list" aria-label="Historial de movimientos">
+        @for (movement of movementPage()!.items; track movement.id) {
+          <article class="movement-card">
+            <span
+              class="direction"
+              [class.out]="movement.direction === 'OUT'"
+              [class.transfer]="movement.direction === 'TRANSFER'"
+            >
+              <i [class]="movementIcon(movement.direction)"></i>
+            </span>
+            <div class="movement-main">
+              <div>
+                <strong>{{ movement.product.name }}</strong>
+                <span class="movement-type">{{ movementLabel(movement.type) }}</span>
+              </div>
+              <small>
+                {{ movement.product.sku }} · {{ movement.location.warehouse.name }} /
+                {{ movement.location.name }}
+              </small>
+              <p>{{ movement.reason }} · {{ movement.reference || 'Sin referencia' }}</p>
+              @if (movement.stateTransition; as transition) {
+                <small class="transition">
+                  {{ stateLabel(transition.from) }} → {{ stateLabel(transition.to) }} ·
+                  {{ transition.quantity }}
+                </small>
+              }
+            </div>
+            <div class="movement-result">
+              <strong [class.negative]="movement.direction === 'OUT'">
+                {{ movement.quantityChange }}
+              </strong>
+              <small>Saldo {{ movement.resultingQuantity }}</small>
+              <span>{{ movement.createdAt | date: 'dd/MM/yyyy HH:mm' }}</span>
+              <span>{{ movement.responsible.email }}</span>
+            </div>
+          </article>
+        }
+      </div>
+      <footer class="pagination">
+        <span>{{ movementPage()!.pagination.total }} movimiento(s)</span>
+        <div>
+          <button
+            class="secondary"
+            type="button"
+            [disabled]="movementPage()!.pagination.page <= 1"
+            (click)="goToPage(movementPage()!.pagination.page - 1)"
+          >
+            Anterior
+          </button>
+          <span>
+            Página {{ movementPage()!.pagination.page }} de
+            {{ movementPage()!.pagination.totalPages || 1 }}
+          </span>
+          <button
+            class="secondary"
+            type="button"
+            [disabled]="movementPage()!.pagination.page >= movementPage()!.pagination.totalPages"
+            (click)="goToPage(movementPage()!.pagination.page + 1)"
+          >
+            Siguiente
+          </button>
+        </div>
+      </footer>
+    }
+  }
+</section>
+
+@if (chooserOpen()) {
+  <div class="backdrop" (click)="chooserOpen.set(false)">
+    <section
+      class="chooser"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="chooser-title"
+      (click)="$event.stopPropagation()"
+    >
+      <header>
+        <div>
+          <p>Registrar movimiento</p>
+          <h2 id="chooser-title">Selecciona un producto</h2>
+        </div>
+        <button class="icon" type="button" aria-label="Cerrar" (click)="chooserOpen.set(false)">
+          <i class="pi pi-times"></i>
+        </button>
+      </header>
+      <form [formGroup]="chooserForm" (ngSubmit)="searchChooser()">
+        <div class="search-field">
+          <i class="pi pi-search"></i>
+          <input formControlName="q" aria-label="Buscar producto para movimiento" autofocus />
+        </div>
+        <button class="secondary" type="submit">Buscar</button>
+      </form>
+      <div class="chooser-results">
+        @if (chooserLoading()) {
+          <div class="state"><i class="pi pi-spin pi-spinner"></i>Buscando…</div>
+        } @else {
+          @for (item of chooserResults(); track item.product.id) {
+            <button type="button" (click)="openMovement(item)">
+              <span
+                ><strong>{{ item.product.name }}</strong
+                ><small>{{ item.product.sku }}</small></span
+              >
+              <span
+                ><strong>{{ item.availableQuantity }}</strong
+                ><small>disponible</small></span
+              >
+              <i class="pi pi-chevron-right"></i>
+            </button>
+          } @empty {
+            <div class="state">No se encontraron productos.</div>
+          }
+        }
+      </div>
+      @if (error()) {
+        <div class="notice error" role="alert">{{ error() }}</div>
+      }
+    </section>
+  </div>
+}
+
+@if (selectedProduct(); as product) {
+  @if (dialogMode() === 'MOVEMENT') {
+    <ui-inventory-movement-dialog
+      [product]="product"
+      [locations]="locations()"
+      [saving]="saving()"
+      [error]="error()"
+      (closed)="closeDialog()"
+      (submitted)="submitMovement($event)"
+    />
+  } @else if (dialogMode() === 'STATE') {
+    <ui-inventory-state-transition-dialog
+      [product]="product"
+      [locations]="locations()"
+      [saving]="saving()"
+      [error]="error()"
+      (closed)="closeDialog()"
+      (submitted)="submitStateTransition($event)"
+    />
+  }
+}
