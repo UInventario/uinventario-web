@@ -195,6 +195,31 @@ export interface SalePaymentData {
   authorizationCode: string | null;
 }
 
+export type PaymentTerminalStatus =
+  | 'PENDING'
+  | 'AUTHORIZED'
+  | 'CAPTURED'
+  | 'DECLINED'
+  | 'INDETERMINATE'
+  | 'CANCELLED';
+
+export interface PaymentTerminalOperationData {
+  id: string;
+  provider: string;
+  adapterVersion: string;
+  providerReference: string | null;
+  amount: string;
+  currency: string;
+  status: PaymentTerminalStatus;
+  errorCode: string | null;
+  authorizationCode: string | null;
+  correlationId: string;
+  saleId: string | null;
+  queryCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CashSaleData {
   id: string;
   receiptNumber: string;
@@ -697,12 +722,14 @@ export class PosApiService {
         method: CollectedPaymentMethod;
         amountReceived?: string;
         reference?: string;
+        terminalOperationId?: string;
       };
       payments?: Array<{
         method: CollectedPaymentMethod;
         amount: string;
         amountReceived?: string;
         reference?: string;
+        terminalOperationId?: string;
       }>;
       credit?: { installmentCount: number };
     },
@@ -715,6 +742,39 @@ export class PosApiService {
         headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
         withCredentials: true,
       },
+    );
+  }
+
+  startTerminalPayment(
+    input: { amount: string; currency: string; scenario: 'SUCCESS' },
+    idempotencyKey: string,
+  ) {
+    return this.http.post<{
+      data: PaymentTerminalOperationData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(`${this.config.apiBaseUrl()}/pos/payment-terminal/operations`, input, {
+      headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+      withCredentials: true,
+    });
+  }
+
+  getTerminalPayment(operationId: string) {
+    return this.http.get<{
+      data: PaymentTerminalOperationData;
+      meta: { apiVersion: '1' };
+    }>(`${this.config.apiBaseUrl()}/pos/payment-terminal/operations/${operationId}`, {
+      withCredentials: true,
+    });
+  }
+
+  cancelTerminalPayment(operationId: string) {
+    return this.http.post<{
+      data: PaymentTerminalOperationData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(
+      `${this.config.apiBaseUrl()}/pos/payment-terminal/operations/${operationId}/cancel`,
+      {},
+      { withCredentials: true },
     );
   }
 

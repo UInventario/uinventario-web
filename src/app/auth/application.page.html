@@ -2666,6 +2666,11 @@
                       ) {
                         <small class="field-error">Escribe un importe válido.</small>
                       }
+                    } @else if (payment.controls.method.value === 'CARD') {
+                      <p class="muted" role="status">
+                        El importe se autorizará y capturará en el terminal. UInventario no solicita
+                        ni almacena datos de la tarjeta.
+                      </p>
                     } @else {
                       <label [for]="'paymentReference-' + index">Referencia de autorización</label>
                       <input
@@ -2693,6 +2698,31 @@
                 }
                 @if (canAddPayment()) {
                   <button type="button" (click)="addPayment()">Agregar otro pago</button>
+                }
+                @if (terminalPayment(); as terminal) {
+                  <div class="notice" role="status">
+                    <strong>Terminal: {{ terminal.status }}</strong>
+                    <span>Referencia {{ terminal.providerReference ?? 'pendiente' }}</span>
+                    @if (terminal.status === 'INDETERMINATE') {
+                      <button
+                        type="button"
+                        (click)="refreshTerminalPayment()"
+                        [disabled]="savingSale()"
+                      >
+                        Consultar resultado
+                      </button>
+                    }
+                    @if (!terminal.saleId && terminal.status !== 'DECLINED' && terminal.status !== 'CANCELLED') {
+                      <button
+                        type="button"
+                        class="remove"
+                        (click)="cancelTerminalPayment()"
+                        [disabled]="savingSale()"
+                      >
+                        Cancelar cobro
+                      </button>
+                    }
+                  </div>
                 }
                 @if (paymentRows.invalid) {
                   <small class="field-error">Completa todos los datos del desglose de pago.</small>

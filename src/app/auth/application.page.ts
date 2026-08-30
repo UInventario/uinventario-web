@@ -44,6 +44,7 @@ import {
   CashSaleData,
   CollectedPaymentMethod,
   PaymentMethod,
+  PaymentTerminalOperationData,
   PosApiService,
   PosCartQuote,
   PosProfitabilityReportData,
@@ -125,6 +126,8 @@ interface CartEntry {
   expiredLotOverrideReason: string;
 }
 
+type PosSaleInput = Parameters<PosApiService['createSale']>[0];
+
 @Component({
   selector: 'app-application-page',
   imports: [
@@ -191,27 +194,11 @@ export class ApplicationPage implements OnInit {
     input: InventoryTransferReceiptInput;
     key: string;
   } | null = null;
-  private pendingSale: {
-    input: {
-      lines: Array<{
-        productId: string;
-        quantity: string;
-        lotId?: string;
-        serialNumbers?: string[];
-        discount?: SaleDiscountInput;
-      }>;
-      discount?: SaleDiscountInput;
-      customerId?: string;
-      suspendedSaleId?: string;
-      payments?: Array<{
-        method: CollectedPaymentMethod;
-        amount: string;
-        amountReceived?: string;
-        reference?: string;
-      }>;
-      credit?: { installmentCount: number };
-    };
+  private pendingSale: { input: PosSaleInput; key: string } | null = null;
+  private pendingTerminalSale: {
+    input: PosSaleInput;
     key: string;
+    quote: PosCartQuote;
   } | null = null;
   private pendingSaleVoid: { saleId: string; reason: string; key: string } | null = null;
   private pendingShiftOpening: { openingAmount: string; key: string } | null = null;
@@ -486,6 +473,7 @@ export class ApplicationPage implements OnInit {
   protected readonly offlinePosActive = signal(false);
   protected readonly queuedOfflineSale = signal<{ commandId: string; total: string } | null>(null);
   protected readonly posError = signal<string | null>(null);
+  protected readonly terminalPayment = signal<PaymentTerminalOperationData | null>(null);
   protected readonly peripheralNotice = signal<string | null>(null);
   protected readonly suspendedSales = signal<SuspendedSaleData[]>([]);
   protected readonly loadingSuspendedSales = signal(false);
@@ -1975,20 +1963,7 @@ export class ApplicationPage implements OnInit {
       this.posError.set(error instanceof Error ? error.message : 'Revisa los descuentos.');
       return;
     }
-    const input: {
-      lines: ReturnType<ApplicationPage['saleLinesInput']>;
-      discount?: SaleDiscountInput;
-      customerId?: string;
-      suspendedSaleId?: string;
-      loyaltyPointsToRedeem?: number;
-      payments?: Array<{
-        method: CollectedPaymentMethod;
-        amount: string;
-        amountReceived?: string;
-        reference?: string;
-      }>;
-      credit?: { installmentCount: number };
-    } = {
+    const input: PosSaleInput = {
       lines,
       ...(discount ? { discount } : {}),
       ...(this.cashForm.controls.customerId.value
@@ -2008,11 +1983,22 @@ export class ApplicationPage implements OnInit {
                 amount: value.amount.trim(),
                 ...(value.method === 'CASH'
                   ? { amountReceived: value.amountReceived.trim() }
-                  : { reference: value.reference.trim() }),
+                  : value.method === 'CARD'
+                    ? {}
+                    : { reference: value.reference.trim() }),
               };
             }),
-          }),
+      }),
     };
+    if (
+      this.pendingTerminalSale &&
+      JSON.stringify(this.pendingTerminalSale.input) !== JSON.stringify(input)
+    ) {
+      this.posError.set(
+        'Existe un cobro terminal pendiente. Reintenta la misma venta o cancela el cobro antes de modificarla.',
+      );
+      return;
+    }
     const pending = this.pendingSale;
     const idempotencyKey =
       pending && JSON.stringify(pending.input) === JSON.stringify(input)
@@ -2058,12 +2044,27 @@ export class ApplicationPage implements OnInit {
       );
       return;
     }
+    const cardPayment = input.payments?.find((payment) => payment.method === 'CARD');
+    if (cardPayment && !cardPayment.terminalOperationId) {
+      this.startTerminalSale(input, idempotencyKey, quote, cardPayment.amount);
+      return;
+    }
+    this.submitOnlineSale(input, idempotencyKey, quote);
+  }
+
+  private submitOnlineSale(
+    input: PosSaleInput,
+    idempotencyKey: string,
+    quote: PosCartQuote,
+  ): void {
     this.savingSale.set(true);
     this.posError.set(null);
     this.pos.createSale(input, idempotencyKey).subscribe({
       next: ({ data }) => {
         this.savingSale.set(false);
         this.pendingSale = null;
+        this.pendingTerminalSale = null;
+        this.terminalPayment.set(null);
         this.completedSale.set(data);
         this.openDrawerAfterCashSale(data);
         this.cart.set([]);
@@ -2106,16 +2107,121 @@ export class ApplicationPage implements OnInit {
             );
           } else {
             this.savingSale.set(false);
-            this.pendingSale = null;
+            if (!this.terminalPayment()) this.pendingSale = null;
             this.posError.set('Los pagos distintos de efectivo requieren conexión al servidor.');
           }
           return;
         }
         this.savingSale.set(false);
-        if (error.status > 0 && error.status < 500) this.pendingSale = null;
+        if (error.status > 0 && error.status < 500 && !this.terminalPayment()) {
+          this.pendingSale = null;
+        }
         this.posError.set(this.posMessageFor(error));
       },
     });
+  }
+
+  protected refreshTerminalPayment(): void {
+    const operation = this.terminalPayment();
+    if (!operation || this.savingSale()) return;
+    this.savingSale.set(true);
+    this.posError.set(null);
+    this.pos.getTerminalPayment(operation.id).subscribe({
+      next: ({ data }) => {
+        this.terminalPayment.set(data);
+        if (data.status === 'CAPTURED' && this.pendingTerminalSale) {
+          this.submitCapturedTerminalSale(this.pendingTerminalSale, data.id);
+          return;
+        }
+        this.savingSale.set(false);
+        this.posError.set(this.terminalStatusMessage(data));
+      },
+      error: (error: HttpErrorResponse) => {
+        this.savingSale.set(false);
+        this.posError.set(this.posMessageFor(error));
+      },
+    });
+  }
+
+  protected cancelTerminalPayment(): void {
+    const operation = this.terminalPayment();
+    if (!operation || operation.saleId || this.savingSale()) return;
+    this.savingSale.set(true);
+    this.pos.cancelTerminalPayment(operation.id).subscribe({
+      next: ({ data }) => {
+        this.savingSale.set(false);
+        this.terminalPayment.set(data);
+        this.pendingTerminalSale = null;
+        this.pendingSale = null;
+        this.posError.set('Cobro terminal cancelado; la venta no fue registrada.');
+      },
+      error: (error: HttpErrorResponse) => {
+        this.savingSale.set(false);
+        this.posError.set(this.posMessageFor(error));
+      },
+    });
+  }
+
+  private startTerminalSale(
+    input: PosSaleInput,
+    idempotencyKey: string,
+    quote: PosCartQuote,
+    amount: string,
+  ): void {
+    this.savingSale.set(true);
+    this.posError.set(null);
+    this.pos
+      .startTerminalPayment(
+        { amount, currency: quote.currency, scenario: 'SUCCESS' },
+        `terminal-${idempotencyKey}`,
+      )
+      .subscribe({
+        next: ({ data }) => {
+          this.terminalPayment.set(data);
+          this.pendingTerminalSale = { input, key: idempotencyKey, quote };
+          if (data.status === 'CAPTURED') {
+            this.submitCapturedTerminalSale(this.pendingTerminalSale, data.id);
+            return;
+          }
+          this.savingSale.set(false);
+          if (data.status === 'DECLINED') {
+            this.pendingTerminalSale = null;
+            this.pendingSale = null;
+          }
+          this.posError.set(this.terminalStatusMessage(data));
+        },
+        error: (error: HttpErrorResponse) => {
+          this.savingSale.set(false);
+          this.posError.set(this.posMessageFor(error));
+        },
+      });
+  }
+
+  private submitCapturedTerminalSale(
+    pending: { input: PosSaleInput; key: string; quote: PosCartQuote },
+    operationId: string,
+  ): void {
+    const input: PosSaleInput = {
+      ...pending.input,
+      payments: pending.input.payments?.map((payment) =>
+        payment.method === 'CARD'
+          ? { ...payment, terminalOperationId: operationId, reference: undefined }
+          : payment,
+      ),
+    };
+    this.pendingSale = { input: pending.input, key: pending.key };
+    this.pendingTerminalSale = pending;
+    this.submitOnlineSale(input, pending.key, pending.quote);
+  }
+
+  private terminalStatusMessage(operation: PaymentTerminalOperationData): string {
+    if (operation.status === 'DECLINED')
+      return 'El terminal rechazó el pago; la venta no fue registrada.';
+    if (operation.status === 'INDETERMINATE')
+      return 'El terminal no confirmó el resultado. Consulta antes de reintentar para evitar un cobro doble.';
+    if (operation.status === 'CANCELLED')
+      return 'Cobro terminal cancelado; la venta no fue registrada.';
+    return 'El pago sigue pendiente en el terminal.';
   }
 
   private openDrawerAfterCashSale(sale: CashSaleData): void {
@@ -2332,6 +2438,11 @@ export class ApplicationPage implements OnInit {
       if (this.paymentRows.length === 1 && this.cartQuote()) {
         cash.setValue(this.cartQuote()!.totals.payable ?? this.cartQuote()!.totals.total);
       }
+    } else if (method === 'CARD') {
+      cash.clearValidators();
+      cash.setValue('');
+      reference.clearValidators();
+      reference.setValue('');
     } else {
       cash.clearValidators();
       cash.setValue('');
@@ -4056,7 +4167,7 @@ export class ApplicationPage implements OnInit {
         Validators.required,
         Validators.pattern(MONEY_PATTERN),
       ]);
-    } else {
+    } else if (method !== 'CARD') {
       row.controls.reference.setValidators([
         Validators.required,
         Validators.minLength(4),
