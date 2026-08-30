@@ -1,0 +1,111 @@
+.classification-panel {
+  display: grid;
+  gap: 1rem;
+}
+.classification-panel > header p,
+.classification-panel > header h2 {
+  margin: 0;
+}
+.classification-panel > header p {
+  color: var(--p-primary-600);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+}
+.columns {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr 1fr;
+}
+.columns article {
+  background: white;
+  border: 1px solid var(--p-surface-200);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+}
+.columns article > header,
+.items > div,
+.mini-dialog footer {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+.columns h3 {
+  margin: 0;
+}
+.columns button,
+.mini-dialog button {
+  background: transparent;
+  border: 0;
+  color: var(--p-primary-700);
+  cursor: pointer;
+  font-weight: 700;
+  min-height: 2.5rem;
+}
+.items {
+  display: grid;
+  margin-top: 1rem;
+}
+.items > div {
+  border-top: 1px solid var(--p-surface-200);
+  padding: 0.75rem 0;
+}
+.items strong,
+.items small {
+  display: block;
+}
+.items small {
+  color: var(--p-text-muted-color);
+  margin-top: 0.25rem;
+}
+.items .inactive {
+  opacity: 0.65;
+}
+.danger {
+  color: var(--p-red-600) !important;
+}
+.panel-error {
+  background: var(--p-red-50);
+  border: 1px solid var(--p-red-200);
+  border-radius: var(--radius-md);
+  color: var(--p-red-800);
+  padding: 0.75rem;
+}
+.mini-backdrop {
+  align-items: center;
+  background: color-mix(in srgb, var(--p-surface-950) 50%, transparent);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  position: fixed;
+  z-index: 1100;
+}
+.mini-dialog {
+  background: white;
+  border-radius: var(--radius-lg);
+  display: grid;
+  gap: 1rem;
+  max-width: 28rem;
+  padding: 1.5rem;
+  width: 100%;
+}
+.mini-dialog h3,
+.mini-dialog p {
+  margin: 0;
+}
+.mini-dialog label {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.mini-dialog input,
+.mini-dialog select {
+  border: 1px solid var(--p-surface-300);
+  border-radius: var(--radius-md);
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+}
+@media (max-width: 44rem) {
+  .columns {
+    grid-template-columns: 1fr;
+  }
+}

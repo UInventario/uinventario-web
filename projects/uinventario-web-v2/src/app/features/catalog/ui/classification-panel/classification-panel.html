@@ -1,0 +1,108 @@
+<section class="classification-panel" aria-labelledby="classifications-title">
+  <header>
+    <div>
+      <p>Organización del catálogo</p>
+      <h2 id="classifications-title">Categorías y marcas</h2>
+    </div>
+  </header>
+  @if (error()) {
+    <div class="panel-error" role="alert">{{ error() }}</div>
+  }
+  <div class="columns">
+    @for (kind of ['categories', 'brands']; track kind) {
+      <article>
+        <header>
+          <h3>{{ kind === 'categories' ? 'Categorías' : 'Marcas' }}</h3>
+          <button type="button" (click)="open($any(kind))">
+            <i class="pi pi-plus"></i>Agregar
+          </button>
+        </header>
+        <div class="items">
+          @for (item of items($any(kind)); track item.id) {
+            <div [class.inactive]="!item.active">
+              <span
+                ><strong>{{ item.name }}</strong
+                ><small
+                  >{{ item.productCount }} producto(s) ·
+                  {{ item.active ? 'Activa' : 'Retirada' }}</small
+                ></span
+              ><span>
+                @if (item.active) {
+                  <button
+                    type="button"
+                    (click)="open($any(kind), item)"
+                    [attr.aria-label]="'Editar ' + item.name"
+                  >
+                    <i class="pi pi-pencil"></i></button
+                  ><button
+                    class="danger"
+                    type="button"
+                    (click)="requestRetirement($any(kind), item)"
+                    [attr.aria-label]="'Retirar ' + item.name"
+                  >
+                    <i class="pi pi-trash"></i>
+                  </button>
+                } @else {
+                  <button type="button" (click)="reactivate($any(kind), item)">Reactivar</button>
+                }
+              </span>
+            </div>
+          } @empty {
+            <p>Sin elementos.</p>
+          }
+        </div>
+      </article>
+    }
+  </div>
+</section>
+@if (editing(); as editor) {
+  <div class="mini-backdrop">
+    <section class="mini-dialog" role="dialog" aria-modal="true">
+      <h3>
+        {{ editor.item ? 'Editar' : 'Nueva' }}
+        {{ editor.kind === 'categories' ? 'categoría' : 'marca' }}
+      </h3>
+      <label for="classificationName">Nombre</label
+      ><input id="classificationName" [(ngModel)]="name" maxlength="120" />
+      @if (error()) {
+        <div class="panel-error" role="alert">{{ error() }}</div>
+      }
+      <footer>
+        <button type="button" (click)="editing.set(null)">Cancelar</button
+        ><button type="button" [disabled]="name.trim().length < 2" (click)="save()">Guardar</button>
+      </footer>
+    </section>
+  </div>
+}
+@if (retiring(); as candidate) {
+  <div class="mini-backdrop">
+    <section class="mini-dialog" role="alertdialog" aria-modal="true">
+      <h3>Retirar {{ candidate.item.name }}</h3>
+      <p>Los productos no se eliminan.</p>
+      @if (candidate.item.productCount > 0) {
+        <label for="classificationReplacement"
+          >Reasignar {{ candidate.item.productCount }} producto(s) a</label
+        ><select id="classificationReplacement" [(ngModel)]="replacementId">
+          <option value="">Selecciona reemplazo</option>
+          @for (item of replacements(); track item.id) {
+            <option [value]="item.id">{{ item.name }}</option>
+          }
+        </select>
+      }
+      @if (error()) {
+        <div class="panel-error">{{ error() }}</div>
+      }
+      <footer>
+        <button type="button" (click)="retiring.set(null)">Cancelar</button
+        ><button
+          class="danger"
+          type="button"
+          [disabled]="candidate.item.productCount > 0 && !replacementId"
+          (click)="confirmRetirement()"
+        >
+          Retirar
+        </button>
+      </footer>
+    </section>
+  </div>
+}
