@@ -114,6 +114,63 @@
   font-weight: 700;
 }
 
+.fiscal-document {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid #7393bd;
+  border-radius: 0.75rem;
+  background: #f7faff;
+}
+
+.fiscal-document h4,
+.fiscal-document p {
+  margin: 0.15rem 0;
+}
+
+.eyebrow {
+  color: var(--muted, #566274);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.fiscal-summary,
+.fiscal-actions,
+.fiscal-issue-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.65rem;
+}
+
+.fiscal-summary {
+  flex-direction: column;
+  align-items: start;
+}
+
+.fiscal-issue-controls label {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.fiscal-timeline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fiscal-timeline li {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.5rem;
+  background: #fff;
+}
+
 .peripheral-profile {
   display: grid;
   gap: 0.75rem;
@@ -156,6 +213,13 @@
   .receipt-launch button {
     width: 100%;
   }
+
+  .fiscal-actions button,
+  .fiscal-issue-controls,
+  .fiscal-issue-controls label,
+  .fiscal-issue-controls button {
+    width: 100%;
+  }
 }
 
 @media print {
@@ -175,6 +239,10 @@
   }
 
   .peripheral-profile {
+    display: none !important;
+  }
+
+  .fiscal-document {
     display: none !important;
   }
 

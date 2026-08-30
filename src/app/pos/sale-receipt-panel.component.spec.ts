@@ -14,6 +14,13 @@ describe('SaleReceiptPanelComponent', () => {
     updatePeripheralProfile: ReturnType<typeof vi.fn>;
     printSaleReceipt: ReturnType<typeof vi.fn>;
     openCashDrawer: ReturnType<typeof vi.fn>;
+    getSaleFiscalDocument: ReturnType<typeof vi.fn>;
+    issueSaleFiscalDocument: ReturnType<typeof vi.fn>;
+    querySaleFiscalDocument: ReturnType<typeof vi.fn>;
+    cancelSaleFiscalDocument: ReturnType<typeof vi.fn>;
+    callbackSaleFiscalDocument: ReturnType<typeof vi.fn>;
+    saleFiscalArtifact: ReturnType<typeof vi.fn>;
+    sendSaleFiscalDocument: ReturnType<typeof vi.fn>;
   };
   const desktop = {
     available: signal(false),
@@ -157,6 +164,46 @@ describe('SaleReceiptPanelComponent', () => {
           meta: { apiVersion: '1' as const, idempotentReplay: false },
         }),
       ),
+      getSaleFiscalDocument: vi.fn().mockReturnValue(
+        of({
+          data: null,
+          meta: { apiVersion: '1' as const, provider: 'SIMULATOR' as const, production: false },
+        }),
+      ),
+      issueSaleFiscalDocument: vi.fn().mockReturnValue(
+        of({
+          data: {
+            id: 'fiscal-1',
+            saleId: 'sale-1',
+            receiptNumber: receipt.receiptNumber,
+            category: 'FISCAL_DOCUMENT' as const,
+            documentType: 'INVOICE' as const,
+            provider: 'SIMULATOR' as const,
+            providerVersion: '1' as const,
+            providerReference: 'SIM-FISCAL-1',
+            scenario: 'TIMEOUT' as const,
+            status: 'INDETERMINATE' as const,
+            errorCode: 'SIMULATED_TIMEOUT',
+            artifacts: [],
+            events: [
+              { status: 'PENDING' as const, occurredAt: '2026-08-28T12:04:00.000Z' },
+              { status: 'SENT' as const, occurredAt: '2026-08-28T12:04:01.000Z' },
+              {
+                status: 'INDETERMINATE' as const,
+                occurredAt: '2026-08-28T12:04:02.000Z',
+              },
+            ],
+            createdAt: '2026-08-28T12:04:00.000Z',
+            updatedAt: '2026-08-28T12:04:02.000Z',
+          },
+          meta: { apiVersion: '1' as const, idempotentReplay: false },
+        }),
+      ),
+      querySaleFiscalDocument: vi.fn(),
+      cancelSaleFiscalDocument: vi.fn(),
+      callbackSaleFiscalDocument: vi.fn(),
+      saleFiscalArtifact: vi.fn(),
+      sendSaleFiscalDocument: vi.fn(),
     };
     await TestBed.configureTestingModule({
       imports: [SaleReceiptPanelComponent],
@@ -266,5 +313,67 @@ describe('SaleReceiptPanelComponent', () => {
       'MANUAL',
     );
     print.mockRestore();
+  });
+
+  it('keeps the non-fiscal ticket distinct and exposes an indeterminate fiscal workflow', () => {
+    (fixture.nativeElement.querySelector('.receipt-launch button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    const scenario = fixture.nativeElement.querySelector(
+      '.fiscal-issue-controls label:nth-child(2) select',
+    ) as HTMLSelectElement;
+    scenario.value = 'TIMEOUT';
+    scenario.dispatchEvent(new Event('change'));
+    const issue = Array.from(fixture.nativeElement.querySelectorAll('button')).find((button) =>
+      (button as HTMLButtonElement).textContent?.includes('Emitir documento fiscal'),
+    ) as HTMLButtonElement;
+    issue.click();
+    fixture.detectChanges();
+
+    expect(pos.issueSaleFiscalDocument).toHaveBeenCalledWith('sale-1', {
+      documentType: 'INVOICE',
+      scenario: 'TIMEOUT',
+    });
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('COMPROBANTE NO FISCAL');
+    expect(text).toContain('INDETERMINATE');
+    expect(text).toContain('PENDING');
+    expect(text).toContain('SENT');
+    expect(text).toContain('Callback aceptado');
+  });
+
+  it('can resume a persisted PENDING request with its original identity', () => {
+    const pending = {
+      id: 'fiscal-pending',
+      saleId: 'sale-1',
+      receiptNumber: receipt.receiptNumber,
+      category: 'FISCAL_DOCUMENT' as const,
+      documentType: 'RECEIPT' as const,
+      provider: 'SIMULATOR' as const,
+      providerVersion: '1' as const,
+      providerReference: null,
+      scenario: 'REJECT' as const,
+      status: 'PENDING' as const,
+      errorCode: null,
+      artifacts: [],
+      events: [{ status: 'PENDING' as const, occurredAt: '2026-08-28T12:04:00.000Z' }],
+      createdAt: '2026-08-28T12:04:00.000Z',
+      updatedAt: '2026-08-28T12:04:00.000Z',
+    };
+    pos.getSaleFiscalDocument.mockReturnValueOnce(
+      of({ data: pending, meta: { apiVersion: '1', provider: 'SIMULATOR', production: false } }),
+    );
+    (fixture.nativeElement.querySelector('.receipt-launch button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    const retry = Array.from(fixture.nativeElement.querySelectorAll('button')).find((button) =>
+      (button as HTMLButtonElement).textContent?.includes('Reintentar emisiÃ³n'),
+    ) as HTMLButtonElement;
+    retry.click();
+
+    expect(pos.issueSaleFiscalDocument).toHaveBeenCalledWith('sale-1', {
+      documentType: 'RECEIPT',
+      scenario: 'REJECT',
+    });
   });
 });

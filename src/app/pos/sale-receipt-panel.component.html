@@ -145,6 +145,134 @@
       <footer>{{ ticket.fiscalNotice }} · No sustituye un documento fiscal.</footer>
     </article>
 
+    <section class="fiscal-document" aria-labelledby="sale-fiscal-heading">
+      <div>
+        <p class="eyebrow">Documento separado del ticket</p>
+        <h4 id="sale-fiscal-heading">Documento fiscal</h4>
+        <p>La venta y el ticket no fiscal permanecen válidos aunque el proveedor fiscal falle.</p>
+      </div>
+      @if (fiscalDocument(); as fiscal) {
+        <div class="fiscal-summary">
+          <strong>{{ fiscal.documentType }} · {{ fiscal.status }}</strong>
+          <span>{{ fiscal.provider }} v{{ fiscal.providerVersion }}</span>
+          <span>{{ fiscal.providerReference || 'Referencia pendiente' }}</span>
+          @if (fiscal.errorCode) {
+            <span class="form-error">{{ fiscal.errorCode }}</span>
+          }
+        </div>
+        <ol class="fiscal-timeline" aria-label="Historial del documento fiscal">
+          @for (event of fiscal.events; track event.status) {
+            <li>
+              <strong>{{ event.status }}</strong>
+              <time [attr.datetime]="event.occurredAt">{{ event.occurredAt | date: 'short' }}</time>
+            </li>
+          }
+        </ol>
+        <div class="fiscal-actions">
+          @if (fiscal.status === 'PENDING') {
+            <button type="button" (click)="retryFiscalDocument()" [disabled]="fiscalBusy()">
+              Reintentar emisiÃ³n
+            </button>
+          } @else {
+            <button
+              type="button"
+              class="secondary"
+              (click)="queryFiscalDocument()"
+              [disabled]="fiscalBusy()"
+            >
+              Consultar estado
+            </button>
+          }
+          @if (fiscal.status === 'INDETERMINATE') {
+            <button
+              type="button"
+              class="secondary"
+              (click)="resolveFiscalCallback('ACCEPTED')"
+              [disabled]="fiscalBusy()"
+            >
+              Callback aceptado
+            </button>
+            <button
+              type="button"
+              class="secondary"
+              (click)="resolveFiscalCallback('REJECTED')"
+              [disabled]="fiscalBusy()"
+            >
+              Callback rechazado
+            </button>
+          }
+          @if (fiscal.status === 'ACCEPTED') {
+            <button
+              type="button"
+              (click)="downloadFiscalArtifact('PDF', true)"
+              [disabled]="fiscalBusy()"
+            >
+              Imprimir fiscal
+            </button>
+            <button
+              type="button"
+              class="secondary"
+              (click)="downloadFiscalArtifact('PDF')"
+              [disabled]="fiscalBusy()"
+            >
+              Descargar PDF
+            </button>
+            <button
+              type="button"
+              class="secondary"
+              (click)="downloadFiscalArtifact('XML')"
+              [disabled]="fiscalBusy()"
+            >
+              Descargar XML
+            </button>
+            <button
+              type="button"
+              class="secondary"
+              (click)="cancelFiscalDocument()"
+              [disabled]="fiscalBusy()"
+            >
+              Cancelar fiscal
+            </button>
+          }
+        </div>
+      } @else {
+        <div class="fiscal-issue-controls">
+          <label>
+            Tipo
+            <select
+              [value]="fiscalDocumentType()"
+              (change)="fiscalDocumentType.set($any($event.target).value)"
+            >
+              <option value="INVOICE">Factura</option>
+              <option value="RECEIPT">Boleta / recibo</option>
+            </select>
+          </label>
+          <label>
+            Escenario del simulador
+            <select
+              [value]="fiscalScenario()"
+              (change)="fiscalScenario.set($any($event.target).value)"
+            >
+              <option value="SUCCESS">Éxito</option>
+              <option value="REJECT">Rechazo</option>
+              <option value="TIMEOUT">Timeout / indeterminado</option>
+            </select>
+          </label>
+          <button type="button" (click)="issueFiscalDocument()" [disabled]="fiscalBusy()">
+            {{ fiscalBusy() ? 'Procesando…' : 'Emitir documento fiscal' }}
+          </button>
+        </div>
+      }
+      @if (fiscalMessage()) {
+        <p class="simulation" role="status">{{ fiscalMessage() }}</p>
+      }
+      @if (fiscalDelivery(); as sentFiscal) {
+        <p class="simulation" role="status">
+          Entrega fiscal {{ sentFiscal.mode }} aceptada para {{ sentFiscal.recipient }}.
+        </p>
+      }
+    </section>
+
     <div class="receipt-actions">
       <button type="button" (click)="printReceipt()" [disabled]="printing()">
         {{ printing() ? 'Enviando a impresora...' : 'Imprimir 80 mm' }}
@@ -163,6 +291,16 @@
         <button type="submit" class="secondary" [disabled]="sending()">
           {{ sending() ? 'Enviando…' : 'Enviar ticket' }}
         </button>
+        @if (fiscalDocument()?.status === 'ACCEPTED') {
+          <button
+            type="button"
+            class="secondary"
+            (click)="sendFiscalDocument()"
+            [disabled]="fiscalBusy()"
+          >
+            Enviar documento fiscal
+          </button>
+        }
       </form>
     </div>
     @if (emailForm.controls.email.touched && emailForm.controls.email.invalid) {
