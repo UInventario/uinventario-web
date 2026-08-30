@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { PosGateway } from '../domain/pos.gateway';
 import {
   CreateCashSaleInput,
+  CreatePosSuspendedSaleInput,
   CreateSaleInput,
   PosCartRequest,
   StartPaymentTerminalInput,
@@ -34,6 +35,9 @@ export class PosFacade {
   }
   createSale(input: CreateSaleInput) {
     return this.gateway.createSale(input);
+  }
+  suspendSale(input: CreatePosSuspendedSaleInput, idempotencyKey: string) {
+    return this.gateway.suspendSale(input, idempotencyKey);
   }
   startTerminal(input: StartPaymentTerminalInput) {
     return this.gateway.startTerminal(input);

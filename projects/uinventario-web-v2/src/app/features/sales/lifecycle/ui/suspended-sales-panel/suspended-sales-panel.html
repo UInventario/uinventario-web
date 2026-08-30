@@ -1,0 +1,185 @@
+<section class="suspended-panel" aria-labelledby="suspended-title">
+  <header>
+    <div>
+      <p>Cola de atención</p>
+      <h2 id="suspended-title">Ventas suspendidas</h2>
+      <span>Los carritos vencen después de 24 horas y no reservan inventario.</span>
+    </div>
+    <button
+      type="button"
+      aria-label="Actualizar suspendidas"
+      [disabled]="loading()"
+      (click)="load()"
+    >
+      <i class="pi pi-refresh" [class.pi-spin]="loading()"></i>
+    </button>
+  </header>
+
+  @if (error()) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle"></i>{{ error() }}
+    </div>
+  }
+
+  @if (loading()) {
+    <div class="state" role="status">
+      <i class="pi pi-spin pi-spinner"></i>Cargando suspendidas…
+    </div>
+  } @else {
+    <div class="suspended-grid">
+      @for (sale of sales(); track sale.id) {
+        <article class="suspended-card" [attr.data-status]="sale.status">
+          <header>
+            <span class="status">{{ statusLabel(sale.status) }}</span>
+            <time>{{ sale.createdAt | date: 'dd MMM, HH:mm' }}</time>
+          </header>
+          <div class="customer">
+            <span><i class="pi pi-user"></i></span>
+            <div>
+              <strong>{{ sale.customer?.name || 'Público general' }}</strong>
+              <small>{{ sale.notes || 'Sin nota' }}</small>
+            </div>
+          </div>
+          <div class="line-summary">
+            @for (line of sale.lines.slice(0, 3); track line.product.id) {
+              <span
+                ><strong>{{ line.quantity }} ×</strong> {{ line.product.name }}</span
+              >
+            }
+            @if (sale.lines.length > 3) {
+              <small>+ {{ sale.lines.length - 3 }} producto(s)</small>
+            }
+          </div>
+          <dl>
+            <div>
+              <dt>Importe guardado</dt>
+              <dd>{{ total(sale) | number: '1.2-2' }}</dd>
+            </div>
+            <div>
+              <dt>Vence</dt>
+              <dd>{{ sale.expiresAt | date: 'dd MMM, HH:mm' }}</dd>
+            </div>
+          </dl>
+          @if (sale.status === 'ACTIVE') {
+            <footer>
+              <button
+                class="secondary danger"
+                type="button"
+                [disabled]="!!busyId()"
+                (click)="cancelCandidate.set(sale)"
+              >
+                Cancelar
+              </button>
+              <button class="primary" type="button" [disabled]="!!busyId()" (click)="resume(sale)">
+                <i
+                  class="pi"
+                  [class.pi-spin]="busyId() === sale.id"
+                  [class.pi-spinner]="busyId() === sale.id"
+                  [class.pi-play]="busyId() !== sale.id"
+                ></i>
+                Reanudar
+              </button>
+            </footer>
+          } @else if (sale.completedSaleId) {
+            <footer class="completed"><i class="pi pi-check-circle"></i>Venta completada</footer>
+          }
+        </article>
+      } @empty {
+        <div class="state empty">
+          <i class="pi pi-pause-circle"></i><strong>No hay ventas suspendidas</strong
+          ><span>Desde el POS puedes guardar un carrito para atenderlo después.</span>
+        </div>
+      }
+    </div>
+  }
+</section>
+
+@if (resumePreview(); as preview) {
+  <div class="modal-backdrop" (click)="resumePreview.set(null)">
+    <section
+      class="resume-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="resume-title"
+      (click)="$event.stopPropagation()"
+    >
+      <header>
+        <div>
+          <p>Revalidación actual</p>
+          <h2 id="resume-title">Reanudar venta</h2>
+        </div>
+        <button type="button" aria-label="Cerrar" (click)="resumePreview.set(null)">
+          <i class="pi pi-times"></i>
+        </button>
+      </header>
+      @if (preview.conflicts.length) {
+        <div class="conflicts" [class.blocking]="hasBlockingConflict(preview)">
+          <strong>{{
+            hasBlockingConflict(preview) ? 'No se puede continuar' : 'Revisa los cambios'
+          }}</strong>
+          @for (conflict of preview.conflicts; track conflict.code + conflict.productId) {
+            <span
+              ><i class="pi pi-exclamation-triangle"></i>{{ conflictLabel(conflict.code) }}
+              @if (conflict.previous && conflict.current) {
+                · {{ conflict.previous }} → {{ conflict.current }}
+              }
+            </span>
+          }
+        </div>
+      } @else {
+        <div class="ready">
+          <i class="pi pi-check-circle"></i>Precios y existencias siguen vigentes.
+        </div>
+      }
+      <div class="resume-lines">
+        @for (line of preview.suspendedSale.lines; track line.product.id) {
+          <span
+            ><strong>{{ line.quantity }} × {{ line.product.name }}</strong
+            ><small>{{ line.product.sku }}</small></span
+          >
+        }
+      </div>
+      <div class="replace-warning">
+        <i class="pi pi-shopping-cart"></i>Al continuar, este carrito sustituirá cualquier venta
+        abierta actualmente en esta caja.
+      </div>
+      <footer>
+        <button class="secondary" type="button" (click)="resumePreview.set(null)">Volver</button>
+        <button
+          class="primary"
+          type="button"
+          [disabled]="hasBlockingConflict(preview)"
+          (click)="confirmResume()"
+        >
+          Abrir carrito en POS<i class="pi pi-arrow-right"></i>
+        </button>
+      </footer>
+    </section>
+  </div>
+}
+
+@if (cancelCandidate(); as candidate) {
+  <div class="modal-backdrop" (click)="cancelCandidate.set(null)">
+    <section
+      class="confirm-dialog"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="cancel-suspended-title"
+      (click)="$event.stopPropagation()"
+    >
+      <span><i class="pi pi-trash"></i></span>
+      <h2 id="cancel-suspended-title">Cancelar venta suspendida</h2>
+      <p>
+        El carrito de {{ candidate.customer?.name || 'público general' }} dejará de estar
+        disponible. No hay stock ni dinero que revertir.
+      </p>
+      <footer>
+        <button class="secondary" type="button" (click)="cancelCandidate.set(null)">
+          Conservar</button
+        ><button class="danger-fill" type="button" [disabled]="!!busyId()" (click)="cancel()">
+          Cancelar venta
+        </button>
+      </footer>
+    </section>
+  </div>
+}

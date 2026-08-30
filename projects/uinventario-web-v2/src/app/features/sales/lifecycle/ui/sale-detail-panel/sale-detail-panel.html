@@ -1,0 +1,414 @@
+<article class="sale-detail" aria-labelledby="sale-detail-title">
+  @if (loading()) {
+    <div class="detail-state" role="status">
+      <i class="pi pi-spin pi-spinner"></i>Cargando trazabilidad…
+    </div>
+  } @else if (sale(); as item) {
+    <header class="detail-header">
+      <div>
+        <span class="status" [class.voided]="item.status === 'VOIDED'">{{
+          item.status === 'COMPLETED' ? 'Completada' : 'Anulada'
+        }}</span>
+        <h2 id="sale-detail-title">{{ item.receiptNumber }}</h2>
+        <small>{{ item.createdAt | date: 'medium' }} · {{ item.user.email }}</small>
+      </div>
+      <strong>{{ item.totals.total | currency: item.currency : 'symbol-narrow' }}</strong>
+      <button class="close" type="button" aria-label="Cerrar detalle" (click)="closed.emit()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+
+    <div class="detail-actions">
+      @if (canReprint()) {
+        <button type="button" [disabled]="!!busyAction()" (click)="openReceipt()">
+          <i class="pi pi-print"></i>Ticket
+        </button>
+      }
+      @if (canReturn() && item.status === 'COMPLETED') {
+        <button type="button" [disabled]="!!busyAction()" (click)="returnOpen.set(true)">
+          <i class="pi pi-undo"></i>Devolver
+        </button>
+      }
+      @if (canVoid() && item.status === 'COMPLETED') {
+        <button
+          class="danger"
+          type="button"
+          [disabled]="!!busyAction()"
+          (click)="voidOpen.set(true)"
+        >
+          <i class="pi pi-ban"></i>Anular
+        </button>
+      }
+    </div>
+
+    @if (notice()) {
+      <div class="notice success" role="status">
+        <i class="pi pi-check-circle"></i>{{ notice() }}
+      </div>
+    }
+    @if (error()) {
+      <div class="notice error" role="alert">
+        <i class="pi pi-exclamation-circle"></i>{{ error() }}
+      </div>
+    }
+
+    <nav class="detail-tabs" aria-label="Secciones de la venta">
+      <button type="button" [class.active]="view() === 'SUMMARY'" (click)="view.set('SUMMARY')">
+        Resumen
+      </button>
+      @if (canReturn()) {
+        <button type="button" [class.active]="view() === 'RETURNS'" (click)="view.set('RETURNS')">
+          Devoluciones <span>{{ returns().length }}</span>
+        </button>
+      }
+      @if (canReprint()) {
+        <button type="button" [class.active]="view() === 'FISCAL'" (click)="view.set('FISCAL')">
+          Fiscalidad
+        </button>
+      }
+    </nav>
+
+    <div class="detail-body">
+      @if (view() === 'SUMMARY') {
+        <section class="facts">
+          <span
+            ><small>Cliente</small
+            ><strong>{{ item.customer?.name || 'Público general' }}</strong></span
+          >
+          <span
+            ><small>Sucursal</small><strong>{{ item.context.branch.name }}</strong></span
+          >
+          <span
+            ><small>Caja</small><strong>{{ item.context.cashRegister.name }}</strong></span
+          >
+        </section>
+
+        @if (item.void) {
+          <section class="void-record">
+            <i class="pi pi-ban"></i>
+            <div>
+              <strong>Venta anulada</strong><span>{{ item.void.reason }}</span
+              ><small>{{ item.void.voidedAt | date: 'medium' }} · {{ item.void.user.email }}</small>
+            </div>
+          </section>
+        }
+
+        <section class="detail-section">
+          <header>
+            <h3>Productos</h3>
+            <span>{{ item.lines.length }} línea(s)</span>
+          </header>
+          <div class="products">
+            @for (line of item.lines; track line.id) {
+              <article>
+                <span
+                  ><strong>{{ line.product.name }}</strong
+                  ><small
+                    >{{ line.product.sku }} · {{ line.quantity }} ×
+                    {{ line.unitPrice | currency: item.currency : 'symbol-narrow' }}</small
+                  ></span
+                ><strong>{{ line.total | currency: item.currency : 'symbol-narrow' }}</strong>
+              </article>
+            }
+          </div>
+          <dl class="totals">
+            <div>
+              <dt>Subtotal</dt>
+              <dd>{{ item.totals.subtotal | currency: item.currency : 'symbol-narrow' }}</dd>
+            </div>
+            <div>
+              <dt>Descuentos</dt>
+              <dd>− {{ item.totals.discount | currency: item.currency : 'symbol-narrow' }}</dd>
+            </div>
+            <div>
+              <dt>Impuestos</dt>
+              <dd>{{ item.totals.tax | currency: item.currency : 'symbol-narrow' }}</dd>
+            </div>
+            <div class="total">
+              <dt>Total</dt>
+              <dd>{{ item.totals.total | currency: item.currency : 'symbol-narrow' }}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="detail-section">
+          <header>
+            <h3>Pagos</h3>
+            <span>Impacto monetario</span>
+          </header>
+          <div class="payments">
+            @for (payment of item.payments; track payment.id) {
+              <article>
+                <span class="payment-icon"><i class="pi pi-credit-card"></i></span
+                ><span
+                  ><strong>{{ payment.method }}</strong
+                  ><small
+                    >{{ payment.provider }}
+                    @if (payment.reference) {
+                      · {{ payment.reference }}
+                    }
+                  </small></span
+                ><span class="payment-state" [attr.data-status]="payment.status">{{
+                  payment.status
+                }}</span
+                ><strong>{{
+                  payment.amountApplied | currency: item.currency : 'symbol-narrow'
+                }}</strong>
+              </article>
+            }
+          </div>
+        </section>
+
+        <section class="detail-section movements">
+          <header>
+            <h3>Inventario</h3>
+            <span>Movimientos auditados</span>
+          </header>
+          @for (movement of item.movements; track movement.id) {
+            <article>
+              <span class="movement-icon"><i class="pi pi-arrow-right-arrow-left"></i></span
+              ><span
+                ><strong>{{ movement.product.name }}</strong
+                ><small>{{ movement.location.name }} · {{ movement.reference }}</small></span
+              ><span
+                ><small>{{ movement.type }}</small
+                ><strong
+                  >{{ movement.quantityChange }} → {{ movement.resultingQuantity }}</strong
+                ></span
+              >
+            </article>
+          } @empty {
+            <p class="inline-empty">Sin movimientos asociados.</p>
+          }
+        </section>
+      } @else if (view() === 'RETURNS') {
+        <section class="returns-view">
+          <header>
+            <div>
+              <h3>Devoluciones y liquidaciones</h3>
+              <p>Cada ajuste separa el impacto físico del reembolso.</p>
+            </div>
+            @if (item.status === 'COMPLETED') {
+              <button type="button" (click)="returnOpen.set(true)">
+                <i class="pi pi-plus"></i>Nueva devolución
+              </button>
+            }
+          </header>
+          @for (returned of returns(); track returned.id) {
+            <article class="return-card">
+              <header>
+                <span
+                  ><strong>{{ returned.reason }}</strong
+                  ><small
+                    >{{ returned.createdAt | date: 'medium' }} ·
+                    {{ returned.returnedBy.email }}</small
+                  ></span
+                ><span class="return-status" [attr.data-status]="returned.settlementStatus">{{
+                  returned.settlementStatus
+                }}</span>
+              </header>
+              <div class="returned-lines">
+                @for (line of returned.lines; track line.id) {
+                  <span
+                    ><span
+                      ><strong>{{ line.quantity }} × {{ line.product.name }}</strong
+                      ><small>{{
+                        line.condition === 'SELLABLE'
+                          ? 'Regresó a existencia'
+                          : 'Dañado, fuera de disponible'
+                      }}</small></span
+                    ><strong>{{
+                      line.totals.total | currency: item.currency : 'symbol-narrow'
+                    }}</strong></span
+                  >
+                }
+              </div>
+              @if (returned.settlements.length) {
+                <div class="settlements">
+                  @for (settlement of returned.settlements; track settlement.id) {
+                    <span
+                      ><i class="pi pi-wallet"></i
+                      ><span
+                        ><strong>{{ settlement.method }}</strong
+                        ><small>{{ settlement.provider }} · {{ settlement.status }}</small></span
+                      ><strong>{{
+                        settlement.amount | currency: settlement.currency : 'symbol-narrow'
+                      }}</strong></span
+                    >
+                  }
+                </div>
+              }
+              <footer>
+                <span
+                  ><small>Pendiente por liquidar</small
+                  ><strong>{{
+                    returned.refundableAmount | currency: item.currency : 'symbol-narrow'
+                  }}</strong></span
+                >
+                @if (+returned.refundableAmount > 0) {
+                  <button type="button" (click)="openSettlement(returned)">
+                    <i class="pi pi-dollar"></i>Liquidar
+                  </button>
+                }
+              </footer>
+            </article>
+          } @empty {
+            <div class="empty-section">
+              <i class="pi pi-undo"></i><strong>Sin devoluciones</strong
+              ><span>La venta conserva todos sus artículos y pagos originales.</span>
+            </div>
+          }
+        </section>
+      } @else {
+        <ui-sale-fiscal-panel
+          [sale]="item"
+          [document]="fiscal()"
+          [canManage]="canManage()"
+          [canVoid]="canVoid()"
+          (documentChanged)="fiscalChanged($event)"
+          (operationNotice)="childNotice($event)"
+          (operationError)="childError($event)"
+        />
+      }
+    </div>
+  } @else {
+    <div class="detail-state error">
+      <i class="pi pi-exclamation-circle"></i>{{ error() || 'No encontramos la venta.' }}
+    </div>
+  }
+</article>
+
+@if (receipt(); as currentReceipt) {
+  <ui-sale-receipt-dialog [receipt]="currentReceipt" (closed)="receipt.set(null)" />
+}
+@if (returnOpen() && sale(); as currentSale) {
+  <ui-sale-return-dialog
+    [sale]="currentSale"
+    [returns]="returns()"
+    (closed)="returnOpen.set(false)"
+    (created)="returnCreated($event)"
+  />
+}
+
+@if (voidOpen() && sale(); as currentSale) {
+  <div class="modal-backdrop" (click)="voidOpen.set(false)">
+    <section
+      class="confirm-dialog"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="void-title"
+      (click)="$event.stopPropagation()"
+    >
+      <span class="danger-icon"><i class="pi pi-ban"></i></span>
+      <h2 id="void-title">Anular {{ currentSale.receiptNumber }}</h2>
+      <p>
+        Se revertirán
+        <strong>{{
+          currentSale.totals.total | currency: currentSale.currency : 'symbol-narrow'
+        }}</strong
+        >, los pagos y todos los movimientos de inventario de la venta. Esta acción quedará
+        auditada.
+      </p>
+      <form [formGroup]="voidForm" (ngSubmit)="voidSale()">
+        <label
+          ><span>Motivo obligatorio</span
+          ><textarea formControlName="reason" maxlength="240" rows="3"></textarea>
+        </label>
+        <footer>
+          <button
+            class="secondary"
+            type="button"
+            [disabled]="!!busyAction()"
+            (click)="voidOpen.set(false)"
+          >
+            Conservar venta</button
+          ><button
+            class="danger-fill"
+            type="submit"
+            [disabled]="voidForm.invalid || !!busyAction()"
+          >
+            Confirmar anulación
+          </button>
+        </footer>
+      </form>
+    </section>
+  </div>
+}
+
+@if (settleTarget(); as returned) {
+  <div class="modal-backdrop" (click)="settleTarget.set(null)">
+    <section
+      class="settlement-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="settlement-title"
+      (click)="$event.stopPropagation()"
+    >
+      <header>
+        <div>
+          <p>Liquidación segura</p>
+          <h2 id="settlement-title">Resolver reembolso</h2>
+        </div>
+        <strong>{{
+          returned.refundableAmount | currency: sale()!.currency : 'symbol-narrow'
+        }}</strong>
+      </header>
+      <form [formGroup]="settlementForm" (ngSubmit)="settle()">
+        <label
+          ><span>Destino permitido</span
+          ><select formControlName="mode" (change)="settlementModeChanged()">
+            <option value="REFUND">Medio de pago original</option>
+            @if (sale()?.customer) {
+              <option value="STORE_CREDIT">
+                Crédito en tienda para {{ sale()?.customer?.name }}
+              </option>
+            }
+          </select></label
+        >
+        @if (settlementForm.controls.mode.value === 'REFUND') {
+          <label
+            ><span>Pago original</span
+            ><select formControlName="originalPaymentId">
+              @for (payment of permittedPayments(); track payment.id) {
+                <option [value]="payment.id">
+                  {{ payment.method }} · disponible
+                  {{ payment.remaining | currency: sale()!.currency : 'symbol-narrow' }}
+                </option>
+              }
+            </select></label
+          >
+          @if (!permittedPayments().length) {
+            <div class="notice error">
+              <i class="pi pi-exclamation-circle"></i>No quedan pagos originales reembolsables.
+            </div>
+          }
+        } @else {
+          <div class="store-credit-note">
+            <i class="pi pi-user"></i>Se acreditará saldo al cliente; no saldrá efectivo de caja.
+          </div>
+        }
+        <label><span>Importe</span><input formControlName="amount" inputmode="decimal" /></label>
+        <footer>
+          <button
+            class="secondary"
+            type="button"
+            [disabled]="!!busyAction()"
+            (click)="settleTarget.set(null)"
+          >
+            Cancelar</button
+          ><button
+            class="primary"
+            type="submit"
+            [disabled]="
+              settlementForm.invalid ||
+              !!busyAction() ||
+              (settlementForm.controls.mode.value === 'REFUND' && !permittedPayments().length)
+            "
+          >
+            Registrar liquidación
+          </button>
+        </footer>
+      </form>
+    </section>
+  </div>
+}

@@ -125,6 +125,12 @@
       width: 100%;
     }
   }
+
+  .checkout-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+    width: 100%;
+  }
 }
 
 @media (max-width: 25rem) {

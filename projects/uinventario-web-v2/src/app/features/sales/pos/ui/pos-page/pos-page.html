@@ -16,8 +16,19 @@
     <div class="pos-links">
       <a routerLink="/ventas/caja"><i class="pi pi-wallet"></i>Caja</a>
       <a routerLink="/ventas/clientes"><i class="pi pi-users"></i>Clientes</a>
+      <a routerLink="/ventas/historial"><i class="pi pi-history"></i>Historial</a>
     </div>
   </header>
+
+  @if (resumedSale()) {
+    <div class="resumed-banner" role="status">
+      <i class="pi pi-play-circle"></i>
+      <span
+        ><strong>Venta suspendida reanudada</strong>Al cobrar quedará cerrada una sola vez.</span
+      >
+      <button type="button" (click)="clearCart()">Descartar carrito</button>
+    </div>
+  }
 
   <div class="pos-grid">
     <section class="catalog-pane" aria-labelledby="catalog-title">
@@ -114,7 +125,7 @@
             class="clear"
             type="button"
             [disabled]="!cart.lines().length"
-            (click)="cart.clear()"
+            (click)="clearCart()"
           >
             Vaciar
           </button>
@@ -189,7 +200,7 @@
                   class="line-action danger"
                   type="button"
                   [attr.aria-label]="'Quitar ' + line.product.name"
-                  (click)="cart.remove(line.product.id)"
+                  (click)="removeLine(line.product.id)"
                 >
                   <i class="pi pi-trash"></i>
                 </button>
@@ -230,13 +241,23 @@
         </dl>
         <div class="checkout-next">
           <span><i class="pi pi-save"></i>Carrito guardado para esta caja</span>
-          <button
-            type="button"
-            [disabled]="!quote() || quoteLoading() || !shift()"
-            (click)="openCheckout()"
-          >
-            Continuar al cobro<i class="pi pi-arrow-right"></i>
-          </button>
+          <div class="checkout-actions">
+            <button
+              class="suspend-action"
+              type="button"
+              [disabled]="!cart.lines().length || quoteLoading() || !!resumedSale()"
+              (click)="openSuspend()"
+            >
+              <i class="pi pi-pause"></i>Suspender
+            </button>
+            <button
+              type="button"
+              [disabled]="!quote() || quoteLoading() || !shift()"
+              (click)="openCheckout()"
+            >
+              Continuar al cobro<i class="pi pi-arrow-right"></i>
+            </button>
+          </div>
         </div>
       </footer>
     </section>
@@ -266,5 +287,13 @@
     [canCredit]="canCredit()"
     (closed)="closeCheckout()"
     (completed)="saleCompleted($event)"
+  />
+}
+
+@if (suspendOpen()) {
+  <ui-pos-suspend-dialog
+    [request]="cartRequest()"
+    (closed)="suspendOpen.set(false)"
+    (completed)="suspended()"
   />
 }

@@ -1,0 +1,101 @@
+<section class="fiscal-view">
+  <div class="adapter-card">
+    <span class="adapter-icon"><i class="pi pi-building-columns"></i></span>
+    <span
+      ><small>Adaptador configurado</small
+      ><strong
+        >{{ document()?.provider || 'SIMULATOR' }} · v{{
+          document()?.providerVersion || '1'
+        }}</strong
+      ></span
+    >
+    <span class="simulator-badge"><i class="pi pi-flask"></i>No productivo</span>
+  </div>
+  <div class="simulator-warning">
+    <i class="pi pi-info-circle"></i
+    ><span
+      ><strong>Fiscalidad simulada</strong>El adaptador actual valida el flujo técnico, pero no
+      emite documentos ante SAT/SII ni otra autoridad.</span
+    >
+  </div>
+
+  @if (document(); as current) {
+    <article class="fiscal-document">
+      <header>
+        <span
+          ><small>{{ current.documentType }}</small
+          ><strong>{{ current.providerReference || 'Sin referencia' }}</strong></span
+        ><span class="fiscal-status" [attr.data-status]="current.status">{{
+          statusLabel(current.status)
+        }}</span>
+      </header>
+      @if (current.errorCode) {
+        <div class="fiscal-error"><i class="pi pi-times-circle"></i>{{ current.errorCode }}</div>
+      }
+      <div class="fiscal-actions">
+        @if (current.status === 'PENDING' || current.status === 'INDETERMINATE') {
+          <button type="button" [disabled]="!!busy()" (click)="query()">
+            <i class="pi pi-refresh"></i>Consultar proveedor
+          </button>
+        }
+        @for (artifact of current.artifacts; track artifact.kind) {
+          <button type="button" [disabled]="!!busy()" (click)="download(artifact.kind)">
+            <i class="pi pi-download"></i>{{ artifact.kind }}
+          </button>
+        }
+        @if (canVoid() && current.status === 'ACCEPTED') {
+          <button class="danger" type="button" [disabled]="!!busy()" (click)="cancel()">
+            <i class="pi pi-ban"></i>Cancelar documento
+          </button>
+        }
+      </div>
+      <div class="timeline">
+        @for (event of current.events; track event.occurredAt + event.status) {
+          <span
+            ><i class="pi pi-circle-fill"></i><strong>{{ event.status }}</strong
+            ><time>{{ event.occurredAt | date: 'medium' }}</time></span
+          >
+        }
+      </div>
+      <form class="fiscal-email" [formGroup]="emailForm" (ngSubmit)="send()">
+        <input
+          type="email"
+          formControlName="email"
+          placeholder="cliente@correo.com"
+          aria-label="Correo para documento fiscal"
+        /><button type="submit" [disabled]="emailForm.invalid || !!busy()">
+          <i class="pi pi-send"></i>Enviar documento
+        </button>
+      </form>
+    </article>
+  } @else if (canManage() && sale().status === 'COMPLETED') {
+    <form class="issue-fiscal" [formGroup]="issueForm" (ngSubmit)="issue()">
+      <h3>Emitir documento de prueba</h3>
+      <label
+        ><span>Tipo</span
+        ><select formControlName="documentType">
+          <option value="INVOICE">Factura</option>
+          <option value="RECEIPT">Recibo</option>
+          <option value="CREDIT_NOTE">Nota de crédito</option>
+          <option value="PAYMENT_RECEIPT">Complemento de pago</option>
+        </select></label
+      >
+      <label
+        ><span>Escenario del simulador</span
+        ><select formControlName="scenario">
+          <option value="SUCCESS">Aceptado</option>
+          <option value="REJECT">Rechazado</option>
+          <option value="TIMEOUT">Tiempo agotado</option>
+        </select></label
+      >
+      <button type="submit" [disabled]="!!busy()">
+        <i class="pi pi-file-plus"></i>Emitir en simulador
+      </button>
+    </form>
+  } @else {
+    <div class="empty-section">
+      <i class="pi pi-file"></i><strong>Sin documento fiscal</strong
+      ><span>No tienes permiso para emitirlo o la venta no está vigente.</span>
+    </div>
+  }
+</section>

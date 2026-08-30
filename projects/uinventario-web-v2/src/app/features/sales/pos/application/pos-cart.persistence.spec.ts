@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { SessionData } from '../../../../core/session/session.models';
-import { cartStorageKey, parsePersistedCart } from './pos-cart.persistence';
+import {
+  cartStorageKey,
+  clearPendingSuspendedSale,
+  parsePersistedCart,
+  readPendingSuspendedSale,
+  writePendingSuspendedSale,
+} from './pos-cart.persistence';
 
 const session = (cashRegisterId: string) =>
   ({
@@ -15,6 +21,8 @@ const session = (cashRegisterId: string) =>
   }) satisfies SessionData;
 
 describe('POS cart persistence', () => {
+  beforeEach(() => sessionStorage.clear());
+
   it('isolates drafts by tenant, user and complete operational context', () => {
     expect(cartStorageKey(session('register-1'))).not.toBe(cartStorageKey(session('register-2')));
     expect(
@@ -30,5 +38,77 @@ describe('POS cart persistence', () => {
     expect(
       parsePersistedCart(JSON.stringify([{ product: { id: 'product-1' }, quantity: '1' }])),
     ).toEqual([]);
+  });
+
+  it('accepts the safe product snapshot produced when a suspended sale is resumed', () => {
+    expect(
+      parsePersistedCart(
+        JSON.stringify([
+          {
+            product: {
+              id: 'product-1',
+              name: 'Café',
+              sku: 'CAF-01',
+              barcode: null,
+              withoutCode: false,
+              stockBehavior: 'TRACKED',
+              taxBehavior: 'STANDARD',
+              baseUnit: 'UNIT',
+              quantityPrecision: 0,
+              quantityRounding: 'HALF_UP',
+              minimumQuantity: '1.000',
+              trackLots: false,
+              trackSerials: false,
+              price: '120.00',
+              active: true,
+              sellable: true,
+            },
+            quantity: '1.000',
+          },
+        ]),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('keeps a resumed sale scoped to the complete operational context', () => {
+    const lines = parsePersistedCart(
+      JSON.stringify([
+        {
+          product: {
+            id: 'product-1',
+            name: 'Café',
+            sku: 'CAF-01',
+            barcode: null,
+            withoutCode: false,
+            stockBehavior: 'TRACKED',
+            taxBehavior: 'STANDARD',
+            baseUnit: 'UNIT',
+            quantityPrecision: 0,
+            quantityRounding: 'HALF_UP',
+            minimumQuantity: '1.000',
+            trackLots: false,
+            trackSerials: false,
+            price: '120.00',
+            active: true,
+            sellable: true,
+          },
+          quantity: '1.000',
+        },
+      ]),
+    );
+    expect(
+      writePendingSuspendedSale(session('register-1'), {
+        id: 'suspended-1',
+        customerId: 'customer-1',
+        lines,
+      }),
+    ).toBe(true);
+    expect(readPendingSuspendedSale(session('register-1'))).toMatchObject({
+      id: 'suspended-1',
+      customerId: 'customer-1',
+    });
+    expect(readPendingSuspendedSale(session('register-2'))).toBeNull();
+    clearPendingSuspendedSale(session('register-1'));
+    expect(readPendingSuspendedSale(session('register-1'))).toBeNull();
   });
 });

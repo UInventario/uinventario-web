@@ -7,6 +7,7 @@ import { PosGateway } from '../domain/pos.gateway';
 import {
   CashRegisterShift,
   CreateCashSaleInput,
+  CreatePosSuspendedSaleInput,
   CreateSaleInput,
   PaymentTerminalOperation,
   PosCustomer,
@@ -17,6 +18,7 @@ import {
   PosProduct,
   PosProductPage,
   PosSale,
+  PosSuspendedSale,
   StartPaymentTerminalInput,
 } from '../domain/pos.models';
 
@@ -93,6 +95,16 @@ export class PosApi extends PosGateway {
       .post<ApiEnvelope<PosSale>, CreateSaleInput>('/pos/sales', input, {
         headers: this.idempotencyHeaders(),
       })
+      .pipe(map(({ data }) => data));
+  }
+
+  override suspendSale(input: CreatePosSuspendedSaleInput, idempotencyKey: string) {
+    return this.api
+      .post<ApiEnvelope<PosSuspendedSale>, CreatePosSuspendedSaleInput>(
+        '/pos/suspended-sales',
+        input,
+        { headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }) },
+      )
       .pipe(map(({ data }) => data));
   }
 

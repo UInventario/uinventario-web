@@ -1,0 +1,306 @@
+:host {
+  --card: var(--p-surface-0);
+  --border: var(--p-surface-200);
+  --muted: var(--p-text-muted-color);
+  --primary: var(--p-primary-600);
+  display: block;
+}
+
+.suspended-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.suspended-panel > header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+h2,
+p {
+  margin: 0;
+}
+
+.suspended-panel > header p,
+.resume-dialog header p {
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.suspended-panel > header span {
+  color: var(--muted);
+}
+
+.suspended-panel > header button,
+.resume-dialog header button {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--p-text-color);
+  cursor: pointer;
+  height: 42px;
+  width: 42px;
+}
+
+.suspended-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.suspended-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 0.05);
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.suspended-card[data-status='CANCELLED'],
+.suspended-card[data-status='EXPIRED'],
+.suspended-card[data-status='RESUMED'] {
+  opacity: 0.72;
+}
+
+.suspended-card > header,
+.suspended-card footer,
+.suspended-card dl div {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.status {
+  background: var(--p-orange-100);
+  border-radius: 999px;
+  color: var(--p-orange-800);
+  font-size: 11px;
+  font-weight: 800;
+  padding: 5px 8px;
+}
+
+.suspended-card[data-status='RESUMED'] .status {
+  background: var(--p-green-100);
+  color: var(--p-green-800);
+}
+
+.suspended-card time,
+.suspended-card small,
+dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.customer {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.customer > span {
+  align-items: center;
+  background: var(--p-primary-50);
+  border-radius: 10px;
+  color: var(--primary);
+  display: flex;
+  height: 38px;
+  justify-content: center;
+  min-width: 38px;
+}
+
+.customer div,
+.line-summary {
+  display: grid;
+  gap: 3px;
+}
+
+.line-summary {
+  background: var(--p-surface-50);
+  border-radius: 10px;
+  font-size: 12px;
+  min-height: 84px;
+  padding: 10px;
+}
+
+.suspended-card dl {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.suspended-card dd {
+  font-weight: 750;
+  margin: 0;
+}
+
+footer button,
+.resume-dialog footer button,
+.confirm-dialog footer button {
+  border-radius: 9px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 750;
+  min-height: 40px;
+  padding: 8px 13px;
+}
+
+.primary {
+  align-items: center;
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  color: var(--p-primary-contrast-color);
+  display: flex;
+  gap: 7px;
+}
+
+.secondary {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--p-text-color);
+}
+
+.secondary.danger {
+  color: var(--p-red-700);
+}
+
+.completed {
+  color: var(--p-green-700);
+  font-weight: 750;
+  justify-content: flex-start !important;
+}
+
+.notice,
+.ready,
+.replace-warning,
+.conflicts {
+  align-items: flex-start;
+  border-radius: 10px;
+  display: flex;
+  gap: 8px;
+  padding: 11px;
+}
+
+.notice.error,
+.conflicts.blocking {
+  background: var(--p-red-50);
+  color: var(--p-red-700);
+}
+
+.state {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  min-height: 220px;
+}
+
+.state.empty {
+  flex-direction: column;
+  grid-column: 1 / -1;
+}
+
+.modal-backdrop {
+  align-items: center;
+  background: rgb(15 23 42 / 0.58);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: fixed;
+  z-index: 1200;
+}
+
+.resume-dialog,
+.confirm-dialog {
+  background: var(--card);
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgb(15 23 42 / 0.24);
+  display: grid;
+  gap: 16px;
+  max-width: 560px;
+  padding: 20px;
+  width: 100%;
+}
+
+.resume-dialog > header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.conflicts {
+  background: var(--p-orange-50);
+  color: var(--p-orange-800);
+  display: grid;
+}
+
+.ready {
+  background: var(--p-green-50);
+  color: var(--p-green-700);
+}
+
+.resume-lines {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: grid;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.resume-lines span {
+  display: grid;
+  padding: 9px 11px;
+}
+
+.resume-lines span + span {
+  border-top: 1px solid var(--border);
+}
+
+.replace-warning {
+  background: var(--p-blue-50);
+  color: var(--p-blue-800);
+  font-size: 12px;
+}
+
+.resume-dialog footer,
+.confirm-dialog footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.confirm-dialog {
+  justify-items: center;
+  max-width: 440px;
+  text-align: center;
+}
+
+.confirm-dialog > span {
+  align-items: center;
+  background: var(--p-red-50);
+  border-radius: 50%;
+  color: var(--p-red-700);
+  display: flex;
+  font-size: 22px;
+  height: 54px;
+  justify-content: center;
+  width: 54px;
+}
+
+.danger-fill {
+  background: var(--p-red-600);
+  border: 1px solid var(--p-red-600);
+  color: white;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}

@@ -1,0 +1,233 @@
+:host {
+  --card: var(--p-surface-0);
+  --border: var(--p-surface-200);
+  --muted: var(--p-text-muted-color);
+  --primary: var(--p-primary-600);
+}
+
+.receipt-backdrop {
+  align-items: center;
+  background: rgb(15 23 42 / 0.6);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 18px;
+  position: fixed;
+  z-index: 1250;
+}
+
+.receipt-dialog {
+  background: var(--card);
+  border-radius: 16px;
+  box-shadow: 0 24px 64px rgb(15 23 42 / 0.25);
+  display: grid;
+  gap: 14px;
+  max-height: calc(100vh - 36px);
+  max-width: 620px;
+  overflow: auto;
+  padding: 20px;
+  width: 100%;
+}
+
+.receipt-dialog > header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+h2,
+p {
+  margin: 0;
+}
+
+.receipt-dialog > header p {
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.receipt-dialog > header button {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 18px;
+  padding: 8px;
+}
+
+.paper {
+  align-self: center;
+  background: white;
+  border: 1px solid #d9d9d9;
+  box-shadow: 0 8px 20px rgb(15 23 42 / 0.08);
+  color: #161616;
+  display: grid;
+  gap: 14px;
+  justify-self: center;
+  max-width: 360px;
+  padding: 24px;
+  width: 100%;
+}
+
+.paper > header {
+  display: grid;
+  gap: 3px;
+  text-align: center;
+}
+
+.paper small {
+  color: #666;
+}
+
+.receipt-lines {
+  border-block: 1px dashed #aaa;
+  display: grid;
+  padding-block: 8px;
+}
+
+.receipt-lines > span {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 6px 0;
+}
+
+.receipt-lines > span > span {
+  display: grid;
+}
+
+dl {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+}
+
+dl div,
+.payments span {
+  display: flex;
+  justify-content: space-between;
+}
+
+dd {
+  font-weight: 750;
+  margin: 0;
+}
+
+dl .total {
+  border-top: 2px solid #222;
+  font-size: 18px;
+  margin-top: 5px;
+  padding-top: 8px;
+}
+
+.payments {
+  display: grid;
+  font-size: 12px;
+  gap: 5px;
+}
+
+.fiscal-notice {
+  border: 1px solid #333;
+  padding: 7px;
+  text-align: center;
+}
+
+.voided {
+  background: #fee2e2;
+  color: #991b1b;
+  font-weight: 800;
+  padding: 8px;
+  text-align: center;
+}
+
+.receipt-actions {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.receipt-actions button {
+  align-items: center;
+  border: 1px solid var(--primary);
+  border-radius: 9px;
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-weight: 750;
+  gap: 7px;
+  justify-content: center;
+  min-height: 42px;
+  padding: 8px 13px;
+}
+
+.receipt-actions > button {
+  background: var(--primary);
+  color: var(--p-primary-contrast-color);
+}
+
+.receipt-actions form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.receipt-actions input {
+  border: 1px solid var(--border);
+  border-radius: 9px 0 0 9px;
+  font: inherit;
+  min-width: 0;
+  padding: 8px 10px;
+}
+
+.receipt-actions form button {
+  background: var(--card);
+  border-left: 0;
+  border-radius: 0 9px 9px 0;
+  color: var(--primary);
+}
+
+.delivery,
+.error {
+  align-items: center;
+  border-radius: 9px;
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+}
+
+.delivery {
+  background: var(--p-green-50);
+  color: var(--p-green-700);
+}
+
+.error {
+  background: var(--p-red-50);
+  color: var(--p-red-700);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (max-width: 560px) {
+  .receipt-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .receipt-dialog {
+    border-radius: 18px 18px 0 0;
+    max-height: 95vh;
+  }
+
+  .receipt-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .paper {
+    box-shadow: none;
+    padding: 16px;
+  }
+}

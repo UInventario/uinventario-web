@@ -159,11 +159,15 @@ export class PosCheckoutDialog implements OnInit {
       this.error.set('El efectivo recibido debe cubrir el total de la venta.');
       return;
     }
+    const received = this.cashForm.controls.received.value.trim();
+    const resumed = this.request().suspendedSaleId;
     this.runSale(
-      this.facade.createCashSale({
-        ...this.request(),
-        cashReceived: this.cashForm.controls.received.value.trim(),
-      }),
+      resumed
+        ? this.facade.createSale({
+            ...this.request(),
+            payment: { method: 'CASH', amount: this.total(), amountReceived: received },
+          })
+        : this.facade.createCashSale({ ...this.request(), cashReceived: received }),
     );
   }
 

@@ -2,7 +2,11 @@ import { Injectable, effect, inject, signal, untracked } from '@angular/core';
 import { SessionState } from '../../../../core/session/session-state';
 import { PosCartLine, PosProduct } from '../domain/pos.models';
 import { changeQuantity } from '../domain/quantity';
-import { cartStorageKey, parsePersistedCart } from './pos-cart.persistence';
+import {
+  cartStorageKey,
+  parsePersistedCart,
+  readPendingSuspendedSale,
+} from './pos-cart.persistence';
 
 @Injectable()
 export class PosCartStore {
@@ -13,12 +17,12 @@ export class PosCartStore {
   readonly lines = this.cartLines.asReadonly();
 
   constructor() {
+    this.hydrate(cartStorageKey(this.sessions.session()));
     effect(() => {
       const key = cartStorageKey(this.sessions.session());
       untracked(() => {
         if (key === this.activeKey()) return;
-        this.activeKey.set(key);
-        this.cartLines.set(key ? parsePersistedCart(localStorage.getItem(key)) : []);
+        this.hydrate(key);
       });
     });
     effect(() => {
@@ -66,6 +70,10 @@ export class PosCartStore {
     this.cartLines.set([]);
   }
 
+  replace(lines: readonly PosCartLine[]): void {
+    this.cartLines.set(lines);
+  }
+
   stripUnauthorizedOverrides(): void {
     this.cartLines.update((lines) =>
       lines.map((line) => ({
@@ -73,6 +81,14 @@ export class PosCartStore {
         quantity: line.quantity,
         ...(line.note ? { note: line.note } : {}),
       })),
+    );
+  }
+
+  private hydrate(key: string | null): void {
+    this.activeKey.set(key);
+    const resumed = readPendingSuspendedSale(this.sessions.session());
+    this.cartLines.set(
+      resumed?.lines ?? (key ? parsePersistedCart(localStorage.getItem(key)) : []),
     );
   }
 }

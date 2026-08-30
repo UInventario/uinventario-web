@@ -39,6 +39,8 @@ export interface PosCartLine {
 }
 
 export interface PosCartRequest {
+  readonly suspendedSaleId?: string;
+  readonly customerId?: string;
   readonly lines: readonly {
     readonly productId: string;
     readonly quantity: string;
@@ -46,6 +48,17 @@ export interface PosCartRequest {
     readonly manualUnitPrice?: string;
     readonly priceOverrideReason?: string;
   }[];
+}
+
+export interface PosSuspendedSale {
+  readonly id: string;
+  readonly status: 'ACTIVE' | 'CANCELLED' | 'RESUMED' | 'EXPIRED';
+  readonly notes: string | null;
+  readonly expiresAt: string;
+}
+
+export interface CreatePosSuspendedSaleInput extends PosCartRequest {
+  readonly notes?: string;
 }
 
 export interface PosCartQuote {

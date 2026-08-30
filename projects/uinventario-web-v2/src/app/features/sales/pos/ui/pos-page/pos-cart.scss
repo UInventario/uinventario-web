@@ -260,3 +260,14 @@
     }
   }
 }
+
+.checkout-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.checkout-next .suspend-action {
+  background: var(--p-surface-0);
+  border: 1px solid var(--p-surface-300);
+  color: var(--p-text-color);
+}
