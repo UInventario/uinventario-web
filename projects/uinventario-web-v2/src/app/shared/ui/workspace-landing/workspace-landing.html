@@ -1,0 +1,22 @@
+<section class="workspace" [attr.aria-labelledby]="'workspace-' + title()">
+  <header>
+    <span class="workspace-icon" aria-hidden="true"><i [class]="icon()"></i></span>
+    <div>
+      <p>Workspace</p>
+      <h1 [id]="'workspace-' + title()">{{ title() }}</h1>
+      <span>{{ description() }}</span>
+    </div>
+    <p-tag severity="secondary" value="Preparado" />
+  </header>
+
+  <div class="workspace-panel">
+    <i class="pi pi-sitemap" aria-hidden="true"></i>
+    <div>
+      <h2>Área independiente</h2>
+      <p>
+        Este workspace tiene una URL y una carga propias. Su recorrido funcional se incorporará sin
+        convertir la aplicación en un documento vertical único.
+      </p>
+    </div>
+  </div>
+</section>
