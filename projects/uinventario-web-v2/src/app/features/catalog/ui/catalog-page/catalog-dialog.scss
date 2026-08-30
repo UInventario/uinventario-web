@@ -1,0 +1,103 @@
+.backdrop {
+  align-items: center;
+  background: color-mix(in srgb, var(--p-surface-950) 50%, transparent);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  position: fixed;
+  z-index: 1000;
+}
+.dialog {
+  background: white;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--ui-shadow-panel);
+  box-sizing: border-box;
+  max-height: calc(100dvh - 2rem);
+  max-width: 46rem;
+  overflow: auto;
+  padding: 1.5rem;
+  width: 100%;
+}
+.dialog > header,
+.dialog-actions {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+.dialog > header {
+  margin-bottom: 1.5rem;
+}
+.dialog > header p,
+.dialog > header h2 {
+  margin: 0;
+}
+.dialog > header p {
+  color: var(--p-primary-600);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+}
+.dialog form {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr 1fr;
+}
+.field {
+  display: grid;
+  gap: 0.5rem;
+}
+.field label {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.field input,
+.field select {
+  border: 1px solid var(--p-surface-300);
+  border-radius: var(--radius-md);
+  box-sizing: border-box;
+  min-height: var(--ui-control-height);
+  padding: 0 0.75rem;
+  width: 100%;
+}
+.full {
+  grid-column: 1/-1;
+}
+.check {
+  align-items: center;
+  display: flex;
+  font-size: 0.8125rem;
+  gap: 0.5rem;
+}
+.dialog-actions {
+  border-top: 1px solid var(--p-surface-200);
+  gap: 0.75rem;
+  padding-top: 1rem;
+}
+.retirement {
+  display: grid;
+  gap: 1rem;
+  max-width: 32rem;
+}
+.retirement > i {
+  color: var(--p-red-600);
+  font-size: 2rem;
+}
+.retirement h2,
+.retirement p {
+  margin: 0;
+}
+.retirement p {
+  color: var(--p-text-muted-color);
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+@media (max-width: 38rem) {
+  .dialog form {
+    grid-template-columns: 1fr;
+  }
+  .full {
+    grid-column: auto;
+  }
+}

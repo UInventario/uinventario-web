@@ -1,0 +1,59 @@
+<section class="import-panel" aria-labelledby="import-title">
+  <header>
+    <div>
+      <p>Carga masiva</p>
+      <h2 id="import-title">Importar productos</h2>
+      <span>Vista previa obligatoria y confirmación atómica.</span>
+    </div>
+    <button type="button" (click)="downloadTemplate()">Descargar plantilla CSV</button>
+  </header>
+  <div class="upload">
+    <label for="productImportFile">Archivo CSV o Excel</label
+    ><input
+      id="productImportFile"
+      type="file"
+      accept=".csv,.xlsx"
+      (change)="selectFile($event)"
+    /><small>Máximo 1,000 filas y 2 MB.</small
+    ><button type="button" [disabled]="!filename() || loading()" (click)="analyze()">
+      {{ loading() ? 'Analizando…' : 'Generar vista previa' }}
+    </button>
+  </div>
+  @if (error()) {
+    <div class="import-error" role="alert">{{ error() }}</div>
+  }
+  @if (preview(); as batch) {
+    <div class="summary" role="status">
+      <strong>{{ batch.sourceFilename }}</strong
+      ><span>{{ batch.summary.creates }} altas</span><span>{{ batch.summary.updates }} cambios</span
+      ><span>{{ batch.summary.unchanged }} sin cambio</span
+      ><span [class.error]="batch.summary.errors">{{ batch.summary.errors }} errores</span>
+    </div>
+    <div class="rows" role="table">
+      @for (row of batch.rows; track row.id) {
+        <div role="row" [class.invalid]="row.errors.length">
+          <span>{{ row.rowNumber }}</span
+          ><span
+            ><strong>{{ row.name }}</strong
+            ><small>{{ row.sku }}</small></span
+          ><span>{{ row.action }}</span
+          ><span>{{ row.cost }} → {{ row.price }}</span
+          ><span>
+            @for (problem of row.errors; track problem.code) {
+              <small>{{ problem.message }}</small>
+            }
+          </span>
+        </div>
+      }
+    </div>
+    <footer>
+      @if (batch.status === 'PREVIEWED') {
+        <button type="button" [disabled]="!batch.canConfirm || loading()" (click)="confirm()">
+          Confirmar lote completo
+        </button>
+      } @else {
+        <button type="button" (click)="downloadResult()">Descargar resultado</button>
+      }
+    </footer>
+  }
+</section>

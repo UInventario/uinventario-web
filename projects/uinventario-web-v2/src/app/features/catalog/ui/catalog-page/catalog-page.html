@@ -1,0 +1,343 @@
+<section class="catalog" aria-labelledby="catalog-title">
+  <header class="page-header">
+    <div class="title-group">
+      <span class="page-icon"><i class="pi pi-box"></i></span>
+      <div>
+        <p>Operación</p>
+        <h1 id="catalog-title">Catálogo</h1>
+        <span>Productos listos para inventario y venta, sin mezclar otros módulos.</span>
+      </div>
+    </div>
+    @if (tab() === 'PRODUCTS' && canManage()) {
+      <button class="primary" type="button" (click)="openCreate()">
+        <i class="pi pi-plus"></i>Nuevo producto
+      </button>
+    }
+  </header>
+
+  <nav class="tabs" aria-label="Áreas del catálogo">
+    <button type="button" [class.active]="tab() === 'PRODUCTS'" (click)="selectTab('PRODUCTS')">
+      Productos
+    </button>
+    @if (canManage()) {
+      <button
+        type="button"
+        [class.active]="tab() === 'CLASSIFICATIONS'"
+        (click)="selectTab('CLASSIFICATIONS')"
+      >
+        Categorías y marcas
+      </button>
+      <button type="button" [class.active]="tab() === 'IMPORT'" (click)="selectTab('IMPORT')">
+        Importar
+      </button>
+    }
+  </nav>
+
+  @if (notice()) {
+    <div class="notice success" role="status"><i class="pi pi-check-circle"></i>{{ notice() }}</div>
+  }
+  @if (error() && !editorOpen() && !retirement()) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle"></i>{{ error() }}
+    </div>
+  }
+
+  @if (tab() === 'PRODUCTS') {
+    <form class="filters" [formGroup]="filters" (ngSubmit)="applyFilters()">
+      <div class="search-field">
+        <i class="pi pi-search"></i
+        ><input
+          formControlName="q"
+          aria-label="Buscar productos"
+          placeholder="Nombre, SKU o código de barras"
+        />
+      </div>
+      <select formControlName="status" aria-label="Estado">
+        <option value="ACTIVE">Activos</option>
+        <option value="INACTIVE">Retirados</option>
+        <option value="ALL">Todos</option>
+      </select>
+      <select formControlName="categoryId" aria-label="Categoría">
+        <option value="">Todas las categorías</option>
+        @for (item of options().categories; track item.id) {
+          <option [value]="item.id">{{ item.name }}</option>
+        }
+      </select>
+      <select formControlName="brandId" aria-label="Marca">
+        <option value="">Todas las marcas</option>
+        @for (item of options().brands; track item.id) {
+          <option [value]="item.id">{{ item.name }}</option>
+        }
+      </select>
+      <button class="secondary" type="submit">Aplicar</button>
+    </form>
+
+    @if (loading()) {
+      <div class="state" role="status">
+        <i class="pi pi-spin pi-spinner"></i>
+        <p>Cargando productos…</p>
+      </div>
+    } @else if (!page()?.products?.length) {
+      <div class="state">
+        <i class="pi pi-box"></i>
+        <h2>No encontramos productos</h2>
+        <p>Ajusta los filtros o crea el primer producto.</p>
+        @if (canManage()) {
+          <button class="primary" type="button" (click)="openCreate()">Crear producto</button>
+        }
+      </div>
+    } @else {
+      <div class="product-table" role="table" aria-label="Productos">
+        <div class="table-head" role="row">
+          <span role="columnheader">Producto</span><span role="columnheader">Clasificación</span
+          ><span role="columnheader">Costo</span><span role="columnheader">Precio</span
+          ><span role="columnheader">Estado</span><span></span>
+        </div>
+        @for (product of page()!.products; track product.id) {
+          <div class="product-row" role="row">
+            <span role="cell"
+              ><strong>{{ product.name }}</strong
+              ><small
+                >{{ product.withoutCode ? 'Sin código' : product.sku
+                }}{{ product.barcode ? ' · ' + product.barcode : '' }}</small
+              ></span
+            >
+            <span role="cell"
+              >{{ product.category?.name || 'Sin categoría'
+              }}<small>{{ product.brand?.name || 'Sin marca' }}</small></span
+            >
+            <span role="cell">{{ product.cost }}</span
+            ><span role="cell"
+              ><strong>{{ product.price }}</strong></span
+            >
+            <span role="cell"
+              ><span class="status" [class.inactive]="!product.active">{{
+                product.active ? 'Activo' : 'Retirado'
+              }}</span></span
+            >
+            <span class="row-actions">
+              @if (product.active && canManage()) {
+                <button
+                  class="icon"
+                  type="button"
+                  (click)="openEdit(product)"
+                  [attr.aria-label]="'Editar ' + product.name"
+                >
+                  <i class="pi pi-pencil"></i></button
+                ><button
+                  class="icon danger"
+                  type="button"
+                  (click)="requestRetirement(product)"
+                  [attr.aria-label]="'Retirar ' + product.name"
+                >
+                  <i class="pi pi-trash"></i>
+                </button>
+              }
+            </span>
+          </div>
+        }
+      </div>
+      <footer class="pagination">
+        <span>{{ page()!.pagination.total }} producto(s)</span>
+        <div>
+          <button
+            class="secondary"
+            type="button"
+            [disabled]="page()!.pagination.page <= 1"
+            (click)="goToPage(page()!.pagination.page - 1)"
+          >
+            Anterior</button
+          ><span>Página {{ page()!.pagination.page }} de {{ page()!.pagination.totalPages }}</span
+          ><button
+            class="secondary"
+            type="button"
+            [disabled]="page()!.pagination.page >= page()!.pagination.totalPages"
+            (click)="goToPage(page()!.pagination.page + 1)"
+          >
+            Siguiente
+          </button>
+        </div>
+      </footer>
+    }
+  } @else if (tab() === 'CLASSIFICATIONS') {
+    <ui-catalog-classification-panel (changed)="refreshAfterCatalogChange()" />
+  } @else {
+    <ui-product-import-panel (confirmed)="refreshAfterCatalogChange()" />
+  }
+</section>
+
+@if (editorOpen()) {
+  <div class="backdrop" (click)="closeEditor()">
+    <section
+      class="dialog product-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="product-editor-title"
+      (click)="$event.stopPropagation()"
+    >
+      <header>
+        <div>
+          <p>{{ editing() ? 'Editar producto' : 'Alta de producto' }}</p>
+          <h2 id="product-editor-title">{{ editing()?.name || 'Nuevo producto' }}</h2>
+        </div>
+        <button class="icon" type="button" (click)="closeEditor()" aria-label="Cerrar">
+          <i class="pi pi-times"></i>
+        </button>
+      </header>
+      <form [formGroup]="productForm" (ngSubmit)="saveProduct()" novalidate>
+        <div class="field full">
+          <label for="productName">Nombre</label
+          ><input id="productName" formControlName="name" maxlength="160" />
+        </div>
+        <label class="check full"
+          ><input type="checkbox" formControlName="withoutCode" />Producto sin código</label
+        >
+        @if (!productForm.controls.withoutCode.value) {
+          <div class="field">
+            <label for="productSku">SKU</label
+            ><input id="productSku" formControlName="sku" maxlength="40" />
+          </div>
+          <div class="field">
+            <label for="productBarcode">Código de barras</label
+            ><input id="productBarcode" formControlName="barcode" maxlength="64" />
+          </div>
+        }
+        <div class="field">
+          <label for="productCategory">Categoría</label
+          ><input
+            id="productCategory"
+            formControlName="categoryName"
+            list="categoryOptions"
+            maxlength="80"
+          /><datalist id="categoryOptions">
+            @for (item of options().categories; track item.id) {
+              <option [value]="item.name"></option>
+            }
+          </datalist>
+        </div>
+        <div class="field">
+          <label for="productBrand">Marca</label
+          ><input
+            id="productBrand"
+            formControlName="brandName"
+            list="brandOptions"
+            maxlength="120"
+          /><datalist id="brandOptions">
+            @for (item of options().brands; track item.id) {
+              <option [value]="item.name"></option>
+            }
+          </datalist>
+        </div>
+        <div class="field">
+          <label for="productCost">Costo</label
+          ><input id="productCost" formControlName="cost" inputmode="decimal" />
+        </div>
+        <div class="field">
+          <label for="productPrice">Precio</label
+          ><input id="productPrice" formControlName="price" inputmode="decimal" />
+        </div>
+        <div class="field">
+          <label for="stockBehavior">Control de stock</label
+          ><select id="stockBehavior" formControlName="stockBehavior">
+            <option value="TRACKED">Controlar existencias</option>
+            <option value="UNTRACKED">No controlar</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="taxBehavior">Impuesto</label
+          ><select id="taxBehavior" formControlName="taxBehavior">
+            <option value="STANDARD">Estándar</option>
+            <option value="EXEMPT">Exento</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="baseUnit">Unidad base</label
+          ><select id="baseUnit" formControlName="baseUnit">
+            @for (unit of baseUnits; track unit.value) {
+              <option [value]="unit.value">{{ unit.label }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="quantityPrecision">Decimales</label
+          ><input
+            id="quantityPrecision"
+            type="number"
+            min="0"
+            max="3"
+            formControlName="quantityPrecision"
+          />
+        </div>
+        <div class="field">
+          <label for="minimumQuantity">Cantidad mínima</label
+          ><input id="minimumQuantity" formControlName="minimumQuantity" inputmode="decimal" />
+        </div>
+        <div class="field">
+          <label for="quantityRounding">Redondeo</label
+          ><select id="quantityRounding" formControlName="quantityRounding">
+            <option value="HALF_UP">Al más cercano</option>
+            <option value="DOWN">Hacia abajo</option>
+            <option value="UP">Hacia arriba</option>
+          </select>
+        </div>
+        <label class="check"
+          ><input type="checkbox" formControlName="trackLots" />Controlar lotes</label
+        ><label class="check"
+          ><input type="checkbox" formControlName="trackSerials" />Controlar series</label
+        >
+        @if (productForm.touched && productForm.invalid) {
+          <div class="notice error full" role="alert">
+            Revisa nombre, SKU, costo, precio y cantidades.
+          </div>
+        }
+        @if (error()) {
+          <div class="notice error full" role="alert">{{ error() }}</div>
+        }
+        <div class="dialog-actions full">
+          <button class="secondary" type="button" (click)="closeEditor()">Cancelar</button
+          ><button class="primary" type="submit" [disabled]="saving()">
+            {{ saving() ? 'Guardando…' : 'Guardar producto' }}
+          </button>
+        </div>
+      </form>
+    </section>
+  </div>
+}
+
+@if (retirement(); as product) {
+  <div class="backdrop">
+    <section
+      class="dialog retirement"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="retire-product-title"
+    >
+      <i class="pi pi-exclamation-triangle"></i>
+      <h2 id="retire-product-title">Retirar {{ product.name }}</h2>
+      <p>Si tiene historial se desactivará; si nunca se usó, se eliminará.</p>
+      <div class="field">
+        <label for="retireProductConfirmation"
+          >Escribe <strong>{{ product.name }}</strong> para confirmar</label
+        ><input
+          id="retireProductConfirmation"
+          [value]="retirementConfirmation()"
+          (input)="updateRetirement($event)"
+        />
+      </div>
+      @if (error()) {
+        <div class="notice error" role="alert">{{ error() }}</div>
+      }
+      <div class="dialog-actions">
+        <button class="secondary" type="button" (click)="retirement.set(null)">Cancelar</button
+        ><button
+          class="danger-button"
+          type="button"
+          [disabled]="retirementConfirmation().trim() !== product.name || saving()"
+          (click)="confirmRetirement()"
+        >
+          Retirar
+        </button>
+      </div>
+    </section>
+  </div>
+}
