@@ -53,6 +53,7 @@
       <a routerLink="/app" fragment="fiscal-contract-title">Fiscalidad</a>
       <a routerLink="/app" fragment="commerce-integrations-title">E-commerce</a>
       <a routerLink="/app" fragment="erp-integrations-title">ERP</a>
+      <a routerLink="/app" fragment="psp-title">PSP</a>
     }
   </nav>
 
@@ -70,6 +71,7 @@
     <app-external-adapter-panel />
     <app-fiscal-contract-panel />
     <app-erp-integration-panel />
+    <app-psp-panel />
     @if (session(); as currentSession) {
       <app-commerce-integration-panel
         [session]="currentSession"
