@@ -174,6 +174,24 @@ const COMMANDS: Record<WorkspaceId, readonly PolicyGroup[]> = {
         },
       ],
     },
+    {
+      id: 'control',
+      label: 'Control',
+      commands: [
+        {
+          id: 'inventory-valuation',
+          label: 'Valorización',
+          icon: 'pi pi-chart-line',
+          permissionsAny: ['INVENTORY_VIEW'],
+        },
+        {
+          id: 'inventory-reconciliation',
+          label: 'Conciliación',
+          icon: 'pi pi-verified',
+          permissionsAny: ['INVENTORY_VIEW'],
+        },
+      ],
+    },
   ],
   compras: [
     {

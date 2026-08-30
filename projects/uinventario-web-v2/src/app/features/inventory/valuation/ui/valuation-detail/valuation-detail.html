@@ -1,0 +1,170 @@
+<section class="detail" aria-label="Detalle de valorización">
+  @if (loading()) {
+    <div class="state" role="status"><i class="pi pi-spin pi-spinner"></i>Cargando detalle…</div>
+  } @else if (!item()) {
+    <div class="state">
+      <span><i class="pi pi-chart-line"></i></span>
+      <h2>Selecciona un producto</h2>
+      <p>Consulta sus cifras del servidor, capas FIFO e historial valorizado.</p>
+    </div>
+  } @else if (item(); as current) {
+    <header>
+      <div>
+        <p>{{ current.product.sku }}</p>
+        <h2>{{ current.product.name }}</h2>
+        <span>{{ methodLabel(current.costing.method) }} · {{ current.costing.currency }}</span>
+      </div>
+      <span class="health" [class.warning]="!current.costing.reconciled">
+        <i
+          class="pi"
+          [class.pi-check-circle]="current.costing.reconciled"
+          [class.pi-exclamation-triangle]="!current.costing.reconciled"
+        ></i>
+        {{ current.costing.reconciled ? 'Conciliado' : 'Requiere revisión' }}
+      </span>
+    </header>
+
+    <nav class="tabs" aria-label="Información valorizada del producto">
+      <button type="button" [class.active]="tab() === 'SUMMARY'" (click)="tab.set('SUMMARY')">
+        Resumen
+      </button>
+      <button type="button" [class.active]="tab() === 'LAYERS'" (click)="tab.set('LAYERS')">
+        Capas FIFO
+      </button>
+      <button type="button" [class.active]="tab() === 'HISTORY'" (click)="tab.set('HISTORY')">
+        Historial
+      </button>
+    </nav>
+
+    @if (tab() === 'SUMMARY') {
+      <div class="metric-grid">
+        <article>
+          <small>Cantidad de costeo</small>
+          <strong>{{ current.costing.quantity }}</strong>
+          <span>Saldo total {{ current.totalQuantity }}</span>
+        </article>
+        <article>
+          <small>Valor de inventario</small>
+          <strong>{{ current.costing.currency }} {{ current.costing.inventoryValue }}</strong>
+          <span>Costo medio {{ current.averageUnitCost }}</span>
+        </article>
+        <article [class.warning]="!current.valuation.reconciled">
+          <small>Proyección promedio</small>
+          <strong>{{ current.costing.currency }} {{ current.valuation.inventoryValue }}</strong>
+          <span>Cantidad {{ current.valuation.quantity }}</span>
+        </article>
+        <article [class.warning]="!current.fifoValuation.reconciled">
+          <small>Proyección FIFO</small>
+          <strong
+            >{{ current.fifoValuation.currency || current.costing.currency }}
+            {{ current.fifoValuation.inventoryValue }}</strong
+          >
+          <span>Cantidad {{ current.fifoValuation.quantity }}</span>
+        </article>
+        @if (current.lotTracking; as lots) {
+          <article [class.warning]="!lots.reconciled">
+            <small>Proyección por lotes</small>
+            <strong
+              >{{ lots.currency || current.costing.currency }} {{ lots.inventoryValue }}</strong
+            >
+            <span>Cantidad {{ lots.lotQuantity }}</span>
+          </article>
+        }
+      </div>
+      <p class="server-note">
+        <i class="pi pi-shield"></i>Las cantidades, costos e importes se muestran con la precisión
+        entregada por el backend; el navegador no recalcula valores monetarios.
+      </p>
+    } @else if (tab() === 'LAYERS') {
+      @if (layers(); as currentLayers) {
+        <div class="layer-summary" [class.warning]="!currentLayers.meta.reconciled">
+          <span
+            ><small>Saldo</small><strong>{{ currentLayers.meta.totalQuantity }}</strong></span
+          >
+          <span
+            ><small>En capas</small><strong>{{ currentLayers.meta.layerQuantity }}</strong></span
+          >
+          <span
+            ><small>Valor FIFO</small
+            ><strong
+              >{{ currentLayers.meta.currency || current.costing.currency }}
+              {{ currentLayers.meta.inventoryValue }}</strong
+            ></span
+          >
+          <span class="status">
+            {{ currentLayers.meta.reconciled ? 'Capas conciliadas' : 'Desbalance en capas' }}
+          </span>
+        </div>
+        <div class="layer-table" role="table" aria-label="Capas FIFO">
+          <div class="layer-head" role="row">
+            <span>Origen</span><span>Ubicación</span><span>Disponible</span><span>Costo</span
+            ><span>Valor</span>
+          </div>
+          @for (layer of currentLayers.items; track layer.id) {
+            <div class="layer-row" role="row">
+              <span
+                ><strong>{{ originLabel(layer.originType) }}</strong
+                ><small>{{ layer.acquiredAt | date: 'dd/MM/yyyy HH:mm' }}</small></span
+              >
+              <span>{{ layer.location.code }}</span>
+              <span>{{ layer.remainingQuantity }} / {{ layer.originalQuantity }}</span>
+              <span>{{ layer.currency }} {{ layer.unitCost }}</span>
+              <span>{{ layer.currency }} {{ layer.inventoryValue }}</span>
+            </div>
+          } @empty {
+            <div class="empty">No existen capas para este producto.</div>
+          }
+        </div>
+      }
+    } @else {
+      <div class="movement-list">
+        @for (movement of movements()?.items || []; track movement.id) {
+          <article>
+            <span class="movement-icon" [class.out]="movement.direction === 'OUT'">
+              <i
+                class="pi"
+                [class.pi-arrow-up]="movement.direction !== 'OUT'"
+                [class.pi-arrow-down]="movement.direction === 'OUT'"
+              ></i>
+            </span>
+            <div>
+              <strong>{{ movement.type }} · {{ movement.quantityChange }}</strong>
+              <small>{{ movement.reason }} · {{ movement.reference || 'Sin referencia' }}</small>
+              <span>{{ movement.createdAt | date: 'dd/MM/yyyy HH:mm' }}</span>
+            </div>
+            @if (movement.valuation; as valuation) {
+              <div class="movement-value">
+                <strong>{{ current.costing.currency }} {{ valuation.valueChange }}</strong>
+                <small>{{ methodLabel(valuation.method) }} · v{{ valuation.policyVersion }}</small>
+                <span>Costo {{ valuation.unitCost }}</span>
+              </div>
+            } @else {
+              <span class="not-valued">Sin valoración histórica</span>
+            }
+          </article>
+        } @empty {
+          <div class="empty">No hay movimientos valorizados para este producto.</div>
+        }
+      </div>
+      @if (movements(); as history) {
+        <footer class="pagination">
+          <button
+            type="button"
+            [disabled]="history.pagination.page <= 1"
+            (click)="movementPageChanged.emit(history.pagination.page - 1)"
+          >
+            Anterior
+          </button>
+          <span>{{ history.pagination.page }} / {{ history.pagination.totalPages || 1 }}</span>
+          <button
+            type="button"
+            [disabled]="history.pagination.page >= history.pagination.totalPages"
+            (click)="movementPageChanged.emit(history.pagination.page + 1)"
+          >
+            Siguiente
+          </button>
+        </footer>
+      }
+    }
+  }
+</section>

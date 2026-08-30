@@ -1,0 +1,247 @@
+<section class="valuation-page" aria-labelledby="valuation-title">
+  <header class="page-header">
+    <div class="title-group">
+      <span class="page-icon"><i class="pi pi-chart-line"></i></span>
+      <div>
+        <p>Control de inventario</p>
+        <h1 id="valuation-title">Valorización y reconciliación</h1>
+        <span>Costos del servidor, capas y desbalances con trazabilidad operativa.</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      @if (canManagePolicy()) {
+        <button class="secondary" type="button" (click)="openPolicyDialog()">
+          <i class="pi pi-cog"></i> Cambiar política
+        </button>
+      }
+      @if (canReconcile()) {
+        <button
+          class="primary"
+          type="button"
+          [disabled]="reconciling()"
+          (click)="runReconciliation()"
+        >
+          <i
+            class="pi"
+            [class.pi-verified]="!reconciling()"
+            [class.pi-spin]="reconciling()"
+            [class.pi-spinner]="reconciling()"
+          ></i>
+          {{ reconciling() ? 'Reconciliando…' : 'Reconciliar' }}
+        </button>
+      }
+    </div>
+  </header>
+
+  @if (notice()) {
+    <div class="notice success" role="status"><i class="pi pi-check-circle"></i>{{ notice() }}</div>
+  }
+  @if (error() && !policyDialogOpen()) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle"></i>{{ error() }}
+    </div>
+  }
+
+  <nav class="view-tabs" aria-label="Control de inventario">
+    <button type="button" [class.active]="view() === 'VALUATION'" (click)="selectView('VALUATION')">
+      Valorización
+    </button>
+    <button
+      type="button"
+      [class.active]="view() === 'RECONCILIATION'"
+      (click)="selectView('RECONCILIATION')"
+    >
+      Reconciliación
+      @if (reconciliation()?.summary?.findings) {
+        <span class="badge">{{ reconciliation()!.summary.findings }}</span>
+      }
+    </button>
+  </nav>
+
+  @if (view() === 'VALUATION') {
+    <section class="context-cards" aria-label="Contexto de valorización">
+      <article>
+        <span><i class="pi pi-calculator"></i></span>
+        <div>
+          <small>Método vigente</small>
+          <strong>{{ policy() ? methodLabel(policy()!.method) : 'Cargando…' }}</strong>
+          <p>Versión {{ policy()?.version || '—' }}</p>
+        </div>
+      </article>
+      <article>
+        <span><i class="pi pi-building"></i></span>
+        <div>
+          <small>Ámbito operativo</small>
+          <strong>{{ page()?.scope?.warehouse?.name || 'Bodega activa' }}</strong>
+          <p>{{ page()?.scope?.branch?.name || 'Sucursal activa' }}</p>
+        </div>
+      </article>
+      <article>
+        <span><i class="pi pi-clock"></i></span>
+        <div>
+          <small>Corte del servidor</small>
+          <strong>{{ page()?.valuation?.asOf | date: 'dd/MM/yyyy HH:mm' }}</strong>
+          <p>{{ page()?.valuation?.currency || '—' }}</p>
+        </div>
+      </article>
+      <article [class.warning]="reconciliation() && reconciliation()!.overallStatus !== 'HEALTHY'">
+        <span><i class="pi pi-shield"></i></span>
+        <div>
+          <small>Última reconciliación</small>
+          <strong>{{
+            reconciliation() ? statusLabel(reconciliation()!.overallStatus) : 'Sin ejecutar'
+          }}</strong>
+          <p>{{ reconciliation()?.finishedAt | date: 'dd/MM/yyyy HH:mm' }}</p>
+        </div>
+      </article>
+    </section>
+
+    <form class="filters" [formGroup]="filters" (ngSubmit)="applyFilters()">
+      <div class="search-field">
+        <i class="pi pi-search"></i>
+        <input
+          formControlName="q"
+          aria-label="Buscar producto valorizado"
+          placeholder="Nombre o SKU"
+        />
+      </div>
+      <button class="secondary" type="submit">Aplicar</button>
+    </form>
+
+    <div class="workspace" [class.has-selection]="selected()">
+      <ui-valuation-stock-list
+        [page]="page()"
+        [loading]="listLoading()"
+        [selectedId]="selected()?.product?.id || null"
+        (selected)="selectProduct($event)"
+        (pageChanged)="goToPage($event)"
+      />
+      <button class="back-to-list secondary" type="button" (click)="clearSelection()">
+        <i class="pi pi-arrow-left"></i> Volver a productos
+      </button>
+      <ui-valuation-detail
+        [item]="selected()"
+        [layers]="layers()"
+        [movements]="movements()"
+        [loading]="detailLoading()"
+        (movementPageChanged)="goToMovementPage($event)"
+      />
+    </div>
+  } @else {
+    <section class="reconciliation" aria-label="Resultado de reconciliación de inventario">
+      @if (contextLoading()) {
+        <div class="empty" role="status">
+          <i class="pi pi-spin pi-spinner"></i>Cargando control…
+        </div>
+      } @else if (!reconciliation()) {
+        <div class="empty">
+          <span><i class="pi pi-verified"></i></span>
+          <h2>Aún no hay una reconciliación</h2>
+          <p>
+            Ejecuta la primera comprobación para comparar saldos, estados, lotes, series y valores.
+          </p>
+          @if (canReconcile()) {
+            <button class="primary" type="button" (click)="runReconciliation()">
+              Ejecutar ahora
+            </button>
+          }
+        </div>
+      } @else if (reconciliation(); as run) {
+        <header class="reconciliation-header" [class.critical]="run.overallStatus === 'CRITICAL'">
+          <div>
+            <p>Último control</p>
+            <h2>{{ statusLabel(run.overallStatus) }}</h2>
+            <span>
+              {{ run.finishedAt | date: 'dd/MM/yyyy HH:mm' }} · {{ run.responsible.email }}
+            </span>
+          </div>
+          <div class="run-meta">
+            <span
+              ><small>Hallazgos</small><strong>{{ run.summary.findings }}</strong></span
+            >
+            <span
+              ><small>Advertencias</small><strong>{{ run.summary.warnings }}</strong></span
+            >
+            <span
+              ><small>Críticos</small><strong>{{ run.summary.critical }}</strong></span
+            >
+          </div>
+        </header>
+        @if (run.policy.operationsBlocked) {
+          <div class="operation-block">
+            <i class="pi pi-lock"></i>
+            <div>
+              <strong>Operaciones protegidas por desbalance crítico</strong>
+              <span>Resuelve los hallazgos bloqueantes y ejecuta una reconciliación limpia.</span>
+            </div>
+          </div>
+        }
+        <div class="findings">
+          @for (finding of run.findings; track finding.id) {
+            <article [class.critical]="finding.severity === 'CRITICAL'">
+              <span class="severity">
+                <i
+                  class="pi"
+                  [class.pi-exclamation-triangle]="finding.severity === 'WARNING'"
+                  [class.pi-times-circle]="finding.severity === 'CRITICAL'"
+                ></i>
+              </span>
+              <div class="finding-main">
+                <div>
+                  <strong>{{ finding.code }}</strong>
+                  <span>{{ finding.scopeType }}</span>
+                </div>
+                <p>{{ finding.message }}</p>
+                <div class="values">
+                  @if (finding.expectedValue !== null) {
+                    <span
+                      >Esperado <strong>{{ finding.expectedValue }}</strong></span
+                    >
+                  }
+                  @if (finding.actualValue !== null) {
+                    <span
+                      >Actual <strong>{{ finding.actualValue }}</strong></span
+                    >
+                  }
+                  @if (finding.differenceValue !== null) {
+                    <span
+                      >Diferencia <strong>{{ finding.differenceValue }}</strong></span
+                    >
+                  }
+                </div>
+                <div class="recommended">
+                  <i class="pi pi-wrench"></i><span>{{ finding.recommendedAction }}</span>
+                </div>
+              </div>
+              @if (finding.product) {
+                <a [routerLink]="['/inventario']" [queryParams]="{ q: finding.product.sku }">
+                  Ver {{ finding.product.sku }} <i class="pi pi-arrow-right"></i>
+                </a>
+              }
+            </article>
+          } @empty {
+            <div class="healthy">
+              <i class="pi pi-check-circle"></i>
+              <strong>Sin desbalances</strong>
+              <span>Los saldos y proyecciones controladas están conciliados.</span>
+            </div>
+          }
+        </div>
+      }
+    </section>
+  }
+</section>
+
+@if (policyDialogOpen() && policy(); as currentPolicy) {
+  <ui-policy-dialog
+    [policy]="currentPolicy"
+    [plan]="policyPlan()"
+    [previewing]="previewing()"
+    [saving]="savingPolicy()"
+    [error]="error()"
+    (methodChanged)="resetPolicyPlan()"
+    (previewRequested)="previewPolicy($event)"
+    (confirmed)="changePolicy($event)"
+    (closed)="!savingPolicy() && policyDialogOpen.set(false)"
+  />
+}

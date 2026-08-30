@@ -1,0 +1,64 @@
+<section class="stock-list" aria-label="Productos valorizados">
+  <header>
+    <div>
+      <strong>Productos</strong>
+      <span>{{ page()?.pagination?.total || 0 }} registro(s)</span>
+    </div>
+  </header>
+  <div class="items">
+    @if (loading()) {
+      <div class="state" role="status"><i class="pi pi-spin pi-spinner"></i>Cargando valores…</div>
+    } @else {
+      @for (item of page()?.items || []; track item.product.id) {
+        <button
+          type="button"
+          [class.selected]="selectedId() === item.product.id"
+          (click)="selected.emit(item)"
+        >
+          <span class="identity">
+            <strong>{{ item.product.name }}</strong>
+            <small>{{ item.product.sku }} · {{ methodLabel(item.costing.method) }}</small>
+          </span>
+          <span class="amount">
+            <strong>{{ item.costing.currency }} {{ item.costing.inventoryValue }}</strong>
+            <small>{{ item.totalQuantity }} unidades</small>
+          </span>
+          <i
+            class="pi"
+            [class.pi-check-circle]="item.costing.reconciled"
+            [class.pi-exclamation-triangle]="!item.costing.reconciled"
+            [class.warning]="!item.costing.reconciled"
+            aria-hidden="true"
+          ></i>
+        </button>
+      } @empty {
+        <div class="state">
+          <i class="pi pi-search"></i>
+          <strong>Sin productos</strong>
+          <span>No existen resultados para este filtro.</span>
+        </div>
+      }
+    }
+  </div>
+  @if (page(); as current) {
+    <footer>
+      <button
+        type="button"
+        aria-label="Página anterior"
+        [disabled]="current.pagination.page <= 1"
+        (click)="pageChanged.emit(current.pagination.page - 1)"
+      >
+        <i class="pi pi-chevron-left"></i>
+      </button>
+      <span>{{ current.pagination.page }} / {{ current.pagination.totalPages || 1 }}</span>
+      <button
+        type="button"
+        aria-label="Página siguiente"
+        [disabled]="current.pagination.page >= current.pagination.totalPages"
+        (click)="pageChanged.emit(current.pagination.page + 1)"
+      >
+        <i class="pi pi-chevron-right"></i>
+      </button>
+    </footer>
+  }
+</section>
