@@ -1,0 +1,370 @@
+<section class="access-workspace" aria-labelledby="access-title">
+  <header class="page-heading">
+    <div>
+      <p>Personas y privilegios</p>
+      <h2 id="access-title">Usuarios y accesos</h2>
+      <span>Entrega sólo los permisos y puntos de operación que cada persona necesita.</span>
+    </div>
+    <div class="heading-actions">
+      <button type="button" class="button secondary" (click)="openCreateRole()">
+        <i class="pi pi-shield" aria-hidden="true"></i>Nuevo rol
+      </button>
+      <button type="button" class="button primary" (click)="openCreateUser()">
+        <i class="pi pi-user-plus" aria-hidden="true"></i>Nuevo usuario
+      </button>
+    </div>
+  </header>
+
+  @if (successMessage()) {
+    <div class="notice success" role="status">
+      <i class="pi pi-check-circle"></i>{{ successMessage() }}
+    </div>
+  }
+  @if (errorMessage()) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle"></i>{{ errorMessage() }}
+    </div>
+  }
+
+  <div class="metrics" aria-label="Resumen de acceso">
+    <article>
+      <i class="pi pi-user"></i>
+      <div>
+        <strong>{{ activeUsers() }}</strong
+        ><span>Usuarios activos</span>
+      </div>
+    </article>
+    <article>
+      <i class="pi pi-shield"></i>
+      <div>
+        <strong>{{ roles().length }}</strong
+        ><span>Roles operativos</span>
+      </div>
+    </article>
+    <article>
+      <i class="pi pi-building"></i>
+      <div>
+        <strong>{{ branches().length }}</strong
+        ><span>Sucursales disponibles</span>
+      </div>
+    </article>
+    @if (retiredUsers()) {
+      <article class="muted">
+        <i class="pi pi-user-minus"></i>
+        <div>
+          <strong>{{ retiredUsers() }}</strong
+          ><span>Accesos retirados</span>
+        </div>
+      </article>
+    }
+  </div>
+
+  <div class="view-switch" role="tablist" aria-label="Vista de accesos">
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="view() === 'USERS'"
+      [class.active]="view() === 'USERS'"
+      (click)="setView('USERS')"
+    >
+      <i class="pi pi-users"></i>Personas
+    </button>
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="view() === 'ROLES'"
+      [class.active]="view() === 'ROLES'"
+      (click)="setView('ROLES')"
+    >
+      <i class="pi pi-th-large"></i>Matriz de roles
+    </button>
+  </div>
+
+  @if (loading()) {
+    <div class="state" role="status"><i class="pi pi-spin pi-spinner"></i>Cargando accesos…</div>
+  } @else if (view() === 'USERS') {
+    <section class="panel" role="tabpanel" aria-label="Personas con acceso">
+      <div class="toolbar">
+        <label class="search-field">
+          <i class="pi pi-search" aria-hidden="true"></i>
+          <span class="sr-only">Buscar usuario</span>
+          <input
+            type="search"
+            placeholder="Correo, rol o sucursal"
+            [value]="search()"
+            (input)="updateSearch($event)"
+          />
+        </label>
+        <label>
+          <span class="sr-only">Estado del acceso</span>
+          <select [value]="statusFilter()" (change)="updateStatus($event)">
+            <option value="ACTIVE">Activos</option>
+            <option value="RETIRED">Retirados</option>
+            <option value="ALL">Todos</option>
+          </select>
+        </label>
+      </div>
+
+      @if (!filteredUsers().length) {
+        <div class="empty">
+          <i class="pi pi-users"></i><strong>No hay usuarios en esta vista</strong
+          ><span>Ajusta los filtros o crea un nuevo acceso.</span>
+        </div>
+      } @else {
+        <ui-access-user-table
+          [users]="filteredUsers()"
+          (edit)="openEditUser($event)"
+          (retire)="requestRetirement($event)"
+        />
+      }
+    </section>
+  } @else {
+    <section class="panel" role="tabpanel" aria-label="Matriz de permisos por rol">
+      @if (!roles().length) {
+        <div class="empty">
+          <i class="pi pi-shield"></i><strong>Aún no hay roles operativos</strong
+          ><span>Crea un rol para poder dar acceso a nuevos usuarios.</span>
+        </div>
+      } @else {
+        <ui-access-matrix [roles]="roles()" />
+      }
+    </section>
+  }
+</section>
+
+@if (editor()) {
+  <div class="dialog-backdrop" (click)="closeEditor()">
+    <section
+      class="dialog"
+      role="dialog"
+      aria-modal="true"
+      [attr.aria-labelledby]="
+        editor() === 'CREATE_ROLE' ? 'role-editor-title' : 'user-editor-title'
+      "
+      (click)="$event.stopPropagation()"
+    >
+      <header>
+        <div>
+          <p>{{ editor() === 'CREATE_ROLE' ? 'Política de acceso' : 'Membresía' }}</p>
+          <h3 [id]="editor() === 'CREATE_ROLE' ? 'role-editor-title' : 'user-editor-title'">
+            {{
+              editor() === 'CREATE_ROLE'
+                ? 'Nuevo rol'
+                : editor() === 'CREATE_USER'
+                  ? 'Nuevo usuario'
+                  : activeUser()?.active
+                    ? 'Editar acceso'
+                    : 'Reactivar acceso'
+            }}
+          </h3>
+        </div>
+        <button type="button" class="icon-button" aria-label="Cerrar" (click)="closeEditor()">
+          <i class="pi pi-times"></i>
+        </button>
+      </header>
+
+      @if (editor() === 'CREATE_ROLE') {
+        <form [formGroup]="roleForm" (ngSubmit)="saveEditor()">
+          <label class="field"
+            ><span>Nombre del rol</span
+            ><input
+              formControlName="name"
+              maxlength="80"
+              placeholder="Ej. Encargado de inventario"
+            />
+            @if (roleForm.controls.name.touched && roleForm.controls.name.invalid) {
+              <small>Escribe entre 2 y 80 caracteres.</small>
+            }
+          </label>
+          <div class="permission-picker">
+            @for (group of permissionGroups; track group.id) {
+              <fieldset>
+                <legend><i [class]="group.icon"></i>{{ group.label }}</legend>
+                @for (permission of group.permissions; track permission.id) {
+                  <label class="check-card" [class.sensitive]="permission.risk === 'CRITICAL'">
+                    <input
+                      type="checkbox"
+                      [checked]="isPermissionSelected(permission.id)"
+                      (change)="togglePermission(permission.id, $event)"
+                    />
+                    <span
+                      ><strong>{{ permission.label }}</strong
+                      ><small>{{ permission.description }}</small></span
+                    >
+                    <em
+                      class="risk"
+                      [class.standard]="permission.risk === 'STANDARD'"
+                      [class.elevated]="permission.risk === 'ELEVATED'"
+                      [class.critical]="permission.risk === 'CRITICAL'"
+                      >{{ riskLabel(permission.risk) }}</em
+                    >
+                  </label>
+                }
+              </fieldset>
+            }
+          </div>
+          @if (selectionError()) {
+            <div class="form-error" role="alert">{{ selectionError() }}</div>
+          }
+          <footer>
+            <button type="button" class="button secondary" (click)="closeEditor()">Cancelar</button
+            ><button type="submit" class="button primary" [disabled]="saving()">
+              {{ saving() ? 'Guardando…' : 'Crear rol' }}
+            </button>
+          </footer>
+        </form>
+      } @else {
+        <form [formGroup]="userForm" (ngSubmit)="saveEditor()">
+          <div class="form-grid">
+            <label class="field"
+              ><span>Correo</span
+              ><input type="email" formControlName="email" autocomplete="username" />
+              @if (userForm.controls.email.touched && userForm.controls.email.invalid) {
+                <small>Escribe un correo válido.</small>
+              }
+            </label>
+            @if (editor() === 'CREATE_USER') {
+              <label class="field"
+                ><span>Contraseña temporal</span
+                ><input type="password" formControlName="password" autocomplete="new-password" />
+                @if (userForm.controls.password.touched && userForm.controls.password.invalid) {
+                  <small>12 caracteres, mayúscula, minúscula, número y símbolo.</small>
+                }
+              </label>
+            }
+          </div>
+          <fieldset class="selection-group">
+            <legend>1. Roles operativos</legend>
+            <p>Los permisos se combinan cuando eliges más de un rol.</p>
+            <div class="option-grid">
+              @for (role of roles(); track role.id) {
+                <label class="selection-card"
+                  ><input
+                    type="checkbox"
+                    [checked]="isUserSelected('roleIds', role.id)"
+                    (change)="toggleUserSelection('roleIds', role.id, $event)"
+                  /><span
+                    ><strong>{{ role.name }}</strong
+                    ><small>{{ role.permissions.length }} permisos</small></span
+                  ></label
+                >
+              }
+            </div>
+          </fieldset>
+          <fieldset class="selection-group">
+            <legend>2. Sucursales permitidas</legend>
+            <p>El usuario sólo podrá operar y consultar estas sucursales.</p>
+            <div class="option-grid">
+              @for (branch of branches(); track branch.id) {
+                <label class="selection-card"
+                  ><input
+                    type="checkbox"
+                    [checked]="isUserSelected('branchIds', branch.id)"
+                    (change)="toggleUserSelection('branchIds', branch.id, $event)"
+                  /><span
+                    ><strong>{{ branch.name }}</strong
+                    ><small>{{ branch.cashRegisters.length }} cajas</small></span
+                  ></label
+                >
+              }
+            </div>
+          </fieldset>
+          @if (availableRegisters().length) {
+            <fieldset class="selection-group">
+              <legend>3. Cajas específicas <em>Opcional</em></legend>
+              <p>Sin selección podrá trabajar sin una caja asignada; elige sólo las necesarias.</p>
+              <div class="option-grid">
+                @for (register of availableRegisters(); track register.id) {
+                  <label class="selection-card"
+                    ><input
+                      type="checkbox"
+                      [checked]="isUserSelected('cashRegisterIds', register.id)"
+                      (change)="toggleUserSelection('cashRegisterIds', register.id, $event)"
+                    /><span
+                      ><strong>{{ register.name }}</strong
+                      ><small>{{ register.code }}</small></span
+                    ></label
+                  >
+                }
+              </div>
+            </fieldset>
+          }
+          @if (activeUser() && !activeUser()!.active) {
+            <div class="reactivation-note">
+              <i class="pi pi-info-circle"></i>Guardar volverá a permitir el inicio de sesión con el
+              nuevo alcance.
+            </div>
+          }
+          @if (selectionError()) {
+            <div class="form-error" role="alert">{{ selectionError() }}</div>
+          }
+          <footer>
+            <button type="button" class="button secondary" (click)="closeEditor()">Cancelar</button
+            ><button type="submit" class="button primary" [disabled]="saving()">
+              {{
+                saving()
+                  ? 'Guardando…'
+                  : editor() === 'CREATE_USER'
+                    ? 'Crear usuario'
+                    : activeUser()?.active
+                      ? 'Guardar cambios'
+                      : 'Reactivar acceso'
+              }}
+            </button>
+          </footer>
+        </form>
+      }
+    </section>
+  </div>
+}
+
+@if (retirement()) {
+  <div class="dialog-backdrop" (click)="cancelRetirement()">
+    <section
+      class="dialog retirement-dialog"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="retirement-title"
+      (click)="$event.stopPropagation()"
+    >
+      <header>
+        <div>
+          <p>Operación sensible</p>
+          <h3 id="retirement-title">Retirar acceso</h3>
+        </div>
+        <button type="button" class="icon-button" aria-label="Cerrar" (click)="cancelRetirement()">
+          <i class="pi pi-times"></i>
+        </button>
+      </header>
+      <div class="retirement-copy">
+        <i class="pi pi-user-minus"></i>
+        <div>
+          <strong>{{ retirement()!.email }}</strong>
+          <p>
+            Se cerrarán sus sesiones y perderá todos sus roles, sucursales y cajas. El historial
+            operativo permanecerá intacto.
+          </p>
+        </div>
+      </div>
+      <label class="field"
+        ><span>Escribe el correo para confirmar</span
+        ><input
+          autocomplete="off"
+          [value]="retirementConfirmation()"
+          (input)="updateRetirementConfirmation($event)"
+      /></label>
+      <footer>
+        <button type="button" class="button secondary" (click)="cancelRetirement()">
+          Conservar acceso</button
+        ><button
+          type="button"
+          class="button danger-button"
+          [disabled]="!canConfirmRetirement() || saving()"
+          (click)="confirmRetirement()"
+        >
+          {{ saving() ? 'Retirando…' : 'Retirar acceso' }}
+        </button>
+      </footer>
+    </section>
+  </div>
+}
