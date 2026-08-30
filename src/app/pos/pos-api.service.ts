@@ -196,12 +196,7 @@ export interface SalePaymentData {
 }
 
 export type PaymentTerminalStatus =
-  | 'PENDING'
-  | 'AUTHORIZED'
-  | 'CAPTURED'
-  | 'DECLINED'
-  | 'INDETERMINATE'
-  | 'CANCELLED';
+  'PENDING' | 'AUTHORIZED' | 'CAPTURED' | 'DECLINED' | 'INDETERMINATE' | 'CANCELLED';
 
 export interface PaymentTerminalOperationData {
   id: string;

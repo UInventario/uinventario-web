@@ -1988,7 +1988,7 @@ export class ApplicationPage implements OnInit {
                     : { reference: value.reference.trim() }),
               };
             }),
-      }),
+          }),
     };
     if (
       this.pendingTerminalSale &&
@@ -2052,11 +2052,7 @@ export class ApplicationPage implements OnInit {
     this.submitOnlineSale(input, idempotencyKey, quote);
   }
 
-  private submitOnlineSale(
-    input: PosSaleInput,
-    idempotencyKey: string,
-    quote: PosCartQuote,
-  ): void {
+  private submitOnlineSale(input: PosSaleInput, idempotencyKey: string, quote: PosCartQuote): void {
     this.savingSale.set(true);
     this.posError.set(null);
     this.pos.createSale(input, idempotencyKey).subscribe({

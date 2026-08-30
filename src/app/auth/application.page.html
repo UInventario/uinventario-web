@@ -2712,7 +2712,11 @@
                         Consultar resultado
                       </button>
                     }
-                    @if (!terminal.saleId && terminal.status !== 'DECLINED' && terminal.status !== 'CANCELLED') {
+                    @if (
+                      !terminal.saleId &&
+                      terminal.status !== 'DECLINED' &&
+                      terminal.status !== 'CANCELLED'
+                    ) {
                       <button
                         type="button"
                         class="remove"
