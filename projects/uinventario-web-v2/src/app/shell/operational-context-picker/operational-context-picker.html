@@ -1,0 +1,100 @@
+<div class="context-picker">
+  <button
+    class="context-trigger"
+    type="button"
+    aria-label="Cambiar contexto operativo"
+    aria-haspopup="dialog"
+    [attr.aria-expanded]="open()"
+    (click)="toggle()"
+  >
+    <i class="pi pi-building" aria-hidden="true"></i>
+    <span>
+      <strong>{{ session()?.tenant?.name }}</strong>
+      <small>
+        {{ session()?.context?.branch?.name ?? 'Sin sucursal' }}
+        <span aria-hidden="true">·</span>
+        {{ session()?.context?.warehouse?.name ?? 'Sin bodega' }}
+      </small>
+    </span>
+    <i class="pi pi-chevron-down chevron" aria-hidden="true"></i>
+  </button>
+
+  @if (open()) {
+    <section
+      class="context-panel"
+      role="dialog"
+      aria-modal="false"
+      aria-labelledby="context-title"
+      (keydown.escape)="close()"
+    >
+      <header>
+        <span>
+          <small>Empresa</small>
+          <strong id="context-title">{{ session()?.tenant?.name }}</strong>
+        </span>
+        <button type="button" class="close-button" aria-label="Cerrar selector" (click)="close()">
+          <i class="pi pi-times" aria-hidden="true"></i>
+        </button>
+      </header>
+
+      @if (contexts.loading()) {
+        <p class="context-state"><i class="pi pi-spin pi-spinner"></i> Cargando ubicaciones…</p>
+      } @else if (contexts.error() && !contexts.branches().length) {
+        <div class="context-state error" role="alert">
+          <span>{{ contexts.error() }}</span>
+          <button type="button" (click)="retry()">Reintentar</button>
+        </div>
+      } @else {
+        <label for="contextBranch">Sucursal</label>
+        <select id="contextBranch" [value]="branchId()" (change)="selectBranch($event)">
+          @for (branch of contexts.branches(); track branch.id) {
+            <option [value]="branch.id" [selected]="branch.id === branchId()">
+              {{ branch.name }}
+            </option>
+          }
+        </select>
+
+        <label for="contextWarehouse">Bodega</label>
+        <select
+          id="contextWarehouse"
+          [value]="warehouseId()"
+          [disabled]="!warehouses().length"
+          (change)="selectWarehouse($event)"
+        >
+          @for (warehouse of warehouses(); track warehouse.id) {
+            <option [value]="warehouse.id" [selected]="warehouse.id === warehouseId()">
+              {{ warehouse.name }}
+            </option>
+          }
+        </select>
+
+        <label for="contextCashRegister">Caja</label>
+        <select
+          id="contextCashRegister"
+          [value]="cashRegisterId()"
+          (change)="selectCashRegister($event)"
+        >
+          <option value="" [selected]="!cashRegisterId()">Sin caja activa</option>
+          @for (register of cashRegisters(); track register.id) {
+            <option [value]="register.id" [selected]="register.id === cashRegisterId()">
+              {{ register.name }} · {{ register.code }}
+            </option>
+          }
+        </select>
+
+        @if (contexts.error()) {
+          <p class="inline-error" role="alert">{{ contexts.error() }}</p>
+        }
+
+        <footer>
+          <button pButton type="button" severity="secondary" [outlined]="true" (click)="close()">
+            Cancelar
+          </button>
+          <button pButton type="button" [disabled]="!canApply()" (click)="apply()">
+            {{ contexts.switching() ? 'Aplicando…' : 'Aplicar contexto' }}
+          </button>
+        </footer>
+      }
+    </section>
+  }
+</div>

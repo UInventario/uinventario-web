@@ -10,7 +10,7 @@ const sessionResponse = (
       id: 'user-1',
       email: 'admin@example.com',
       roles: ['ADMIN'],
-      permissions: ['products:read'],
+      permissions: ['SALES_MANAGE'],
     },
     tenant: { id: 'tenant-1', name: 'Tienda Central' },
     context: {

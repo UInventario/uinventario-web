@@ -17,7 +17,19 @@ test.beforeEach(async ({ page }) => {
       contentType: 'application/json',
       body: JSON.stringify({
         data: {
-          user: { id: 'user-1', email: 'admin@example.com', roles: ['ADMIN'], permissions: [] },
+          user: {
+            id: 'user-1',
+            email: 'admin@example.com',
+            roles: ['ADMIN'],
+            permissions: [
+              'PRODUCTS_MANAGE',
+              'INVENTORY_VIEW',
+              'PURCHASE_ORDERS_MANAGE',
+              'SALES_MANAGE',
+              'AUDIT_VIEW',
+              'TENANT_MANAGE',
+            ],
+          },
           tenant: { id: 'tenant-1', name: 'Tienda Central' },
           context: {
             branch: { id: 'branch-1', name: 'Principal' },
@@ -30,6 +42,25 @@ test.beforeEach(async ({ page }) => {
           apiVersion: '1',
           sessionExpiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
         },
+      }),
+    });
+  });
+  await page.route('**/api/v1/organization/branches', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [
+          {
+            id: 'branch-1',
+            name: 'Principal',
+            timezone: 'America/Mexico_City',
+            active: true,
+            warehouses: [{ id: 'warehouse-1', name: 'Bodega', active: true, locations: [] }],
+            cashRegisters: [{ id: 'register-1', name: 'Caja', code: 'CAJA-1' }],
+          },
+        ],
+        meta: { apiVersion: '1' },
       }),
     });
   });

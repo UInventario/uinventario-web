@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { Subject, of } from 'rxjs';
 import { ApiRequestContext } from '../api/api-request-context';
 import { SessionApi } from './session-api';
 import { SessionManager } from './session-manager';
@@ -14,7 +14,7 @@ describe('SessionManager', () => {
         id: 'user-1',
         email: 'admin@example.com',
         roles: ['ADMIN'],
-        permissions: ['products:read'],
+        permissions: ['PRODUCTS_MANAGE'],
       },
       tenant: { id: 'tenant-1', name: 'Tienda Central' },
       context: {
@@ -30,6 +30,7 @@ describe('SessionManager', () => {
     login: vi.fn(() => of(response())),
     current: vi.fn(() => of(response())),
     refresh: vi.fn(() => of(response())),
+    changeContext: vi.fn(() => of(response())),
     logout: vi.fn(() => of(undefined)),
   };
   const navigation = {
@@ -84,5 +85,37 @@ describe('SessionManager', () => {
     expect(state.session()).toBeNull();
     expect(context.tenantId()).toBeNull();
     expect(navigation.redirectToLogin).toHaveBeenCalledWith(null, false);
+  });
+
+  it('accepts a server-validated context change without replacing the session mechanism', () => {
+    const manager = TestBed.inject(SessionManager);
+    manager.restore().subscribe();
+
+    manager.changeContext({ branchId: 'branch-1', warehouseId: 'warehouse-1' }).subscribe();
+
+    expect(api.changeContext).toHaveBeenCalledWith({
+      branchId: 'branch-1',
+      warehouseId: 'warehouse-1',
+    });
+    expect(TestBed.inject(SessionState).session()?.tenant.id).toBe('tenant-1');
+  });
+
+  it('does not revive a closed session with a late context response', () => {
+    const contextResponse = new Subject<SessionResponse>();
+    api.changeContext.mockReturnValueOnce(contextResponse);
+    const manager = TestBed.inject(SessionManager);
+    const state = TestBed.inject(SessionState);
+    manager.restore().subscribe();
+    const rejected = vi.fn();
+    manager
+      .changeContext({ branchId: 'branch-1', warehouseId: 'warehouse-1' })
+      .subscribe({ error: rejected });
+
+    manager.expire();
+    contextResponse.next(response());
+    contextResponse.complete();
+
+    expect(rejected).toHaveBeenCalledOnce();
+    expect(state.session()).toBeNull();
   });
 });

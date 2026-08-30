@@ -1,8 +1,18 @@
 import { Injectable, OnDestroy, inject } from '@angular/core';
-import { Observable, catchError, finalize, map, of, shareReplay, tap, throwError } from 'rxjs';
+import {
+  Observable,
+  catchError,
+  finalize,
+  map,
+  of,
+  shareReplay,
+  switchMap,
+  tap,
+  throwError,
+} from 'rxjs';
 import { ApiError } from '../api/api-error';
 import { SessionApi } from './session-api';
-import { SessionData, SessionResponse } from './session.models';
+import { SessionContextInput, SessionData, SessionResponse } from './session.models';
 import { SessionNavigation } from './session-navigation';
 import { SessionState } from './session-state';
 
@@ -18,6 +28,7 @@ export class SessionManager implements OnDestroy {
   private restoreInFlight?: Observable<SessionData>;
   private refreshInFlight?: Observable<SessionData>;
   private renewalTimer?: ReturnType<typeof setTimeout>;
+  private lifecycleRevision = 0;
 
   constructor() {
     this.channel?.addEventListener('message', ({ data }: MessageEvent<SessionEvent>) => {
@@ -72,6 +83,25 @@ export class SessionManager implements OnDestroy {
     );
     this.refreshInFlight = request;
     return request;
+  }
+
+  changeContext(input: SessionContextInput): Observable<SessionData> {
+    this.cancelRenewal();
+    const revision = this.lifecycleRevision;
+    const pendingRefresh = this.refreshInFlight
+      ? this.refreshInFlight.pipe(map(() => undefined))
+      : of(undefined);
+    return pendingRefresh.pipe(
+      switchMap(() => this.api.changeContext(input)),
+      map((response) => {
+        if (revision !== this.lifecycleRevision) {
+          throw new Error('La sesión cambió mientras se actualizaba el contexto.');
+        }
+        return this.state.accept(response);
+      }),
+      tap(() => this.channel?.postMessage('SESSION_ROTATED' satisfies SessionEvent)),
+      finalize(() => this.scheduleRenewal()),
+    );
   }
 
   logout(): Observable<void> {
@@ -143,6 +173,7 @@ export class SessionManager implements OnDestroy {
     preserveReturnUrl = true,
     returnUrl?: string,
   ): void {
+    this.lifecycleRevision += 1;
     this.cancelRenewal();
     this.restoreInFlight = undefined;
     this.refreshInFlight = undefined;
