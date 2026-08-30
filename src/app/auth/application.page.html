@@ -52,6 +52,7 @@
       <a routerLink="/app" fragment="integrations-title">Integraciones</a>
       <a routerLink="/app" fragment="fiscal-contract-title">Fiscalidad</a>
       <a routerLink="/app" fragment="commerce-integrations-title">E-commerce</a>
+      <a routerLink="/app" fragment="erp-integrations-title">ERP</a>
     }
   </nav>
 
@@ -68,6 +69,7 @@
   @if (canManageTenant()) {
     <app-external-adapter-panel />
     <app-fiscal-contract-panel />
+    <app-erp-integration-panel />
     @if (session(); as currentSession) {
       <app-commerce-integration-panel
         [session]="currentSession"

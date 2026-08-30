@@ -1,0 +1,113 @@
+<section class="erp-panel" id="erp-integrations-title" aria-labelledby="erp-title">
+  <header>
+    <div>
+      <p class="eyebrow">Intercambio desacoplado</p>
+      <h2 id="erp-title">ERP · contrato v1</h2>
+      <p>
+        Export incremental y mapeo de identidades sin escribir ventas o recepciones por fuera de sus
+        reglas.
+      </p>
+    </div>
+    <span class="mode">SIMULATOR · NO PRODUCTIVO</span>
+  </header>
+
+  @if (error()) {
+    <p class="error" role="alert">{{ error() }}</p>
+  }
+  @if (success()) {
+    <p class="success" role="status">{{ success() }}</p>
+  }
+
+  <div class="provider">
+    <label>
+      Proveedor
+      <input [value]="provider()" (input)="setProvider($any($event.target).value)" maxlength="32" />
+    </label>
+    <button type="button" class="secondary" (click)="reload()" [disabled]="loading()">
+      Recargar
+    </button>
+  </div>
+
+  @if (contract(); as definition) {
+    <div class="resources" aria-label="Recursos del contrato">
+      @for (item of definition.resources; track item.resource) {
+        <span>{{ item.resource }}</span>
+      }
+    </div>
+
+    <section aria-labelledby="erp-export-title">
+      <h3 id="erp-export-title">Export incremental</h3>
+      <div class="actions">
+        <label>
+          Recurso
+          <select [value]="resource()" (change)="selectResource($any($event.target).value)">
+            @for (item of definition.resources; track item.resource) {
+              <option [value]="item.resource">{{ item.resource }}</option>
+            }
+          </select>
+        </label>
+        <button type="button" (click)="exportPage()" [disabled]="busy()">
+          Exportar primera página
+        </button>
+        @if (hasMore()) {
+          <button type="button" class="secondary" (click)="exportPage(true)" [disabled]="busy()">
+            Continuar cursor
+          </button>
+        }
+      </div>
+      <div class="records">
+        @for (record of exports(); track record.internalId) {
+          <article>
+            <div>
+              <strong>{{ record.externalId || 'Sin mapeo externo' }}</strong>
+              <small>{{ record.internalId }} · {{ record.changedAt | date: 'short' }}</small>
+            </div>
+            <code>{{ record.payload | json }}</code>
+          </article>
+        }
+      </div>
+    </section>
+
+    <section aria-labelledby="erp-import-title">
+      <h3 id="erp-import-title">Importar mapeos</h3>
+      <p>Una línea por registro: <code>RECURSO,ID_EXTERNO,UUID_INTERNO</code>.</p>
+      <textarea
+        rows="5"
+        placeholder="PRODUCT,ERP-SKU-001,00000000-0000-0000-0000-000000000001"
+        [value]="mappingLines()"
+        (input)="mappingLines.set($any($event.target).value)"
+      ></textarea>
+      <button type="button" (click)="importMappings()" [disabled]="busy()">
+        Procesar lote idempotente
+      </button>
+      <div class="records">
+        @for (result of importResults(); track result.index) {
+          <article [class.failed]="result.status === 'ERROR'">
+            <strong>#{{ result.index + 1 }} · {{ result.resource }} · {{ result.status }}</strong>
+            <span>{{ result.externalId }} ↔ {{ result.internalId }}</span>
+            @if (result.errorCode) {
+              <code>{{ result.errorCode }}</code>
+            }
+          </article>
+        }
+      </div>
+    </section>
+
+    <section aria-labelledby="erp-mappings-title">
+      <h3 id="erp-mappings-title">Mapeos recientes</h3>
+      <div class="records">
+        @for (mapping of mappings(); track mapping.id) {
+          <article>
+            <strong>{{ mapping.resource }} · {{ mapping.externalId }}</strong>
+            <small>{{ mapping.internalId }} · {{ mapping.updatedAt | date: 'short' }}</small>
+          </article>
+        } @empty {
+          <p>No hay mapeos para este proveedor.</p>
+        }
+      </div>
+      <small>{{ runs().length }} lote(s) reciente(s) registrados.</small>
+    </section>
+  } @else if (loading()) {
+    <p role="status">Cargando contrato ERP…</p>
+  }
+</section>
