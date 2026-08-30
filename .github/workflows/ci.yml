@@ -31,6 +31,8 @@ jobs:
         run: npm run lint
       - name: Typecheck
         run: npm run typecheck
+      - name: Verify Web V2 architecture
+        run: npm run architecture:verify
       - name: Unit tests
         run: npm run test:ci
       - name: Runtime server tests

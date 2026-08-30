@@ -19,6 +19,7 @@ steps:
         npm run lint
         npm run typecheck
         npm run parity:verify
+        npm run architecture:verify
         npm run test:ci
         npm run test:server
         npm run build

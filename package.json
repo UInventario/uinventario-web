@@ -8,7 +8,7 @@
     "build": "npm run build:v1 && npm run build:v2",
     "build:v1": "ng build uinventario-web",
     "build:v2": "ng build uinventario-web-v2",
-    "format:check": "prettier --check \"src/**/*.{ts,html,scss}\" \"projects/**/*.{ts,html,css,scss,json}\" \"e2e/**/*.ts\" \"e2e-v2/**/*.ts\" \"scripts/**/*.mjs\" \"public/**/*.json\" .postcssrc.json angular.json ngsw-config.json package.json \"playwright*.ts\" \"*.mjs\"",
+    "format:check": "prettier --check \"src/**/*.{ts,html,scss}\" \"projects/**/*.{ts,html,css,scss,json,md}\" \"e2e/**/*.ts\" \"e2e-v2/**/*.ts\" \"scripts/**/*.mjs\" \"public/**/*.json\" .postcssrc.json angular.json ngsw-config.json package.json \"playwright*.ts\" \"*.mjs\"",
     "lint": "eslint \"src/**/*.ts\" \"projects/**/*.ts\" \"e2e-v2/**/*.ts\" \"scripts/**/*.mjs\" \"*.mjs\"",
     "watch": "ng build uinventario-web --watch --configuration development",
     "watch:v2": "ng build uinventario-web-v2 --watch --configuration development",
@@ -21,6 +21,7 @@
     "test:service-worker": "node scripts/service-worker-smoke.mjs",
     "parity:generate": "node scripts/generate-api-parity-matrix.mjs",
     "parity:verify": "node scripts/verify-api-parity-matrix.mjs",
+    "architecture:verify": "node --test scripts/verify-web-v2-architecture.spec.mjs && node scripts/verify-web-v2-architecture.mjs",
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p projects/uinventario-web-v2/tsconfig.app.json --noEmit"
   },
   "private": true,

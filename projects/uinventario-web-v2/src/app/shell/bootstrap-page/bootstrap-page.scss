@@ -18,16 +18,16 @@
   font-weight: 600;
   padding: 0.7rem 0.25rem;
   text-decoration: none;
-}
 
-.stable-link:hover {
-  text-decoration: underline;
-}
+  &:hover {
+    text-decoration: underline;
+  }
 
-.stable-link:focus-visible {
-  border-radius: 0.25rem;
-  outline: 2px solid var(--p-primary-color);
-  outline-offset: 3px;
+  &:focus-visible {
+    border-radius: 0.25rem;
+    outline: 2px solid var(--p-primary-color);
+    outline-offset: 3px;
+  }
 }
 
 .stack-row {
