@@ -38,7 +38,9 @@ export class ExternalAdapterPanelComponent implements OnInit {
   protected capabilityLabel(capability: ExternalAdapterCapability): string {
     return capability === 'NOTIFICATION_EMAIL'
       ? 'Email de notificaciones'
-      : 'Push de notificaciones';
+      : capability === 'NOTIFICATION_PUSH'
+        ? 'Push de notificaciones'
+        : 'WhatsApp de notificaciones';
   }
 
   protected update(
