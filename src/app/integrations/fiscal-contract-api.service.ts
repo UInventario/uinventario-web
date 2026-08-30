@@ -57,6 +57,38 @@ export interface FiscalContractData {
   validation: FiscalContractValidation | null;
 }
 
+export type FiscalSimulatorScenario = 'SUCCESS' | 'REJECT' | 'TIMEOUT';
+export type FiscalDocumentStatus =
+  'PENDING' | 'ACCEPTED' | 'REJECTED' | 'INDETERMINATE' | 'CANCELLED';
+
+export interface FiscalSimulatorDocumentData {
+  id: string;
+  countryCode: string;
+  contractVersion: string;
+  documentType: FiscalDocumentType;
+  reference: string;
+  provider: 'SIMULATOR';
+  providerVersion: '1';
+  providerReference: string;
+  scenario: FiscalSimulatorScenario;
+  status: FiscalDocumentStatus;
+  pollCount: number;
+  errorCode: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface SimulatorResponse<T> {
+  data: T;
+  meta: {
+    apiVersion: '1';
+    provider: 'SIMULATOR';
+    production: false;
+    idempotentReplay?: boolean;
+    duplicate?: boolean;
+  };
+}
+
 @Injectable({ providedIn: 'root' })
 export class FiscalContractApiService {
   private readonly http = inject(HttpClient);
@@ -91,5 +123,68 @@ export class FiscalContractApiService {
     }>(`${this.config.apiBaseUrl()}/integrations/fiscal/configuration`, body, {
       withCredentials: true,
     });
+  }
+
+  simulatorDocuments() {
+    return this.http.get<SimulatorResponse<FiscalSimulatorDocumentData[]>>(
+      `${this.config.apiBaseUrl()}/integrations/fiscal/simulator/documents`,
+      { withCredentials: true },
+    );
+  }
+
+  issueSimulatedDocument(input: {
+    documentType: FiscalDocumentType;
+    reference: string;
+    scenario: FiscalSimulatorScenario;
+  }) {
+    return this.http.post<SimulatorResponse<FiscalSimulatorDocumentData>>(
+      `${this.config.apiBaseUrl()}/integrations/fiscal/simulator/documents`,
+      input,
+      { withCredentials: true, headers: this.idempotency('issue') },
+    );
+  }
+
+  querySimulatedDocument(documentId: string) {
+    return this.http.post<SimulatorResponse<FiscalSimulatorDocumentData>>(
+      `${this.config.apiBaseUrl()}/integrations/fiscal/simulator/documents/${documentId}/queries`,
+      {},
+      { withCredentials: true, headers: this.idempotency('query') },
+    );
+  }
+
+  cancelSimulatedDocument(documentId: string) {
+    return this.http.post<SimulatorResponse<FiscalSimulatorDocumentData>>(
+      `${this.config.apiBaseUrl()}/integrations/fiscal/simulator/documents/${documentId}/cancellations`,
+      {},
+      { withCredentials: true, headers: this.idempotency('cancel') },
+    );
+  }
+
+  callbackSimulatedDocument(
+    documentId: string,
+    status: Extract<FiscalDocumentStatus, 'ACCEPTED' | 'REJECTED'>,
+  ) {
+    return this.http.post<SimulatorResponse<FiscalSimulatorDocumentData>>(
+      `${this.config.apiBaseUrl()}/integrations/fiscal/simulator/callbacks`,
+      { eventId: crypto.randomUUID(), documentId, status },
+      { withCredentials: true },
+    );
+  }
+
+  simulatedArtifact(documentId: string, kind: 'PDF' | 'XML') {
+    return this.http.get<
+      SimulatorResponse<{
+        fileName: string;
+        mediaType: string;
+        contentBase64: string;
+      }>
+    >(
+      `${this.config.apiBaseUrl()}/integrations/fiscal/simulator/documents/${documentId}/artifacts/${kind}`,
+      { withCredentials: true },
+    );
+  }
+
+  private idempotency(action: string) {
+    return { 'Idempotency-Key': `fiscal-${action}-${crypto.randomUUID()}` };
   }
 }

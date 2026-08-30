@@ -68,11 +68,39 @@ describe('FiscalContractPanelComponent', () => {
         meta: { apiVersion: '1' },
       }),
     ),
+    simulatorDocuments: vi.fn().mockReturnValue(of({ data: [], meta: {} })),
+    issueSimulatedDocument: vi.fn().mockReturnValue(
+      of({
+        data: {
+          id: 'fiscal-document-1',
+          countryCode: 'MX',
+          contractVersion: '1',
+          documentType: 'INVOICE',
+          reference: 'WEB-1',
+          provider: 'SIMULATOR',
+          providerVersion: '1',
+          providerReference: 'SIM-1',
+          scenario: 'TIMEOUT',
+          status: 'INDETERMINATE',
+          pollCount: 0,
+          errorCode: 'SIMULATED_TIMEOUT',
+          createdAt: '2026-08-29T12:00:00.000Z',
+          updatedAt: '2026-08-29T12:00:00.000Z',
+        },
+        meta: {},
+      }),
+    ),
+    querySimulatedDocument: vi.fn(),
+    cancelSimulatedDocument: vi.fn(),
+    callbackSimulatedDocument: vi.fn(),
+    simulatedArtifact: vi.fn(),
   };
 
   beforeEach(async () => {
     api.get.mockClear();
     api.update.mockClear();
+    api.simulatorDocuments.mockClear();
+    api.issueSimulatedDocument.mockClear();
     await TestBed.configureTestingModule({
       imports: [FiscalContractPanelComponent],
       providers: [{ provide: FiscalContractApiService, useValue: api }],
@@ -105,5 +133,48 @@ describe('FiscalContractPanelComponent', () => {
       }),
     );
     expect(fixture.nativeElement.textContent).toContain('Contrato fiscal guardado');
+  });
+
+  it('issues a timeout scenario from an enabled simulator and exposes callback actions', () => {
+    fixture.destroy();
+    api.get.mockReturnValueOnce(
+      of({
+        ...response,
+        data: {
+          ...response.data,
+          configuration: {
+            ...response.data.configuration,
+            providerProfile: 'SIMULATOR' as const,
+            enabled: true,
+          },
+          validation: {
+            ...response.data.validation,
+            valid: true,
+            readyForAdapter: true,
+            missingRequirements: [],
+          },
+        },
+      }),
+    );
+    fixture = TestBed.createComponent(FiscalContractPanelComponent);
+    fixture.detectChanges();
+
+    const scenario = fixture.nativeElement.querySelector(
+      '.simulator-controls select',
+    ) as HTMLSelectElement;
+    scenario.value = 'TIMEOUT';
+    scenario.dispatchEvent(new Event('change'));
+    const issue = [...fixture.nativeElement.querySelectorAll('button')].find(
+      (candidate: HTMLButtonElement) => candidate.textContent?.includes('Emitir en simulador'),
+    ) as HTMLButtonElement;
+    issue.click();
+    fixture.detectChanges();
+
+    expect(api.issueSimulatedDocument).toHaveBeenCalledWith(
+      expect.objectContaining({ documentType: 'INVOICE', scenario: 'TIMEOUT' }),
+    );
+    expect(fixture.nativeElement.textContent).toContain('INDETERMINATE');
+    expect(fixture.nativeElement.textContent).toContain('Callback aceptado');
+    expect(fixture.nativeElement.textContent).toContain('Callback rechazado');
   });
 });

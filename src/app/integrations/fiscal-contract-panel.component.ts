@@ -7,6 +7,8 @@ import {
   FiscalContractValidation,
   FiscalCountryContract,
   FiscalDocumentType,
+  FiscalSimulatorDocumentData,
+  FiscalSimulatorScenario,
   FiscalTenantConfiguration,
 } from './fiscal-contract-api.service';
 
@@ -28,6 +30,11 @@ export class FiscalContractPanelComponent implements OnInit {
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly success = signal<string | null>(null);
+  protected readonly simulatorDocuments = signal<FiscalSimulatorDocumentData[]>([]);
+  protected readonly simulatorScenario = signal<FiscalSimulatorScenario>('SUCCESS');
+  protected readonly simulatorReference = signal('');
+  protected readonly simulatorBusy = signal(false);
+  protected readonly simulatorMessage = signal<string | null>(null);
 
   ngOnInit(): void {
     this.api
@@ -40,6 +47,7 @@ export class FiscalContractPanelComponent implements OnInit {
           this.configuration.set(data.configuration);
           this.validation.set(data.validation);
           this.supportedCountries.set(meta.supportedCountries);
+          if (this.simulatorReady(data.configuration, data.validation)) this.loadSimulator();
         },
         error: (error: HttpErrorResponse) => this.error.set(this.message(error)),
       });
@@ -84,8 +92,64 @@ export class FiscalContractPanelComponent implements OnInit {
           this.contract.set(data.contract);
           this.validation.set(data.validation);
           this.success.set('Contrato fiscal guardado para esta empresa.');
+          if (this.simulatorReady(data.configuration, data.validation)) this.loadSimulator();
         },
         error: (error: HttpErrorResponse) => this.error.set(this.message(error)),
+      });
+  }
+
+  protected issueSimulatedDocument(): void {
+    const config = this.configuration();
+    const documentType = config?.documentTypes[0];
+    if (!documentType || this.simulatorBusy()) return;
+    const reference =
+      this.simulatorReference().trim() || `WEB-${new Date().toISOString().replace(/\D/g, '')}`;
+    this.runSimulator(
+      this.api.issueSimulatedDocument({
+        documentType,
+        reference,
+        scenario: this.simulatorScenario(),
+      }),
+      'Documento enviado al simulador.',
+    );
+  }
+
+  protected querySimulatedDocument(documentId: string): void {
+    this.runSimulator(this.api.querySimulatedDocument(documentId), 'Estado actualizado.');
+  }
+
+  protected cancelSimulatedDocument(documentId: string): void {
+    this.runSimulator(this.api.cancelSimulatedDocument(documentId), 'Documento cancelado.');
+  }
+
+  protected resolveSimulatedCallback(documentId: string, status: 'ACCEPTED' | 'REJECTED'): void {
+    this.runSimulator(
+      this.api.callbackSimulatedDocument(documentId, status),
+      'Callback simulado procesado.',
+    );
+  }
+
+  protected downloadSimulatedArtifact(documentId: string, kind: 'PDF' | 'XML'): void {
+    if (this.simulatorBusy()) return;
+    this.simulatorBusy.set(true);
+    this.simulatorMessage.set(null);
+    this.api
+      .simulatedArtifact(documentId, kind)
+      .pipe(finalize(() => this.simulatorBusy.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          const bytes = Uint8Array.from(atob(data.contentBase64), (character) =>
+            character.charCodeAt(0),
+          );
+          const url = URL.createObjectURL(new Blob([bytes], { type: data.mediaType }));
+          const anchor = document.createElement('a');
+          anchor.href = url;
+          anchor.download = data.fileName;
+          anchor.click();
+          URL.revokeObjectURL(url);
+          this.simulatorMessage.set(`${kind} simulado descargado.`);
+        },
+        error: (error: HttpErrorResponse) => this.error.set(this.simulatorError(error)),
       });
   }
 
@@ -108,5 +172,48 @@ export class FiscalContractPanelComponent implements OnInit {
     if (error.status === 0) return 'No fue posible conectar con el servicio.';
     if (error.status === 400) return 'Faltan requisitos o existe una selección incompatible.';
     return 'No fue posible guardar el contrato fiscal.';
+  }
+
+  private loadSimulator(): void {
+    this.api.simulatorDocuments().subscribe({
+      next: ({ data }) => this.simulatorDocuments.set(data),
+      error: (error: HttpErrorResponse) => this.error.set(this.simulatorError(error)),
+    });
+  }
+
+  private runSimulator(
+    request: ReturnType<FiscalContractApiService['issueSimulatedDocument']>,
+    message: string,
+  ): void {
+    if (this.simulatorBusy()) return;
+    this.simulatorBusy.set(true);
+    this.error.set(null);
+    this.simulatorMessage.set(null);
+    request.pipe(finalize(() => this.simulatorBusy.set(false))).subscribe({
+      next: ({ data }) => {
+        this.simulatorDocuments.update((documents) => [
+          data,
+          ...documents.filter((document) => document.id !== data.id),
+        ]);
+        this.simulatorMessage.set(message);
+      },
+      error: (error: HttpErrorResponse) => this.error.set(this.simulatorError(error)),
+    });
+  }
+
+  private simulatorReady(
+    config: FiscalTenantConfiguration | null,
+    validation: FiscalContractValidation | null,
+  ): boolean {
+    return Boolean(config?.enabled && config.providerProfile === 'SIMULATOR' && validation?.valid);
+  }
+
+  private simulatorError(error: HttpErrorResponse): string {
+    if (error.status === 409) return 'La clave idempotente ya corresponde a otra operaciÃ³n.';
+    if (error.status === 400) return 'Habilita y guarda un contrato SIMULATOR vÃ¡lido.';
+    return this.message(error).replace(
+      'guardar el contrato fiscal',
+      'ejecutar el simulador fiscal',
+    );
   }
 }
