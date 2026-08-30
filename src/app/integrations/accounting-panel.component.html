@@ -1,0 +1,146 @@
+<section class="accounting-panel" id="accounting-title" aria-labelledby="accounting-heading">
+  <header>
+    <div>
+      <p class="eyebrow">Interfaz desacoplada</p>
+      <h2 id="accounting-heading">Contabilidad · candidatos v1</h2>
+      <p>
+        Asientos balanceados y auditables; nunca se presentan como contabilizados definitivamente.
+      </p>
+    </div>
+    <span class="mode">SIMULATOR · NO PRODUCTIVO</span>
+  </header>
+
+  @if (error()) {
+    <p class="error" role="alert">{{ error() }}</p>
+  }
+  @if (success()) {
+    <p class="success" role="status">{{ success() }}</p>
+  }
+
+  @if (sources().length > 0) {
+    <div class="sources">
+      @for (source of sources(); track source) {
+        <span>{{ source }}</span>
+      }
+    </div>
+
+    <form (submit)="$event.preventDefault(); saveConfig()">
+      <label
+        >Clearing de pagos
+        <input
+          [value]="accounts().paymentClearingAccount"
+          (input)="account('paymentClearingAccount', $any($event.target).value)"
+      /></label>
+      <label
+        >Ingresos por ventas
+        <input
+          [value]="accounts().salesRevenueAccount"
+          (input)="account('salesRevenueAccount', $any($event.target).value)"
+      /></label>
+      <label
+        >Devoluciones
+        <input
+          [value]="accounts().salesReturnsAccount"
+          (input)="account('salesReturnsAccount', $any($event.target).value)"
+      /></label>
+      <label
+        >Impuestos por pagar
+        <input
+          [value]="accounts().taxPayableAccount"
+          (input)="account('taxPayableAccount', $any($event.target).value)"
+      /></label>
+      <label
+        >Activo inventario
+        <input
+          [value]="accounts().inventoryAssetAccount"
+          (input)="account('inventoryAssetAccount', $any($event.target).value)"
+      /></label>
+      <label
+        >Costo de ventas
+        <input
+          [value]="accounts().costOfGoodsSoldAccount"
+          (input)="account('costOfGoodsSoldAccount', $any($event.target).value)"
+      /></label>
+      <label
+        >Caja
+        <input
+          [value]="accounts().cashAccount"
+          (input)="account('cashAccount', $any($event.target).value)"
+      /></label>
+      <label
+        >Clearing de caja
+        <input
+          [value]="accounts().cashClearingAccount"
+          (input)="account('cashClearingAccount', $any($event.target).value)"
+      /></label>
+      <button type="submit" [disabled]="busy()">Guardar cuentas</button>
+    </form>
+
+    <div class="toolbar">
+      <button type="button" (click)="generate()" [disabled]="busy() || !configured()">
+        Generar candidatos
+      </button>
+      <label>
+        Escenario de entrega
+        <select [value]="scenario()" (change)="scenario.set($any($event.target).value)">
+          <option value="SUCCESS">Éxito</option>
+          <option value="REJECT">Rechazo</option>
+          <option value="TIMEOUT">Timeout</option>
+        </select>
+      </label>
+      <button type="button" class="secondary" (click)="reload()" [disabled]="loading()">
+        Recargar
+      </button>
+    </div>
+
+    <div class="events">
+      @for (event of events(); track event.id) {
+        <article>
+          <div class="event-heading">
+            <div>
+              <strong>{{ event.sourceType }} · {{ event.reference }}</strong>
+              <small>{{ event.currency }} · {{ event.occurredAt | date: 'short' }}</small>
+            </div>
+            <span class="status" [class.warning]="event.status === 'INDETERMINATE'">{{
+              event.status
+            }}</span>
+          </div>
+          <p class="candidate">CANDIDATO · NO CONTABILIZADO</p>
+          <div class="entries">
+            @for (entry of event.entries; track $index) {
+              <div>
+                <span>{{ entry.accountReference }} · {{ entry.memo }}</span>
+                <code>D {{ entry.debit }} / H {{ entry.credit }}</code>
+              </div>
+            }
+          </div>
+          <strong>Débitos {{ event.debitTotal }} = Créditos {{ event.creditTotal }}</strong>
+          @if (event.errorCode) {
+            <code>{{ event.errorCode }}</code>
+          }
+          <div class="actions">
+            <button
+              type="button"
+              (click)="deliver(event)"
+              [disabled]="busy() || event.status === 'EXPORTED' || event.status === 'INDETERMINATE'"
+            >
+              Entregar
+            </button>
+            <button
+              type="button"
+              class="secondary"
+              (click)="reconcile(event)"
+              [disabled]="busy() || event.status !== 'INDETERMINATE'"
+            >
+              Conciliar
+            </button>
+          </div>
+        </article>
+      } @empty {
+        <p>No hay candidatos contables generados.</p>
+      }
+    </div>
+  } @else if (loading()) {
+    <p role="status">Cargando contrato contable…</p>
+  }
+</section>
