@@ -1,0 +1,132 @@
+<div class="backdrop" (click)="closed.emit()">
+  <section
+    class="dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="supplier-product-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <p>{{ link() ? 'Actualizar relación' : 'Asignar producto' }}</p>
+        <h2 id="supplier-product-title">{{ supplier().legalName }}</h2>
+      </div>
+      <button class="icon" type="button" aria-label="Cerrar" (click)="closed.emit()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <div class="field full">
+        <label for="supplierProductSearch">Producto del catálogo</label>
+        @if (selectedProduct(); as product) {
+          <div class="selected-product">
+            <span
+              ><strong>{{ product.name }}</strong
+              ><small>SKU {{ product.sku }}</small></span
+            >
+            @if (!link()) {
+              <button class="text-button" type="button" (click)="changeProduct()">Cambiar</button>
+            }
+          </div>
+        } @else {
+          <div class="product-search">
+            <input
+              id="supplierProductSearch"
+              formControlName="productSearch"
+              placeholder="Nombre o SKU"
+              (keydown.enter)="$event.preventDefault(); searchProducts()"
+            />
+            <button class="secondary" type="button" (click)="searchProducts()">
+              {{ searching() ? 'Buscando…' : 'Buscar' }}
+            </button>
+          </div>
+          @if (searchError()) {
+            <div class="notice error" role="alert">{{ searchError() }}</div>
+          } @else if (results().length) {
+            <div class="product-results" role="listbox" aria-label="Productos encontrados">
+              @for (product of results(); track product.id) {
+                <button
+                  class="product-option"
+                  type="button"
+                  role="option"
+                  (click)="chooseProduct(product)"
+                >
+                  <span
+                    ><strong>{{ product.name }}</strong
+                    ><small>SKU {{ product.sku }}</small></span
+                  >
+                  <small>Costo catálogo {{ product.catalogCost }}</small>
+                </button>
+              }
+            </div>
+          } @else if (!searching()) {
+            <small>No hay productos activos que coincidan.</small>
+          }
+        }
+      </div>
+
+      <div class="field">
+        <label for="supplierProductCode">Código del proveedor</label>
+        <input id="supplierProductCode" formControlName="supplierCode" maxlength="64" />
+      </div>
+      <div class="field">
+        <label for="supplierProductMinimum">Compra mínima</label>
+        <input
+          id="supplierProductMinimum"
+          inputmode="decimal"
+          formControlName="minimumQuantity"
+          placeholder="Opcional"
+        />
+      </div>
+      <div class="field">
+        <label for="supplierProductCost">Costo unitario</label>
+        <input
+          id="supplierProductCost"
+          inputmode="decimal"
+          formControlName="unitCost"
+          placeholder="0.00"
+        />
+      </div>
+      <div class="field">
+        <label for="supplierProductCurrency">Moneda ISO</label>
+        <input
+          id="supplierProductCurrency"
+          formControlName="currency"
+          maxlength="3"
+          autocapitalize="characters"
+        />
+      </div>
+      <div class="field">
+        <label for="supplierProductValidFrom">{{
+          link() ? 'Nueva vigencia desde' : 'Vigente desde'
+        }}</label>
+        <input
+          id="supplierProductValidFrom"
+          type="date"
+          formControlName="validFrom"
+          [min]="minimumValidFrom()"
+        />
+      </div>
+      <div class="field">
+        <label for="supplierProductValidTo">Vigente hasta</label>
+        <input id="supplierProductValidTo" type="date" formControlName="validTo" />
+      </div>
+
+      @if (form.touched && (form.invalid || !selectedProduct())) {
+        <div class="notice error full" role="alert">
+          Selecciona un producto y revisa código, costo, moneda y vigencia.
+        </div>
+      }
+      @if (error()) {
+        <div class="notice error full" role="alert">{{ error() }}</div>
+      }
+      <footer class="actions full">
+        <button class="secondary" type="button" (click)="closed.emit()">Cancelar</button>
+        <button class="primary" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Guardando…' : link() ? 'Actualizar relación' : 'Asignar producto' }}
+        </button>
+      </footer>
+    </form>
+  </section>
+</div>

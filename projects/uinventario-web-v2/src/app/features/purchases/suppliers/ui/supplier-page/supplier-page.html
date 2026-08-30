@@ -1,0 +1,133 @@
+<section class="suppliers" aria-labelledby="suppliers-title">
+  <header class="page-header">
+    <div class="title-group">
+      <span class="page-icon"><i class="pi pi-building"></i></span>
+      <div>
+        <p>Compras</p>
+        <h1 id="suppliers-title">Proveedores</h1>
+        <span>Contactos, referencias y costos de compra en un workspace dedicado.</span>
+      </div>
+    </div>
+    <button class="primary" type="button" (click)="openCreate()">
+      <i class="pi pi-plus"></i> Nuevo proveedor
+    </button>
+  </header>
+
+  @if (notice()) {
+    <div class="notice success" role="status"><i class="pi pi-check-circle"></i>{{ notice() }}</div>
+  }
+  @if (error() && editor() === undefined && productEditor() === undefined && !retirement()) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle"></i>{{ error() }}
+    </div>
+  }
+
+  <form class="filters" [formGroup]="filters" (ngSubmit)="applyFilters()">
+    <div class="search-field">
+      <i class="pi pi-search"></i>
+      <input
+        formControlName="q"
+        aria-label="Buscar proveedores"
+        placeholder="Razón social, nombre comercial, identificación o contacto"
+      />
+    </div>
+    <select formControlName="status" aria-label="Estado del proveedor">
+      <option value="ACTIVE">Activos</option>
+      <option value="INACTIVE">Retirados</option>
+      <option value="ALL">Todos</option>
+    </select>
+    <button class="secondary" type="submit">Aplicar</button>
+  </form>
+
+  <div
+    class="workspace"
+    [class.detail-loading]="detailLoading()"
+    [class.has-selection]="selected()"
+  >
+    <ui-supplier-list
+      [page]="page()"
+      [loading]="loading()"
+      [selectedId]="selected()?.id || null"
+      (selected)="selectSupplier($event)"
+      (pageChanged)="goToPage($event)"
+    />
+    <button class="back-to-list secondary" type="button" (click)="clearSelection()">
+      <i class="pi pi-arrow-left"></i> Volver a proveedores
+    </button>
+    <ui-supplier-detail
+      [supplier]="selected()"
+      [tab]="tab()"
+      [products]="products()"
+      [productsLoading]="productsLoading()"
+      [productFilter]="productFilter()"
+      (editRequested)="openEdit($event)"
+      (retirementRequested)="requestRetirement($event)"
+      (tabChanged)="selectTab($event)"
+      (productCreateRequested)="openCreateProduct()"
+      (productEditRequested)="openEditProduct($event)"
+      (productFilterChanged)="applyProductFilter($event)"
+      (productPageChanged)="goToProductPage($event)"
+    />
+  </div>
+</section>
+
+@if (editor() !== undefined) {
+  <ui-supplier-editor-dialog
+    [supplier]="editor() ?? null"
+    [saving]="saving()"
+    [error]="error()"
+    (closed)="!saving() && editor.set(undefined)"
+    (submitted)="saveSupplier($event)"
+  />
+}
+
+@if (productEditor() !== undefined && selected(); as supplier) {
+  <ui-supplier-product-dialog
+    [supplier]="supplier"
+    [link]="productEditor() ?? null"
+    [saving]="saving()"
+    [error]="error()"
+    (closed)="!saving() && productEditor.set(undefined)"
+    (submitted)="saveProduct($event)"
+  />
+}
+
+@if (retirement(); as supplier) {
+  <div class="backdrop">
+    <section
+      class="retirement"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="retire-supplier-title"
+    >
+      <i class="pi pi-exclamation-triangle"></i>
+      <h2 id="retire-supplier-title">Retirar {{ supplier.tradeName || supplier.legalName }}</h2>
+      <p>
+        Dejará de estar disponible para nuevas compras. Sus contactos, precios e historial se
+        conservarán para auditoría.
+      </p>
+      <label for="retireSupplierConfirmation">
+        Escribe <strong>{{ supplier.legalName }}</strong> para confirmar
+      </label>
+      <input
+        id="retireSupplierConfirmation"
+        [value]="retirementConfirmation()"
+        (input)="updateRetirementConfirmation($event)"
+      />
+      @if (error()) {
+        <div class="notice error" role="alert">{{ error() }}</div>
+      }
+      <footer>
+        <button class="secondary" type="button" (click)="retirement.set(null)">Cancelar</button>
+        <button
+          class="danger-button"
+          type="button"
+          [disabled]="retirementConfirmation().trim() !== supplier.legalName || saving()"
+          (click)="confirmRetirement()"
+        >
+          Retirar proveedor
+        </button>
+      </footer>
+    </section>
+  </div>
+}

@@ -1,0 +1,67 @@
+<section class="supplier-list" aria-label="Lista de proveedores">
+  <header>
+    <strong>Proveedores</strong>
+    <span>{{ page()?.pagination?.total || 0 }} registro(s)</span>
+  </header>
+  @if (loading()) {
+    <div class="state" role="status"><i class="pi pi-spin pi-spinner"></i> Cargando…</div>
+  } @else if (!page()?.suppliers?.length) {
+    <div class="state">
+      <i class="pi pi-building"></i>
+      <strong>Sin resultados</strong>
+      <span>Ajusta la búsqueda o registra el primer proveedor.</span>
+    </div>
+  } @else {
+    <div class="items">
+      @for (supplier of page()!.suppliers; track supplier.id) {
+        <button
+          type="button"
+          class="supplier-card"
+          [class.selected]="supplier.id === selectedId()"
+          [attr.aria-current]="supplier.id === selectedId() ? 'true' : null"
+          (click)="selected.emit(supplier)"
+        >
+          <span class="identity">
+            <strong>{{ supplier.tradeName || supplier.legalName }}</strong>
+            @if (supplier.tradeName) {
+              <small>{{ supplier.legalName }}</small>
+            }
+          </span>
+          <span class="meta">
+            <small>{{ supplier.identifierType }} {{ supplier.taxIdentifier }}</small>
+            <span class="status" [class.inactive]="!supplier.active">
+              {{ supplier.active ? 'Activo' : 'Inactivo' }}
+            </span>
+          </span>
+          @if (supplier.contacts[0]; as contact) {
+            <span class="contact">
+              <i class="pi pi-user"></i>{{ contact.name }}
+              @if (contact.primary) {
+                <small>Principal</small>
+              }
+            </span>
+          }
+        </button>
+      }
+    </div>
+    <footer>
+      <button
+        type="button"
+        aria-label="Página anterior"
+        [disabled]="page()!.pagination.page <= 1"
+        (click)="pageChanged.emit(page()!.pagination.page - 1)"
+      >
+        <i class="pi pi-chevron-left"></i>
+      </button>
+      <span>{{ page()!.pagination.page }} / {{ page()!.pagination.totalPages || 1 }}</span>
+      <button
+        type="button"
+        aria-label="Página siguiente"
+        [disabled]="page()!.pagination.page >= page()!.pagination.totalPages"
+        (click)="pageChanged.emit(page()!.pagination.page + 1)"
+      >
+        <i class="pi pi-chevron-right"></i>
+      </button>
+    </footer>
+  }
+</section>
