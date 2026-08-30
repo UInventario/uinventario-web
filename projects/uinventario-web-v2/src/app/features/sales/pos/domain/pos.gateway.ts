@@ -2,6 +2,7 @@ import { Observable } from 'rxjs';
 import {
   CashRegisterShift,
   CreateCashSaleInput,
+  CreatePosSuspendedSaleInput,
   CreateSaleInput,
   PaymentTerminalOperation,
   PosCustomerPage,
@@ -11,6 +12,7 @@ import {
   PosProduct,
   PosProductPage,
   PosSale,
+  PosSuspendedSale,
   StartPaymentTerminalInput,
 } from './pos.models';
 
@@ -23,6 +25,10 @@ export abstract class PosGateway {
   abstract searchCustomers(query: string): Observable<PosCustomerPage>;
   abstract createCashSale(input: CreateCashSaleInput): Observable<PosSale>;
   abstract createSale(input: CreateSaleInput): Observable<PosSale>;
+  abstract suspendSale(
+    input: CreatePosSuspendedSaleInput,
+    idempotencyKey: string,
+  ): Observable<PosSuspendedSale>;
   abstract startTerminal(input: StartPaymentTerminalInput): Observable<PaymentTerminalOperation>;
   abstract getTerminal(operationId: string): Observable<PaymentTerminalOperation>;
   abstract cancelTerminal(operationId: string): Observable<PaymentTerminalOperation>;

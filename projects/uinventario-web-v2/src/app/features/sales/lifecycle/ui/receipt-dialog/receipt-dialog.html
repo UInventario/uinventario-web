@@ -1,0 +1,92 @@
+<div class="receipt-backdrop" (click)="closed.emit()">
+  <section
+    class="receipt-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="receipt-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <p>Copia auditada</p>
+        <h2 id="receipt-title">{{ receipt().receiptNumber }}</h2>
+      </div>
+      <button type="button" aria-label="Cerrar ticket" (click)="closed.emit()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+
+    <article class="paper">
+      <header>
+        <strong>{{ receipt().merchant.name }}</strong>
+        <span>{{ receipt().branchName }} · {{ receipt().cashRegister.name }}</span>
+        <small>{{ receipt().issuedAt | date: 'medium' }}</small>
+      </header>
+      <div class="receipt-lines">
+        @for (line of receipt().lines; track line.lineNumber) {
+          <span
+            ><span
+              ><strong>{{ line.quantity }} × {{ line.productName }}</strong
+              ><small>{{ line.productSku }}</small></span
+            ><strong>{{ money(line.total) }}</strong></span
+          >
+        }
+      </div>
+      <dl>
+        <div>
+          <dt>Subtotal</dt>
+          <dd>{{ money(receipt().totals.subtotal) }}</dd>
+        </div>
+        <div>
+          <dt>Descuento</dt>
+          <dd>− {{ money(receipt().totals.discount) }}</dd>
+        </div>
+        <div>
+          <dt>Impuestos</dt>
+          <dd>{{ money(receipt().totals.tax) }}</dd>
+        </div>
+        <div class="total">
+          <dt>Total</dt>
+          <dd>{{ money(receipt().totals.total) }}</dd>
+        </div>
+      </dl>
+      <div class="payments">
+        @for (payment of receipt().payments; track $index) {
+          <span
+            >{{ payment.method }}<strong>{{ money(payment.amountApplied) }}</strong></span
+          >
+        }
+      </div>
+      <strong class="fiscal-notice">{{ receipt().fiscalNotice }}</strong>
+      @if (receipt().saleStatus === 'VOIDED') {
+        <div class="voided"><i class="pi pi-ban"></i>ANULADO · {{ receipt().void?.reason }}</div>
+      }
+    </article>
+
+    <div class="receipt-actions">
+      <button class="primary" type="button" (click)="print()">
+        <i class="pi pi-print"></i>Imprimir
+      </button>
+      <form [formGroup]="emailForm" (ngSubmit)="send()">
+        <input
+          type="email"
+          formControlName="email"
+          placeholder="cliente@correo.com"
+          aria-label="Correo del destinatario"
+        />
+        <button type="submit" [disabled]="sending() || emailForm.invalid">
+          <i class="pi pi-send"></i>{{ sending() ? 'Enviando…' : 'Enviar' }}
+        </button>
+      </form>
+    </div>
+    @if (delivery(); as sent) {
+      <div class="delivery" role="status">
+        <i class="pi pi-check-circle"></i>Envío aceptado para {{ sent.recipient }} ·
+        {{ sent.mode === 'SIMULATED' ? 'Simulador' : 'Proveedor real' }}
+      </div>
+    }
+    @if (error()) {
+      <div class="error" role="alert"><i class="pi pi-exclamation-circle"></i>{{ error() }}</div>
+    }
+  </section>
+</div>

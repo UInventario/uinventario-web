@@ -10,6 +10,9 @@ import { PosCartStore } from './pos/application/pos-cart.store';
 import { PosFacade } from './pos/application/pos.facade';
 import { PosApi } from './pos/data/pos-api.service';
 import { PosGateway } from './pos/domain/pos.gateway';
+import { SalesLifecycleFacade } from './lifecycle/application/sales-lifecycle.facade';
+import { SalesLifecycleApi } from './lifecycle/data/sales-lifecycle-api.service';
+import { SalesLifecycleGateway } from './lifecycle/domain/sales-lifecycle.gateway';
 
 export const SALES_ROUTES: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'pos' },
@@ -37,5 +40,20 @@ export const SALES_ROUTES: Routes = [
     ],
     loadComponent: () =>
       import('./customers/ui/customer-page/customer-page').then((module) => module.CustomerPage),
+  },
+  {
+    path: 'historial',
+    canActivate: [
+      requireAnyPermission('SALES_MANAGE', 'SALE_REPRINT', 'SALES_VOID', 'SALES_RETURN'),
+    ],
+    providers: [
+      SalesLifecycleFacade,
+      SalesLifecycleApi,
+      { provide: SalesLifecycleGateway, useExisting: SalesLifecycleApi },
+    ],
+    loadComponent: () =>
+      import('./lifecycle/ui/sales-lifecycle-page/sales-lifecycle-page').then(
+        (module) => module.SalesLifecyclePage,
+      ),
   },
 ];

@@ -1,6 +1,12 @@
 import { SessionData } from '../../../../core/session/session.models';
 import { PosCartLine, PosProduct } from '../domain/pos.models';
 
+export interface PendingSuspendedSale {
+  readonly id: string;
+  readonly customerId: string | null;
+  readonly lines: readonly PosCartLine[];
+}
+
 const PRODUCT_UNITS = new Set([
   'UNIT',
   'KILOGRAM',
@@ -22,6 +28,42 @@ export function cartStorageKey(session: SessionData | null): string | null {
     context.warehouse.id,
     context.cashRegister.id,
   ].join(':');
+}
+
+export function suspendedSaleStorageKey(session: SessionData | null): string | null {
+  const cartKey = cartStorageKey(session);
+  return cartKey ? `${cartKey}:suspended-sale` : null;
+}
+
+export function readPendingSuspendedSale(session: SessionData | null): PendingSuspendedSale | null {
+  const key = suspendedSaleStorageKey(session);
+  if (!key) return null;
+  try {
+    const value: unknown = JSON.parse(sessionStorage.getItem(key) ?? 'null');
+    if (!isRecord(value) || typeof value['id'] !== 'string') return null;
+    const customerId = value['customerId'];
+    if (customerId !== null && typeof customerId !== 'string') return null;
+    const lines = parsePersistedCart(JSON.stringify(value['lines']));
+    if (!lines.length) return null;
+    return { id: value['id'], customerId, lines };
+  } catch {
+    return null;
+  }
+}
+
+export function writePendingSuspendedSale(
+  session: SessionData | null,
+  value: PendingSuspendedSale,
+): boolean {
+  const key = suspendedSaleStorageKey(session);
+  if (!key) return false;
+  sessionStorage.setItem(key, JSON.stringify(value));
+  return true;
+}
+
+export function clearPendingSuspendedSale(session: SessionData | null): void {
+  const key = suspendedSaleStorageKey(session);
+  if (key) sessionStorage.removeItem(key);
 }
 
 export function parsePersistedCart(raw: string | null): readonly PosCartLine[] {

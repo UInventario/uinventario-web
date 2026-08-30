@@ -13,12 +13,17 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Subject, catchError, debounceTime, distinctUntilChanged, map, of, switchMap } from 'rxjs';
 import { ApiError } from '../../../../../core/api/api-error';
 import { AuthorizationService } from '../../../../../core/authorization/authorization.service';
 import { SessionState } from '../../../../../core/session/session-state';
 import { PosCartStore } from '../../application/pos-cart.store';
+import {
+  PendingSuspendedSale,
+  clearPendingSuspendedSale,
+  readPendingSuspendedSale,
+} from '../../application/pos-cart.persistence';
 import { PosFacade } from '../../application/pos.facade';
 import {
   CashRegisterShift,
@@ -32,6 +37,7 @@ import {
 import { PosCheckoutDialog } from '../pos-checkout-dialog/pos-checkout-dialog';
 import { PosLineDialog } from '../pos-line-dialog/pos-line-dialog';
 import { PosScannerDialog } from '../pos-scanner-dialog/pos-scanner-dialog';
+import { PosSuspendDialog } from '../pos-suspend-dialog/pos-suspend-dialog';
 
 interface QuoteState {
   readonly quote: PosCartQuote | null;
@@ -40,15 +46,23 @@ interface QuoteState {
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PosCheckoutDialog, PosLineDialog, PosScannerDialog, ReactiveFormsModule, RouterLink],
+  imports: [
+    PosCheckoutDialog,
+    PosLineDialog,
+    PosScannerDialog,
+    PosSuspendDialog,
+    ReactiveFormsModule,
+    RouterLink,
+  ],
   selector: 'ui-pos-page',
-  styleUrls: ['./pos-page.scss', './pos-cart.scss', './pos-responsive.scss'],
+  styleUrls: ['./pos-page.scss', './pos-cart.scss', './pos-resumed.scss', './pos-responsive.scss'],
   templateUrl: './pos-page.html',
 })
 export class PosPage implements OnInit {
   private readonly facade = inject(PosFacade);
   private readonly authorization = inject(AuthorizationService);
   private readonly sessions = inject(SessionState);
+  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly searchRequests = new Subject<string>();
   private readonly quoteRequests = new Subject<readonly PosCartLine[]>();
@@ -60,6 +74,8 @@ export class PosPage implements OnInit {
   protected readonly searching = signal(true);
   protected readonly scanning = signal(false);
   protected readonly scannerOpen = signal(false);
+  protected readonly suspendOpen = signal(false);
+  protected readonly resumedSale = signal<PendingSuspendedSale | null>(null);
   protected readonly searchError = signal<string | null>(null);
   protected readonly shift = signal<CashRegisterShift | null>(null);
   protected readonly shiftLoaded = signal(false);
@@ -85,6 +101,9 @@ export class PosPage implements OnInit {
   }
 
   ngOnInit(): void {
+    const resumed = readPendingSuspendedSale(this.sessions.session());
+    this.resumedSale.set(resumed);
+    if (resumed) this.cart.replace(resumed.lines);
     if (!this.canOverridePrice()) this.cart.stripUnauthorizedOverrides();
     this.loadShift();
     this.searchRequests.next('');
@@ -164,12 +183,45 @@ export class PosPage implements OnInit {
     if (!quote || !this.shift() || this.quoteLoading()) return;
     this.checkout.set({
       quote,
-      request: { lines: this.cart.lines().map((line) => this.requestLine(line)) },
+      request: this.cartRequest(),
     });
   }
 
+  protected openSuspend(): void {
+    if (!this.cart.lines().length) return;
+    if (
+      this.cart
+        .lines()
+        .some((line) => line.note || line.manualUnitPrice || line.priceOverrideReason)
+    ) {
+      this.quoteError.set('Quita notas y precios manuales antes de suspender esta venta.');
+      return;
+    }
+    this.suspendOpen.set(true);
+  }
+
+  protected suspended(): void {
+    this.releaseSuspendedContext();
+    this.cart.clear();
+    this.suspendOpen.set(false);
+    void this.router.navigate(['/ventas/historial'], { queryParams: { view: 'suspended' } });
+  }
+
   protected saleCompleted(sale: PosSale): void {
-    if (sale.status === 'COMPLETED') this.cart.clear();
+    if (sale.status === 'COMPLETED') {
+      this.releaseSuspendedContext();
+      this.cart.clear();
+    }
+  }
+
+  protected clearCart(): void {
+    this.releaseSuspendedContext();
+    this.cart.clear();
+  }
+
+  protected removeLine(productId: string): void {
+    this.cart.remove(productId);
+    if (!this.cart.lines().length) this.releaseSuspendedContext();
   }
 
   protected closeCheckout(): void {
@@ -283,6 +335,24 @@ export class PosPage implements OnInit {
           }
         : {}),
     };
+  }
+
+  protected cartRequest(): PosCartRequest {
+    const resumed = this.resumedSale();
+    return {
+      lines: this.cart.lines().map((line) => this.requestLine(line)),
+      ...(resumed
+        ? {
+            suspendedSaleId: resumed.id,
+            ...(resumed.customerId ? { customerId: resumed.customerId } : {}),
+          }
+        : {}),
+    };
+  }
+
+  private releaseSuspendedContext(): void {
+    clearPendingSuspendedSale(this.sessions.session());
+    this.resumedSale.set(null);
   }
 
   private focusSearch(): void {

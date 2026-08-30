@@ -1,0 +1,123 @@
+<div class="return-backdrop" (click)="closed.emit()">
+  <section
+    class="return-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="return-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <p>Inventario y dinero</p>
+        <h2 id="return-title">Nueva devolución</h2>
+        <span>{{ sale().receiptNumber }}</span>
+      </div>
+      <button
+        type="button"
+        aria-label="Cerrar devolución"
+        [disabled]="busy()"
+        (click)="closed.emit()"
+      >
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+    <div class="impact">
+      <i class="pi pi-info-circle"></i
+      ><span
+        >Los artículos vendibles regresarán a existencia; los dañados quedarán fuera del stock
+        disponible. El dinero se liquida después y únicamente contra medios permitidos.</span
+      >
+    </div>
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>Disponible</th>
+              <th>Cantidad</th>
+              <th>Condición</th>
+              <th>Series, si aplica</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of sale().lines; track line.id) {
+              <tr [class.unavailable]="remaining(line) <= 0">
+                <td>
+                  <strong>{{ line.product.name }}</strong
+                  ><small>{{ line.product.sku }}</small>
+                </td>
+                <td>{{ remaining(line) }}</td>
+                <td>
+                  <input
+                    type="number"
+                    min="0"
+                    [max]="remaining(line)"
+                    step="0.001"
+                    [disabled]="remaining(line) <= 0"
+                    [value]="quantities()[line.id] || ''"
+                    (input)="setQuantity(line, $any($event.target).value)"
+                  />
+                </td>
+                <td>
+                  <select
+                    [disabled]="remaining(line) <= 0"
+                    [value]="conditions()[line.id] || 'SELLABLE'"
+                    (change)="setCondition(line, $any($event.target).value)"
+                  >
+                    <option value="SELLABLE">Vendible</option>
+                    <option value="DAMAGED">Dañado</option>
+                  </select>
+                </td>
+                <td>
+                  <input
+                    [disabled]="remaining(line) <= 0"
+                    [value]="serials()[line.id] || ''"
+                    (input)="setSerials(line, $any($event.target).value)"
+                    placeholder="SERIE-1, SERIE-2"
+                  />
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="fields">
+        <label
+          ><span>Motivo</span
+          ><textarea
+            formControlName="reason"
+            maxlength="240"
+            rows="3"
+            placeholder="Describe por qué se devuelve"
+          ></textarea>
+        </label>
+        <label
+          ><span>Venta de cambio <small>Opcional</small></span
+          ><input formControlName="exchangeSaleId" placeholder="UUID de la nueva venta"
+        /></label>
+      </div>
+      @if (error()) {
+        <div class="error" role="alert"><i class="pi pi-exclamation-circle"></i>{{ error() }}</div>
+      }
+      <footer>
+        <button class="secondary" type="button" [disabled]="busy()" (click)="closed.emit()">
+          Cancelar
+        </button>
+        <button
+          class="primary"
+          type="submit"
+          [disabled]="busy() || form.invalid || !selectedCount()"
+        >
+          <i
+            class="pi"
+            [class.pi-spin]="busy()"
+            [class.pi-spinner]="busy()"
+            [class.pi-undo]="!busy()"
+          ></i
+          >{{ busy() ? 'Registrando…' : 'Registrar devolución' }}
+        </button>
+      </footer>
+    </form>
+  </section>
+</div>

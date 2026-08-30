@@ -1,0 +1,89 @@
+@media (max-width: 760px) {
+  .sale-detail {
+    min-height: 100%;
+  }
+
+  .detail-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  .close {
+    display: block;
+  }
+
+  .detail-body {
+    overflow: visible;
+    padding-inline: 14px;
+  }
+
+  .detail-actions,
+  .detail-tabs {
+    overflow-x: auto;
+    padding-inline: 14px;
+  }
+
+  .facts {
+    grid-template-columns: 1fr;
+  }
+
+  .payments article {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+  }
+
+  .payments article > strong {
+    grid-column: 2 / -1;
+  }
+
+  .movements article {
+    align-items: flex-start;
+  }
+
+  .adapter-card {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .simulator-badge {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  .modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .confirm-dialog,
+  .settlement-dialog {
+    border-radius: 18px 18px 0 0;
+  }
+
+  .confirm-dialog footer,
+  .settlement-dialog footer {
+    display: grid;
+  }
+}
+
+@media (max-width: 420px) {
+  .detail-header > strong {
+    font-size: 18px;
+  }
+
+  .products article,
+  .returned-lines > span {
+    align-items: flex-start;
+  }
+
+  .fiscal-email {
+    gap: 8px;
+    grid-template-columns: 1fr;
+  }
+
+  .fiscal-email input,
+  .fiscal-email button {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+}
