@@ -1,0 +1,81 @@
+<div class="backdrop" (click)="closed.emit()">
+  <section
+    class="dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="return-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <p>Salida de inventario</p>
+        <h2 id="return-title">Devolver productos · {{ order().folio }}</h2>
+      </div>
+      <button class="icon" type="button" aria-label="Cerrar" (click)="closed.emit()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <div class="field">
+        <label for="purchaseReturnDocument">Documento de devolución</label>
+        <input id="purchaseReturnDocument" formControlName="documentReference" maxlength="160" />
+      </div>
+      <div class="field">
+        <label for="purchaseReturnReason">Motivo</label>
+        <input id="purchaseReturnReason" formControlName="reason" maxlength="500" />
+      </div>
+      <p class="hint full">
+        Recepción {{ receipt().documentReference }} · {{ receipt().location.code }}. El crédito
+        esperado lo calculará el servidor al costo recibido.
+      </p>
+      <div class="line-grid full" formArrayName="lines">
+        @for (line of lines.controls; track line; let index = $index) {
+          <fieldset class="line-card receipt-line" [formGroupName]="index">
+            <div class="line-title">
+              <strong
+                >{{ orderLine(index)?.productSku }} · {{ orderLine(index)?.productName }}</strong
+              ><small
+                >Recibido {{ receiptLine(index).receivedQuantity }} · devuelto
+                {{ receiptLine(index).returnedQuantity }} · disponible
+                {{ receiptLine(index).returnableQuantity }}</small
+              >
+            </div>
+            <div class="field">
+              <label [for]="'purchaseReturnQuantity' + index">Cantidad a devolver</label>
+              <input
+                [id]="'purchaseReturnQuantity' + index"
+                inputmode="decimal"
+                formControlName="returnedQuantity"
+              />
+            </div>
+            <div class="field">
+              <label [for]="'purchaseReturnSerials' + index">Series, una por línea</label>
+              <textarea
+                class="serials"
+                [id]="'purchaseReturnSerials' + index"
+                formControlName="serialNumbers"
+                rows="2"
+                placeholder="Cuando aplique"
+              ></textarea>
+            </div>
+          </fieldset>
+        }
+      </div>
+      @if (form.touched && form.invalid) {
+        <div class="notice error full" role="alert">Revisa documento, motivo y cantidades.</div>
+      }
+      @if (localError()) {
+        <div class="notice error full" role="alert">{{ localError() }}</div>
+      }
+      @if (error()) {
+        <div class="notice error full" role="alert">{{ error() }}</div>
+      }
+      <footer class="actions full">
+        <button class="secondary" type="button" (click)="closed.emit()">Cancelar</button>
+        <button class="danger" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Registrando…' : 'Confirmar devolución' }}
+        </button>
+      </footer>
+    </form>
+  </section>
+</div>

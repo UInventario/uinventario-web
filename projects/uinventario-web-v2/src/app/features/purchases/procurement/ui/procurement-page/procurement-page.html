@@ -1,0 +1,102 @@
+<section class="procurement" aria-labelledby="purchase-orders-title">
+  <header class="page-header">
+    <div class="title-group">
+      <span class="page-icon"><i class="pi pi-shopping-bag"></i></span>
+      <div>
+        <p>Compras</p>
+        <h1 id="purchase-orders-title">Órdenes de compra</h1>
+        <span>Aprobación, recepción y devolución con trazabilidad de inventario.</span>
+      </div>
+    </div>
+    @if (canManage()) {
+      <button class="primary" type="button" (click)="openCreate()">
+        <i class="pi pi-plus"></i> Nueva orden
+      </button>
+    }
+  </header>
+
+  @if (notice()) {
+    <div class="notice success" role="status"><i class="pi pi-check-circle"></i>{{ notice() }}</div>
+  }
+  @if (error() && editor() === undefined && !transition() && !receiving() && !returning()) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle"></i>{{ error() }}
+    </div>
+  }
+
+  <form class="filters" [formGroup]="filters" (ngSubmit)="applyFilters()">
+    <div class="search-field">
+      <i class="pi pi-search"></i
+      ><input formControlName="q" aria-label="Buscar órdenes" placeholder="Folio o proveedor" />
+    </div>
+    <button class="secondary" type="submit">Aplicar</button>
+  </form>
+
+  <div class="workspace" [class.has-selection]="selected()">
+    <ui-order-list
+      [page]="page()"
+      [loading]="loading()"
+      [selectedId]="selected()?.id || null"
+      (selected)="selectOrder($event)"
+      (pageChanged)="goToPage($event)"
+    />
+    <button class="back-to-list secondary" type="button" (click)="clearSelection()">
+      <i class="pi pi-arrow-left"></i> Volver a órdenes
+    </button>
+    <ui-order-detail
+      [order]="selected()"
+      [loading]="detailLoading()"
+      [canManage]="canManage()"
+      [canApprove]="canApprove()"
+      (editRequested)="openEdit($event)"
+      (transitionRequested)="requestTransition($event)"
+      (receiptRequested)="requestReceipt($event)"
+      (returnRequested)="requestReturn($event)"
+    />
+  </div>
+</section>
+
+@if (editor() !== undefined) {
+  <ui-order-editor-dialog
+    [order]="editor() ?? null"
+    [suppliers]="suppliers()"
+    [products]="supplierProducts()"
+    [productsLoading]="productsLoading()"
+    [saving]="saving()"
+    [error]="error()"
+    (supplierChanged)="loadSupplierProducts($event)"
+    (closed)="!saving() && editor.set(undefined)"
+    (submitted)="saveOrder($event)"
+  />
+}
+@if (transition(); as context) {
+  <ui-transition-dialog
+    [order]="context.order"
+    [action]="context.action"
+    [saving]="saving()"
+    [error]="error()"
+    (closed)="!saving() && transition.set(null)"
+    (submitted)="submitTransition($event)"
+  />
+}
+@if (receiving(); as context) {
+  <ui-receipt-dialog
+    [order]="context.order"
+    [locations]="locations()"
+    [canOverReceive]="canOverReceive()"
+    [saving]="saving()"
+    [error]="error()"
+    (closed)="!saving() && receiving.set(null)"
+    (submitted)="submitReceipt($event)"
+  />
+}
+@if (returning(); as context) {
+  <ui-return-dialog
+    [order]="context.order"
+    [receipt]="context.receipt"
+    [saving]="saving()"
+    [error]="error()"
+    (closed)="!saving() && returning.set(null)"
+    (submitted)="submitReturn($event)"
+  />
+}

@@ -1,0 +1,231 @@
+<section class="detail" aria-label="Detalle de la orden de compra">
+  @if (loading()) {
+    <div class="state" role="status"><i class="pi pi-spin pi-spinner"></i> Cargando orden…</div>
+  } @else if (!order()) {
+    <div class="state">
+      <span><i class="pi pi-file-check"></i></span>
+      <h2>Selecciona una orden</h2>
+      <p>Consulta productos, recepciones, devoluciones e historial sin cambiar de pantalla.</p>
+    </div>
+  } @else if (order(); as current) {
+    <header class="detail-header">
+      <div>
+        <p>{{ current.supplier.name }}</p>
+        <h2>{{ current.folio }}</h2>
+        <span>{{ statusLabel(current.status) }} · versión {{ current.version }}</span>
+      </div>
+      <div class="actions">
+        @if (canManage() && current.status === 'DRAFT') {
+          <button class="secondary" type="button" (click)="editRequested.emit(current)">
+            <i class="pi pi-pencil"></i> Editar
+          </button>
+        }
+        @if (canApprove() && current.status === 'DRAFT') {
+          <button
+            class="primary"
+            type="button"
+            (click)="transitionRequested.emit({ order: current, action: 'APPROVE' })"
+          >
+            Aprobar
+          </button>
+        }
+        @if (canManage() && current.status === 'APPROVED') {
+          <button
+            class="primary"
+            type="button"
+            (click)="transitionRequested.emit({ order: current, action: 'SEND' })"
+          >
+            Enviar
+          </button>
+        }
+        @if (canReceive(current)) {
+          <button class="primary" type="button" (click)="receiptRequested.emit(current)">
+            <i class="pi pi-inbox"></i> Recibir
+          </button>
+        }
+        @if (canCancel(current)) {
+          <button
+            class="danger"
+            type="button"
+            (click)="transitionRequested.emit({ order: current, action: 'CANCEL' })"
+          >
+            Cancelar
+          </button>
+        }
+      </div>
+    </header>
+
+    <div class="summary">
+      <span
+        ><small>Productos</small><strong>{{ current.lines.length }}</strong></span
+      >
+      <span
+        ><small>Subtotal</small><strong>{{ current.currency }} {{ current.subtotal }}</strong></span
+      >
+      <span
+        ><small>Total</small><strong>{{ current.currency }} {{ current.total }}</strong></span
+      >
+      <span
+        ><small>Recepciones</small><strong>{{ current.receipts.length }}</strong></span
+      >
+    </div>
+
+    @if (current.notes) {
+      <p class="order-notes"><i class="pi pi-align-left"></i>{{ current.notes }}</p>
+    }
+
+    <nav class="tabs" aria-label="Información de la orden">
+      <button type="button" [class.active]="tab() === 'LINES'" (click)="tab.set('LINES')">
+        Productos
+      </button>
+      <button type="button" [class.active]="tab() === 'RECEIPTS'" (click)="tab.set('RECEIPTS')">
+        Recepciones y devoluciones
+      </button>
+      <button type="button" [class.active]="tab() === 'HISTORY'" (click)="tab.set('HISTORY')">
+        Historial
+      </button>
+    </nav>
+
+    @if (tab() === 'LINES') {
+      <div class="line-table" role="table" aria-label="Productos de la orden">
+        <div class="line-head" role="row">
+          <span>Producto</span><span>Ordenado</span><span>Recibido</span><span>Pendiente</span
+          ><span>Importe</span>
+        </div>
+        @for (line of current.lines; track line.id) {
+          <div class="line-row" role="row">
+            <span class="product"
+              ><strong>{{ line.productName }}</strong
+              ><small>{{ line.productSku }} · {{ line.supplierCode }}</small></span
+            >
+            <span>{{ line.quantity }}</span>
+            <span>{{ line.receivedQuantity }}</span>
+            <span [class.attention]="isPositive(line.remainingQuantity)">{{
+              line.remainingQuantity
+            }}</span>
+            <span
+              ><strong>{{ current.currency }} {{ line.subtotal }}</strong
+              ><small>{{ line.quantity }} × {{ line.unitCost }}</small></span
+            >
+          </div>
+        }
+      </div>
+    } @else if (tab() === 'RECEIPTS') {
+      <div class="records">
+        @if (!current.receipts.length) {
+          <div class="empty-section">Todavía no existen recepciones para esta orden.</div>
+        }
+        @for (receipt of current.receipts; track receipt.id) {
+          <article class="record">
+            <header>
+              <span
+                ><strong>{{ receipt.documentReference }}</strong
+                ><small
+                  >{{ receipt.location.code }} · {{ receipt.responsible.email }} ·
+                  {{ receipt.createdAt | date: 'medium' }}</small
+                ></span
+              >
+              @if (canReturn(receipt)) {
+                <button
+                  class="secondary"
+                  type="button"
+                  (click)="returnRequested.emit({ order: current, receipt })"
+                >
+                  Devolver
+                </button>
+              }
+            </header>
+            @if (receipt.overageReason) {
+              <p class="discrepancy">
+                <i class="pi pi-exclamation-triangle"></i>Sobrante explicado:
+                {{ receipt.overageReason }}
+              </p>
+            }
+            @for (line of receipt.lines; track line.id) {
+              <div class="record-line">
+                <span
+                  ><strong>{{ lineFor(current, line.purchaseOrderLineId)?.productSku }}</strong
+                  ><small>{{
+                    lineFor(current, line.purchaseOrderLineId)?.productName
+                  }}</small></span
+                >
+                <span
+                  >Recibido {{ line.receivedQuantity
+                  }}<small
+                    >Devuelto {{ line.returnedQuantity }} · Disponible
+                    {{ line.returnableQuantity }}</small
+                  ></span
+                >
+                <span
+                  >{{ current.currency }} {{ line.totalCost
+                  }}<small
+                    >Costo catálogo {{ line.previousCatalogCost }} →
+                    {{ line.resultingCatalogCost }}</small
+                  ></span
+                >
+              </div>
+            }
+          </article>
+        }
+        @for (purchaseReturn of current.returns; track purchaseReturn.id) {
+          <article class="record return-record">
+            <header>
+              <span
+                ><strong>Devolución {{ purchaseReturn.documentReference }}</strong
+                ><small
+                  >{{ purchaseReturn.location.code }} ·
+                  {{ purchaseReturn.responsible.email }}</small
+                ></span
+              >
+              <span class="credit">{{
+                purchaseReturn.status === 'CREDIT_PENDING'
+                  ? 'Crédito pendiente'
+                  : 'Crédito recibido'
+              }}</span>
+            </header>
+            <p>
+              {{ purchaseReturn.reason }} · Crédito esperado {{ current.currency }}
+              {{ purchaseReturn.expectedCreditTotal }}
+            </p>
+          </article>
+        }
+      </div>
+    } @else {
+      <ol class="timeline">
+        @if (!current.transitions.length) {
+          <li>
+            <span></span>
+            <div>
+              <strong>Borrador creado</strong
+              ><small>{{ current.createdAt | date: 'medium' }}</small>
+            </div>
+          </li>
+        }
+        @for (transition of current.transitions; track transition.id) {
+          <li>
+            <span></span>
+            <div>
+              <strong
+                >{{ statusLabel(transition.fromStatus) }} →
+                {{ statusLabel(transition.toStatus) }}</strong
+              >
+              <small>{{ transition.createdAt | date: 'medium' }}</small>
+              @if (transition.reason) {
+                <p>{{ transition.reason }}</p>
+              }
+              @if (transition.delivery) {
+                <p>
+                  Envío simulado{{
+                    transition.delivery.recipient
+                      ? ' a ' + transition.delivery.recipient
+                      : ' sin destinatario configurado'
+                  }}.
+                </p>
+              }
+            </div>
+          </li>
+        }
+      </ol>
+    }
+  }
+</section>

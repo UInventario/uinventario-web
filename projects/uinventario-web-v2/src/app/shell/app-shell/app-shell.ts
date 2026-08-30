@@ -93,6 +93,14 @@ export class AppShell {
       void this.router.navigate(['/compras/proveedores']);
       return;
     }
+    if (commandId === 'new-purchase') {
+      void this.router.navigate(['/compras/ordenes'], { queryParams: { action: 'nueva' } });
+      return;
+    }
+    if (commandId === 'receive-purchase') {
+      void this.router.navigate(['/compras/ordenes']);
+      return;
+    }
     this.commandStatus.set(`Comando disponible para ${this.activeWorkspace().label}: ${commandId}`);
   }
 
