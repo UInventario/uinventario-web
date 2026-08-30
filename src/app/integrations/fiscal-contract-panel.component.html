@@ -1,0 +1,163 @@
+<section class="fiscal-panel" id="fiscal-contract-title" aria-labelledby="fiscal-heading">
+  <header>
+    <div>
+      <p class="eyebrow">Fiscalidad multipaís</p>
+      <h2 id="fiscal-heading">Contrato fiscal</h2>
+      <p>
+        Configuración versionada por empresa. Preparar este contrato no emite documentos ni activa
+        SAT/SII.
+      </p>
+    </div>
+  </header>
+
+  <p class="notice">
+    Guarda únicamente nombres de secrets. Certificados, llaves y autorizaciones nunca se envían a
+    esta API.
+  </p>
+  @if (error()) {
+    <p class="error" role="alert">{{ error() }}</p>
+  }
+  @if (success()) {
+    <p class="success" role="status">{{ success() }}</p>
+  }
+
+  @if (loading()) {
+    <p role="status">Cargando contrato fiscal…</p>
+  } @else if (!contract()) {
+    <p class="warning" role="status">
+      El país {{ countryCode() }} aún no tiene contrato. Disponibles:
+      {{ supportedCountries().join(', ') }}.
+    </p>
+  } @else if (contract(); as definition) {
+    @if (configuration(); as config) {
+      <div class="summary">
+        <strong>{{ definition.countryCode }} · {{ definition.authority }}</strong>
+        <span>Contrato v{{ definition.version }} · {{ definition.currency }}</span>
+        <span>{{ definition.capabilities.join(' · ') }}</span>
+      </div>
+
+      <div class="fields">
+        <label>
+          Perfil
+          <select
+            [value]="config.providerProfile"
+            (change)="patch({ providerProfile: $any($event.target).value })"
+          >
+            @for (profile of definition.providerProfiles; track profile.key) {
+              <option [value]="profile.key">{{ profile.key }} · {{ profile.mode }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          Ambiente
+          <select
+            [value]="config.environment || 'TEST'"
+            (change)="patch({ environment: $any($event.target).value })"
+          >
+            <option value="TEST">Pruebas</option>
+            <option value="PRODUCTION">Producción</option>
+          </select>
+        </label>
+        <label>
+          Folios
+          <select
+            [value]="config.folioMode"
+            (change)="patch({ folioMode: $any($event.target).value })"
+          >
+            @for (mode of definition.folioModes; track mode) {
+              <option [value]="mode">{{ mode }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          Identificador fiscal
+          <input
+            maxlength="32"
+            [value]="config.taxIdentifier || ''"
+            (input)="patch({ taxIdentifier: $any($event.target).value || null })"
+          />
+        </label>
+        <label>
+          Secret del certificado
+          <input
+            [value]="config.certificateSecretReference || ''"
+            (input)="patch({ certificateSecretReference: $any($event.target).value || null })"
+          />
+        </label>
+        <label>
+          Secret de llave privada
+          <input
+            [value]="config.privateKeySecretReference || ''"
+            (input)="patch({ privateKeySecretReference: $any($event.target).value || null })"
+          />
+        </label>
+        <label>
+          Secret de autorización de folios
+          <input
+            [value]="config.folioAuthorizationSecretReference || ''"
+            (input)="
+              patch({ folioAuthorizationSecretReference: $any($event.target).value || null })
+            "
+          />
+        </label>
+      </div>
+
+      <fieldset>
+        <legend>Tipos documentales</legend>
+        @for (document of definition.documentTypes; track document.type) {
+          <label>
+            <input
+              type="checkbox"
+              [checked]="config.documentTypes.includes(document.type)"
+              (change)="toggleDocument(document.type, $any($event.target).checked)"
+            />
+            {{ document.label }} ({{ document.countryCode }})
+          </label>
+        }
+      </fieldset>
+
+      <fieldset>
+        <legend>Impuestos</legend>
+        @for (tax of definition.taxes; track tax.code) {
+          <label>
+            <input
+              type="checkbox"
+              [checked]="config.taxCodes.includes(tax.code)"
+              (change)="toggleTax(tax.code, $any($event.target).checked)"
+            />
+            {{ tax.label }}
+          </label>
+        }
+      </fieldset>
+
+      <label class="enabled">
+        <input
+          type="checkbox"
+          [checked]="config.enabled"
+          (change)="patch({ enabled: $any($event.target).checked })"
+        />
+        Habilitar contrato para el futuro adaptador
+      </label>
+
+      @if (validation(); as state) {
+        <div class="validation" [class.ready]="state.valid">
+          <strong>{{ state.valid ? 'Contrato completo' : 'Contrato incompleto' }}</strong>
+          <span>Runtime: {{ state.runtime }}; no hay emisión activa.</span>
+          @for (requirement of state.missingRequirements; track requirement) {
+            <span>Falta: {{ requirementLabel(requirement) }}</span>
+          }
+          @for (selection of state.incompatibleSelections; track selection) {
+            <span>Incompatible: {{ selection }}</span>
+          }
+        </div>
+      }
+
+      <button type="button" (click)="save()" [disabled]="saving()">
+        {{ saving() ? 'Guardando…' : 'Guardar contrato' }}
+      </button>
+      @if (config.updatedAt) {
+        <small>Actualizado {{ config.updatedAt | date: 'short' }}</small>
+      }
+    }
+  }
+</section>
