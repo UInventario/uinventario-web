@@ -70,6 +70,9 @@ describe('ApplicationPage', () => {
     closeShift: ReturnType<typeof vi.fn>;
     quote: ReturnType<typeof vi.fn>;
     getPaymentOptions: ReturnType<typeof vi.fn>;
+    startTerminalPayment: ReturnType<typeof vi.fn>;
+    getTerminalPayment: ReturnType<typeof vi.fn>;
+    cancelTerminalPayment: ReturnType<typeof vi.fn>;
     createSale: ReturnType<typeof vi.fn>;
     createCashSale: ReturnType<typeof vi.fn>;
     voidSale: ReturnType<typeof vi.fn>;
@@ -329,6 +332,9 @@ describe('ApplicationPage', () => {
           meta: { apiVersion: '1' },
         }),
       ),
+      startTerminalPayment: vi.fn(),
+      getTerminalPayment: vi.fn(),
+      cancelTerminalPayment: vi.fn(),
       createSale: vi.fn(),
       createCashSale: vi.fn(),
       voidSale: vi.fn(),
@@ -2276,7 +2282,7 @@ describe('ApplicationPage', () => {
     expect(fixture.nativeElement.textContent).toContain('Sólo efectivo, sin sobreventa');
   });
 
-  it('submits referenced and mixed payments and explains a simulated rejection', () => {
+  it('captures card payments through the terminal before submitting a mixed sale', () => {
     const product = {
       id: 'product',
       name: 'Café',
@@ -2332,48 +2338,87 @@ describe('ApplicationPage', () => {
     component.paymentRows.at(0).controls.method.setValue('CARD');
     component.changePaymentMethod(0);
     component.paymentRows.at(0).controls.amount.setValue('116.00');
-    component.paymentRows.at(0).controls.reference.setValue('DECLINE-001');
-    pos.createSale.mockReturnValue(
-      throwError(
-        () =>
-          new HttpErrorResponse({
-            status: 409,
-            error: { code: 'PAYMENT_DECLINED' },
-          }),
-      ),
+    pos.startTerminalPayment.mockReturnValue(
+      of({
+        data: {
+          id: 'terminal-declined',
+          provider: 'SIMULATOR',
+          providerReference: 'TERM-DECLINED',
+          amount: '116.00',
+          currency: 'MXN',
+          status: 'DECLINED',
+          errorCode: 'SIMULATED_DECLINE',
+          saleId: null,
+        },
+        meta: { apiVersion: '1', idempotentReplay: false },
+      }),
     );
 
     fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain('Autorización simulada');
+    expect(fixture.nativeElement.textContent).toContain('UInventario no solicita');
     component.completeCashSale();
     fixture.detectChanges();
 
-    expect(pos.createSale).toHaveBeenCalledWith(
-      {
-        lines: [{ productId: 'product', quantity: '1' }],
-        payments: [{ method: 'CARD', amount: '116.00', reference: 'DECLINE-001' }],
-      },
-      expect.stringMatching(/^web-sale-/),
-    );
-    expect(fixture.nativeElement.textContent).toContain('El pago fue rechazado');
+    expect(pos.createSale).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('terminal rechazó el pago');
 
-    component.paymentRows.at(0).controls.reference.setValue('CARD-OK-001');
     component.addPayment();
     component.paymentRows.at(0).controls.amount.setValue('56.00');
     component.paymentRows.at(1).controls.amount.setValue('60.00');
     component.paymentRows.at(1).controls.amountReceived.setValue('70.00');
-    pos.createSale.mockReturnValue(new Subject());
+    pos.startTerminalPayment.mockReturnValue(
+      of({
+        data: {
+          id: 'terminal-captured',
+          provider: 'SIMULATOR',
+          providerReference: 'TERM-CAPTURED',
+          amount: '56.00',
+          currency: 'MXN',
+          status: 'CAPTURED',
+          errorCode: null,
+          saleId: null,
+        },
+        meta: { apiVersion: '1', idempotentReplay: false },
+      }),
+    );
+    pos.createSale.mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 0, statusText: 'Lost response' })),
+    );
     component.completeCashSale();
 
+    expect(pos.startTerminalPayment).toHaveBeenLastCalledWith(
+      { amount: '56.00', currency: 'MXN', scenario: 'SUCCESS' },
+      expect.stringMatching(/^terminal-web-sale-/),
+    );
     expect(pos.createSale).toHaveBeenLastCalledWith(
       {
         lines: [{ productId: 'product', quantity: '1' }],
         payments: [
-          { method: 'CARD', amount: '56.00', reference: 'CARD-OK-001' },
+          {
+            method: 'CARD',
+            amount: '56.00',
+            terminalOperationId: 'terminal-captured',
+            reference: undefined,
+          },
           { method: 'CASH', amount: '60.00', amountReceived: '70.00' },
         ],
       },
       expect.stringMatching(/^web-sale-/),
+    );
+
+    const terminalKey = pos.startTerminalPayment.mock.calls.at(-1)?.[1] as string;
+    const saleKey = pos.createSale.mock.calls.at(-1)?.[1] as string;
+    pos.createSale.mockReturnValue(new Subject());
+    component.completeCashSale();
+
+    expect(pos.startTerminalPayment.mock.calls.at(-1)?.[1]).toBe(terminalKey);
+    expect(pos.createSale.mock.calls.at(-1)?.[1]).toBe(saleKey);
+    expect(pos.createSale.mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({
+        payments: expect.arrayContaining([
+          expect.objectContaining({ terminalOperationId: 'terminal-captured' }),
+        ]),
+      }),
     );
   });
 
