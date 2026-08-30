@@ -2,6 +2,28 @@ import { Routes } from '@angular/router';
 
 export const routes: Routes = [
   {
+    path: 'registro',
+    title: 'Crear cuenta | UInventario',
+    loadChildren: () =>
+      import('./features/identity/identity.routes').then((module) => module.REGISTRATION_ROUTES),
+  },
+  {
+    path: 'recuperar',
+    title: 'Recuperar contraseña | UInventario',
+    loadChildren: () =>
+      import('./features/identity/identity.routes').then(
+        (module) => module.PASSWORD_RESET_REQUEST_ROUTES,
+      ),
+  },
+  {
+    path: 'restablecer',
+    title: 'Restablecer contraseña | UInventario',
+    loadChildren: () =>
+      import('./features/identity/identity.routes').then(
+        (module) => module.PASSWORD_RESET_COMPLETE_ROUTES,
+      ),
+  },
+  {
     path: '',
     loadComponent: () => import('./shell/app-shell/app-shell').then((module) => module.AppShell),
     children: [
