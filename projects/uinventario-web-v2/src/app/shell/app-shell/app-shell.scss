@@ -81,6 +81,25 @@
   gap: calc(var(--spacing) * 3);
 }
 
+.session-context {
+  line-height: 1.2;
+  text-align: right;
+
+  strong,
+  small {
+    display: block;
+  }
+
+  strong {
+    color: var(--p-text-color);
+    font-weight: 700;
+  }
+}
+
+.logout-button {
+  gap: calc(var(--spacing) * 2);
+}
+
 .navigation-toggle {
   background: transparent;
   border: 0;
@@ -191,7 +210,11 @@
     padding: 0 calc(var(--spacing) * 3);
   }
 
-  .topbar-context span {
+  .session-context {
+    display: none;
+  }
+
+  .logout-button span {
     display: none;
   }
 

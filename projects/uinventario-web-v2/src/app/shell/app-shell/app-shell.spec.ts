@@ -1,6 +1,9 @@
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
+import { of } from 'rxjs';
+import { SessionManager } from '../../core/session/session-manager';
+import { SessionState } from '../../core/session/session-state';
 import { AppShell } from './app-shell';
 
 @Component({ template: '<p>Contenido</p>' })
@@ -14,6 +17,16 @@ describe('AppShell', () => {
     await TestBed.configureTestingModule({
       imports: [AppShell],
       providers: [
+        {
+          provide: SessionState,
+          useValue: {
+            session: () => ({
+              tenant: { id: 'tenant-1', name: 'Tienda Central' },
+              context: { branch: { id: 'branch-1', name: 'Principal' } },
+            }),
+          },
+        },
+        { provide: SessionManager, useValue: { logout: vi.fn(() => of(undefined)) } },
         provideRouter([
           { path: 'dashboard', component: StubWorkspace },
           { path: 'ventas', component: StubWorkspace },

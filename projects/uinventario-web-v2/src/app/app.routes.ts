@@ -1,6 +1,13 @@
 import { Routes } from '@angular/router';
+import { sessionGuard } from './core/session/session.guard';
 
 export const routes: Routes = [
+  {
+    path: 'login',
+    title: 'Iniciar sesión | UInventario',
+    loadChildren: () =>
+      import('./features/identity/identity.routes').then((module) => module.LOGIN_ROUTES),
+  },
   {
     path: 'registro',
     title: 'Crear cuenta | UInventario',
@@ -25,6 +32,7 @@ export const routes: Routes = [
   },
   {
     path: '',
+    canActivate: [sessionGuard],
     loadComponent: () => import('./shell/app-shell/app-shell').then((module) => module.AppShell),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },

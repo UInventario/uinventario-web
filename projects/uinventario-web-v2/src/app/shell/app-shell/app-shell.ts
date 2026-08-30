@@ -2,7 +2,10 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
+import { ButtonModule } from 'primeng/button';
 import { TagModule } from 'primeng/tag';
+import { SessionManager } from '../../core/session/session-manager';
+import { SessionState } from '../../core/session/session-state';
 import { Ribbon } from '../../shared/ui/ribbon/ribbon';
 import {
   ribbonForWorkspace,
@@ -12,16 +15,20 @@ import {
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Ribbon, RouterLink, RouterLinkActive, RouterOutlet, TagModule],
+  imports: [ButtonModule, Ribbon, RouterLink, RouterLinkActive, RouterOutlet, TagModule],
   selector: 'ui-app-shell',
   styleUrl: './app-shell.scss',
   templateUrl: './app-shell.html',
 })
 export class AppShell {
   private readonly router = inject(Router);
+  private readonly sessionManager = inject(SessionManager);
+  private readonly sessionState = inject(SessionState);
 
   protected readonly navigation = WORKSPACE_NAVIGATION;
+  protected readonly session = this.sessionState.session;
   protected readonly navigationOpen = signal(false);
+  protected readonly loggingOut = signal(false);
   protected readonly activeRibbonTab = signal('');
   protected readonly commandStatus = signal('');
   protected readonly currentUrl = toSignal(
@@ -47,5 +54,13 @@ export class AppShell {
 
   protected closeNavigation(): void {
     this.navigationOpen.set(false);
+  }
+
+  protected logout(): void {
+    if (this.loggingOut()) return;
+    this.loggingOut.set(true);
+    this.sessionManager.logout().subscribe({
+      error: () => this.loggingOut.set(false),
+    });
   }
 }
