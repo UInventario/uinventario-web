@@ -57,6 +57,16 @@
           Compras</label
         >
       }
+      @if (canViewForecast()) {
+        <label
+          ><input
+            type="checkbox"
+            [checked]="widgetEnabled('forecast')"
+            (change)="toggleWidget('forecast', $event)"
+          />
+          Pronóstico</label
+        >
+      }
       <label
         ><input
           type="checkbox"
@@ -175,6 +185,77 @@
           }}</span>
           <a routerLink="/app" fragment="purchase-orders-title">Abrir órdenes de compra</a>
           <small>Consultado {{ purchaseUpdatedAt() | date: 'short' }}</small>
+        }
+      </article>
+    }
+
+    @if (canViewForecast() && widgetEnabled('forecast')) {
+      <article
+        class="forecast"
+        aria-describedby="dashboard-forecast-definition"
+        [attr.aria-busy]="forecastLoading()"
+      >
+        <h2>Demanda y reposición</h2>
+        <p id="dashboard-forecast-definition" class="definition">
+          Línea base explicable; sugiere cantidades y nunca crea compras ni ajustes.
+        </p>
+        <label class="forecast-horizon">
+          Horizonte
+          <select [value]="forecastHorizon()" (change)="setForecastHorizon($event)">
+            <option value="7">7 días</option>
+            <option value="14">14 días</option>
+            <option value="30">30 días</option>
+          </select>
+        </label>
+        <button
+          type="button"
+          class="secondary"
+          [disabled]="forecastLoading()"
+          (click)="generateForecast()"
+        >
+          {{ forecastLoading() ? 'Calculando…' : 'Generar pronóstico' }}
+        </button>
+        @if (forecastError()) {
+          <p class="error" role="alert">{{ forecastError() }}</p>
+        } @else if (forecast(); as report) {
+          @if (report.status === 'INSUFFICIENT') {
+            <strong class="warning">Información insuficiente</strong>
+            <span>
+              Se requieren por producto al menos 42 días de cobertura, 12 días con demanda y 20
+              unidades.
+            </span>
+          } @else if (topForecast(); as item) {
+            <strong class="metric">{{ item.forecast!.suggestedReorderQuantity }}</strong>
+            <span>Sugerencia para {{ item.product.name }} ({{ item.product.sku }})</span>
+            <span>
+              Demanda {{ item.forecast!.expectedDemand }}; intervalo aproximado 80%
+              {{ item.forecast!.interval.lower }}–{{ item.forecast!.interval.upper }}.
+            </span>
+            <span [class.warning]="item.quality.drift.status === 'WARNING'">
+              Backtest MAE {{ item.quality.backtest.meanAbsoluteError }} · drift
+              {{ item.quality.drift.status }}
+            </span>
+          }
+          <span>
+            {{ report.summary.sufficient }} con datos suficientes ·
+            {{ report.summary.insufficient }} insuficiente(s) ·
+            {{ report.summary.driftWarnings }} alerta(s) de drift
+          </span>
+          <details>
+            <summary>Supuestos y calidad</summary>
+            <ul>
+              @for (assumption of report.assumptions; track assumption) {
+                <li>{{ assumption }}</li>
+              }
+            </ul>
+            <small>
+              Modelo {{ report.model }} · horizonte {{ report.horizonDays }} días · sucursal
+              {{ report.branch.name }} ({{ report.branch.timezone }}) · generado
+              {{ report.generatedAt | date: 'short' }}
+            </small>
+          </details>
+        } @else if (!forecastLoading()) {
+          <p>Aún no hay pronóstico. Genéralo cuando quieras evaluar reposición.</p>
         }
       </article>
     }

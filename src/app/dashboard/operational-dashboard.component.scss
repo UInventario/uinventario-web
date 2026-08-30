@@ -53,11 +53,25 @@ small {
   font-size: 0.85rem;
   font-weight: 700;
 }
-input[type='date'] {
+input[type='date'],
+select {
   min-height: 2.6rem;
   padding: 0.5rem;
   border: 1px solid #b8c7d3;
   border-radius: 0.5rem;
+}
+.forecast {
+  grid-column: span 2;
+}
+.forecast-horizon {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.forecast details ul {
+  margin: 0.5rem 0;
+  padding-left: 1.2rem;
 }
 fieldset {
   flex: 1 1 28rem;
@@ -146,5 +160,8 @@ input:focus-visible {
   fieldset {
     flex-basis: 100%;
     padding: 0;
+  }
+  .forecast {
+    grid-column: span 1;
   }
 }

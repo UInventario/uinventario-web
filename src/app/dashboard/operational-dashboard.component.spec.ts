@@ -9,6 +9,7 @@ import { OfflineStoreService } from '../offline/offline-store.service';
 import { PosApiService } from '../pos/pos-api.service';
 import { PurchaseOrderApiService } from '../procurement/purchase-order-api.service';
 import { OperationalDashboardComponent } from './operational-dashboard.component';
+import { DemandForecastApiService } from '../forecasting/demand-forecast-api.service';
 
 describe('OperationalDashboardComponent', () => {
   let fixture: ComponentFixture<OperationalDashboardComponent>;
@@ -19,6 +20,10 @@ describe('OperationalDashboardComponent', () => {
   };
   let inventory: { listStockAlerts: ReturnType<typeof vi.fn> };
   let purchases: { list: ReturnType<typeof vi.fn> };
+  let forecasts: {
+    latest: ReturnType<typeof vi.fn>;
+    generate: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(async () => {
     localStorage.clear();
@@ -124,6 +129,26 @@ describe('OperationalDashboardComponent', () => {
         }),
       ),
     };
+    forecasts = {
+      latest: vi.fn().mockReturnValue(of({ data: null, meta: { apiVersion: '1' } })),
+      generate: vi.fn().mockReturnValue(
+        of({
+          data: {
+            id: 'forecast-1',
+            branch: { id: 'branch', name: 'Centro', timezone: 'America/Mexico_City' },
+            status: 'INSUFFICIENT',
+            asOfDate: '2026-08-29',
+            horizonDays: 14,
+            model: 'WEEKDAY_BASELINE_V1',
+            assumptions: ['Nunca crea una compra.'],
+            generatedAt: '2026-08-29T12:00:00.000Z',
+            items: [],
+            summary: { sufficient: 0, insufficient: 1, driftWarnings: 0 },
+          },
+          meta: { apiVersion: '1', idempotentReplay: false },
+        }),
+      ),
+    };
     await TestBed.configureTestingModule({
       imports: [OperationalDashboardComponent],
       providers: [
@@ -133,6 +158,7 @@ describe('OperationalDashboardComponent', () => {
         { provide: PosApiService, useValue: pos },
         { provide: InventoryApiService, useValue: inventory },
         { provide: PurchaseOrderApiService, useValue: purchases },
+        { provide: DemandForecastApiService, useValue: forecasts },
         {
           provide: OfflineStoreService,
           useValue: {
@@ -167,6 +193,7 @@ describe('OperationalDashboardComponent', () => {
     expect(text).toMatch(/Compras[\s\S]*3Órdenes registradas/);
     expect(text).toContain('Vigente');
     expect(text).toContain('1 pendiente(s) · 1 conflicto(s)');
+    expect(text).toContain('Aún no hay pronóstico');
     expect(pos.salesCashReport).toHaveBeenCalledWith(
       expect.objectContaining({ branchId: 'branch', status: 'ALL', page: 1, pageSize: 1 }),
     );
@@ -191,6 +218,27 @@ describe('OperationalDashboardComponent', () => {
     expect(pos.profitabilityReport).not.toHaveBeenCalled();
     expect(inventory.listStockAlerts).not.toHaveBeenCalled();
     expect(purchases.list).not.toHaveBeenCalled();
+    expect(forecasts.latest).not.toHaveBeenCalled();
+  });
+
+  it('generates a conservative forecast and makes insufficient data explicit', async () => {
+    fixture = TestBed.createComponent(OperationalDashboardComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const button = [...fixture.nativeElement.querySelectorAll('button')].find(
+      (candidate: HTMLButtonElement) => candidate.textContent?.includes('Generar pronóstico'),
+    ) as HTMLButtonElement;
+    button.click();
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(forecasts.generate).toHaveBeenCalledWith(
+      14,
+      expect.stringMatching(/^web-demand-forecast-/),
+    );
+    expect(text).toContain('Información insuficiente');
+    expect(text).toContain('42 días de cobertura');
+    expect(text).toContain('Nunca crea una compra.');
   });
 
   it('persists personal widget visibility', async () => {
