@@ -1,0 +1,128 @@
+<div class="backdrop" (click)="closed.emit()">
+  <section
+    class="dialog wide"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="receipt-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <p>Entrada de inventario</p>
+        <h2 id="receipt-title">Recibir {{ order().folio }}</h2>
+      </div>
+      <button class="icon" type="button" aria-label="Cerrar" (click)="closed.emit()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <div class="field">
+        <label for="purchaseReceiptLocation">Ubicación de recepción</label>
+        <select id="purchaseReceiptLocation" formControlName="locationId">
+          <option value="">Selecciona una ubicación</option>
+          @for (location of locations(); track location.id) {
+            <option [value]="location.id">{{ location.code }} · {{ location.name }}</option>
+          }
+        </select>
+      </div>
+      <div class="field">
+        <label for="purchaseReceiptDocument">Documento o remisión</label>
+        <input id="purchaseReceiptDocument" formControlName="documentReference" maxlength="160" />
+      </div>
+      <div class="section-heading full">
+        <div>
+          <h3>Productos confirmados físicamente</h3>
+          <span class="hint">Puedes dejar una cantidad vacía para no recibir esa línea.</span>
+        </div>
+      </div>
+      <div class="line-grid full" formArrayName="lines">
+        @for (line of lines.controls; track line; let index = $index) {
+          <fieldset class="line-card receipt-line" [formGroupName]="index">
+            <div class="line-title">
+              <strong>{{ orderLine(index).productSku }} · {{ orderLine(index).productName }}</strong
+              ><small
+                >Ordenado {{ orderLine(index).quantity }} · acumulado
+                {{ orderLine(index).receivedQuantity }} · pendiente
+                {{ orderLine(index).remainingQuantity }}</small
+              >
+            </div>
+            <div class="field">
+              <label [for]="'purchaseReceiptQuantity' + index">Cantidad recibida</label>
+              <input
+                [id]="'purchaseReceiptQuantity' + index"
+                inputmode="decimal"
+                formControlName="receivedQuantity"
+              />
+            </div>
+            <div class="field">
+              <label [for]="'purchaseReceiptLot' + index">Lote</label>
+              <input
+                [id]="'purchaseReceiptLot' + index"
+                formControlName="lotCode"
+                maxlength="64"
+                placeholder="Cuando aplique"
+              />
+            </div>
+            <div class="field">
+              <label [for]="'purchaseReceiptSerials' + index">Series, una por línea</label>
+              <textarea
+                class="serials"
+                [id]="'purchaseReceiptSerials' + index"
+                formControlName="serialNumbers"
+                rows="2"
+                placeholder="Cuando aplique"
+              ></textarea>
+            </div>
+            <div class="field">
+              <label [for]="'purchaseReceiptManufactured' + index">Fabricación</label>
+              <input
+                [id]="'purchaseReceiptManufactured' + index"
+                type="date"
+                formControlName="manufacturedOn"
+              />
+            </div>
+            <div class="field">
+              <label [for]="'purchaseReceiptExpires' + index">Caducidad</label>
+              <input
+                [id]="'purchaseReceiptExpires' + index"
+                type="date"
+                formControlName="expiresOn"
+              />
+            </div>
+          </fieldset>
+        }
+      </div>
+      <div class="field full">
+        <label for="purchaseReceiptOverage">Explicación de sobrante</label>
+        <textarea
+          id="purchaseReceiptOverage"
+          formControlName="overageReason"
+          maxlength="500"
+          placeholder="Obligatoria cuando una cantidad supera lo pendiente"
+        ></textarea>
+        @if (!canOverReceive()) {
+          <span class="hint"
+            >Tu permiso sólo admite cantidades hasta el pendiente de la orden.</span
+          >
+        }
+      </div>
+      @if (form.touched && form.invalid) {
+        <div class="notice error full" role="alert">
+          Revisa ubicación, documento y cantidades recibidas.
+        </div>
+      }
+      @if (localError()) {
+        <div class="notice error full" role="alert">{{ localError() }}</div>
+      }
+      @if (error()) {
+        <div class="notice error full" role="alert">{{ error() }}</div>
+      }
+      <footer class="actions full">
+        <button class="secondary" type="button" (click)="closed.emit()">Cancelar</button>
+        <button class="primary" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Registrando…' : 'Confirmar recepción' }}
+        </button>
+      </footer>
+    </form>
+  </section>
+</div>

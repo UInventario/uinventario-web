@@ -1,0 +1,33 @@
+@media (max-width: 54rem) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+  .workspace.has-selection ui-order-list {
+    display: none;
+  }
+  .workspace:not(.has-selection) ui-order-detail {
+    display: none;
+  }
+  .workspace.has-selection .back-to-list {
+    display: inline-flex;
+    justify-self: start;
+    align-items: center;
+    gap: 0.45rem;
+  }
+}
+
+@media (max-width: 42rem) {
+  .page-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .page-header > .primary {
+    width: 100%;
+  }
+  .page-icon {
+    display: none;
+  }
+  .title-group h1 {
+    font-size: 2rem;
+  }
+}

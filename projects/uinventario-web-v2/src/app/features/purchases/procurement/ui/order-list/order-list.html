@@ -1,0 +1,53 @@
+<section class="list" aria-label="Órdenes de compra">
+  <header>
+    <strong>Órdenes</strong>
+    <span>{{ page()?.pagination?.total || 0 }} registro(s)</span>
+  </header>
+  @if (loading()) {
+    <div class="state" role="status"><i class="pi pi-spin pi-spinner"></i> Cargando órdenes…</div>
+  } @else if (!page()?.orders?.length) {
+    <div class="state">
+      <i class="pi pi-file-edit"></i>
+      <strong>Sin órdenes</strong>
+      <span>Crea un borrador para iniciar el abastecimiento.</span>
+    </div>
+  } @else {
+    <div class="items">
+      @for (order of page()!.orders; track order.id) {
+        <button
+          type="button"
+          class="order"
+          [class.selected]="order.id === selectedId()"
+          (click)="selected.emit(order)"
+        >
+          <span class="topline">
+            <strong>{{ order.folio }}</strong>
+            <small [attr.data-status]="order.status">{{ statusLabel(order.status) }}</small>
+          </span>
+          <span class="supplier">{{ order.supplier.name }}</span>
+          <span class="meta">
+            <small>{{ order.lines.length }} producto(s)</small>
+            <strong>{{ order.currency }} {{ order.total }}</strong>
+          </span>
+        </button>
+      }
+    </div>
+    <footer>
+      <button
+        type="button"
+        [disabled]="page()!.pagination.page <= 1"
+        (click)="pageChanged.emit(page()!.pagination.page - 1)"
+      >
+        <i class="pi pi-chevron-left"></i>
+      </button>
+      <span>{{ page()!.pagination.page }} / {{ page()!.pagination.totalPages || 1 }}</span>
+      <button
+        type="button"
+        [disabled]="page()!.pagination.page >= page()!.pagination.totalPages"
+        (click)="pageChanged.emit(page()!.pagination.page + 1)"
+      >
+        <i class="pi pi-chevron-right"></i>
+      </button>
+    </footer>
+  }
+</section>
