@@ -54,14 +54,23 @@ export interface PosCartQuote {
   discount: AppliedSaleDiscount | null;
   loyalty?: LoyaltyQuoteData | null;
   lines: Array<{
-    product: { id: string; name: string; sku: string };
+    product: {
+      id: string;
+      name: string;
+      sku: string;
+      withoutCode?: boolean;
+      stockBehavior?: 'TRACKED' | 'UNTRACKED';
+      taxBehavior?: 'STANDARD' | 'EXEMPT';
+    };
     quantity: string;
+    note?: string | null;
     lotId?: string | null;
     expiredLotOverrideReason?: string | null;
     serialNumbers?: string[];
     availableQuantity: string;
     unitPrice: string;
-    priceSource: 'BASE' | 'PRICE_LIST';
+    priceSource: 'BASE' | 'PRICE_LIST' | 'MANUAL';
+    priceOverrideReason?: string | null;
     priceList: { id: string; name: string } | null;
     grossTotal: string;
     discount: {
@@ -280,8 +289,12 @@ export interface SaleReceiptData {
     lineNumber: number;
     productName: string;
     productSku: string;
+    withoutCode?: boolean;
+    note?: string | null;
     quantity: string;
     unitPrice: string;
+    priceSource?: 'BASE' | 'PRICE_LIST' | 'MANUAL';
+    priceOverrideReason?: string | null;
     grossTotal: string;
     discountTotal: string;
     lineDiscountReason: string | null;
@@ -628,6 +641,9 @@ export class PosApiService {
     lines: Array<{
       productId: string;
       quantity: string;
+      note?: string;
+      manualUnitPrice?: string;
+      priceOverrideReason?: string;
       lotId?: string;
       expiredLotOverrideReason?: string;
       serialNumbers?: string[];
@@ -664,6 +680,9 @@ export class PosApiService {
       lines: Array<{
         productId: string;
         quantity: string;
+        note?: string;
+        manualUnitPrice?: string;
+        priceOverrideReason?: string;
         lotId?: string;
         expiredLotOverrideReason?: string;
         serialNumbers?: string[];

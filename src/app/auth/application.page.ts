@@ -113,6 +113,9 @@ const PAYMENT_REFERENCE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]{3,119}$/;
 interface CartEntry {
   product: ProductData;
   quantity: string;
+  note?: string;
+  manualUnitPrice?: string;
+  priceOverrideReason?: string;
   lotId: string;
   lots: InventoryLotData[];
   serialNumbers: string;
@@ -281,6 +284,9 @@ export class ApplicationPage implements OnInit {
   );
   protected readonly canApplyDiscount = computed(
     () => this.session()?.user.permissions.includes('SALES_DISCOUNT') ?? false,
+  );
+  protected readonly canOverridePrice = computed(
+    () => this.session()?.user.permissions.includes('SALES_PRICE_OVERRIDE') ?? false,
   );
   protected readonly canOverrideExpiredStock = computed(
     () => this.session()?.user.permissions.includes('INVENTORY_EXPIRED_STOCK_OVERRIDE') ?? false,
@@ -641,7 +647,10 @@ export class ApplicationPage implements OnInit {
   });
   protected readonly form = this.formBuilder.nonNullable.group({
     name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
-    sku: ['', [Validators.required, Validators.pattern(SKU_PATTERN)]],
+    sku: ['', [Validators.pattern(SKU_PATTERN)]],
+    withoutCode: [false],
+    stockBehavior: ['TRACKED' as 'TRACKED' | 'UNTRACKED'],
+    taxBehavior: ['STANDARD' as 'STANDARD' | 'EXEMPT'],
     barcode: ['', [Validators.pattern(BARCODE_PATTERN)]],
     categoryName: ['', [Validators.minLength(2), Validators.maxLength(80)]],
     brandName: ['', [Validators.minLength(2), Validators.maxLength(120)]],
@@ -764,6 +773,9 @@ export class ApplicationPage implements OnInit {
   }
 
   protected submit(): void {
+    if (!this.form.controls.withoutCode.value && !this.form.controls.sku.value.trim()) {
+      this.form.controls.sku.setErrors({ required: true });
+    }
     if (this.form.invalid || this.saving()) {
       this.form.markAllAsTouched();
       return;
@@ -800,7 +812,10 @@ export class ApplicationPage implements OnInit {
     this.editingProduct.set(product);
     this.form.reset({
       name: product.name,
-      sku: product.sku,
+      sku: product.withoutCode ? '' : product.sku,
+      withoutCode: product.withoutCode ?? false,
+      stockBehavior: product.stockBehavior ?? 'TRACKED',
+      taxBehavior: product.taxBehavior ?? 'STANDARD',
       barcode: product.barcode ?? '',
       categoryName: product.category?.name ?? '',
       brandName: product.brand?.name ?? '',
@@ -1737,6 +1752,9 @@ export class ApplicationPage implements OnInit {
             {
               product,
               quantity: product.minimumQuantity ?? '0.001',
+              note: '',
+              manualUnitPrice: '',
+              priceOverrideReason: '',
               lotId: '',
               lots: [],
               serialNumbers: '',
@@ -1816,6 +1834,34 @@ export class ApplicationPage implements OnInit {
     this.cart.update((entries) =>
       entries.map((entry) =>
         entry.product.id === productId ? { ...entry, serialNumbers } : entry,
+      ),
+    );
+    this.quoteCart();
+  }
+
+  protected updateProductCodeMode(withoutCode: boolean): void {
+    if (withoutCode) this.form.controls.sku.setValue('');
+    this.form.controls.sku.setErrors(null);
+    this.form.controls.sku.updateValueAndValidity();
+  }
+
+  protected updateProductStockBehavior(behavior: 'TRACKED' | 'UNTRACKED'): void {
+    if (behavior === 'UNTRACKED') {
+      this.form.controls.trackLots.setValue(false);
+      this.form.controls.trackSerials.setValue(false);
+    }
+  }
+
+  protected updateCartLineDetail(
+    productId: string,
+    field: 'note' | 'manualUnitPrice' | 'priceOverrideReason',
+    value: string,
+  ): void {
+    if (field !== 'note' && !this.canOverridePrice()) return;
+    this.resetCompletedSale();
+    this.cart.update((entries) =>
+      entries.map((entry) =>
+        entry.product.id === productId ? { ...entry, [field]: value } : entry,
       ),
     );
     this.quoteCart();
@@ -1982,6 +2028,11 @@ export class ApplicationPage implements OnInit {
       if (discount || lines.some((line) => Boolean(line.discount))) {
         this.pendingSale = null;
         this.posError.set('Los descuentos requieren conexión para validar permisos y límites.');
+        return;
+      }
+      if (lines.some((line) => Boolean(line.note || line.manualUnitPrice))) {
+        this.pendingSale = null;
+        this.posError.set('Las notas y los precios manuales requieren conexiÃ³n al servidor.');
         return;
       }
       if (input.loyaltyPointsToRedeem) {
@@ -2200,6 +2251,9 @@ export class ApplicationPage implements OnInit {
                 version: 0,
               },
               quantity: line.quantity,
+              note: '',
+              manualUnitPrice: '',
+              priceOverrideReason: '',
               lotId: line.lotId ?? '',
               lots: [],
               serialNumbers: line.serialNumbers.join('\n'),
@@ -3038,6 +3092,7 @@ export class ApplicationPage implements OnInit {
       SALES_VOID: 'Anular ventas',
       SALES_RETURN: 'Registrar devoluciones y cambios',
       SALES_DISCOUNT: 'Aplicar descuentos',
+      SALES_PRICE_OVERRIDE: 'Modificar precios de venta con motivo',
       SALES_CREDIT: 'Configurar y vender a crédito',
       SALE_REPRINT: 'Reimprimir comprobantes',
       CASH_DRAWER_OPEN: 'Abrir cajon de dinero',
@@ -3728,6 +3783,8 @@ export class ApplicationPage implements OnInit {
       return {
         productId: entry.product.id,
         quantity: entry.quantity,
+        ...(this.lineNoteInput(entry) ? { note: this.lineNoteInput(entry) } : {}),
+        ...this.priceOverrideInput(entry),
         ...(entry.lotId ? { lotId: entry.lotId } : {}),
         ...(this.isExpiredLotSelected(entry) ? this.expiredLotOverrideInput(entry) : {}),
         ...((entry.serialNumbers ?? '').trim()
@@ -3741,6 +3798,29 @@ export class ApplicationPage implements OnInit {
         ...(discount ? { discount } : {}),
       };
     });
+  }
+
+  private lineNoteInput(entry: CartEntry): string | undefined {
+    const note = (entry.note ?? '').replace(/\s+/g, ' ').trim();
+    if (!note) return undefined;
+    if (note.length > 240 || /\p{Cc}/u.test(note)) {
+      throw new Error('La nota de la lÃ­nea debe tener como mÃ¡ximo 240 caracteres vÃ¡lidos.');
+    }
+    return note;
+  }
+
+  private priceOverrideInput(entry: CartEntry): {
+    manualUnitPrice?: string;
+    priceOverrideReason?: string;
+  } {
+    const price = (entry.manualUnitPrice ?? '').trim();
+    const reason = (entry.priceOverrideReason ?? '').replace(/\s+/g, ' ').trim();
+    if (!price && !reason) return {};
+    if (!this.canOverridePrice()) throw new Error('No tienes permiso para modificar precios.');
+    if (!POSITIVE_MONEY_PATTERN.test(price) || reason.length < 3 || reason.length > 240) {
+      throw new Error('Captura un precio manual vÃ¡lido y un motivo de 3 a 240 caracteres.');
+    }
+    return { manualUnitPrice: price, priceOverrideReason: reason };
   }
 
   private expiredLotOverrideInput(entry: CartEntry): { expiredLotOverrideReason: string } {
@@ -3851,6 +3931,16 @@ export class ApplicationPage implements OnInit {
     this.quotingCart.set(true);
     this.posError.set(null);
     try {
+      if (
+        this.cart().some(
+          (entry) =>
+            entry.note?.trim() ||
+            entry.manualUnitPrice?.trim() ||
+            entry.priceOverrideReason?.trim(),
+        )
+      ) {
+        throw new Error('Las notas y los precios manuales requieren conexiÃ³n al servidor.');
+      }
       const quote = await this.offlinePos.quote(
         this.cart().map((entry) => ({
           productId: entry.product.id,
@@ -4035,7 +4125,16 @@ export class ApplicationPage implements OnInit {
     const hadExpirationPolicy = (this.editingProduct()?.lotExpirationPolicy ?? 'NONE') !== 'NONE';
     return {
       name: value.name.trim(),
-      sku: value.sku.trim(),
+      ...(value.withoutCode ? {} : { sku: value.sku.trim() }),
+      ...(value.withoutCode || this.editingProduct()?.withoutCode
+        ? { withoutCode: value.withoutCode }
+        : {}),
+      ...(value.stockBehavior !== 'TRACKED' || this.editingProduct()?.stockBehavior === 'UNTRACKED'
+        ? { stockBehavior: value.stockBehavior }
+        : {}),
+      ...(value.taxBehavior !== 'STANDARD' || this.editingProduct()?.taxBehavior === 'EXEMPT'
+        ? { taxBehavior: value.taxBehavior }
+        : {}),
       ...(value.barcode.trim() ? { barcode: value.barcode.trim() } : {}),
       ...(value.categoryName.trim() ? { categoryName: value.categoryName.trim() } : {}),
       ...(value.brandName.trim() ? { brandName: value.brandName.trim() } : {}),
@@ -4066,6 +4165,9 @@ export class ApplicationPage implements OnInit {
     this.form.reset({
       name: '',
       sku: '',
+      withoutCode: product?.withoutCode ?? false,
+      stockBehavior: product?.stockBehavior ?? 'TRACKED',
+      taxBehavior: product?.taxBehavior ?? 'STANDARD',
       barcode: '',
       categoryName: product?.category?.name ?? '',
       brandName: product?.brand?.name ?? '',

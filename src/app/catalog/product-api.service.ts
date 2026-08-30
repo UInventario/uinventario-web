@@ -6,6 +6,9 @@ export interface ProductData {
   id: string;
   name: string;
   sku: string;
+  withoutCode?: boolean;
+  stockBehavior?: 'TRACKED' | 'UNTRACKED';
+  taxBehavior?: 'STANDARD' | 'EXEMPT';
   barcode: string | null;
   baseUnit?: ProductBaseUnit;
   quantityPrecision?: number;
@@ -54,7 +57,10 @@ export interface ProductVariantInput {
 
 export interface ProductInput {
   name: string;
-  sku: string;
+  sku?: string;
+  withoutCode?: boolean;
+  stockBehavior?: 'TRACKED' | 'UNTRACKED';
+  taxBehavior?: 'STANDARD' | 'EXEMPT';
   barcode?: string;
   baseUnit: ProductBaseUnit;
   quantityPrecision: number;
