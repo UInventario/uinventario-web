@@ -3,6 +3,9 @@ import { requireAnyPermission } from '../../core/authorization/permission.guard'
 import { InventoryFacade } from './application/inventory.facade';
 import { InventoryApi } from './data/inventory-api.service';
 import { InventoryGateway } from './domain/inventory.gateway';
+import { InventoryOperationsFacade } from './operations/application/inventory-operations.facade';
+import { InventoryOperationsApi } from './operations/data/inventory-operations-api.service';
+import { InventoryOperationsGateway } from './operations/domain/inventory-operations.gateway';
 import { ValuationFacade } from './valuation/application/valuation.facade';
 import { ValuationApi } from './valuation/data/valuation-api.service';
 import { ValuationGateway } from './valuation/domain/valuation.gateway';
@@ -18,6 +21,26 @@ export const INVENTORY_ROUTES: Routes = [
     ],
     loadComponent: () =>
       import('./ui/inventory-page/inventory-page').then((module) => module.InventoryPage),
+  },
+  {
+    path: 'control',
+    canActivate: [
+      requireAnyPermission(
+        'INVENTORY_VIEW',
+        'INVENTORY_COUNT',
+        'INVENTORY_APPROVE',
+        'INVENTORY_ADJUST',
+      ),
+    ],
+    providers: [
+      InventoryOperationsFacade,
+      InventoryOperationsApi,
+      { provide: InventoryOperationsGateway, useExisting: InventoryOperationsApi },
+    ],
+    loadComponent: () =>
+      import('./operations/ui/operations-page/operations-page').then(
+        (module) => module.OperationsPage,
+      ),
   },
   {
     path: 'valorizacion',

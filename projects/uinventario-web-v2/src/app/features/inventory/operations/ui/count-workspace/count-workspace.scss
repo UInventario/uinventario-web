@@ -1,0 +1,324 @@
+:host {
+  display: block;
+}
+.count-section {
+  display: grid;
+  gap: 14px;
+}
+.section-header,
+.detail-header,
+.progress,
+.notice,
+.product-search,
+.approval,
+.dialog > header,
+.dialog footer,
+.dialog footer > div {
+  align-items: center;
+  display: flex;
+}
+.section-header,
+.detail-header,
+.dialog > header,
+.dialog footer {
+  justify-content: space-between;
+}
+.section-header p,
+.section-header h2,
+.detail-header p,
+.detail-header h3,
+.dialog p,
+.dialog h2 {
+  margin: 0;
+}
+.section-header p,
+.dialog p {
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.section-header h2 {
+  font-size: 24px;
+  margin: 3px 0;
+}
+.section-header span,
+.detail-header span,
+label > span,
+.product span,
+.approval span {
+  color: var(--text-color-secondary);
+  font-size: 13px;
+}
+button {
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  min-height: 42px;
+  padding: 0 15px;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.primary {
+  background: var(--primary-color);
+  color: var(--primary-color-text);
+}
+.secondary,
+.icon {
+  background: var(--surface-ground);
+  color: var(--text-color);
+}
+.notice {
+  border-radius: 11px;
+  gap: 8px;
+  padding: 12px 15px;
+}
+.notice.success {
+  background: color-mix(in srgb, var(--green-500) 10%, transparent);
+  color: var(--green-700);
+}
+.notice.error {
+  background: color-mix(in srgb, var(--red-500) 10%, transparent);
+  color: var(--red-700);
+}
+.workspace {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(270px, 0.32fr) minmax(0, 1fr);
+}
+.back-to-list {
+  display: none;
+}
+.session-list,
+.session-detail,
+.detail-empty {
+  background: var(--surface-card);
+  border: 1px solid var(--surface-border);
+  border-radius: 15px;
+  overflow: hidden;
+}
+.session-list > header {
+  display: flex;
+  justify-content: space-between;
+  padding: 15px;
+}
+.session-list > button {
+  background: transparent;
+  border-radius: 0;
+  border-top: 1px solid var(--surface-border);
+  color: var(--text-color);
+  display: flex;
+  height: auto;
+  justify-content: space-between;
+  padding: 14px;
+  text-align: left;
+  width: 100%;
+}
+.session-list > button.selected {
+  background: var(--highlight-bg);
+  box-shadow: inset 3px 0 var(--primary-color);
+}
+.session-list button > span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.session-list small {
+  color: var(--text-color-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-list em,
+.status {
+  background: var(--orange-100);
+  border-radius: 999px;
+  color: var(--orange-700);
+  font-size: 11px;
+  font-style: normal;
+  padding: 5px 8px;
+  white-space: nowrap;
+}
+.session-list em.closed,
+.status.closed {
+  background: var(--green-100);
+  color: var(--green-700);
+}
+.detail-header {
+  border-bottom: 1px solid var(--surface-border);
+  padding: 20px;
+}
+.detail-header h3 {
+  font-size: 23px;
+  margin: 4px 0;
+}
+.progress {
+  gap: 15px;
+  padding: 14px 20px;
+}
+.progress > div {
+  background: var(--surface-ground);
+  border-radius: 999px;
+  flex: 1;
+  height: 7px;
+  overflow: hidden;
+}
+.progress i {
+  background: var(--primary-color);
+  display: block;
+  height: 100%;
+}
+.count-lines {
+  display: grid;
+  gap: 10px;
+  padding: 0 18px 18px;
+}
+.count-line {
+  align-items: center;
+  border: 1px solid var(--surface-border);
+  border-radius: 11px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(180px, 1fr) auto minmax(120px, 0.4fr) auto;
+  padding: 14px;
+}
+.product {
+  display: grid;
+  gap: 4px;
+}
+.snapshot {
+  color: var(--text-color-secondary);
+  font-size: 12px;
+}
+.snapshot strong {
+  color: var(--text-color);
+  display: block;
+  font-size: 15px;
+}
+label {
+  color: var(--text-color-secondary);
+  display: grid;
+  font-size: 12px;
+  gap: 6px;
+}
+input,
+select {
+  background: var(--surface-card);
+  border: 1px solid var(--surface-border);
+  border-radius: 9px;
+  color: var(--text-color);
+  font: inherit;
+  min-height: 40px;
+  padding: 8px 10px;
+}
+.count-line details {
+  grid-column: 1 / -1;
+}
+.count-line details small {
+  color: var(--text-color-secondary);
+  display: block;
+  padding: 3px 0;
+}
+.variance {
+  color: var(--green-700);
+  font-size: 12px;
+  font-weight: 700;
+}
+.variance.warning {
+  color: var(--orange-700);
+}
+.approval {
+  background: var(--surface-ground);
+  border-top: 1px solid var(--surface-border);
+  gap: 12px;
+  padding: 18px;
+}
+.approval > div {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+}
+.approval label {
+  min-width: 170px;
+}
+.empty,
+.detail-empty {
+  align-items: center;
+  color: var(--text-color-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center;
+  min-height: 220px;
+  padding: 24px;
+}
+.backdrop {
+  align-items: center;
+  background: rgb(15 23 42 / 55%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 18px;
+  position: fixed;
+  z-index: 1100;
+}
+.dialog {
+  background: var(--surface-card);
+  border-radius: 18px;
+  box-shadow: 0 24px 80px rgb(15 23 42 / 25%);
+  max-height: min(850px, calc(100vh - 36px));
+  max-width: 720px;
+  overflow: auto;
+  width: 100%;
+}
+.dialog > header {
+  border-bottom: 1px solid var(--surface-border);
+  padding: 18px 20px;
+}
+.dialog form {
+  display: grid;
+  gap: 15px;
+  padding: 18px 20px;
+}
+.check {
+  align-items: center;
+  display: flex;
+}
+.check input,
+.product-picker input {
+  min-height: auto;
+}
+.product-search {
+  gap: 10px;
+}
+.product-search label {
+  flex: 1;
+}
+.product-picker {
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  max-height: 300px;
+  overflow: auto;
+}
+.product-picker label {
+  align-items: center;
+  border-bottom: 1px solid var(--surface-border);
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+}
+.product-picker label > span {
+  display: grid;
+  gap: 3px;
+}
+.product-picker small {
+  color: var(--text-color-secondary);
+}
+.dialog footer > div {
+  gap: 8px;
+}

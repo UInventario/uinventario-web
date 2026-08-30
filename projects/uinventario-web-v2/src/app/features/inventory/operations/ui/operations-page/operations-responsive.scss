@@ -1,0 +1,23 @@
+@media (max-width: 760px) {
+  .operations-page {
+    padding: 18px 14px 28px;
+  }
+
+  .page-header {
+    align-items: flex-start;
+  }
+
+  .view-tabs {
+    overflow-x: auto;
+  }
+
+  .view-tabs button {
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-icon {
+    display: none;
+  }
+}

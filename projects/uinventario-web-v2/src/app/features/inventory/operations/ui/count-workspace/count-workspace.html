@@ -1,0 +1,250 @@
+<section class="count-section" aria-labelledby="counts-title">
+  <header class="section-header">
+    <div>
+      <p>Conteo físico</p>
+      <h2 id="counts-title">Sesiones controladas</h2>
+      <span>Asigna ubicación y productos; aprobación genera los ajustes auditados.</span>
+    </div>
+    @if (canCount()) {
+      <button type="button" class="primary" (click)="openCreate()">
+        <i class="pi pi-plus"></i> Nueva sesión
+      </button>
+    }
+  </header>
+
+  @if (notice()) {
+    <div class="notice success" role="status"><i class="pi pi-check-circle"></i>{{ notice() }}</div>
+  }
+  @if (error()) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle"></i>{{ error() }}
+    </div>
+  }
+
+  <div class="workspace" [class.has-selection]="selected()">
+    <aside class="session-list" aria-label="Sesiones de conteo">
+      <header>
+        <strong>Sesiones</strong><span>{{ sessions().length }}</span>
+      </header>
+      @if (loading()) {
+        <div class="empty"><i class="pi pi-spin pi-spinner"></i>Cargando…</div>
+      } @else {
+        @for (session of sessions(); track session.id) {
+          <button
+            type="button"
+            [class.selected]="selected()?.id === session.id"
+            (click)="select(session)"
+          >
+            <span>
+              <strong>{{ session.location.name }}</strong>
+              <small
+                >{{ session.lines.length }} productos ·
+                {{ session.createdAt | date: 'dd/MM/yyyy HH:mm' }}</small
+              >
+            </span>
+            <em [class.closed]="session.status === 'CLOSED'">
+              {{ session.status === 'OPEN' ? 'Abierta' : 'Cerrada' }}
+            </em>
+          </button>
+        } @empty {
+          <div class="empty"><i class="pi pi-list-check"></i><strong>Sin sesiones</strong></div>
+        }
+      }
+    </aside>
+
+    @if (selected(); as session) {
+      <article class="session-detail">
+        <button type="button" class="back-to-list secondary" (click)="backToList()">
+          <i class="pi pi-arrow-left"></i> Volver a sesiones
+        </button>
+        <header class="detail-header">
+          <div>
+            <p>{{ session.location.code }} · {{ session.warehouse.name }}</p>
+            <h3>{{ session.location.name }}</h3>
+            <span
+              >Creada por {{ session.createdBy.email }} ·
+              {{ session.blind ? 'Conteo ciego' : 'Conteo visible' }}</span
+            >
+          </div>
+          <span class="status" [class.closed]="session.status === 'CLOSED'">
+            {{ session.status === 'OPEN' ? 'En captura' : 'Aprobada' }}
+          </span>
+        </header>
+
+        <div class="progress">
+          <span
+            ><strong>{{ completedLines() }}</strong> / {{ session.lines.length }} capturados</span
+          >
+          <div>
+            <i
+              [style.width.%]="
+                session.lines.length ? (completedLines() * 100) / session.lines.length : 0
+              "
+            ></i>
+          </div>
+        </div>
+
+        <div class="count-lines">
+          @for (line of session.lines; track line.product.id) {
+            <section class="count-line">
+              <div class="product">
+                <strong>{{ line.product.name }}</strong>
+                <span>{{ line.product.sku }} · {{ line.product.baseUnit }}</span>
+              </div>
+              @if (!session.blind || session.status === 'CLOSED') {
+                <span class="snapshot"
+                  >Sistema <strong>{{ line.snapshotQuantity }}</strong></span
+                >
+              }
+              <label>
+                <span>Conteo</span>
+                <input
+                  type="text"
+                  inputmode="decimal"
+                  [disabled]="session.status === 'CLOSED' || !canCount() || saving()"
+                  [value]="countValues()[line.product.id] || ''"
+                  (input)="updateCount(line.product.id, $any($event.target).value)"
+                />
+              </label>
+              @if (session.status === 'OPEN' && canCount()) {
+                <button
+                  type="button"
+                  class="secondary"
+                  [disabled]="saving()"
+                  (click)="saveLine(line)"
+                >
+                  {{ line.attemptCount ? 'Recontar' : 'Guardar' }}
+                </button>
+              } @else if (line.varianceQuantity !== null) {
+                <span class="variance" [class.warning]="hasVariance(line.varianceQuantity)">
+                  Diferencia {{ line.varianceQuantity }}
+                </span>
+              }
+              @if (line.attempts.length) {
+                <details>
+                  <summary>{{ line.attempts.length }} captura(s)</summary>
+                  @for (attempt of line.attempts; track attempt.attempt) {
+                    <small
+                      >#{{ attempt.attempt }} {{ attempt.countedQuantity }} ·
+                      {{ attempt.responsible.email }}</small
+                    >
+                  }
+                </details>
+              }
+            </section>
+          }
+        </div>
+
+        @if (session.status === 'OPEN' && canApprove()) {
+          <form class="approval" [formGroup]="closeForm" (ngSubmit)="closeSession()">
+            <div>
+              <strong>Aprobar y aplicar diferencias</strong>
+              <span
+                >El backend comprobará que el stock no cambió y creará movimientos auditados.</span
+              >
+            </div>
+            <label
+              >Referencia<input
+                type="text"
+                formControlName="reference"
+                placeholder="CONTEO-2026-001"
+            /></label>
+            <label
+              >Motivo<input
+                type="text"
+                formControlName="reason"
+                placeholder="Conteo físico mensual"
+            /></label>
+            <button
+              type="submit"
+              class="primary"
+              [disabled]="
+                saving() || closeForm.invalid || completedLines() !== session.lines.length
+              "
+            >
+              <i class="pi pi-check"></i> Aprobar
+            </button>
+          </form>
+        }
+      </article>
+    } @else {
+      <div class="detail-empty">
+        <i class="pi pi-list-check"></i><strong>Selecciona una sesión</strong>
+      </div>
+    }
+  </div>
+</section>
+
+@if (createOpen()) {
+  <div class="backdrop" role="presentation" (click)="closeCreate()">
+    <section
+      class="dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-count-title"
+      (click)="$event.stopPropagation()"
+    >
+      <header>
+        <div>
+          <p>Nueva sesión</p>
+          <h2 id="create-count-title">Asignar conteo físico</h2>
+        </div>
+        <button type="button" class="icon" aria-label="Cerrar" (click)="closeCreate()">
+          <i class="pi pi-times"></i>
+        </button>
+      </header>
+      <form [formGroup]="createForm" (ngSubmit)="create()">
+        <label
+          >Ubicación
+          <select formControlName="locationId">
+            @for (location of locations(); track location.id) {
+              <option [value]="location.id">{{ location.code }} · {{ location.name }}</option>
+            }
+          </select>
+        </label>
+        <label class="check"
+          ><input type="checkbox" formControlName="blind" />Conteo ciego: oculta el saldo esperado
+          durante la captura</label
+        >
+        <div class="product-search">
+          <label
+            >Buscar productos<input type="search" formControlName="q" placeholder="Nombre o SKU"
+          /></label>
+          <button type="button" class="secondary" (click)="searchProducts()">
+            <i class="pi pi-search"></i> Buscar
+          </button>
+        </div>
+        <div class="product-picker" aria-label="Productos disponibles">
+          @for (product of products(); track product.id) {
+            <label>
+              <input
+                type="checkbox"
+                [checked]="selectedProducts().includes(product.id)"
+                (change)="toggleProduct(product.id)"
+              />
+              <span
+                ><strong>{{ product.name }}</strong
+                ><small>{{ product.sku }} · saldo {{ product.quantity }}</small></span
+              >
+            </label>
+          } @empty {
+            <div class="empty">No se encontraron productos en esta bodega.</div>
+          }
+        </div>
+        <footer>
+          <span>{{ selectedProducts().length }} seleccionado(s)</span>
+          <div>
+            <button type="button" class="secondary" (click)="closeCreate()">Cancelar</button>
+            <button
+              type="submit"
+              class="primary"
+              [disabled]="saving() || createForm.invalid || !selectedProducts().length"
+            >
+              Crear sesión
+            </button>
+          </div>
+        </footer>
+      </form>
+    </section>
+  </div>
+}

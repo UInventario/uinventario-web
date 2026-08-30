@@ -111,6 +111,18 @@ export class AppShell {
       });
       return;
     }
+    if (commandId === 'stock-count') {
+      void this.router.navigate(['/inventario/control'], { queryParams: { view: 'counts' } });
+      return;
+    }
+    if (commandId === 'inventory-import') {
+      void this.router.navigate(['/inventario/control'], { queryParams: { view: 'import' } });
+      return;
+    }
+    if (commandId === 'inventory-alerts') {
+      void this.router.navigate(['/inventario/control'], { queryParams: { view: 'alerts' } });
+      return;
+    }
     this.commandStatus.set(`Comando disponible para ${this.activeWorkspace().label}: ${commandId}`);
   }
 
