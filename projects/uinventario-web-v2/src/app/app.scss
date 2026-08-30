@@ -1,0 +1,50 @@
+.brand-mark {
+  align-items: center;
+  background: var(--p-primary-color);
+  border-radius: 0.8rem;
+  color: var(--p-primary-contrast-color);
+  display: inline-flex;
+  font-size: 0.78rem;
+  font-weight: 800;
+  height: 2.5rem;
+  justify-content: center;
+  letter-spacing: 0.06em;
+  width: 2.5rem;
+}
+
+.stable-link {
+  color: var(--p-primary-color);
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.7rem 0.25rem;
+  text-decoration: none;
+}
+
+.stable-link:hover {
+  text-decoration: underline;
+}
+
+.stable-link:focus-visible {
+  border-radius: 0.25rem;
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 3px;
+}
+
+.stack-row {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+
+  dt {
+    color: var(--p-text-muted-color);
+    font-size: 0.85rem;
+  }
+
+  dd {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin: 0;
+    text-align: right;
+  }
+}

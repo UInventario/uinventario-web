@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -25,6 +25,9 @@ before(async () => {
   rootDirectory = await mkdtemp(join(tmpdir(), 'uinventario-web-'));
   await writeFile(join(rootDirectory, 'index.html'), '<h1>UInventario</h1>');
   await writeFile(join(rootDirectory, 'main-ABCDEFGH.js'), 'globalThis.ready=true;');
+  await mkdir(join(rootDirectory, 'v2'));
+  await writeFile(join(rootDirectory, 'v2', 'index.html'), '<h1>UInventario Web V2</h1>');
+  await writeFile(join(rootDirectory, 'v2', 'main-HGFEDCBA.js'), 'globalThis.v2Ready=true;');
 
   upstream = createServer((request, response) => {
     response.writeHead(200, {
@@ -76,6 +79,20 @@ test('serves assets and falls back to the Angular entry point', async () => {
   const routeResponse = await fetch(`${applicationUrl}/productos/123`);
   assert.equal(routeResponse.status, 200);
   assert.equal(await routeResponse.text(), '<h1>UInventario</h1>');
+});
+
+test('serves Web V2 in isolation and keeps its own route fallback', async () => {
+  const assetResponse = await fetch(`${applicationUrl}/v2/main-HGFEDCBA.js`);
+  assert.equal(assetResponse.status, 200);
+  assert.match(assetResponse.headers.get('cache-control'), /immutable/);
+
+  const entryResponse = await fetch(`${applicationUrl}/v2`);
+  assert.equal(entryResponse.status, 200);
+  assert.equal(await entryResponse.text(), '<h1>UInventario Web V2</h1>');
+
+  const routeResponse = await fetch(`${applicationUrl}/v2/productos/123`);
+  assert.equal(routeResponse.status, 200);
+  assert.equal(await routeResponse.text(), '<h1>UInventario Web V2</h1>');
 });
 
 test('proxies API requests and preserves session cookies', async () => {
