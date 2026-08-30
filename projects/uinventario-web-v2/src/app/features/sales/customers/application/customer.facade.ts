@@ -3,6 +3,7 @@ import { CustomerGateway } from '../domain/customer.gateway';
 import {
   CreditInput,
   Customer,
+  CustomerCreditPaymentInput,
   CustomerInput,
   CustomerQuery,
   LegalHoldInput,
@@ -36,6 +37,12 @@ export class CustomerFacade {
   }
   configureCredit(id: string, input: CreditInput) {
     return this.gateway.configureCredit(id, input);
+  }
+  createCreditPayment(id: string, input: CustomerCreditPaymentInput) {
+    return this.gateway.createCreditPayment(id, input);
+  }
+  reverseCreditPayment(customerId: string, paymentId: string, reason: string) {
+    return this.gateway.reverseCreditPayment(customerId, paymentId, reason);
   }
   privacyPolicy() {
     return this.gateway.privacyPolicy();

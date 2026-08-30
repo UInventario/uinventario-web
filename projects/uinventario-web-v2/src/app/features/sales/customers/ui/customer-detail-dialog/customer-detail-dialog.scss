@@ -169,7 +169,8 @@
   }
 }
 
-.privacy-actions {
+.privacy-actions,
+.credit-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.65rem;
@@ -230,7 +231,8 @@
     font-weight: 700;
   }
 
-  input {
+  input,
+  select {
     width: 100%;
     min-height: var(--ui-control-height);
     padding: 0 0.7rem;
@@ -302,6 +304,10 @@ button:disabled {
   }
 
   .privacy-actions {
+    padding-inline: 1rem;
+  }
+
+  .credit-actions {
     padding-inline: 1rem;
   }
 

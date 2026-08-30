@@ -8,6 +8,8 @@ import { CustomerGateway } from '../domain/customer.gateway';
 import {
   CreditInput,
   Customer,
+  CustomerCreditPaymentInput,
+  CustomerCreditPaymentResult,
   CustomerCreditStatement,
   CustomerHistory,
   CustomerInput,
@@ -95,6 +97,26 @@ export class CustomerApi extends CustomerGateway {
       .patch<ApiEnvelope<Customer>, CreditInput>(
         `/customers/${encodeURIComponent(id)}/credit`,
         input,
+      )
+      .pipe(map(({ data }) => data));
+  }
+
+  override createCreditPayment(id: string, input: CustomerCreditPaymentInput) {
+    return this.api
+      .post<ApiEnvelope<CustomerCreditPaymentResult>, CustomerCreditPaymentInput>(
+        `/customers/${encodeURIComponent(id)}/credit/payments`,
+        input,
+        { headers: this.idempotencyHeaders() },
+      )
+      .pipe(map(({ data }) => data));
+  }
+
+  override reverseCreditPayment(customerId: string, paymentId: string, reason: string) {
+    return this.api
+      .post<ApiEnvelope<CustomerCreditPaymentResult>, { readonly reason: string }>(
+        `/customers/${encodeURIComponent(customerId)}/credit/payments/${encodeURIComponent(paymentId)}/reversal`,
+        { reason },
+        { headers: this.idempotencyHeaders() },
       )
       .pipe(map(({ data }) => data));
   }

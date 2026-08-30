@@ -230,7 +230,11 @@
         </dl>
         <div class="checkout-next">
           <span><i class="pi pi-save"></i>Carrito guardado para esta caja</span>
-          <button type="button" disabled title="El cobro se habilitará en el siguiente incremento">
+          <button
+            type="button"
+            [disabled]="!quote() || quoteLoading() || !shift()"
+            (click)="openCheckout()"
+          >
             Continuar al cobro<i class="pi pi-arrow-right"></i>
           </button>
         </div>
@@ -252,5 +256,15 @@
   <ui-pos-scanner-dialog
     (closed)="scannerOpen.set(false)"
     (codeDetected)="handleCameraCode($event)"
+  />
+}
+
+@if (checkout(); as currentCheckout) {
+  <ui-pos-checkout-dialog
+    [quote]="currentCheckout.quote"
+    [request]="currentCheckout.request"
+    [canCredit]="canCredit()"
+    (closed)="closeCheckout()"
+    (completed)="saleCompleted($event)"
   />
 }

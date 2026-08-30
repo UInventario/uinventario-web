@@ -116,6 +116,54 @@
           ><small>Estado</small><strong>{{ statement.status }}</strong></span
         >
       </div>
+      @if (+statement.balance > 0) {
+        <div class="credit-actions">
+          <button class="primary" type="button" [disabled]="acting()" (click)="openPayment()">
+            <i class="pi pi-money-bill"></i>Registrar abono
+          </button>
+        </div>
+      }
+      @if (paymentOpen()) {
+        <form
+          class="credit-payment-form"
+          [formGroup]="paymentForm"
+          (ngSubmit)="submitCreditPayment()"
+        >
+          <h3>Nuevo abono</h3>
+          <div class="field">
+            <label for="creditPaymentAmount">Importe ({{ statement.currency }})</label>
+            <input id="creditPaymentAmount" formControlName="amount" inputmode="decimal" />
+          </div>
+          <div class="field">
+            <label for="creditPaymentMethod">Método</label>
+            <select id="creditPaymentMethod" formControlName="method">
+              <option value="CASH">Efectivo</option>
+              <option value="CARD">Tarjeta</option>
+              <option value="TRANSFER">Transferencia</option>
+            </select>
+          </div>
+          @if (paymentNeedsReference()) {
+            <div class="field reference-field">
+              <label for="creditPaymentReference">Referencia</label>
+              <input id="creditPaymentReference" formControlName="reference" maxlength="120" />
+            </div>
+          }
+          <div class="form-actions">
+            <button
+              class="secondary"
+              type="button"
+              [disabled]="acting()"
+              (click)="paymentOpen.set(false)"
+            >
+              Cancelar
+            </button>
+            <button class="primary" type="submit" [disabled]="acting()">Aplicar abono</button>
+          </div>
+          @if (paymentForm.touched && paymentForm.invalid) {
+            <div class="notice error">Captura un importe válido y la referencia requerida.</div>
+          }
+        </form>
+      }
       <div class="history-list">
         @for (account of statement.accounts; track account.id) {
           <article>
@@ -131,6 +179,65 @@
           <div class="state compact">No existen cuentas por cobrar.</div>
         }
       </div>
+      @if (statement.payments.length) {
+        <div class="section-caption">Abonos registrados</div>
+        <div class="history-list payment-history">
+          @for (payment of statement.payments; track payment.id) {
+            <article>
+              <span>
+                <strong>{{ payment.receiptNumber }}</strong>
+                <small
+                  >{{ payment.createdAt | date: 'dd/MM/yyyy HH:mm' }} · {{ payment.method }}</small
+                >
+              </span>
+              <span>
+                <strong>{{ payment.amount }} {{ payment.currency }}</strong>
+                <small>{{ payment.status === 'COMPLETED' ? 'Aplicado' : 'Revertido' }}</small>
+              </span>
+              @if (payment.status === 'COMPLETED') {
+                <button
+                  class="secondary compact"
+                  type="button"
+                  [disabled]="acting()"
+                  (click)="beginReversal(payment)"
+                >
+                  Revertir
+                </button>
+              }
+            </article>
+          }
+        </div>
+      }
+      @if (reversingPayment(); as payment) {
+        <form
+          class="credit-payment-form reversal"
+          [formGroup]="reversalForm"
+          (ngSubmit)="submitReversal()"
+        >
+          <h3>Revertir {{ payment.receiptNumber }}</h3>
+          <p>
+            Esta acción restaura el saldo y, si fue efectivo, registra la salida correspondiente en
+            caja.
+          </p>
+          <div class="field">
+            <label for="creditReversalReason">Motivo</label>
+            <input id="creditReversalReason" formControlName="reason" maxlength="160" />
+          </div>
+          <div class="form-actions">
+            <button
+              class="secondary"
+              type="button"
+              [disabled]="acting()"
+              (click)="reversingPayment.set(null)"
+            >
+              Cancelar
+            </button>
+            <button class="danger" type="submit" [disabled]="acting() || reversalForm.invalid">
+              Confirmar reversión
+            </button>
+          </div>
+        </form>
+      }
     }
 
     @if (!loading() && tab() === 'PRIVACY' && privacy(); as report) {

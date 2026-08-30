@@ -190,7 +190,7 @@ test('searches, creates, revokes consent and safely deactivates customers', asyn
     return false;
   });
 
-  await page.goto('./ventas');
+  await page.goto('./ventas/clientes');
   await expect(page).toHaveURL(/\/ventas\/clientes/);
   await page.getByLabel('Buscar clientes').fill('Ana');
   await page.getByRole('button', { name: 'Aplicar' }).click();
@@ -251,6 +251,15 @@ test('hides credit without permission and exposes customer history', async ({ pa
 test('configures credit and shows balances only with credit permission', async ({ page }) => {
   let configured = customer();
   let creditWrite: Record<string, unknown> | null = null;
+  let paymentWrite: Record<string, unknown> | null = null;
+  let statement = {
+    currency: 'MXN',
+    balance: '800.00',
+    overdueAmount: '0.00',
+    status: 'AVAILABLE',
+    accounts: [],
+    payments: [] as Array<Record<string, unknown>>,
+  };
   await mockBase(
     page,
     async (route, path) => {
@@ -270,17 +279,38 @@ test('configures credit and shows balances only with credit permission', async (
         return true;
       }
       if (path === '/customers/customer-1/credit' && method === 'GET') {
-        await json(route, {
-          data: {
-            currency: 'MXN',
-            balance: '800.00',
-            overdueAmount: '0.00',
-            status: 'AVAILABLE',
-            accounts: [],
-            payments: [],
-          },
-          meta: { apiVersion: '1' },
-        });
+        await json(route, { data: statement, meta: { apiVersion: '1' } });
+        return true;
+      }
+      if (path === '/customers/customer-1/credit/payments' && method === 'POST') {
+        paymentWrite = route.request().postDataJSON() as Record<string, unknown>;
+        const payment = {
+          id: 'payment-1',
+          receiptNumber: 'CP-000001',
+          currency: 'MXN',
+          amount: '200.00',
+          method: 'TRANSFER',
+          status: 'COMPLETED',
+          reference: 'TRX-2026-001',
+          responsible: { id: 'user-1', email: 'admin@example.com' },
+          reversal: null,
+          createdAt: '2026-08-30T18:00:00.000Z',
+        };
+        statement = { ...statement, balance: '600.00', payments: [payment] };
+        await json(route, { data: { payment, credit: statement }, meta: { apiVersion: '1' } }, 201);
+        return true;
+      }
+      if (
+        path === '/customers/customer-1/credit/payments/payment-1/reversal' &&
+        method === 'POST'
+      ) {
+        const payment = {
+          ...statement.payments[0],
+          status: 'REVERSED',
+          reversal: { reason: 'Transferencia registrada por error' },
+        };
+        statement = { ...statement, balance: '800.00', payments: [payment] };
+        await json(route, { data: { payment, credit: statement }, meta: { apiVersion: '1' } }, 201);
         return true;
       }
       return false;
@@ -302,6 +332,24 @@ test('configures credit and shows balances only with credit permission', async (
   await expect(
     page.getByRole('dialog', { name: 'Ana Pérez' }).getByText('800.00 MXN'),
   ).toBeVisible();
+
+  const detail = page.getByRole('dialog', { name: 'Ana Pérez' });
+  await detail.getByRole('button', { name: 'Registrar abono' }).click();
+  await detail.getByLabel('Importe (MXN)').fill('200.00');
+  await detail.getByLabel('Método').selectOption('TRANSFER');
+  await detail.getByLabel('Referencia').fill('TRX-2026-001');
+  await detail.getByRole('button', { name: 'Aplicar abono' }).click();
+  await expect(detail.getByText('Abono CP-000001 registrado correctamente.')).toBeVisible();
+  expect(paymentWrite).toEqual({
+    amount: '200.00',
+    method: 'TRANSFER',
+    reference: 'TRX-2026-001',
+  });
+  await detail.getByRole('button', { name: 'Revertir' }).click();
+  await detail.getByLabel('Motivo').fill('Transferencia registrada por error');
+  await detail.getByRole('button', { name: 'Confirmar reversión' }).click();
+  await expect(detail.getByText('El abono fue revertido y el saldo se recalculó.')).toBeVisible();
+  await expect(detail.getByText('Revertido', { exact: true })).toBeVisible();
 });
 
 test('updates retention and completes export, legal hold and anonymization flows', async ({
