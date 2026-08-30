@@ -96,7 +96,10 @@
                 "input": "projects/uinventario-web-v2/public"
               }
             ],
-            "styles": ["projects/uinventario-web-v2/src/styles.css"]
+            "styles": [
+              "node_modules/primeicons/primeicons.css",
+              "projects/uinventario-web-v2/src/styles.css"
+            ]
           },
           "configurations": {
             "production": {
@@ -108,7 +111,7 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "4kB",
+                  "maximumWarning": "5kB",
                   "maximumError": "8kB"
                 }
               ],

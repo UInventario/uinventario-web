@@ -1,0 +1,96 @@
+<main class="visual-system-page">
+  <header class="topbar">
+    <a class="brand" href="/v2/" aria-label="UInventario Web V2">
+      <span class="brand-mark" aria-hidden="true">UI</span>
+      <span><strong>UInventario</strong><small>Web V2</small></span>
+    </a>
+    <p-tag severity="info" value="Sistema visual" />
+  </header>
+
+  <section class="intro" aria-labelledby="visual-system-title">
+    <div>
+      <p class="eyebrow">UIN-177 · Fundamentos de interfaz</p>
+      <h1 id="visual-system-title">Operación clara, compacta y enfocada.</h1>
+      <p>
+        Un lenguaje visual para inventario y punto de venta: comandos por contexto, jerarquía sobria
+        y estados que explican qué ocurre y qué puede hacer el usuario.
+      </p>
+    </div>
+    <div class="density-sample" aria-label="Muestra de densidad">
+      <span>44 px touch</span><span>36 px compact</span><span>3 px focus</span>
+    </div>
+  </section>
+
+  <ui-ribbon
+    [tabs]="ribbonTabs"
+    [activeTabId]="activeRibbonTab()"
+    (tabSelected)="activeRibbonTab.set($event)"
+    (commandInvoked)="invokeCommand($event)"
+  />
+  <p class="command-status" role="status">{{ lastCommand() }}</p>
+
+  <div class="showcase-grid">
+    <section class="showcase-panel" aria-labelledby="states-title">
+      <div class="section-heading">
+        <div>
+          <span>Feedback</span>
+          <h2 id="states-title">Estados operativos</h2>
+        </div>
+        <p>La misma estructura cubre cada interrupción del flujo.</p>
+      </div>
+      <div class="state-picker" aria-label="Elegir estado de ejemplo">
+        @for (option of stateOptions; track option.kind) {
+          <button
+            type="button"
+            [attr.aria-pressed]="selectedState() === option.kind"
+            (click)="selectedState.set(option.kind)"
+          >
+            <i [class]="option.icon" aria-hidden="true"></i>{{ option.label }}
+          </button>
+        }
+      </div>
+      <ui-operational-state
+        [kind]="selectedState()"
+        [actionLabel]="selectedState() === 'loading' ? undefined : 'Acción disponible'"
+      />
+    </section>
+
+    <aside class="showcase-panel token-panel" aria-labelledby="tokens-title">
+      <div class="section-heading">
+        <div>
+          <span>Sistema</span>
+          <h2 id="tokens-title">Tokens semánticos</h2>
+        </div>
+      </div>
+      <div class="palette" aria-label="Paleta semántica">
+        <span class="swatch swatch-primary">Acción</span>
+        <span class="swatch swatch-surface">Superficie</span>
+        <span class="swatch swatch-danger">Riesgo</span>
+      </div>
+      <dl class="token-list">
+        <div>
+          <dt>Tipografía</dt>
+          <dd>Inter / system UI</dd>
+        </div>
+        <div>
+          <dt>Espaciado</dt>
+          <dd>Escala de 4 px</dd>
+        </div>
+        <div>
+          <dt>Movimiento</dt>
+          <dd>140–220 ms</dd>
+        </div>
+        <div>
+          <dt>Contraste</dt>
+          <dd>Focus visible 3 px</dd>
+        </div>
+      </dl>
+      <p class="accessibility-note">
+        <i class="pi pi-eye" aria-hidden="true"></i>
+        Teclado, lector, touch y movimiento reducido forman parte del sistema base.
+      </p>
+    </aside>
+  </div>
+
+  <footer>Web V2 se construye en paralelo. <a href="/">Abrir versión estable</a></footer>
+</main>

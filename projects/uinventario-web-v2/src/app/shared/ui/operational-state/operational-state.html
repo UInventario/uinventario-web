@@ -1,0 +1,19 @@
+<section
+  class="operational-state"
+  [class]="'operational-state state-' + kind()"
+  [attr.role]="role()"
+  [attr.aria-live]="role() === 'alert' ? 'assertive' : 'polite'"
+>
+  @if (kind() === 'loading') {
+    <p-progress-spinner ariaLabel="Cargando" strokeWidth="4" />
+  } @else {
+    <i class="state-icon" [class]="'state-icon ' + presentation().icon" aria-hidden="true"></i>
+  }
+  <div>
+    <h3>{{ resolvedTitle() }}</h3>
+    <p>{{ resolvedMessage() }}</p>
+  </div>
+  @if (actionLabel()) {
+    <p-button [label]="actionLabel()" size="small" (onClick)="actionInvoked.emit()" />
+  }
+</section>
