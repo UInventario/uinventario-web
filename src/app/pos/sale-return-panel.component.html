@@ -1,0 +1,160 @@
+<section class="return-panel" aria-labelledby="sale-return-title" [attr.aria-busy]="loading()">
+  <div class="return-heading">
+    <div>
+      <p class="eyebrow">Corrección trazable</p>
+      <h3 id="sale-return-title">Devoluciones y cambios</h3>
+    </div>
+    <span>Reembolsos y saldo a favor</span>
+  </div>
+
+  @if (loading()) {
+    <p role="status">Consultando devoluciones…</p>
+  }
+  @if (returns().length) {
+    <ol class="return-history" aria-label="Devoluciones registradas">
+      @for (item of returns(); track item.id) {
+        <li>
+          <span>
+            <strong>{{ item.totals.total }} · {{ item.returnedBy.email }}</strong>
+            @if (item.loyaltyValueRestored && item.loyaltyValueRestored !== '0.00') {
+              <small>
+                {{ item.loyaltyValueRestored }} restituido como puntos; no se reembolsa dos veces.
+              </small>
+            }
+            <small>
+              {{ item.createdAt | date: 'short' }} · {{ item.reason }} ·
+              {{ settlementLabel(item) }} · pendiente {{ item.refundableAmount }}
+            </small>
+          </span>
+          @if (item.exchangeSale) {
+            <span class="exchange">Cambio {{ item.exchangeSale.receiptNumber }}</span>
+          }
+          @if (item.settlements.length) {
+            <ul class="settlement-history" aria-label="Liquidaciones registradas">
+              @for (settlement of item.settlements; track settlement.id) {
+                <li [class.failed]="settlement.status === 'FAILED'">
+                  {{ settlement.amount }} · {{ settlement.method }} ·
+                  {{ settlement.status === 'COMPLETED' ? 'Completado' : 'Falló; saldo disponible' }}
+                </li>
+              }
+            </ul>
+          }
+        </li>
+      }
+    </ol>
+  }
+
+  @if (settlementForm.controls.returnId.value) {
+    <form class="settlement-form" [formGroup]="settlementForm" (ngSubmit)="settle()">
+      <h4>Liquidar una devolución</h4>
+      <label>
+        Devolución
+        <select formControlName="returnId">
+          @for (item of returns(); track item.id) {
+            @if (item.refundableAmount !== '0.00') {
+              <option [value]="item.id">
+                {{ item.createdAt | date: 'short' }} · pendiente {{ item.refundableAmount }}
+              </option>
+            }
+          }
+        </select>
+      </label>
+      <label>
+        Entrega de valor
+        <select formControlName="mode">
+          <option value="REFUND">Reembolsar al medio original</option>
+          <option value="STORE_CREDIT" [disabled]="!sale().customer">
+            Saldo a favor del cliente
+          </option>
+        </select>
+      </label>
+      @if (settlementForm.controls.mode.value === 'REFUND') {
+        <label>
+          Pago original
+          <select formControlName="originalPaymentId">
+            <option value="">Selecciona un pago</option>
+            @for (payment of paymentOptions(); track payment.id) {
+              @if (payment.status === 'COMPLETED') {
+                <option [value]="payment.id">
+                  {{ payment.method }} · {{ payment.amountApplied }}
+                </option>
+              }
+            }
+          </select>
+        </label>
+      } @else if (sale().customer) {
+        <p class="credit-recipient">
+          El saldo quedará en el ledger de {{ sale().customer?.name }}.
+        </p>
+      }
+      <label>
+        Importe
+        <input formControlName="amount" inputmode="decimal" placeholder="0.00" />
+      </label>
+      <button type="submit" [disabled]="saving() || settlementForm.invalid">
+        {{ saving() ? 'Procesando…' : 'Procesar liquidación' }}
+      </button>
+    </form>
+  }
+
+  @if (sale().status === 'COMPLETED') {
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <div class="return-lines" formArrayName="lines">
+        @for (line of sale().lines; track line.id; let index = $index) {
+          <fieldset [formGroupName]="index" [disabled]="available(line) === '0.000'">
+            <legend>{{ line.product.name }} · {{ line.product.sku }}</legend>
+            <p>Vendido {{ line.quantity }} · pendiente {{ available(line) }}</p>
+            <label>
+              Cantidad
+              <input
+                formControlName="quantity"
+                inputmode="decimal"
+                [attr.aria-label]="'Cantidad a devolver de ' + line.product.name"
+                placeholder="0.000"
+              />
+            </label>
+            <label>
+              Condición
+              <select formControlName="condition">
+                <option value="SELLABLE">Apto para venta</option>
+                <option value="DAMAGED">Dañado</option>
+              </select>
+            </label>
+            <label class="series">
+              Series, si aplica (una por línea)
+              <textarea formControlName="serialNumbers" rows="2"></textarea>
+            </label>
+          </fieldset>
+        }
+      </div>
+      <label>
+        Motivo obligatorio
+        <textarea formControlName="reason" rows="2" maxlength="240"></textarea>
+      </label>
+      <label>
+        Venta nueva del cambio (opcional)
+        <select formControlName="exchangeSaleId">
+          <option value="">Devolución sin cambio</option>
+          @for (option of exchangeOptions(); track option.id) {
+            @if (option.id !== sale().id && option.status === 'COMPLETED') {
+              <option [value]="option.id">{{ option.receiptNumber }} · {{ option.total }}</option>
+            }
+          }
+        </select>
+      </label>
+      <p class="settlement-note">
+        Esta operación devuelve stock y conserva la trazabilidad. Después podrás liquidar el valor
+        por el medio original o como saldo a favor.
+      </p>
+      <button type="submit" [disabled]="saving() || form.invalid">
+        {{ saving() ? 'Registrando…' : 'Registrar devolución' }}
+      </button>
+    </form>
+  }
+  @if (error()) {
+    <div class="form-error" role="alert">{{ error() }}</div>
+  }
+  @if (success()) {
+    <div class="success" role="status">{{ success() }}</div>
+  }
+</section>

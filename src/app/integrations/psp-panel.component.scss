@@ -1,0 +1,114 @@
+:host {
+  display: block;
+}
+
+.psp-panel {
+  display: grid;
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 1.25rem;
+  border: 1px solid var(--line, #d8dee8);
+  border-radius: 1rem;
+  background: var(--surface, #fff);
+}
+
+header,
+.payment-heading,
+.refund-control,
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+h2,
+p {
+  margin: 0.2rem 0;
+}
+
+.eyebrow,
+small {
+  color: var(--muted, #566274);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mode,
+.contract span,
+.status {
+  padding: 0.35rem 0.55rem;
+  border-radius: 999px;
+  background: #eef5ff;
+  color: #27496d;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.warning {
+  background: #fff2cc;
+  color: #754c00;
+}
+
+.contract,
+form {
+  display: flex;
+  align-items: end;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.contract small {
+  flex-basis: 100%;
+}
+
+label,
+.payment-heading > div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.payments {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.payments article {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.8rem;
+  border: 1px solid #d8dee8;
+  border-radius: 0.7rem;
+  background: #f8fafc;
+}
+
+.success {
+  color: #176b3a;
+  font-weight: 700;
+}
+
+.error {
+  color: #9e251d;
+}
+
+@media (max-width: 720px) {
+  header,
+  .payment-heading,
+  .refund-control,
+  .actions,
+  form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  button,
+  label {
+    width: 100%;
+  }
+}

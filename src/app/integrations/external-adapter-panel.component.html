@@ -1,0 +1,191 @@
+<section
+  class="adapter-panel"
+  id="integrations-title"
+  aria-labelledby="integrations-heading"
+  [attr.aria-busy]="loading()"
+>
+  <header>
+    <div>
+      <p class="eyebrow">Conectividad</p>
+      <h2 id="integrations-heading">Adaptadores externos</h2>
+      <p>Contratos v1 por empresa, con simuladores sustituibles y diagnóstico observable.</p>
+    </div>
+    <label>
+      Escenario diagnóstico
+      <select [value]="scenario()" (change)="scenario.set($any($event.target).value)">
+        <option value="SUCCESS">Éxito</option>
+        <option value="REJECT">Rechazo</option>
+        <option value="TIMEOUT">Timeout</option>
+        <option value="RETRY">Reintento</option>
+      </select>
+    </label>
+  </header>
+
+  <p class="notice">
+    La API sólo acepta el nombre del secret externo; nunca su valor. Los escenarios distintos de
+    éxito son exclusivos del simulador.
+  </p>
+  @if (error()) {
+    <p class="error" role="alert">{{ error() }}</p>
+  }
+  @if (success()) {
+    <p class="success" role="status">{{ success() }}</p>
+  }
+
+  @if (loading()) {
+    <p role="status">Cargando adaptadores…</p>
+  } @else {
+    <div class="config-list">
+      @for (configuration of configurations(); track configuration.id) {
+        <article>
+          <div class="title">
+            <div>
+              <strong>{{ capabilityLabel(configuration.capability) }}</strong>
+              <small
+                >{{ configuration.provider }} · contrato v{{ configuration.adapterVersion }}</small
+              >
+            </div>
+            <label class="enabled"
+              ><input
+                type="checkbox"
+                [checked]="configuration.enabled"
+                (change)="
+                  update(configuration.capability, { enabled: $any($event.target).checked })
+                "
+              />
+              Activo</label
+            >
+          </div>
+          <div class="fields">
+            <label
+              >País<input
+                maxlength="2"
+                [value]="configuration.countryCode"
+                (input)="
+                  update(configuration.capability, {
+                    countryCode: $any($event.target).value.toUpperCase(),
+                  })
+                "
+            /></label>
+            <label
+              >Proveedor<select
+                [value]="configuration.provider"
+                (change)="selectProvider(configuration.capability, $any($event.target).value)"
+              >
+                @for (
+                  adapter of providerOptions(configuration.capability);
+                  track adapter.provider
+                ) {
+                  <option [value]="adapter.provider">
+                    {{ adapter.provider }} · {{ adapter.mode }}
+                  </option>
+                }
+              </select></label
+            >
+            <label
+              >Versión<select [value]="configuration.adapterVersion">
+                <option value="1">v1</option>
+              </select></label
+            >
+            <label
+              >Timeout (ms)<input
+                type="number"
+                min="50"
+                max="30000"
+                [value]="configuration.timeoutMs"
+                (input)="
+                  update(configuration.capability, { timeoutMs: +$any($event.target).value })
+                "
+            /></label>
+            <label
+              >Intentos<input
+                type="number"
+                min="1"
+                max="5"
+                [value]="configuration.maxAttempts"
+                (input)="
+                  update(configuration.capability, { maxAttempts: +$any($event.target).value })
+                "
+            /></label>
+            <label
+              >Referencia Secret Manager<input
+                placeholder="nombre-del-secret"
+                [value]="configuration.secretReference || ''"
+                (input)="
+                  update(configuration.capability, {
+                    secretReference: $any($event.target).value || null,
+                  })
+                "
+            /></label>
+          </div>
+          <div class="actions">
+            <button type="button" (click)="save(configuration)" [disabled]="!!busy()">
+              Guardar
+            </button>
+            <button
+              type="button"
+              class="secondary"
+              (click)="diagnose(configuration.capability)"
+              [disabled]="!!busy()"
+            >
+              Probar {{ scenario() }}
+            </button>
+          </div>
+        </article>
+      }
+    </div>
+
+    <section class="executions" aria-labelledby="adapter-executions-title">
+      <h3 id="adapter-executions-title">Ejecuciones recientes</h3>
+      @if (executions().length === 0) {
+        <p>No hay diagnósticos ni entregas externas registradas.</p>
+      } @else {
+        @for (execution of executions(); track execution.id) {
+          <article [class.failed]="execution.status !== 'SUCCEEDED'">
+            <div>
+              <strong>{{ capabilityLabel(execution.capability) }}</strong
+              ><small
+                >{{ execution.provider }} v{{ execution.adapterVersion }} ·
+                {{ execution.updatedAt | date: 'short' }}</small
+              >
+            </div>
+            <span
+              >{{ execution.status }} · {{ execution.attemptCount }} intento(s) ·
+              {{ execution.durationMs }} ms</span
+            >
+            @if (execution.errorCode) {
+              <code>{{ execution.errorCode }}</code>
+            }
+          </article>
+        }
+      }
+    </section>
+
+    <section class="executions" aria-labelledby="email-events-title">
+      <h3 id="email-events-title">Entrega de correo</h3>
+      @if (emailEvents().length === 0) {
+        <p>No hay eventos del proveedor. El simulador no genera webhooks.</p>
+      } @else {
+        @for (event of emailEvents(); track event.webhookEventId) {
+          <article
+            [class.failed]="
+              event.eventType === 'BOUNCED' ||
+              event.eventType === 'FAILED' ||
+              event.eventType === 'SUPPRESSED' ||
+              event.eventType === 'COMPLAINED'
+            "
+          >
+            <div>
+              <strong>{{ event.eventType }}</strong>
+              <small>{{ event.provider }} · {{ event.occurredAt | date: 'short' }}</small>
+            </div>
+            <span>Referencia {{ event.providerReference }}</span>
+            @if (event.errorCode) {
+              <code>{{ event.errorCode }}</code>
+            }
+          </article>
+        }
+      }
+    </section>
+  }
+</section>

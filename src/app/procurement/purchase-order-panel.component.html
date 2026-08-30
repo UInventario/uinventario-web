@@ -77,6 +77,8 @@
             <input
               [id]="'purchaseReceiptQuantity' + index"
               inputmode="decimal"
+              [attr.step]="orderLineQuantityStep(order, index)"
+              [attr.min]="orderLineMinimum(order, index)"
               formControlName="receivedQuantity"
             />
             Código de lote (si el producto controla lotes)
@@ -85,6 +87,18 @@
               formControlName="lotCode"
               maxlength="64"
               placeholder="Ej. LOT-2026-001"
+            />
+            Fabricación
+            <input
+              [id]="'purchaseReceiptManufacturedOn' + index"
+              type="date"
+              formControlName="manufacturedOn"
+            />
+            Caducidad
+            <input
+              [id]="'purchaseReceiptExpiresOn' + index"
+              type="date"
+              formControlName="expiresOn"
             />
             NÃºmeros de serie (uno por lÃ­nea si aplica)
             <textarea
@@ -145,12 +159,17 @@
                 @if (context.receipt.lines[index].lotCode; as lotCode) {
                   · Lote {{ lotCode }}
                 }
+                @if (context.receipt.lines[index].expiresOn; as expiresOn) {
+                  · Caduca {{ expiresOn }}
+                }
               </small>
             </span>
             Cantidad a devolver
             <input
               [id]="'purchaseReturnQuantity' + index"
               inputmode="decimal"
+              [attr.step]="orderLineQuantityStep(context.order, index)"
+              [attr.min]="orderLineMinimum(context.order, index)"
               formControlName="returnedQuantity"
             />
             Series a devolver (una por lÃ­nea si aplica)
@@ -228,6 +247,7 @@
                 <input
                   [id]="'purchaseOrderQuantity' + index"
                   inputmode="decimal"
+                  [attr.step]="lineQuantityStep(index)"
                   formControlName="quantity"
                 />
               </label>

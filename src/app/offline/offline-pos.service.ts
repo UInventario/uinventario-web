@@ -4,6 +4,7 @@ import { PosCartQuote } from '../pos/pos-api.service';
 import { SessionApiService } from '../auth/session-api.service';
 import { OfflineBootstrapEntity, OfflinePosPolicyData } from './offline-bootstrap-api.service';
 import { OfflineScopeIdentity, OfflineStoreService } from './offline-store.service';
+import { normalizeQuantity } from '../shared/quantity-policy';
 
 interface OfflineProduct extends OfflineBootstrapEntity {
   sku: string;
@@ -13,6 +14,10 @@ interface OfflineProduct extends OfflineBootstrapEntity {
   active: boolean;
   categoryId: string | null;
   brandId: string | null;
+  baseUnit?: import('../catalog/product-api.service').ProductBaseUnit;
+  quantityPrecision?: number;
+  quantityRounding?: import('../catalog/product-api.service').QuantityRoundingMode;
+  minimumQuantity?: string;
 }
 
 interface OfflineLocation extends OfflineBootstrapEntity {
@@ -24,6 +29,19 @@ interface OfflineAvailability extends OfflineBootstrapEntity {
   productId: string;
   locationId: string;
   availableQuantity: string;
+}
+
+interface OfflinePriceList extends OfflineBootstrapEntity {
+  name: string;
+  currency: string;
+  branchId: string | null;
+  customerId: string | null;
+  channel: 'POS' | 'WEB' | 'MOBILE' | 'DESKTOP' | null;
+  priority: number;
+  validFrom: string;
+  validTo: string | null;
+  active: boolean;
+  items: Array<{ productId: string; price: string }>;
 }
 
 export class OfflinePosError extends Error {
@@ -75,17 +93,25 @@ export class OfflinePosService {
         brand: null,
         cost: '0.00',
         price: product.price,
+        baseUnit: product.baseUnit ?? 'UNIT',
+        quantityPrecision: product.quantityPrecision ?? 3,
+        quantityRounding: product.quantityRounding ?? 'HALF_UP',
+        minimumQuantity: product.minimumQuantity ?? '0.001',
         active: product.active,
         version: product.version,
       }));
   }
 
-  async quote(lines: Array<{ productId: string; quantity: string }>): Promise<PosCartQuote> {
+  async quote(
+    lines: Array<{ productId: string; quantity: string }>,
+    customerId?: string,
+  ): Promise<PosCartQuote> {
     const scope = await this.scope();
     await this.store.assertAction(scope, 'CASH_SALE');
-    const [policies, products, locations, availability, outbox] = await Promise.all([
+    const [policies, products, priceLists, locations, availability, outbox] = await Promise.all([
       this.store.entities<OfflinePosPolicyData>(scope, 'POS_POLICY'),
       this.store.entities<OfflineProduct>(scope, 'PRODUCT'),
+      this.store.entities<OfflinePriceList>(scope, 'PRICE_LIST'),
       this.store.entities<OfflineLocation>(scope, 'LOCATION'),
       this.store.entities<OfflineAvailability>(scope, 'INVENTORY_AVAILABILITY'),
       this.store.outbox(scope),
@@ -112,6 +138,13 @@ export class OfflinePosService {
         .map(({ id }) => id),
     );
     const pending = this.pendingQuantities(outbox);
+    const prices = this.resolvePrices(
+      priceLists,
+      lines.map(({ productId }) => productId),
+      policy.currency,
+      policy.branchId,
+      customerId,
+    );
     const taxBasisPoints = this.rateUnits(policy.taxRate);
     let subtotalCents = 0n;
     let taxCents = 0n;
@@ -124,7 +157,8 @@ export class OfflinePosService {
           'El producto no está disponible offline.',
         );
       }
-      const quantityUnits = this.quantityUnits(quantity);
+      const normalizedQuantity = normalizeQuantity(quantity, product);
+      const quantityUnits = this.quantityUnits(normalizedQuantity);
       const availableUnits = availability
         .filter((balance) => balance.productId === productId && locationIds.has(balance.locationId))
         .reduce((total, balance) => total + this.quantityUnits(balance.availableQuantity), 0n);
@@ -135,7 +169,9 @@ export class OfflinePosService {
           `Stock offline insuficiente para ${product.name}; no se permite sobreventa.`,
         );
       }
-      const lineTotal = this.roundDivide(this.moneyCents(product.price) * quantityUnits, 1000n);
+      const resolvedPrice = prices.get(productId);
+      const effectivePrice = resolvedPrice?.price ?? product.price;
+      const lineTotal = this.roundDivide(this.moneyCents(effectivePrice) * quantityUnits, 1000n);
       const lineTax =
         taxBasisPoints === 0n
           ? 0n
@@ -145,11 +181,22 @@ export class OfflinePosService {
       taxCents += lineTax;
       totalCents += lineTotal;
       return {
-        product: { id: product.id, name: product.name, sku: product.sku },
+        product: {
+          id: product.id,
+          name: product.name,
+          sku: product.sku,
+          baseUnit: product.baseUnit ?? 'UNIT',
+          quantityPrecision: product.quantityPrecision ?? 3,
+          minimumQuantity: product.minimumQuantity ?? '0.001',
+        },
         quantity: this.quantity(quantityUnits),
         lotId: null,
         availableQuantity: this.quantity(effectiveAvailable),
-        unitPrice: this.money(this.moneyCents(product.price)),
+        unitPrice: this.money(this.moneyCents(effectivePrice)),
+        priceSource: resolvedPrice ? ('PRICE_LIST' as const) : ('BASE' as const),
+        priceList: resolvedPrice ? { id: resolvedPrice.id, name: resolvedPrice.name } : null,
+        grossTotal: this.money(lineTotal),
+        discount: { line: null, sale: null, total: '0.00' },
         subtotal: this.money(lineSubtotal),
         tax: this.money(lineTax),
         total: this.money(lineTotal),
@@ -163,13 +210,65 @@ export class OfflinePosService {
       },
       currency: policy.currency,
       taxRate: policy.taxRate,
-      lines: quoteLines,
+      discount: null,
+      lines: quoteLines.map((line) => ({ ...line, promotions: [] })),
       totals: {
+        gross: this.money(totalCents),
+        lineDiscount: '0.00',
+        promotionDiscount: '0.00',
+        saleDiscount: '0.00',
+        discount: '0.00',
         subtotal: this.money(subtotalCents),
         tax: this.money(taxCents),
         total: this.money(totalCents),
       },
     };
+  }
+
+  private resolvePrices(
+    lists: OfflinePriceList[],
+    productIds: string[],
+    currency: string,
+    branchId: string,
+    customerId?: string,
+  ): Map<string, { id: string; name: string; price: string }> {
+    const now = Date.now();
+    const productSet = new Set(productIds);
+    const candidates = lists
+      .filter(
+        (list) =>
+          list.active &&
+          list.currency === currency &&
+          new Date(list.validFrom).getTime() <= now &&
+          (!list.validTo || new Date(list.validTo).getTime() > now) &&
+          (!list.branchId || list.branchId === branchId) &&
+          (!list.customerId || list.customerId === customerId) &&
+          (!list.channel || list.channel === 'POS'),
+      )
+      .sort(
+        (left, right) =>
+          right.priority - left.priority ||
+          this.specificity(right) - this.specificity(left) ||
+          new Date(right.validFrom).getTime() - new Date(left.validFrom).getTime() ||
+          left.id.localeCompare(right.id),
+      );
+    const resolved = new Map<string, { id: string; name: string; price: string }>();
+    for (const list of candidates) {
+      for (const item of list.items) {
+        if (productSet.has(item.productId) && !resolved.has(item.productId)) {
+          resolved.set(item.productId, { id: list.id, name: list.name, price: item.price });
+        }
+      }
+    }
+    return resolved;
+  }
+
+  private specificity(list: OfflinePriceList): number {
+    return (
+      Number(Boolean(list.branchId)) +
+      Number(Boolean(list.customerId)) +
+      Number(Boolean(list.channel))
+    );
   }
 
   async queueCashSale(

@@ -2,6 +2,47 @@ import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { RuntimeConfigService } from '../core/runtime-config.service';
 
+export interface SaleDiscountInput {
+  type: 'PERCENT' | 'AMOUNT';
+  value: string;
+  reason: string;
+}
+
+export interface AppliedSaleDiscount extends SaleDiscountInput {
+  amount: string;
+}
+
+export interface AppliedPromotion {
+  promotion: {
+    id: string;
+    name: string;
+    type: 'BUY_X_GET_Y' | 'SECOND_UNIT_PERCENT' | 'BUNDLE_FIXED' | 'QUANTITY_PERCENT';
+    priority: number;
+  };
+  amount: string;
+  explanation: string;
+  ruleSnapshot: Record<string, unknown>;
+}
+
+export interface LoyaltyQuoteData {
+  rule: {
+    id: string;
+    version: number;
+    active: boolean;
+    earnAmount: string;
+    earnPoints: number;
+    redeemPoints: number;
+    redeemAmount: string;
+    expirationDays: number | null;
+    createdAt: string;
+  };
+  balanceBefore: number;
+  pointsRedeemed: number;
+  redemptionValue: string;
+  pointsEarned: number;
+  balanceAfter: number;
+}
+
 export interface PosCartQuote {
   context: {
     branch: { id: string; name: string };
@@ -10,23 +51,85 @@ export interface PosCartQuote {
   };
   currency: string;
   taxRate: string;
+  discount: AppliedSaleDiscount | null;
+  loyalty?: LoyaltyQuoteData | null;
   lines: Array<{
-    product: { id: string; name: string; sku: string };
+    product: {
+      id: string;
+      name: string;
+      sku: string;
+      withoutCode?: boolean;
+      stockBehavior?: 'TRACKED' | 'UNTRACKED';
+      taxBehavior?: 'STANDARD' | 'EXEMPT';
+    };
     quantity: string;
+    note?: string | null;
     lotId?: string | null;
+    expiredLotOverrideReason?: string | null;
     serialNumbers?: string[];
     availableQuantity: string;
     unitPrice: string;
+    priceSource: 'BASE' | 'PRICE_LIST' | 'MANUAL';
+    priceOverrideReason?: string | null;
+    priceList: { id: string; name: string } | null;
+    grossTotal: string;
+    discount: {
+      line: AppliedSaleDiscount | null;
+      sale: AppliedSaleDiscount | null;
+      total: string;
+    };
+    promotions?: AppliedPromotion[];
     subtotal: string;
     tax: string;
     total: string;
   }>;
-  totals: { subtotal: string; tax: string; total: string };
+  totals: {
+    gross: string;
+    lineDiscount: string;
+    promotionDiscount?: string;
+    saleDiscount: string;
+    discount: string;
+    subtotal: string;
+    tax: string;
+    total: string;
+    payable?: string;
+  };
 }
 
 interface PosCartQuoteResponse {
   data: PosCartQuote;
   meta: { apiVersion: '1'; recalculatedAt: string };
+}
+
+export type SuspendedSaleStatus = 'ACTIVE' | 'CANCELLED' | 'RESUMED' | 'EXPIRED';
+
+export interface SuspendedSaleData {
+  id: string;
+  status: SuspendedSaleStatus;
+  context: PosCartQuote['context'];
+  author: { id: string; email: string };
+  customer: { id: string; name: string; identifier: string | null } | null;
+  notes: string | null;
+  lines: Array<{
+    product: { id: string; name: string; sku: string };
+    quantity: string;
+    lotId: string | null;
+    serialNumbers: string[];
+    unitPriceSnapshot: string;
+    availableQuantitySnapshot: string;
+  }>;
+  completedSaleId: string | null;
+  expiresAt: string;
+  createdAt: string;
+  cancelledAt: string | null;
+  resumedAt: string | null;
+}
+
+export interface SuspendedSaleConflict {
+  code: 'PRICE_CHANGED' | 'AVAILABILITY_CHANGED' | 'INSUFFICIENT_STOCK' | 'PRODUCT_NOT_AVAILABLE';
+  productId: string;
+  previous?: string;
+  current?: string;
 }
 
 export interface CashRegisterShiftData {
@@ -77,17 +180,39 @@ export interface CashRegisterClosureData {
   closedAt: string;
 }
 
-export type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER' | 'VOUCHER';
+export type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER' | 'VOUCHER' | 'CREDIT';
+export type CollectedPaymentMethod = Exclude<PaymentMethod, 'CREDIT'>;
 
 export interface SalePaymentData {
+  id: string;
   method: PaymentMethod;
-  status: 'COMPLETED' | 'REVERSED';
+  status: 'COMPLETED' | 'PENDING' | 'REVERSED';
   amountReceived: string;
   amountApplied: string;
   change: string;
   reference: string | null;
   provider: string;
   authorizationCode: string | null;
+}
+
+export type PaymentTerminalStatus =
+  'PENDING' | 'AUTHORIZED' | 'CAPTURED' | 'DECLINED' | 'INDETERMINATE' | 'CANCELLED';
+
+export interface PaymentTerminalOperationData {
+  id: string;
+  provider: string;
+  adapterVersion: string;
+  providerReference: string | null;
+  amount: string;
+  currency: string;
+  status: PaymentTerminalStatus;
+  errorCode: string | null;
+  authorizationCode: string | null;
+  correlationId: string;
+  saleId: string | null;
+  queryCount: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CashSaleData {
@@ -99,16 +224,40 @@ export interface CashSaleData {
   customer?: { id: string; name: string; identifier: string | null } | null;
   currency: string;
   taxRate: string;
-  lines: Array<Omit<PosCartQuote['lines'][number], 'availableQuantity'>>;
-  totals: PosCartQuote['totals'];
+  discount: AppliedSaleDiscount | null;
+  loyalty?: {
+    ruleVersion: number;
+    pointsRedeemed: number;
+    redemptionValue: string;
+    pointsEarned: number;
+  } | null;
+  lines: Array<
+    Omit<PosCartQuote['lines'][number], 'availableQuantity'> & {
+      id: string;
+      grossProfit: string | null;
+    }
+  >;
+  totals: PosCartQuote['totals'] & { grossProfit: string | null };
   payment: SalePaymentData;
   payments: SalePaymentData[];
+  credit?: SaleCreditPlanData | null;
   createdAt: string;
   void: {
     reason: string;
     user: { id: string; email: string };
     voidedAt: string;
   } | null;
+}
+
+export interface SaleCreditPlanData {
+  accountId: string;
+  originalAmount: string;
+  balance: string;
+  currency: string;
+  termDays: number;
+  status: 'OPEN' | 'OVERDUE' | 'PAID' | 'CANCELLED';
+  dueDate: string;
+  installments: Array<{ number: number; dueDate: string; amount: string }>;
 }
 
 interface CashSaleResponse {
@@ -133,7 +282,7 @@ export interface SaleDetailData extends Omit<CashSaleData, 'userId'> {
   user: { id: string; email: string };
   movements: Array<{
     id: string;
-    type: 'SALE' | 'SALE_VOID';
+    type: 'SALE' | 'SALE_VOID' | 'SALE_RETURN';
     saleLineId: string;
     product: { id: string; name: string; sku: string };
     location: { id: string; name: string; code: string };
@@ -141,6 +290,172 @@ export interface SaleDetailData extends Omit<CashSaleData, 'userId'> {
     resultingQuantity: string;
     reference: string;
     createdAt: string;
+  }>;
+}
+
+export interface SaleReceiptData {
+  saleId: string;
+  receiptNumber: string;
+  documentType: 'NON_FISCAL_SALE_RECEIPT';
+  fiscalNotice: 'COMPROBANTE NO FISCAL';
+  merchant: { name: string; legalName: string | null; countryCode: string | null };
+  branchName: string;
+  cashRegister: { name: string; code: string };
+  sellerEmail: string;
+  customer: { name: string; identifier: string | null } | null;
+  currency: string;
+  taxRate: string;
+  lines: Array<{
+    lineNumber: number;
+    productName: string;
+    productSku: string;
+    withoutCode?: boolean;
+    note?: string | null;
+    quantity: string;
+    unitPrice: string;
+    priceSource?: 'BASE' | 'PRICE_LIST' | 'MANUAL';
+    priceOverrideReason?: string | null;
+    grossTotal: string;
+    discountTotal: string;
+    lineDiscountReason: string | null;
+    saleDiscountReason: string | null;
+    subtotal: string;
+    tax: string;
+    total: string;
+  }>;
+  payments: Array<{
+    method: PaymentMethod;
+    amountReceived: string;
+    amountApplied: string;
+    change: string;
+    reference: string | null;
+    provider: string;
+    authorizationCode: string | null;
+  }>;
+  loyalty?: {
+    pointsRedeemed: number;
+    redemptionValue: string;
+    pointsEarned: number;
+  } | null;
+  totals: { gross: string; discount: string; subtotal: string; tax: string; total: string };
+  issuedAt: string;
+  saleStatus: 'COMPLETED' | 'VOIDED';
+  void: { reason: string; voidedAt: string } | null;
+}
+
+export interface SaleReceiptDeliveryData {
+  mode: 'SIMULATED';
+  channel: 'EMAIL';
+  recipient: string;
+  messageId: string;
+  acceptedAt: string;
+}
+
+export type SaleFiscalDocumentStatus =
+  'PENDING' | 'ACCEPTED' | 'REJECTED' | 'INDETERMINATE' | 'CANCELLED';
+
+export interface SaleFiscalDocumentData {
+  id: string;
+  saleId: string;
+  receiptNumber: string;
+  category: 'FISCAL_DOCUMENT';
+  documentType: 'INVOICE' | 'RECEIPT' | 'CREDIT_NOTE' | 'PAYMENT_RECEIPT';
+  provider: 'SIMULATOR';
+  providerVersion: '1';
+  providerReference: string | null;
+  scenario: 'SUCCESS' | 'REJECT' | 'TIMEOUT';
+  status: SaleFiscalDocumentStatus;
+  errorCode: string | null;
+  artifacts: Array<{ kind: 'PDF' | 'XML'; path: string }>;
+  events: Array<{
+    status: SaleFiscalDocumentStatus | 'SENT';
+    occurredAt: string;
+  }>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SaleFiscalDeliveryData {
+  mode: 'SIMULATED' | 'PROVIDER';
+  channel: 'EMAIL';
+  recipient: string;
+  messageId: string;
+  acceptedAt: string;
+}
+
+export interface PosPeripheralProfileData {
+  id: string;
+  cashRegister: { id: string; name: string; code: string };
+  deviceId: string;
+  label: string;
+  adapter: 'SIMULATOR';
+  printerEnabled: boolean;
+  drawerEnabled: boolean;
+  autoOpenCashSale: boolean;
+  updatedAt: string;
+}
+
+export interface PosPeripheralOperationData {
+  id: string;
+  action: 'PRINT_RECEIPT' | 'OPEN_DRAWER';
+  trigger: 'MANUAL' | 'CASH_SALE_COMPLETED';
+  status: 'COMPLETED' | 'FAILED';
+  attemptCount: number;
+  errorCode: string | null;
+  saleId: string | null;
+  deviceId: string;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export type SaleReturnCondition = 'SELLABLE' | 'DAMAGED';
+
+export interface SaleReturnSettlementData {
+  id: string;
+  mode: 'REFUND' | 'STORE_CREDIT';
+  method: PaymentMethod | 'STORE_CREDIT';
+  status: 'COMPLETED' | 'FAILED';
+  currency: string;
+  amount: string;
+  originalPayment: { id: string; method: PaymentMethod } | null;
+  provider: string;
+  providerReference: string | null;
+  failureCode: string | null;
+  processedBy: { id: string; email: string };
+  createdAt: string;
+}
+
+export interface SaleReturnData {
+  id: string;
+  saleId: string;
+  exchangeSale: { id: string; receiptNumber: string } | null;
+  reason: string;
+  settlementStatus: 'PENDING' | 'PARTIALLY_SETTLED' | 'SETTLED';
+  refundableAmount: string;
+  loyaltyValueRestored?: string;
+  totals: { subtotal: string; tax: string; total: string };
+  returnedBy: { id: string; email: string };
+  createdAt: string;
+  settlements: SaleReturnSettlementData[];
+  lines: Array<{
+    id: string;
+    saleLineId: string;
+    product: { id: string; name: string; sku: string };
+    quantity: string;
+    condition: SaleReturnCondition;
+    totals: { subtotal: string; tax: string; total: string };
+    serialNumbers: string[];
+  }>;
+}
+
+export interface CreateSaleReturnInput {
+  reason: string;
+  exchangeSaleId?: string;
+  lines: Array<{
+    saleLineId: string;
+    quantity: string;
+    condition: SaleReturnCondition;
+    serialNumbers?: string[];
   }>;
 }
 
@@ -161,7 +476,7 @@ export interface SalesCashReportData {
     };
     payments: Array<{
       method: PaymentMethod;
-      status: 'COMPLETED' | 'REVERSED';
+      status: 'COMPLETED' | 'PENDING' | 'REVERSED';
       count: number;
       amount: string;
     }>;
@@ -186,7 +501,7 @@ export interface SalesCashReportData {
     total: string;
     payments: Array<{
       method: PaymentMethod;
-      status: 'COMPLETED' | 'REVERSED';
+      status: 'COMPLETED' | 'PENDING' | 'REVERSED';
       amount: string;
       change: string;
       reference: string | null;
@@ -207,6 +522,74 @@ export interface SalesCashReportData {
     difference: string | null;
     openedAt: string;
     closedAt: string | null;
+  }>;
+  total: number;
+}
+
+export interface PosProfitabilityReportData {
+  scope: Array<{ id: string; name: string; timezone: string }>;
+  formulas: Record<
+    | 'grossRevenue'
+    | 'discounts'
+    | 'netRevenue'
+    | 'taxes'
+    | 'cost'
+    | 'margin'
+    | 'returnsAndRefunds'
+    | 'credit'
+    | 'cancellations',
+    string
+  >;
+  currencies: Array<{
+    currency: string;
+    sales: number;
+    returns: number;
+    cancellations: number;
+    grossRevenue: string;
+    discounts: string;
+    salesTotal: string;
+    returnTotal: string;
+    netTotal: string;
+    netRevenue: string;
+    taxes: string;
+    historicalCost: string;
+    returnedCost: string;
+    netCost: string;
+    margin: string;
+    marginRate: number | null;
+    paymentObligations: string;
+    creditSales: string;
+    refundsSettled: string;
+    voidedAmount: string;
+    salesMatchPayments: boolean;
+  }>;
+  products: Array<{
+    product: { id: string; name: string; sku: string };
+    currency: string;
+    soldQuantity: string;
+    returnedQuantity: string;
+    grossRevenue: string;
+    discounts: string;
+    netRevenue: string;
+    taxes: string;
+    netCost: string;
+    margin: string;
+  }>;
+  activities: Array<{
+    id: string;
+    type: 'SALE' | 'RETURN' | 'VOID';
+    saleId: string;
+    receiptNumber: string;
+    branchName: string;
+    cashRegisterName: string;
+    currency: string;
+    netRevenue: string;
+    taxes: string;
+    historicalCost: string;
+    marginImpact: string;
+    paymentOrSettlement: string;
+    reconciles: boolean;
+    occurredAt: string;
   }>;
   total: number;
 }
@@ -310,21 +693,36 @@ export class PosApiService {
     lines: Array<{
       productId: string;
       quantity: string;
+      note?: string;
+      manualUnitPrice?: string;
+      priceOverrideReason?: string;
       lotId?: string;
+      expiredLotOverrideReason?: string;
       serialNumbers?: string[];
+      discount?: SaleDiscountInput;
     }>,
     reservationId?: string,
+    customerId?: string,
+    discount?: SaleDiscountInput,
+    loyaltyPointsToRedeem?: number,
   ) {
     return this.http.post<PosCartQuoteResponse>(
       `${this.config.apiBaseUrl()}/pos/cart/quote`,
-      { lines, ...(reservationId ? { reservationId } : {}) },
+      {
+        lines,
+        channel: 'POS',
+        ...(reservationId ? { reservationId } : {}),
+        ...(customerId ? { customerId } : {}),
+        ...(discount ? { discount } : {}),
+        ...(loyaltyPointsToRedeem ? { loyaltyPointsToRedeem } : {}),
+      },
       { withCredentials: true },
     );
   }
 
   getPaymentOptions() {
     return this.http.get<{
-      data: { methods: PaymentMethod[]; nonCashProvider: 'SIMULATOR' | 'DISABLED' };
+      data: { methods: CollectedPaymentMethod[]; nonCashProvider: 'SIMULATOR' | 'DISABLED' };
       meta: { apiVersion: '1' };
     }>(`${this.config.apiBaseUrl()}/pos/payment-options`, { withCredentials: true });
   }
@@ -334,25 +732,132 @@ export class PosApiService {
       lines: Array<{
         productId: string;
         quantity: string;
+        note?: string;
+        manualUnitPrice?: string;
+        priceOverrideReason?: string;
+        lotId?: string;
+        expiredLotOverrideReason?: string;
+        serialNumbers?: string[];
+        discount?: SaleDiscountInput;
+      }>;
+      discount?: SaleDiscountInput;
+      customerId?: string;
+      reservationId?: string;
+      suspendedSaleId?: string;
+      loyaltyPointsToRedeem?: number;
+      payment?: {
+        method: CollectedPaymentMethod;
+        amountReceived?: string;
+        reference?: string;
+        terminalOperationId?: string;
+      };
+      payments?: Array<{
+        method: CollectedPaymentMethod;
+        amount: string;
+        amountReceived?: string;
+        reference?: string;
+        terminalOperationId?: string;
+      }>;
+      credit?: { installmentCount: number };
+    },
+    idempotencyKey: string,
+  ) {
+    return this.http.post<CashSaleResponse>(
+      `${this.config.apiBaseUrl()}/pos/sales`,
+      { ...input, channel: 'POS' },
+      {
+        headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+        withCredentials: true,
+      },
+    );
+  }
+
+  startTerminalPayment(
+    input: { amount: string; currency: string; scenario: 'SUCCESS' },
+    idempotencyKey: string,
+  ) {
+    return this.http.post<{
+      data: PaymentTerminalOperationData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(`${this.config.apiBaseUrl()}/pos/payment-terminal/operations`, input, {
+      headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+      withCredentials: true,
+    });
+  }
+
+  getTerminalPayment(operationId: string) {
+    return this.http.get<{
+      data: PaymentTerminalOperationData;
+      meta: { apiVersion: '1' };
+    }>(`${this.config.apiBaseUrl()}/pos/payment-terminal/operations/${operationId}`, {
+      withCredentials: true,
+    });
+  }
+
+  cancelTerminalPayment(operationId: string) {
+    return this.http.post<{
+      data: PaymentTerminalOperationData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(
+      `${this.config.apiBaseUrl()}/pos/payment-terminal/operations/${operationId}/cancel`,
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  listSuspendedSales() {
+    return this.http.get<{
+      data: SuspendedSaleData[];
+      meta: { apiVersion: '1'; expirationHours: number };
+    }>(`${this.config.apiBaseUrl()}/pos/suspended-sales`, { withCredentials: true });
+  }
+
+  suspendSale(
+    input: {
+      lines: Array<{
+        productId: string;
+        quantity: string;
         lotId?: string;
         serialNumbers?: string[];
       }>;
       customerId?: string;
-      reservationId?: string;
-      payment?: { method: PaymentMethod; amountReceived?: string; reference?: string };
-      payments?: Array<{
-        method: PaymentMethod;
-        amount: string;
-        amountReceived?: string;
-        reference?: string;
-      }>;
+      notes?: string;
     },
     idempotencyKey: string,
   ) {
-    return this.http.post<CashSaleResponse>(`${this.config.apiBaseUrl()}/pos/sales`, input, {
+    return this.http.post<{
+      data: SuspendedSaleData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(`${this.config.apiBaseUrl()}/pos/suspended-sales`, input, {
       headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
       withCredentials: true,
     });
+  }
+
+  resumeSuspendedSale(id: string) {
+    return this.http.post<{
+      data: {
+        suspendedSale: SuspendedSaleData;
+        quote: PosCartQuote | null;
+        conflicts: SuspendedSaleConflict[];
+      };
+      meta: { apiVersion: '1'; recalculatedAt: string };
+    }>(
+      `${this.config.apiBaseUrl()}/pos/suspended-sales/${id}/resume`,
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  cancelSuspendedSale(id: string) {
+    return this.http.post<{
+      data: SuspendedSaleData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(
+      `${this.config.apiBaseUrl()}/pos/suspended-sales/${id}/cancel`,
+      {},
+      { withCredentials: true },
+    );
   }
 
   createCashSale(
@@ -410,6 +915,205 @@ export class PosApiService {
     });
   }
 
+  reprintSaleReceipt(id: string) {
+    return this.http.post<{
+      data: SaleReceiptData;
+      meta: { apiVersion: '1' };
+    }>(
+      `${this.config.apiBaseUrl()}/pos/sales/${id}/receipt/reprints`,
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  sendSaleReceipt(id: string, email: string) {
+    return this.http.post<{
+      data: { receipt: SaleReceiptData; delivery: SaleReceiptDeliveryData };
+      meta: { apiVersion: '1' };
+    }>(
+      `${this.config.apiBaseUrl()}/pos/sales/${id}/receipt/deliveries`,
+      { email },
+      { withCredentials: true },
+    );
+  }
+
+  getSaleFiscalDocument(id: string) {
+    return this.http.get<{
+      data: SaleFiscalDocumentData | null;
+      meta: { apiVersion: '1'; provider: 'SIMULATOR'; production: false };
+    }>(`${this.config.apiBaseUrl()}/pos/sales/${id}/fiscal-document`, {
+      withCredentials: true,
+    });
+  }
+
+  issueSaleFiscalDocument(
+    id: string,
+    input: {
+      documentType: SaleFiscalDocumentData['documentType'];
+      scenario: SaleFiscalDocumentData['scenario'];
+    },
+  ) {
+    return this.http.post<{
+      data: SaleFiscalDocumentData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(`${this.config.apiBaseUrl()}/pos/sales/${id}/fiscal-document`, input, {
+      headers: this.fiscalKey('issue'),
+      withCredentials: true,
+    });
+  }
+
+  querySaleFiscalDocument(id: string) {
+    return this.fiscalOperation(id, 'queries');
+  }
+
+  cancelSaleFiscalDocument(id: string) {
+    return this.fiscalOperation(id, 'cancellations');
+  }
+
+  callbackSaleFiscalDocument(
+    id: string,
+    status: Extract<SaleFiscalDocumentStatus, 'ACCEPTED' | 'REJECTED'>,
+  ) {
+    return this.http.post<{
+      data: SaleFiscalDocumentData;
+      meta: { apiVersion: '1'; duplicate: boolean };
+    }>(
+      `${this.config.apiBaseUrl()}/pos/sales/fiscal-document/callbacks`,
+      { eventId: `web-fiscal-${crypto.randomUUID()}`, saleId: id, status },
+      { withCredentials: true },
+    );
+  }
+
+  saleFiscalArtifact(id: string, kind: 'PDF' | 'XML') {
+    return this.http.get<{
+      data: { fileName: string; mediaType: string; contentBase64: string };
+      meta: { apiVersion: '1'; provider: 'SIMULATOR'; production: false };
+    }>(`${this.config.apiBaseUrl()}/pos/sales/${id}/fiscal-document/artifacts/${kind}`, {
+      withCredentials: true,
+    });
+  }
+
+  sendSaleFiscalDocument(id: string, email: string, idempotencyKey: string) {
+    return this.http.post<{
+      data: { document: SaleFiscalDocumentData; delivery: SaleFiscalDeliveryData };
+      meta: { apiVersion: '1' };
+    }>(
+      `${this.config.apiBaseUrl()}/pos/sales/${id}/fiscal-document/deliveries`,
+      { email },
+      {
+        headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+        withCredentials: true,
+      },
+    );
+  }
+
+  private fiscalOperation(id: string, operation: 'queries' | 'cancellations') {
+    return this.http.post<{
+      data: SaleFiscalDocumentData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(
+      `${this.config.apiBaseUrl()}/pos/sales/${id}/fiscal-document/${operation}`,
+      {},
+      { headers: this.fiscalKey(operation), withCredentials: true },
+    );
+  }
+
+  private fiscalKey(action: string) {
+    return new HttpHeaders({
+      'Idempotency-Key': `web-sale-fiscal-${action}-${crypto.randomUUID()}`,
+    });
+  }
+
+  getPeripheralProfile() {
+    return this.http.get<{
+      data: PosPeripheralProfileData;
+      meta: { apiVersion: '1' };
+    }>(`${this.config.apiBaseUrl()}/pos/peripherals/profile`, {
+      withCredentials: true,
+    });
+  }
+
+  updatePeripheralProfile(input: {
+    deviceId: string;
+    label: string;
+    adapter: 'SIMULATOR';
+    printerEnabled: boolean;
+    drawerEnabled: boolean;
+    autoOpenCashSale: boolean;
+  }) {
+    return this.http.put<{
+      data: PosPeripheralProfileData;
+      meta: { apiVersion: '1' };
+    }>(`${this.config.apiBaseUrl()}/pos/peripherals/profile`, input, {
+      withCredentials: true,
+    });
+  }
+
+  printSaleReceipt(id: string, idempotencyKey: string) {
+    return this.http.post<{
+      data: { receipt: SaleReceiptData; operation: PosPeripheralOperationData };
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(
+      `${this.config.apiBaseUrl()}/pos/peripherals/receipts/${id}/prints`,
+      {},
+      {
+        headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+        withCredentials: true,
+      },
+    );
+  }
+
+  openCashDrawer(
+    input: { trigger: 'MANUAL' | 'CASH_SALE_COMPLETED'; saleId?: string },
+    idempotencyKey: string,
+  ) {
+    return this.http.post<{
+      data: PosPeripheralOperationData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(`${this.config.apiBaseUrl()}/pos/peripherals/cash-drawer/openings`, input, {
+      headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+      withCredentials: true,
+    });
+  }
+
+  listSaleReturns(id: string) {
+    return this.http.get<{
+      data: SaleReturnData[];
+      meta: { apiVersion: '1' };
+    }>(`${this.config.apiBaseUrl()}/pos/sales/${id}/returns`, {
+      withCredentials: true,
+    });
+  }
+
+  createSaleReturn(id: string, input: CreateSaleReturnInput, idempotencyKey: string) {
+    return this.http.post<{
+      data: SaleReturnData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(`${this.config.apiBaseUrl()}/pos/sales/${id}/returns`, input, {
+      headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+      withCredentials: true,
+    });
+  }
+
+  settleSaleReturn(
+    saleId: string,
+    returnId: string,
+    input: {
+      mode: 'REFUND' | 'STORE_CREDIT';
+      amount: string;
+      originalPaymentId?: string;
+    },
+    idempotencyKey: string,
+  ) {
+    return this.http.post<{
+      data: { saleReturn: SaleReturnData; settlement: SaleReturnSettlementData };
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(`${this.config.apiBaseUrl()}/pos/sales/${saleId}/returns/${returnId}/settlements`, input, {
+      headers: new HttpHeaders({ 'Idempotency-Key': idempotencyKey }),
+      withCredentials: true,
+    });
+  }
+
   salesCashReport(query: {
     dateFrom?: string;
     dateTo?: string;
@@ -432,6 +1136,32 @@ export class PosApiService {
         periodTimezone: 'BRANCH_LOCAL';
       };
     }>(`${this.config.apiBaseUrl()}/pos/reports/sales-cash`, {
+      params,
+      withCredentials: true,
+    });
+  }
+
+  profitabilityReport(query: {
+    dateFrom?: string;
+    dateTo?: string;
+    branchId?: string;
+    cashRegisterId?: string;
+    userId?: string;
+    page: number;
+    pageSize: number;
+  }) {
+    let params = new HttpParams().set('page', query.page).set('pageSize', query.pageSize);
+    for (const [key, value] of Object.entries(query)) {
+      if (key !== 'page' && key !== 'pageSize' && value) params = params.set(key, value);
+    }
+    return this.http.get<{
+      data: PosProfitabilityReportData;
+      meta: {
+        apiVersion: '1';
+        pagination: { page: number; pageSize: number; total: number; totalPages: number };
+        periodTimezone: 'BRANCH_LOCAL';
+      };
+    }>(`${this.config.apiBaseUrl()}/pos/reports/profitability`, {
       params,
       withCredentials: true,
     });

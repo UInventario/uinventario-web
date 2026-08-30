@@ -3,6 +3,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { SessionApiService } from '../auth/session-api.service';
 import { OfflineBootstrapEntity } from './offline-bootstrap-api.service';
 import { OfflineScopeIdentity, OfflineStoreService } from './offline-store.service';
+import { normalizeQuantity, quantityUnits } from '../shared/quantity-policy';
 
 type OfflineInventoryOperation = 'COUNT' | 'ENTRY' | 'EXIT' | 'RETURN' | 'LOSS' | 'DAMAGE';
 
@@ -11,6 +12,10 @@ interface OfflineProduct extends OfflineBootstrapEntity {
   sku: string;
   name: string;
   active: boolean;
+  baseUnit?: import('../catalog/product-api.service').ProductBaseUnit;
+  quantityPrecision?: number;
+  quantityRounding?: import('../catalog/product-api.service').QuantityRoundingMode;
+  minimumQuantity?: string;
 }
 
 interface OfflineLocation extends OfflineBootstrapEntity {
@@ -134,7 +139,7 @@ export class OfflineInventoryPanelComponent implements OnInit {
       return;
     }
     const value = this.form.getRawValue();
-    if (value.operation !== 'COUNT' && Number(value.quantity) <= 0) {
+    if (value.operation !== 'COUNT' && quantityUnits(value.quantity) <= 0n) {
       this.error.set('La cantidad del movimiento debe ser mayor que cero.');
       return;
     }
@@ -142,6 +147,12 @@ export class OfflineInventoryPanelComponent implements OnInit {
     this.error.set(null);
     this.success.set(null);
     try {
+      const product = this.products().find(({ id }) => id === value.productId);
+      if (!product) throw new Error('El producto offline ya no est\u00e1 disponible.');
+      const quantity =
+        value.operation === 'COUNT' && quantityUnits(value.quantity) === 0n
+          ? '0.000'
+          : normalizeQuantity(value.quantity, product);
       const scope = await this.scope();
       const common = {
         productId: value.productId,
@@ -154,7 +165,7 @@ export class OfflineInventoryPanelComponent implements OnInit {
         await this.store.assertAction(scope, 'INVENTORY_COUNT');
         command = await this.store.queue(scope, 'INVENTORY_COUNT', {
           ...common,
-          countedQuantity: value.quantity,
+          countedQuantity: quantity,
           snapshotQuantity:
             this.availability.find(
               ({ productId, locationId }) =>
@@ -167,7 +178,7 @@ export class OfflineInventoryPanelComponent implements OnInit {
         command = await this.store.queue(scope, 'INVENTORY_MOVEMENT', {
           ...common,
           type: value.operation,
-          quantity: value.quantity,
+          quantity,
         });
       }
       this.success.set(`Operación #${command.sequence} pendiente de confirmación.`);

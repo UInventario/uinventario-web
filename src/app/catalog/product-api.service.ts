@@ -6,8 +6,18 @@ export interface ProductData {
   id: string;
   name: string;
   sku: string;
+  withoutCode?: boolean;
+  stockBehavior?: 'TRACKED' | 'UNTRACKED';
+  taxBehavior?: 'STANDARD' | 'EXEMPT';
   barcode: string | null;
+  baseUnit?: ProductBaseUnit;
+  quantityPrecision?: number;
+  quantityRounding?: QuantityRoundingMode;
+  minimumQuantity?: string;
   trackLots?: boolean;
+  lotExpirationPolicy?: 'NONE' | 'OPTIONAL' | 'REQUIRED';
+  lotExpirationAlertDays?: number;
+  allowExpiredStockOverride?: boolean;
   trackSerials?: boolean;
   category: { id: string; name: string } | null;
   brand: { id: string; name: string } | null;
@@ -15,19 +25,61 @@ export interface ProductData {
   price: string;
   active: boolean;
   version: number;
+  parentProductId?: string | null;
+  variantAttributes?: Array<{ name: string; values: string[] }>;
+  variantValues?: Array<{ attribute: string; value: string }>;
+  sellable?: boolean;
+  variants?: ProductData[];
+  kit?: ProductKitData | null;
+}
+
+export interface ProductKitData {
+  stockMode: 'DERIVED' | 'ASSEMBLED';
+  priceRule: 'FIXED' | 'COMPONENT_SUM';
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
+  components: Array<{
+    product: { id: string; name: string; sku: string };
+    quantity: string;
+  }>;
+}
+
+export interface ProductVariantInput {
+  id?: string;
+  version?: number;
+  values: string[];
+  sku: string;
+  barcode?: string;
+  cost: string;
+  price: string;
+  active: boolean;
 }
 
 export interface ProductInput {
   name: string;
-  sku: string;
+  sku?: string;
+  withoutCode?: boolean;
+  stockBehavior?: 'TRACKED' | 'UNTRACKED';
+  taxBehavior?: 'STANDARD' | 'EXEMPT';
   barcode?: string;
+  baseUnit: ProductBaseUnit;
+  quantityPrecision: number;
+  quantityRounding: QuantityRoundingMode;
+  minimumQuantity: string;
   trackLots: boolean;
+  lotExpirationPolicy?: 'NONE' | 'OPTIONAL' | 'REQUIRED';
+  lotExpirationAlertDays?: number;
+  allowExpiredStockOverride?: boolean;
   trackSerials?: boolean;
   categoryName?: string;
   brandName?: string;
   cost: string;
   price: string;
 }
+
+export type ProductBaseUnit =
+  'UNIT' | 'KILOGRAM' | 'GRAM' | 'LITER' | 'MILLILITER' | 'METER' | 'CENTIMETER';
+export type QuantityRoundingMode = 'HALF_UP' | 'DOWN' | 'UP';
 
 export interface ProductResponse {
   data: ProductData;
@@ -120,6 +172,7 @@ export class ProductApiService {
     status?: ProductStatusFilter;
     categoryId?: string;
     brandId?: string;
+    sellableOnly?: boolean;
     page: number;
     pageSize: number;
   }) {
@@ -128,8 +181,41 @@ export class ProductApiService {
     if (query.status) params = params.set('status', query.status);
     if (query.categoryId) params = params.set('categoryId', query.categoryId);
     if (query.brandId) params = params.set('brandId', query.brandId);
+    if (query.sellableOnly !== undefined) params = params.set('sellableOnly', query.sellableOnly);
     return this.http.get<ProductListResponse>(`${this.config.apiBaseUrl()}/products`, {
       params,
+      withCredentials: true,
+    });
+  }
+
+  updateVariants(
+    id: string,
+    input: {
+      version: number;
+      attributes: Array<{ name: string; values: string[] }>;
+      variants: ProductVariantInput[];
+    },
+  ) {
+    return this.http.put<ProductResponse>(
+      `${this.config.apiBaseUrl()}/products/${id}/variants`,
+      input,
+      { withCredentials: true },
+    );
+  }
+
+  updateKit(
+    id: string,
+    input: {
+      version: number;
+      enabled: boolean;
+      stockMode?: ProductKitData['stockMode'];
+      priceRule?: ProductKitData['priceRule'];
+      effectiveFrom?: string;
+      effectiveTo?: string;
+      components?: Array<{ productId: string; quantity: string }>;
+    },
+  ) {
+    return this.http.put<ProductResponse>(`${this.config.apiBaseUrl()}/products/${id}/kit`, input, {
       withCredentials: true,
     });
   }

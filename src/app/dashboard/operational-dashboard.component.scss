@@ -1,0 +1,167 @@
+:host {
+  display: block;
+}
+.dashboard {
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: 2.2rem 1.5rem;
+}
+.heading,
+.controls,
+fieldset,
+article {
+  display: flex;
+}
+.heading {
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.eyebrow {
+  margin: 0;
+  color: #0b5cab;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+h1 {
+  margin: 0.25rem 0;
+  font-size: clamp(2rem, 5vw, 3rem);
+}
+.context,
+.definition,
+small {
+  color: #5b6f80;
+}
+.context {
+  margin: 0;
+}
+.controls {
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #dbe3ea;
+  border-radius: 1rem;
+  background: #fff;
+}
+.controls label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+input[type='date'],
+select {
+  min-height: 2.6rem;
+  padding: 0.5rem;
+  border: 1px solid #b8c7d3;
+  border-radius: 0.5rem;
+}
+.forecast {
+  grid-column: span 2;
+}
+.forecast-horizon {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.forecast details ul {
+  margin: 0.5rem 0;
+  padding-left: 1.2rem;
+}
+fieldset {
+  flex: 1 1 28rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  border: 0;
+}
+fieldset label {
+  display: flex;
+  grid: none;
+  align-items: center;
+  gap: 0.3rem;
+}
+.widgets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+article {
+  min-height: 14rem;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1.2rem;
+  border: 1px solid #dbe3ea;
+  border-radius: 1rem;
+  background: #fff;
+}
+article h2,
+article p {
+  margin: 0;
+}
+.definition {
+  min-height: 3rem;
+  font-size: 0.85rem;
+}
+.metric {
+  color: #0b5cab;
+  font-size: 1.75rem;
+}
+article a {
+  margin-top: auto;
+  color: #0b5cab;
+  font-weight: 700;
+}
+.error,
+.warning {
+  color: #a4262c;
+}
+.period-error {
+  margin: 0.75rem 0 0;
+  font-weight: 700;
+}
+.secondary {
+  min-height: 2.6rem;
+  padding: 0.6rem 0.8rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: #e9f1f8;
+  color: #0b5cab;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 3px solid rgba(11, 92, 171, 0.45);
+  outline-offset: 2px;
+}
+@media (max-width: 40rem) {
+  .heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .heading button {
+    width: 100%;
+  }
+  .dashboard {
+    padding-inline: 1rem;
+  }
+  .controls,
+  fieldset {
+    min-width: 0;
+  }
+  fieldset {
+    flex-basis: 100%;
+    padding: 0;
+  }
+  .forecast {
+    grid-column: span 1;
+  }
+}

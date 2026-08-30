@@ -30,6 +30,11 @@ Registro e inicio de sesión forman un recorrido real hasta `/onboarding`. La co
 queda bajo control del API y las rutas privadas validan la sesión al recargar.
 La Web renueva la sesión poco antes de expirar, sincroniza rotación/logout entre
 pestañas y vuelve a `/login` cuando la sesión termina.
+El build productivo registra un Service Worker que conserva únicamente el shell y
+la configuración pública del ambiente; nunca cachea respuestas `/api`. Cuando existe
+un bootstrap vigente, una instantánea de sesión sin cookies, tokens ni contraseñas
+permite restaurar el contexto autorizado tras un arranque offline. Logout, expiración
+y revocación eliminan la instantánea, entidades y outbox locales.
 La recuperación de contraseña ofrece una respuesta indistinguible para cuentas
 conocidas y desconocidas, y consume enlaces temporales de un solo uso en `/restablecer`.
 El primer paso de onboarding permite configurar y reanudar la empresa mínima antes
@@ -52,6 +57,8 @@ El historial de movimientos explica entradas, ajustes y salidas por venta con
 producto, ubicación, motivo, referencia, responsable y filtros paginados.
 El punto de venta busca productos y mantiene un carrito cuya existencia, precios,
 impuesto incluido y totales son recalculados por la API en el contexto de caja activo.
+Los usuarios con `SALES_DISCOUNT` pueden aplicar descuentos por producto o venta,
+con porcentaje o importe, motivo obligatorio, límite del servidor y reflejo en ticket y margen.
 El cobro en efectivo registra una venta persistida, muestra folio y cambio, y evita
 duplicados durante envíos o reintentos; al confirmarse, refresca la existencia real.
 El historial permite filtrar ventas de la sucursal activa y auditar líneas, efectivo,
@@ -65,6 +72,7 @@ npm run typecheck
 npm run test:ci
 npm run test:server
 npm run build
+npm run test:service-worker
 ```
 
 El workflow `CI` ejecuta esta secuencia en cada PR y push a `develop` o `master`.

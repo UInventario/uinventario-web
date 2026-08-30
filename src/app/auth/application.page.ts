@@ -3,10 +3,11 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { finalize, forkJoin } from 'rxjs';
+import { finalize, forkJoin, of, switchMap } from 'rxjs';
 import {
   ProductApiService,
   ProductData,
+  ProductBaseUnit,
   ProductInput,
   ProductStatusFilter,
 } from '../catalog/product-api.service';
@@ -30,18 +31,29 @@ import { InventoryImportPanelComponent } from '../inventory/inventory-import-pan
 import { InventoryCountPanelComponent } from '../inventory/inventory-count-panel.component';
 import { InventoryValuationPolicyPanelComponent } from '../inventory/inventory-valuation-policy-panel.component';
 import { InventoryReconciliationPanelComponent } from '../inventory/inventory-reconciliation-panel.component';
+import { StockAlertPanelComponent } from '../inventory/stock-alert-panel.component';
+import { SaleReceiptPanelComponent } from '../pos/sale-receipt-panel.component';
+import { SaleReturnPanelComponent } from '../pos/sale-return-panel.component';
+import { DesktopPeripheralPanelComponent } from '../pos/desktop-peripheral-panel.component';
+import { DesktopPeripheralService } from '../pos/desktop-peripheral.service';
 import { SessionApiService } from './session-api.service';
 import {
   CashRegisterClosureData,
   CashRegisterMovementData,
   CashRegisterShiftData,
   CashSaleData,
+  CollectedPaymentMethod,
   PaymentMethod,
+  PaymentTerminalOperationData,
   PosApiService,
   PosCartQuote,
+  PosProfitabilityReportData,
   SaleDetailData,
+  SaleDiscountInput,
   SaleSummaryData,
   SalesCashReportData,
+  SuspendedSaleConflict,
+  SuspendedSaleData,
 } from '../pos/pos-api.service';
 import { AuditApiService, AuditEventData } from '../audit/audit-api.service';
 import {
@@ -77,6 +89,27 @@ import { ProductCodeScannerComponent } from '../catalog/product-code-scanner.com
 import { DataExportPanelComponent } from '../exports/data-export-panel.component';
 import { ProductImportPanelComponent } from '../catalog/product-import-panel.component';
 import { PrivacyPanelComponent } from '../privacy/privacy-panel.component';
+import { PriceListPanelComponent } from '../pricing/price-list-panel.component';
+import { PromotionPanelComponent } from '../promotions/promotion-panel.component';
+import { ProductVariantPanelComponent } from '../catalog/product-variant-panel.component';
+import { ProductKitPanelComponent } from '../catalog/product-kit-panel.component';
+import { InventoryKitPanelComponent } from '../inventory/inventory-kit-panel.component';
+import { CustomerOrderPanelComponent } from '../orders/customer-order-panel.component';
+import { SalesQuotationPanelComponent } from '../quotations/sales-quotation-panel.component';
+import { OperationalDashboardComponent } from '../dashboard/operational-dashboard.component';
+import { NotificationPanelComponent } from '../notifications/notification-panel.component';
+import { ExternalAdapterPanelComponent } from '../integrations/external-adapter-panel.component';
+import { LoyaltyPanelComponent } from '../loyalty/loyalty-panel.component';
+import { CommerceIntegrationPanelComponent } from '../integrations/commerce-integration-panel.component';
+import { FiscalContractPanelComponent } from '../integrations/fiscal-contract-panel.component';
+import { ErpIntegrationPanelComponent } from '../integrations/erp-integration-panel.component';
+import { PspPanelComponent } from '../integrations/psp-panel.component';
+import { AccountingPanelComponent } from '../integrations/accounting-panel.component';
+import { WhatsappPanelComponent } from '../integrations/whatsapp-panel.component';
+import { ApplicationInventoryStylesComponent } from './application-inventory-styles.component';
+import { ApplicationCatalogStylesComponent } from './application-catalog-styles.component';
+import { ApplicationPosStylesComponent } from './application-pos-styles.component';
+import { ApplicationSalesStylesComponent } from './application-sales-styles.component';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const POSITIVE_MONEY_PATTERN = /^(?:[1-9]\d{0,11}(?:\.\d{1,2})?|0\.(?:0[1-9]|[1-9]\d?))$/;
@@ -91,13 +124,23 @@ const PAYMENT_REFERENCE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]{3,119}$/;
 interface CartEntry {
   product: ProductData;
   quantity: string;
+  note?: string;
+  manualUnitPrice?: string;
+  priceOverrideReason?: string;
   lotId: string;
   lots: InventoryLotData[];
   serialNumbers: string;
+  discountType: '' | 'PERCENT' | 'AMOUNT';
+  discountValue: string;
+  discountReason: string;
+  expiredLotOverrideReason: string;
 }
+
+type PosSaleInput = Parameters<PosApiService['createSale']>[0];
 
 @Component({
   selector: 'app-application-page',
+  host: { class: 'application-page' },
   imports: [
     DatePipe,
     ReactiveFormsModule,
@@ -106,6 +149,10 @@ interface CartEntry {
     InventoryCountPanelComponent,
     InventoryValuationPolicyPanelComponent,
     InventoryReconciliationPanelComponent,
+    StockAlertPanelComponent,
+    SaleReceiptPanelComponent,
+    SaleReturnPanelComponent,
+    DesktopPeripheralPanelComponent,
     CustomerHistoryPanelComponent,
     SupplierPanelComponent,
     PurchaseOrderPanelComponent,
@@ -117,6 +164,27 @@ interface CartEntry {
     DataExportPanelComponent,
     ProductImportPanelComponent,
     PrivacyPanelComponent,
+    PriceListPanelComponent,
+    PromotionPanelComponent,
+    ProductVariantPanelComponent,
+    ProductKitPanelComponent,
+    InventoryKitPanelComponent,
+    CustomerOrderPanelComponent,
+    SalesQuotationPanelComponent,
+    OperationalDashboardComponent,
+    NotificationPanelComponent,
+    ExternalAdapterPanelComponent,
+    LoyaltyPanelComponent,
+    CommerceIntegrationPanelComponent,
+    FiscalContractPanelComponent,
+    ErpIntegrationPanelComponent,
+    PspPanelComponent,
+    AccountingPanelComponent,
+    WhatsappPanelComponent,
+    ApplicationInventoryStylesComponent,
+    ApplicationCatalogStylesComponent,
+    ApplicationPosStylesComponent,
+    ApplicationSalesStylesComponent,
   ],
   templateUrl: './application.page.html',
   styleUrl: './application.page.scss',
@@ -133,6 +201,7 @@ export class ApplicationPage implements OnInit {
   private readonly access = inject(AccessApiService);
   private readonly customersApi = inject(CustomerApiService);
   private readonly offlinePos = inject(OfflinePosService);
+  private readonly desktopPeripherals = inject(DesktopPeripheralService);
   private pendingMovement: { input: InventoryMovementInput; key: string } | null = null;
   private pendingStateTransition: {
     input: InventoryStateTransitionInput;
@@ -146,23 +215,11 @@ export class ApplicationPage implements OnInit {
     input: InventoryTransferReceiptInput;
     key: string;
   } | null = null;
-  private pendingSale: {
-    input: {
-      lines: Array<{
-        productId: string;
-        quantity: string;
-        lotId?: string;
-        serialNumbers?: string[];
-      }>;
-      customerId?: string;
-      payments: Array<{
-        method: PaymentMethod;
-        amount: string;
-        amountReceived?: string;
-        reference?: string;
-      }>;
-    };
+  private pendingSale: { input: PosSaleInput; key: string } | null = null;
+  private pendingTerminalSale: {
+    input: PosSaleInput;
     key: string;
+    quote: PosCartQuote;
   } | null = null;
   private pendingSaleVoid: { saleId: string; reason: string; key: string } | null = null;
   private pendingShiftOpening: { openingAmount: string; key: string } | null = null;
@@ -225,8 +282,34 @@ export class ApplicationPage implements OnInit {
       Boolean(this.session()?.context.cashRegister) &&
       (this.session()?.user.permissions.includes('SALES_MANAGE') ?? false),
   );
+  protected readonly canViewProfitability = computed(
+    () =>
+      this.canManageSales() &&
+      (this.session()?.user.permissions.includes('INVENTORY_VALUATION_MANAGE') ?? false),
+  );
   protected readonly canVoidSales = computed(
     () => this.session()?.user.permissions.includes('SALES_VOID') ?? false,
+  );
+  protected readonly canApplyDiscount = computed(
+    () => this.session()?.user.permissions.includes('SALES_DISCOUNT') ?? false,
+  );
+  protected readonly canOverridePrice = computed(
+    () => this.session()?.user.permissions.includes('SALES_PRICE_OVERRIDE') ?? false,
+  );
+  protected readonly canOverrideExpiredStock = computed(
+    () => this.session()?.user.permissions.includes('INVENTORY_EXPIRED_STOCK_OVERRIDE') ?? false,
+  );
+  protected readonly canSellCredit = computed(
+    () => this.session()?.user.permissions.includes('SALES_CREDIT') ?? false,
+  );
+  protected readonly canReturnSales = computed(
+    () => this.session()?.user.permissions.includes('SALES_RETURN') ?? false,
+  );
+  protected readonly canReprintSales = computed(
+    () => this.session()?.user.permissions.includes('SALE_REPRINT') ?? false,
+  );
+  protected readonly canOpenCashDrawer = computed(
+    () => this.session()?.user.permissions.includes('CASH_DRAWER_OPEN') ?? false,
   );
   protected readonly canOpenCashRegister = computed(
     () => this.session()?.user.permissions.includes('CASH_REGISTER_OPEN') ?? false,
@@ -246,6 +329,12 @@ export class ApplicationPage implements OnInit {
   protected readonly canManagePrivacy = computed(
     () => this.session()?.user.permissions.includes('PRIVACY_MANAGE') ?? false,
   );
+  protected readonly canViewNotifications = computed(
+    () => this.session()?.user.permissions.includes('NOTIFICATIONS_VIEW') ?? false,
+  );
+  protected readonly canManageNotifications = computed(
+    () => this.session()?.user.permissions.includes('NOTIFICATIONS_MANAGE') ?? false,
+  );
   protected readonly hasNoCoreAccess = computed(
     () =>
       !this.canManageTenant() &&
@@ -256,7 +345,8 @@ export class ApplicationPage implements OnInit {
       !this.canManageSales() &&
       !this.canManageAccess() &&
       !this.canViewAudit() &&
-      !this.canManagePrivacy(),
+      !this.canManagePrivacy() &&
+      !this.canViewNotifications(),
   );
   protected readonly rolePermissions = OPERATIONAL_PERMISSIONS;
   protected readonly accessRoles = signal<AccessRoleData[]>([]);
@@ -314,6 +404,7 @@ export class ApplicationPage implements OnInit {
     id: string;
   } | null>(null);
   protected readonly stockList = signal<InventoryStockItem[]>([]);
+  protected readonly stockAlertRefreshToken = signal(0);
   protected readonly selectedProductLots = signal<InventoryLotData[]>([]);
   protected readonly selectedProductSerials = signal<InventorySerialData[]>([]);
   protected readonly selectedSerialHistory = signal<{
@@ -377,13 +468,43 @@ export class ApplicationPage implements OnInit {
   protected readonly cart = signal<CartEntry[]>([]);
   protected readonly cartQuote = signal<PosCartQuote | null>(null);
   protected readonly completedSale = signal<CashSaleData | null>(null);
+  protected readonly desktopCustomerDisplay = computed(() => {
+    const quote = this.cartQuote();
+    const completed = this.completedSale();
+    return {
+      currency:
+        quote?.currency ?? completed?.currency ?? this.currentCashRegisterShift()?.currency ?? '',
+      total: quote?.totals.payable ?? quote?.totals.total ?? completed?.totals.total ?? '0.00',
+      message: quote?.lines.length
+        ? 'Venta en curso'
+        : completed
+          ? `Gracias · ${completed.receiptNumber}`
+          : 'Bienvenido',
+      lines:
+        quote?.lines.map((line) => ({
+          name: line.product.name,
+          quantity: line.quantity,
+          total: line.total,
+        })) ?? [],
+    };
+  });
   protected readonly searchingPos = signal(false);
   protected readonly quotingCart = signal(false);
   protected readonly savingSale = signal(false);
   protected readonly offlinePosActive = signal(false);
   protected readonly queuedOfflineSale = signal<{ commandId: string; total: string } | null>(null);
   protected readonly posError = signal<string | null>(null);
-  protected readonly paymentMethods = signal<PaymentMethod[]>(['CASH']);
+  protected readonly terminalPayment = signal<PaymentTerminalOperationData | null>(null);
+  protected readonly peripheralNotice = signal<string | null>(null);
+  protected readonly suspendedSales = signal<SuspendedSaleData[]>([]);
+  protected readonly loadingSuspendedSales = signal(false);
+  protected readonly savingSuspendedSale = signal(false);
+  protected readonly suspendedSaleActionId = signal<string | null>(null);
+  protected readonly suspendedSaleError = signal<string | null>(null);
+  protected readonly suspendedSaleSuccess = signal<string | null>(null);
+  protected readonly resumedSuspendedSaleId = signal<string | null>(null);
+  protected readonly suspendedSaleConflicts = signal<SuspendedSaleConflict[]>([]);
+  protected readonly paymentMethods = signal<CollectedPaymentMethod[]>(['CASH']);
   protected readonly nonCashProvider = signal<'SIMULATOR' | 'DISABLED'>('DISABLED');
   protected readonly customers = signal<CustomerData[]>([]);
   protected readonly customerHistoryCustomer = signal<CustomerData | null>(null);
@@ -407,6 +528,12 @@ export class ApplicationPage implements OnInit {
   protected readonly salesCashReportError = signal<string | null>(null);
   protected readonly salesCashReportPage = signal(1);
   protected readonly salesCashReportTotalPages = signal(0);
+  protected readonly profitabilityReport = signal<PosProfitabilityReportData | null>(null);
+  protected readonly loadingProfitabilityReport = signal(false);
+  protected readonly profitabilityReportError = signal<string | null>(null);
+  protected readonly profitabilityReportPage = signal(1);
+  protected readonly profitabilityReportTotalPages = signal(0);
+  protected readonly reportFilterStatus = signal<string | null>(null);
   protected readonly auditEvents = signal<AuditEventData[]>([]);
   protected readonly loadingAudit = signal(true);
   protected readonly exportingAudit = signal(false);
@@ -465,6 +592,13 @@ export class ApplicationPage implements OnInit {
   protected readonly paymentRows = this.formBuilder.array([this.createPaymentRow()]);
   protected readonly cashForm = this.formBuilder.nonNullable.group({
     customerId: [''],
+    loyaltyPointsToRedeem: [0, [Validators.min(0), Validators.max(10_000_000)]],
+    creditSale: [false],
+    installmentCount: [1, [Validators.required, Validators.min(1), Validators.max(36)]],
+    notes: ['', [Validators.maxLength(500)]],
+    discountType: ['' as '' | 'PERCENT' | 'AMOUNT'],
+    discountValue: ['', [Validators.pattern(POSITIVE_MONEY_PATTERN)]],
+    discountReason: ['', [Validators.maxLength(240)]],
   });
   protected readonly customerSearchForm = this.formBuilder.nonNullable.group({ q: [''] });
   protected readonly customerForm = this.formBuilder.nonNullable.group({
@@ -473,6 +607,11 @@ export class ApplicationPage implements OnInit {
     email: ['', [Validators.email, Validators.maxLength(254)]],
     phone: ['', [Validators.pattern(/^\+?[0-9 ()-]{7,32}$/)]],
     dataProcessingConsent: [false],
+    creditEnabled: [false],
+    creditLimit: ['1000.00', [Validators.required, Validators.pattern(POSITIVE_MONEY_PATTERN)]],
+    creditCurrency: ['MXN', [Validators.required, Validators.pattern(/^[A-Z]{3}$/)]],
+    creditTermDays: [30, [Validators.required, Validators.min(1), Validators.max(365)]],
+    creditMaxInstallments: [3, [Validators.required, Validators.min(1), Validators.max(36)]],
   });
   protected readonly cashRegisterShiftForm = this.formBuilder.nonNullable.group({
     openingAmount: ['0.00', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
@@ -517,13 +656,26 @@ export class ApplicationPage implements OnInit {
   });
   protected readonly form = this.formBuilder.nonNullable.group({
     name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
-    sku: ['', [Validators.required, Validators.pattern(SKU_PATTERN)]],
+    sku: ['', [Validators.pattern(SKU_PATTERN)]],
+    withoutCode: [false],
+    stockBehavior: ['TRACKED' as 'TRACKED' | 'UNTRACKED'],
+    taxBehavior: ['STANDARD' as 'STANDARD' | 'EXEMPT'],
     barcode: ['', [Validators.pattern(BARCODE_PATTERN)]],
     categoryName: ['', [Validators.minLength(2), Validators.maxLength(80)]],
     brandName: ['', [Validators.minLength(2), Validators.maxLength(120)]],
     cost: ['', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
     price: ['', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
+    baseUnit: ['UNIT' as ProductBaseUnit, [Validators.required]],
+    quantityPrecision: [0, [Validators.required, Validators.min(0), Validators.max(3)]],
+    quantityRounding: ['HALF_UP' as 'HALF_UP' | 'DOWN' | 'UP', [Validators.required]],
+    minimumQuantity: [
+      '1.000',
+      [Validators.required, Validators.pattern(POSITIVE_QUANTITY_PATTERN)],
+    ],
     trackLots: [false],
+    lotExpirationPolicy: ['NONE' as 'NONE' | 'OPTIONAL' | 'REQUIRED'],
+    lotExpirationAlertDays: [30, [Validators.required, Validators.min(1), Validators.max(365)]],
+    allowExpiredStockOverride: [false],
     trackSerials: [false],
   });
   protected readonly stockForm = this.formBuilder.nonNullable.group({
@@ -533,6 +685,8 @@ export class ApplicationPage implements OnInit {
     reason: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
     reference: ['', [Validators.maxLength(120)]],
     lotCode: ['', [Validators.maxLength(64)]],
+    manufacturedOn: [''],
+    expiresOn: [''],
     serialNumbers: ['', [Validators.maxLength(120999)]],
   });
   protected readonly stateTransitionForm = this.formBuilder.nonNullable.group({
@@ -601,6 +755,7 @@ export class ApplicationPage implements OnInit {
   });
 
   ngOnInit(): void {
+    this.restoreSalesCashReportFilters();
     this.loadOrganization();
     if (this.canManageProducts() || this.canManageStock() || this.canManageSales()) {
       this.loadOptions();
@@ -618,13 +773,18 @@ export class ApplicationPage implements OnInit {
       this.loadLatestCashClosure();
       this.loadSales(1);
       this.loadSalesCashReport(1);
+      if (this.canViewProfitability()) this.loadProfitabilityReport(1);
       this.loadCustomers();
+      this.loadSuspendedSales();
     }
     if (this.canViewAudit()) this.loadAuditEvents();
     if (this.canManageAccess()) this.loadAccess();
   }
 
   protected submit(): void {
+    if (!this.form.controls.withoutCode.value && !this.form.controls.sku.value.trim()) {
+      this.form.controls.sku.setErrors({ required: true });
+    }
     if (this.form.invalid || this.saving()) {
       this.form.markAllAsTouched();
       return;
@@ -661,13 +821,23 @@ export class ApplicationPage implements OnInit {
     this.editingProduct.set(product);
     this.form.reset({
       name: product.name,
-      sku: product.sku,
+      sku: product.withoutCode ? '' : product.sku,
+      withoutCode: product.withoutCode ?? false,
+      stockBehavior: product.stockBehavior ?? 'TRACKED',
+      taxBehavior: product.taxBehavior ?? 'STANDARD',
       barcode: product.barcode ?? '',
       categoryName: product.category?.name ?? '',
       brandName: product.brand?.name ?? '',
       cost: product.cost,
       price: product.price,
+      baseUnit: product.baseUnit ?? 'UNIT',
+      quantityPrecision: product.quantityPrecision ?? 3,
+      quantityRounding: product.quantityRounding ?? 'HALF_UP',
+      minimumQuantity: product.minimumQuantity ?? '0.001',
       trackLots: product.trackLots,
+      lotExpirationPolicy: product.lotExpirationPolicy ?? 'NONE',
+      lotExpirationAlertDays: product.lotExpirationAlertDays ?? 30,
+      allowExpiredStockOverride: product.allowExpiredStockOverride ?? false,
       trackSerials: product.trackSerials ?? false,
     });
   }
@@ -836,6 +1006,10 @@ export class ApplicationPage implements OnInit {
           this.cart.set([]);
           this.cartQuote.set(null);
           this.completedSale.set(null);
+          this.resumedSuspendedSaleId.set(null);
+          this.suspendedSaleConflicts.set([]);
+          this.suspendedSales.set([]);
+          this.resetPaymentForm();
           this.currentCashRegisterShift.set(null);
           this.pendingShiftOpening = null;
           this.cashRegisterShiftError.set(null);
@@ -864,6 +1038,7 @@ export class ApplicationPage implements OnInit {
             this.loadCurrentCashRegisterShift();
             this.loadLatestCashClosure();
             this.loadSales(1);
+            this.loadSuspendedSales();
           }
         },
         error: (error: HttpErrorResponse) =>
@@ -1071,6 +1246,11 @@ export class ApplicationPage implements OnInit {
     this.loadStockList(1);
   }
 
+  protected viewAlertStock(sku: string): void {
+    this.stockSearchForm.controls.q.setValue(sku);
+    this.loadStockList(1);
+  }
+
   protected previousStockPage(): void {
     if (this.stockPage() > 1) this.loadStockList(this.stockPage() - 1);
   }
@@ -1113,6 +1293,7 @@ export class ApplicationPage implements OnInit {
       STATE_TRANSITION: 'Cambio de estado',
       SALE: 'Venta',
       SALE_VOID: 'Anulación de venta',
+      SALE_RETURN: 'Devolución de venta',
       TRANSFER_OUT: 'Transferencia despachada',
       TRANSFER_IN: 'Transferencia en tránsito',
       TRANSFER_RECEIPT: 'Transferencia recibida',
@@ -1397,6 +1578,7 @@ export class ApplicationPage implements OnInit {
           : {}),
         page: 1,
         pageSize: 5,
+        sellableOnly: true,
       })
       .pipe(finalize(() => this.searchingPos.set(false)))
       .subscribe({
@@ -1428,6 +1610,11 @@ export class ApplicationPage implements OnInit {
       email: customer.email ?? '',
       phone: customer.phone ?? '',
       dataProcessingConsent: customer.dataProcessingConsent,
+      creditEnabled: customer.credit?.enabled ?? false,
+      creditLimit: customer.credit?.limit ?? '1000.00',
+      creditCurrency: customer.credit?.currency ?? 'MXN',
+      creditTermDays: customer.credit?.termDays ?? 30,
+      creditMaxInstallments: customer.credit?.maxInstallments ?? 3,
     });
     this.customerError.set(null);
   }
@@ -1440,6 +1627,11 @@ export class ApplicationPage implements OnInit {
       email: '',
       phone: '',
       dataProcessingConsent: false,
+      creditEnabled: false,
+      creditLimit: '1000.00',
+      creditCurrency: 'MXN',
+      creditTermDays: 30,
+      creditMaxInstallments: 3,
     });
   }
 
@@ -1468,24 +1660,41 @@ export class ApplicationPage implements OnInit {
     const operation = current
       ? this.customersApi.update(current.id, { ...input, version: current.version })
       : this.customersApi.create(input);
-    operation.pipe(finalize(() => this.savingCustomer.set(false))).subscribe({
-      next: ({ data }) => {
-        this.customerSuccess.set(current ? 'Cliente actualizado.' : 'Cliente creado.');
-        if (this.customerHistoryCustomer()?.id === data.id) {
-          this.customerHistoryCustomer.set(data);
-        }
-        this.cancelCustomerEdit();
-        this.loadCustomers();
-        this.cashForm.controls.customerId.setValue(data.id);
-      },
-      error: (error: HttpErrorResponse) => {
-        this.customerError.set(
-          typeof error.error?.message === 'string'
-            ? error.error.message
-            : 'No fue posible guardar el cliente.',
-        );
-      },
-    });
+    operation
+      .pipe(
+        switchMap((response) => {
+          const shouldConfigureCredit =
+            this.canSellCredit() && (raw.creditEnabled || Boolean(current?.credit));
+          if (!shouldConfigureCredit) return of(response);
+          return this.customersApi.configureCredit(response.data.id, {
+            enabled: raw.creditEnabled,
+            creditLimit: raw.creditLimit.trim(),
+            currency: raw.creditCurrency.trim().toUpperCase(),
+            termDays: raw.creditTermDays,
+            maxInstallments: raw.creditMaxInstallments,
+            version: response.data.version,
+          });
+        }),
+        finalize(() => this.savingCustomer.set(false)),
+      )
+      .subscribe({
+        next: ({ data }) => {
+          this.customerSuccess.set(current ? 'Cliente actualizado.' : 'Cliente creado.');
+          if (this.customerHistoryCustomer()?.id === data.id) {
+            this.customerHistoryCustomer.set(data);
+          }
+          this.cancelCustomerEdit();
+          this.loadCustomers();
+          this.cashForm.controls.customerId.setValue(data.id);
+        },
+        error: (error: HttpErrorResponse) => {
+          this.customerError.set(
+            typeof error.error?.message === 'string'
+              ? error.error.message
+              : 'No fue posible guardar el cliente.',
+          );
+        },
+      });
   }
 
   protected deactivateCustomer(customer: CustomerData): void {
@@ -1510,6 +1719,13 @@ export class ApplicationPage implements OnInit {
     this.customerHistoryCustomer.set(customer);
   }
 
+  protected updateCustomerCredit(customer: CustomerData): void {
+    this.customers.update((current) =>
+      current.map((item) => (item.id === customer.id ? customer : item)),
+    );
+    this.customerHistoryCustomer.set(customer);
+  }
+
   protected openCustomerSale(saleId: string): void {
     this.selectSale(saleId);
     document.getElementById('sales-title')?.scrollIntoView({ behavior: 'smooth' });
@@ -1521,16 +1737,42 @@ export class ApplicationPage implements OnInit {
       this.posError.set('El producto está inactivo y no puede venderse.');
       return;
     }
+    if (product.sellable === false) {
+      this.posError.set('Selecciona una variante con SKU propio para vender este producto.');
+      return;
+    }
     const existing = this.cart().find((entry) => entry.product.id === product.id);
     this.resetCompletedSale();
     this.cart.set(
       existing
         ? this.cart().map((entry) =>
             entry.product.id === product.id
-              ? { ...entry, quantity: String(Number(entry.quantity) + 1) }
+              ? {
+                  ...entry,
+                  quantity: this.quantityFromUnits(
+                    this.quantityUnits(entry.quantity) +
+                      this.quantityUnits(product.minimumQuantity ?? '0.001'),
+                  ),
+                }
               : entry,
           )
-        : [...this.cart(), { product, quantity: '1', lotId: '', lots: [], serialNumbers: '' }],
+        : [
+            ...this.cart(),
+            {
+              product,
+              quantity: product.minimumQuantity ?? '0.001',
+              note: '',
+              manualUnitPrice: '',
+              priceOverrideReason: '',
+              lotId: '',
+              lots: [],
+              serialNumbers: '',
+              discountType: '',
+              discountValue: '',
+              discountReason: '',
+              expiredLotOverrideReason: '',
+            },
+          ],
     );
     if (!existing && product.trackLots) {
       this.inventory.listLots(product.id).subscribe({
@@ -1549,15 +1791,42 @@ export class ApplicationPage implements OnInit {
   protected updateCartLot(productId: string, lotId: string): void {
     this.resetCompletedSale();
     this.cart.update((entries) =>
-      entries.map((entry) => (entry.product.id === productId ? { ...entry, lotId } : entry)),
+      entries.map((entry) =>
+        entry.product.id === productId ? { ...entry, lotId, expiredLotOverrideReason: '' } : entry,
+      ),
     );
     this.quoteCart();
   }
 
+  protected updateExpiredLotReason(productId: string, reason: string): void {
+    this.resetCompletedSale();
+    this.cart.update((entries) =>
+      entries.map((entry) =>
+        entry.product.id === productId ? { ...entry, expiredLotOverrideReason: reason } : entry,
+      ),
+    );
+    this.quoteCart();
+  }
+
+  protected selectedCartLot(entry: CartEntry): InventoryLotData | null {
+    return entry.lots?.find((lot) => lot.id === entry.lotId) ?? null;
+  }
+
+  protected isExpiredLotSelected(entry: CartEntry): boolean {
+    return this.selectedCartLot(entry)?.expirationStatus === 'EXPIRED';
+  }
+
   protected updateCartQuantity(productId: string, quantity: string): void {
     const normalized = quantity.trim();
-    if (!CART_QUANTITY_PATTERN.test(normalized) || Number(normalized) <= 0) {
-      this.posError.set('La cantidad del carrito debe ser mayor que cero.');
+    const entry = this.cart().find((item) => item.product.id === productId);
+    if (
+      !entry ||
+      !CART_QUANTITY_PATTERN.test(normalized) ||
+      this.quantityUnits(normalized) < this.quantityUnits(entry.product.minimumQuantity ?? '0.001')
+    ) {
+      this.posError.set(
+        `La cantidad m\u00ednima del carrito es ${entry?.product.minimumQuantity ?? '0.001'}.`,
+      );
       return;
     }
     this.resetCompletedSale();
@@ -1579,6 +1848,64 @@ export class ApplicationPage implements OnInit {
     this.quoteCart();
   }
 
+  protected updateProductCodeMode(withoutCode: boolean): void {
+    if (withoutCode) this.form.controls.sku.setValue('');
+    this.form.controls.sku.setErrors(null);
+    this.form.controls.sku.updateValueAndValidity();
+  }
+
+  protected updateProductStockBehavior(behavior: 'TRACKED' | 'UNTRACKED'): void {
+    if (behavior === 'UNTRACKED') {
+      this.form.controls.trackLots.setValue(false);
+      this.form.controls.trackSerials.setValue(false);
+    }
+  }
+
+  protected updateCartLineDetail(
+    productId: string,
+    field: 'note' | 'manualUnitPrice' | 'priceOverrideReason',
+    value: string,
+  ): void {
+    if (field !== 'note' && !this.canOverridePrice()) return;
+    this.resetCompletedSale();
+    this.cart.update((entries) =>
+      entries.map((entry) =>
+        entry.product.id === productId ? { ...entry, [field]: value } : entry,
+      ),
+    );
+    this.quoteCart();
+  }
+
+  protected updateCartDiscount(
+    productId: string,
+    field: 'type' | 'value' | 'reason',
+    value: string,
+  ): void {
+    if (!this.canApplyDiscount()) return;
+    this.resetCompletedSale();
+    this.cart.update((entries) =>
+      entries.map((entry) =>
+        entry.product.id === productId
+          ? {
+              ...entry,
+              ...(field === 'type'
+                ? { discountType: value as CartEntry['discountType'] }
+                : field === 'value'
+                  ? { discountValue: value }
+                  : { discountReason: value }),
+            }
+          : entry,
+      ),
+    );
+    this.quoteCart();
+  }
+
+  protected updateSaleDiscount(): void {
+    if (!this.canApplyDiscount()) return;
+    this.resetCompletedSale();
+    this.quoteCart();
+  }
+
   protected removeFromCart(productId: string): void {
     this.resetCompletedSale();
     this.cart.set(this.cart().filter((entry) => entry.product.id !== productId));
@@ -1594,6 +1921,25 @@ export class ApplicationPage implements OnInit {
     return this.cartQuote()?.lines.find((line) => line.product.id === productId) ?? null;
   }
 
+  protected quoteForCustomer(): void {
+    this.cashForm.controls.loyaltyPointsToRedeem.setValue(0);
+    if (!this.creditCustomer()?.credit?.enabled) {
+      this.cashForm.controls.creditSale.setValue(false);
+    }
+    this.resetCompletedSale();
+    if (this.cart().length > 0) this.quoteCart();
+  }
+
+  protected updateLoyaltyRedemption(): void {
+    this.resetCompletedSale();
+    if (this.cart().length > 0) this.quoteCart();
+  }
+
+  protected creditCustomer(): CustomerData | null {
+    const customerId = this.cashForm.controls.customerId.value;
+    return this.customers().find((customer) => customer.id === customerId) ?? null;
+  }
+
   protected taxPercent(rate: string): string {
     return `${Number(rate) * 100}%`;
   }
@@ -1605,9 +1951,359 @@ export class ApplicationPage implements OnInit {
       this.cashForm.markAllAsTouched();
       return;
     }
-    if (!this.paymentsMatchTotal(quote.totals.total)) {
+    const creditSale = this.cashForm.controls.creditSale.value;
+    const creditCustomer = this.creditCustomer();
+    if (creditSale && (!creditCustomer?.credit?.enabled || !this.canSellCredit())) {
+      this.posError.set('Selecciona un cliente habilitado para crédito.');
+      return;
+    }
+    if (
+      creditSale &&
+      (this.cashForm.controls.installmentCount.invalid ||
+        this.cashForm.controls.installmentCount.value > creditCustomer!.credit!.maxInstallments)
+    ) {
+      this.posError.set('El número de cuotas excede el plan autorizado del cliente.');
+      return;
+    }
+    const payableTotal = quote.totals.payable ?? quote.totals.total;
+    if (creditSale && Number(payableTotal) > Number(creditCustomer!.credit!.available)) {
+      this.posError.set('El total excede el crédito disponible del cliente.');
+      return;
+    }
+    if (!creditSale && !this.paymentsMatchTotal(payableTotal)) {
       this.posError.set('La suma de pagos debe coincidir exactamente con el total de la venta.');
       this.paymentRows.markAllAsTouched();
+      return;
+    }
+    let lines: ReturnType<ApplicationPage['saleLinesInput']>;
+    let discount: SaleDiscountInput | undefined;
+    try {
+      lines = this.saleLinesInput();
+      discount = this.saleDiscountInput();
+    } catch (error) {
+      this.posError.set(error instanceof Error ? error.message : 'Revisa los descuentos.');
+      return;
+    }
+    const input: PosSaleInput = {
+      lines,
+      ...(discount ? { discount } : {}),
+      ...(this.cashForm.controls.customerId.value
+        ? { customerId: this.cashForm.controls.customerId.value }
+        : {}),
+      ...(this.resumedSuspendedSaleId() ? { suspendedSaleId: this.resumedSuspendedSaleId()! } : {}),
+      ...(this.cashForm.controls.loyaltyPointsToRedeem.value > 0
+        ? { loyaltyPointsToRedeem: this.cashForm.controls.loyaltyPointsToRedeem.value }
+        : {}),
+      ...(creditSale
+        ? { credit: { installmentCount: this.cashForm.controls.installmentCount.value } }
+        : {
+            payments: this.paymentRows.controls.map((row) => {
+              const value = row.getRawValue();
+              return {
+                method: value.method,
+                amount: value.amount.trim(),
+                ...(value.method === 'CASH'
+                  ? { amountReceived: value.amountReceived.trim() }
+                  : value.method === 'CARD'
+                    ? {}
+                    : { reference: value.reference.trim() }),
+              };
+            }),
+          }),
+    };
+    if (
+      this.pendingTerminalSale &&
+      JSON.stringify(this.pendingTerminalSale.input) !== JSON.stringify(input)
+    ) {
+      this.posError.set(
+        'Existe un cobro terminal pendiente. Reintenta la misma venta o cancela el cobro antes de modificarla.',
+      );
+      return;
+    }
+    const pending = this.pendingSale;
+    const idempotencyKey =
+      pending && JSON.stringify(pending.input) === JSON.stringify(input)
+        ? pending.key
+        : `web-sale-${globalThis.crypto.randomUUID()}`;
+    this.pendingSale = { input, key: idempotencyKey };
+    if (this.browserOffline()) {
+      if (creditSale) {
+        this.pendingSale = null;
+        this.posError.set('Las ventas a crédito requieren conexión al servidor.');
+        return;
+      }
+      if (discount || lines.some((line) => Boolean(line.discount))) {
+        this.pendingSale = null;
+        this.posError.set('Los descuentos requieren conexión para validar permisos y límites.');
+        return;
+      }
+      if (lines.some((line) => Boolean(line.note || line.manualUnitPrice))) {
+        this.pendingSale = null;
+        this.posError.set('Las notas y los precios manuales requieren conexiÃ³n al servidor.');
+        return;
+      }
+      if (input.loyaltyPointsToRedeem) {
+        this.pendingSale = null;
+        this.posError.set('El canje de puntos requiere conexión al servidor.');
+        return;
+      }
+      const offlinePayment = input.payments?.[0];
+      if (input.payments?.length !== 1 || offlinePayment?.method !== 'CASH') {
+        this.pendingSale = null;
+        this.posError.set('Los pagos distintos de efectivo requieren conexión al servidor.');
+        return;
+      }
+      void this.queueOfflineCashSale(
+        {
+          lines: input.lines,
+          cashReceived:
+            'amountReceived' in offlinePayment ? (offlinePayment.amountReceived ?? '') : '',
+          ...(input.customerId ? { customerId: input.customerId } : {}),
+        },
+        idempotencyKey,
+        quote,
+      );
+      return;
+    }
+    const cardPayment = input.payments?.find((payment) => payment.method === 'CARD');
+    if (cardPayment && !cardPayment.terminalOperationId) {
+      this.startTerminalSale(input, idempotencyKey, quote, cardPayment.amount);
+      return;
+    }
+    this.submitOnlineSale(input, idempotencyKey, quote);
+  }
+
+  private submitOnlineSale(input: PosSaleInput, idempotencyKey: string, quote: PosCartQuote): void {
+    this.savingSale.set(true);
+    this.posError.set(null);
+    this.pos.createSale(input, idempotencyKey).subscribe({
+      next: ({ data }) => {
+        this.savingSale.set(false);
+        this.pendingSale = null;
+        this.pendingTerminalSale = null;
+        this.terminalPayment.set(null);
+        this.completedSale.set(data);
+        this.openDrawerAfterCashSale(data);
+        this.cart.set([]);
+        this.cartQuote.set(null);
+        this.resumedSuspendedSaleId.set(null);
+        this.suspendedSaleConflicts.set([]);
+        this.resetPaymentForm();
+        this.loadSuspendedSales();
+        this.loadStockList(this.stockPage());
+        this.loadMovementHistory(1);
+        this.loadSales(1);
+        this.loadCustomers();
+        this.loadCashMovements();
+        this.loadAuditEvents();
+        const selected = this.selectedProduct();
+        if (selected) {
+          this.loadBalance(selected.id);
+          this.loadSerials(selected);
+        }
+      },
+      error: (error: HttpErrorResponse) => {
+        if (error.status === 0) {
+          if (input.loyaltyPointsToRedeem) {
+            this.savingSale.set(false);
+            this.pendingSale = null;
+            this.posError.set('El canje de puntos requiere conexión al servidor.');
+            return;
+          }
+          const offlinePayment = input.payments?.[0];
+          if (input.payments?.length === 1 && offlinePayment?.method === 'CASH') {
+            void this.queueOfflineCashSale(
+              {
+                lines: input.lines,
+                cashReceived:
+                  'amountReceived' in offlinePayment ? (offlinePayment.amountReceived ?? '') : '',
+                ...(input.customerId ? { customerId: input.customerId } : {}),
+              },
+              idempotencyKey,
+              quote,
+            );
+          } else {
+            this.savingSale.set(false);
+            if (!this.terminalPayment()) this.pendingSale = null;
+            this.posError.set('Los pagos distintos de efectivo requieren conexión al servidor.');
+          }
+          return;
+        }
+        this.savingSale.set(false);
+        if (error.status > 0 && error.status < 500 && !this.terminalPayment()) {
+          this.pendingSale = null;
+        }
+        this.posError.set(this.posMessageFor(error));
+      },
+    });
+  }
+
+  protected refreshTerminalPayment(): void {
+    const operation = this.terminalPayment();
+    if (!operation || this.savingSale()) return;
+    this.savingSale.set(true);
+    this.posError.set(null);
+    this.pos.getTerminalPayment(operation.id).subscribe({
+      next: ({ data }) => {
+        this.terminalPayment.set(data);
+        if (data.status === 'CAPTURED' && this.pendingTerminalSale) {
+          this.submitCapturedTerminalSale(this.pendingTerminalSale, data.id);
+          return;
+        }
+        this.savingSale.set(false);
+        this.posError.set(this.terminalStatusMessage(data));
+      },
+      error: (error: HttpErrorResponse) => {
+        this.savingSale.set(false);
+        this.posError.set(this.posMessageFor(error));
+      },
+    });
+  }
+
+  protected cancelTerminalPayment(): void {
+    const operation = this.terminalPayment();
+    if (!operation || operation.saleId || this.savingSale()) return;
+    this.savingSale.set(true);
+    this.pos.cancelTerminalPayment(operation.id).subscribe({
+      next: ({ data }) => {
+        this.savingSale.set(false);
+        this.terminalPayment.set(data);
+        this.pendingTerminalSale = null;
+        this.pendingSale = null;
+        this.posError.set('Cobro terminal cancelado; la venta no fue registrada.');
+      },
+      error: (error: HttpErrorResponse) => {
+        this.savingSale.set(false);
+        this.posError.set(this.posMessageFor(error));
+      },
+    });
+  }
+
+  private startTerminalSale(
+    input: PosSaleInput,
+    idempotencyKey: string,
+    quote: PosCartQuote,
+    amount: string,
+  ): void {
+    this.savingSale.set(true);
+    this.posError.set(null);
+    this.pos
+      .startTerminalPayment(
+        { amount, currency: quote.currency, scenario: 'SUCCESS' },
+        `terminal-${idempotencyKey}`,
+      )
+      .subscribe({
+        next: ({ data }) => {
+          this.terminalPayment.set(data);
+          this.pendingTerminalSale = { input, key: idempotencyKey, quote };
+          if (data.status === 'CAPTURED') {
+            this.submitCapturedTerminalSale(this.pendingTerminalSale, data.id);
+            return;
+          }
+          this.savingSale.set(false);
+          if (data.status === 'DECLINED') {
+            this.pendingTerminalSale = null;
+            this.pendingSale = null;
+          }
+          this.posError.set(this.terminalStatusMessage(data));
+        },
+        error: (error: HttpErrorResponse) => {
+          this.savingSale.set(false);
+          this.posError.set(this.posMessageFor(error));
+        },
+      });
+  }
+
+  private submitCapturedTerminalSale(
+    pending: { input: PosSaleInput; key: string; quote: PosCartQuote },
+    operationId: string,
+  ): void {
+    const input: PosSaleInput = {
+      ...pending.input,
+      payments: pending.input.payments?.map((payment) =>
+        payment.method === 'CARD'
+          ? { ...payment, terminalOperationId: operationId, reference: undefined }
+          : payment,
+      ),
+    };
+    this.pendingSale = { input: pending.input, key: pending.key };
+    this.pendingTerminalSale = pending;
+    this.submitOnlineSale(input, pending.key, pending.quote);
+  }
+
+  private terminalStatusMessage(operation: PaymentTerminalOperationData): string {
+    if (operation.status === 'DECLINED')
+      return 'El terminal rechazó el pago; la venta no fue registrada.';
+    if (operation.status === 'INDETERMINATE')
+      return 'El terminal no confirmó el resultado. Consulta antes de reintentar para evitar un cobro doble.';
+    if (operation.status === 'CANCELLED')
+      return 'Cobro terminal cancelado; la venta no fue registrada.';
+    return 'El pago sigue pendiente en el terminal.';
+  }
+
+  private openDrawerAfterCashSale(sale: CashSaleData): void {
+    if (!this.canOpenCashDrawer() || !sale.payments.some((payment) => payment.method === 'CASH')) {
+      return;
+    }
+    this.peripheralNotice.set(null);
+    this.pos
+      .openCashDrawer(
+        { trigger: 'CASH_SALE_COMPLETED', saleId: sale.id },
+        `web-drawer-sale-${sale.id}`,
+      )
+      .subscribe({
+        next: ({ data }) => {
+          this.peripheralNotice.set(
+            data.status === 'COMPLETED'
+              ? `Cajon abierto en ${data.deviceId}.`
+              : 'El cajon no respondio; abrelo manualmente. La venta ya quedo registrada una sola vez.',
+          );
+          if (data.status === 'COMPLETED') void this.openDesktopDrawer(data.id, data.deviceId);
+        },
+        error: (error: HttpErrorResponse) => {
+          const code = (error.error as { code?: string } | null)?.code;
+          if (code === 'PERIPHERAL_AUTO_OPEN_DISABLED') return;
+          this.peripheralNotice.set(
+            'No fue posible abrir el cajon; usa el procedimiento manual. La venta permanece registrada.',
+          );
+        },
+      });
+  }
+
+  private async openDesktopDrawer(operationId: string, deviceId: string): Promise<void> {
+    const session = this.session();
+    const cashRegister = session?.context.cashRegister;
+    if (!this.desktopPeripherals.available() || !session || !cashRegister) return;
+    try {
+      const result = await this.desktopPeripherals.openDrawer(
+        { tenantId: session.tenant.id, cashRegisterId: cashRegister.id, deviceId },
+        operationId,
+        'CASH_SALE_COMPLETED',
+      );
+      if (result.status === 'FAILED') {
+        this.peripheralNotice.set(
+          'El cajon Desktop no respondio; abrelo manualmente. La venta permanece registrada.',
+        );
+      } else if (result.replayed) {
+        this.peripheralNotice.set('La apertura Desktop ya habia sido procesada; no se repitio.');
+      }
+    } catch {
+      this.peripheralNotice.set(
+        'El puente Desktop no respondio; abre el cajon manualmente. La venta permanece registrada.',
+      );
+    }
+  }
+
+  protected suspendCurrentSale(): void {
+    if (!this.assertOpenCashRegisterShift() || !this.cartQuote() || this.browserOffline()) {
+      if (this.browserOffline())
+        this.posError.set('Suspender ventas requiere conexión al servidor.');
+      return;
+    }
+    if (this.resumedSuspendedSaleId()) {
+      this.posError.set(
+        'Esta venta ya proviene de una suspensión. Confírmala o cancela la suspensión original.',
+      );
       return;
     }
     const input = {
@@ -1619,7 +2315,7 @@ export class ApplicationPage implements OnInit {
           ? {
               serialNumbers: entry.serialNumbers
                 .split(/\r?\n/)
-                .map((serialNumber) => serialNumber.trim())
+                .map((value) => value.trim())
                 .filter(Boolean),
             }
           : {}),
@@ -1627,88 +2323,124 @@ export class ApplicationPage implements OnInit {
       ...(this.cashForm.controls.customerId.value
         ? { customerId: this.cashForm.controls.customerId.value }
         : {}),
-      payments: this.paymentRows.controls.map((row) => {
-        const value = row.getRawValue();
-        return {
-          method: value.method,
-          amount: value.amount.trim(),
-          ...(value.method === 'CASH'
-            ? { amountReceived: value.amountReceived.trim() }
-            : { reference: value.reference.trim() }),
-        };
-      }),
+      ...(this.cashForm.controls.notes.value.trim()
+        ? { notes: this.cashForm.controls.notes.value.trim() }
+        : {}),
     };
-    const pending = this.pendingSale;
-    const idempotencyKey =
-      pending && JSON.stringify(pending.input) === JSON.stringify(input)
-        ? pending.key
-        : `web-sale-${globalThis.crypto.randomUUID()}`;
-    this.pendingSale = { input, key: idempotencyKey };
-    if (this.browserOffline()) {
-      const offlinePayment = input.payments[0];
-      if (input.payments.length !== 1 || offlinePayment?.method !== 'CASH') {
-        this.pendingSale = null;
-        this.posError.set('Los pagos distintos de efectivo requieren conexión al servidor.');
-        return;
-      }
-      void this.queueOfflineCashSale(
-        {
-          lines: input.lines,
-          cashReceived: 'amountReceived' in offlinePayment ? offlinePayment.amountReceived : '',
-          ...(input.customerId ? { customerId: input.customerId } : {}),
+    this.savingSuspendedSale.set(true);
+    this.suspendedSaleError.set(null);
+    this.suspendedSaleSuccess.set(null);
+    this.pos
+      .suspendSale(input, `web-suspend-${globalThis.crypto.randomUUID()}`)
+      .pipe(finalize(() => this.savingSuspendedSale.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.suspendedSaleSuccess.set(`Venta suspendida hasta ${this.dateTime(data.expiresAt)}.`);
+          this.cart.set([]);
+          this.cartQuote.set(null);
+          this.resetPaymentForm();
+          this.loadSuspendedSales();
+          this.loadAuditEvents();
         },
-        idempotencyKey,
-        quote,
-      );
-      return;
-    }
-    this.savingSale.set(true);
-    this.posError.set(null);
-    this.pos.createSale(input, idempotencyKey).subscribe({
-      next: ({ data }) => {
-        this.savingSale.set(false);
-        this.pendingSale = null;
-        this.completedSale.set(data);
-        this.cart.set([]);
-        this.cartQuote.set(null);
-        this.resetPaymentForm();
-        this.loadStockList(this.stockPage());
-        this.loadMovementHistory(1);
-        this.loadSales(1);
-        this.loadCashMovements();
-        this.loadAuditEvents();
-        const selected = this.selectedProduct();
-        if (selected) {
-          this.loadBalance(selected.id);
-          this.loadSerials(selected);
-        }
-      },
-      error: (error: HttpErrorResponse) => {
-        if (error.status === 0) {
-          const offlinePayment = input.payments[0];
-          if (input.payments.length === 1 && offlinePayment?.method === 'CASH') {
-            void this.queueOfflineCashSale(
-              {
-                lines: input.lines,
-                cashReceived:
-                  'amountReceived' in offlinePayment ? offlinePayment.amountReceived : '',
-                ...(input.customerId ? { customerId: input.customerId } : {}),
+        error: (error: HttpErrorResponse) => this.suspendedSaleError.set(this.posMessageFor(error)),
+      });
+  }
+
+  protected resumeSuspendedSale(sale: SuspendedSaleData): void {
+    if (this.suspendedSaleActionId()) return;
+    this.suspendedSaleActionId.set(sale.id);
+    this.suspendedSaleError.set(null);
+    this.suspendedSaleSuccess.set(null);
+    this.pos
+      .resumeSuspendedSale(sale.id)
+      .pipe(finalize(() => this.suspendedSaleActionId.set(null)))
+      .subscribe({
+        next: ({ data }) => {
+          const suspended = data.suspendedSale;
+          this.cart.set(
+            suspended.lines.map((line) => ({
+              product: {
+                id: line.product.id,
+                name: line.product.name,
+                sku: line.product.sku,
+                barcode: null,
+                trackLots: Boolean(line.lotId),
+                trackSerials: line.serialNumbers.length > 0,
+                category: null,
+                brand: null,
+                cost: '0.00',
+                price: line.unitPriceSnapshot,
+                active: true,
+                version: 0,
               },
-              idempotencyKey,
-              quote,
-            );
-          } else {
-            this.savingSale.set(false);
-            this.pendingSale = null;
-            this.posError.set('Los pagos distintos de efectivo requieren conexión al servidor.');
+              quantity: line.quantity,
+              note: '',
+              manualUnitPrice: '',
+              priceOverrideReason: '',
+              lotId: line.lotId ?? '',
+              lots: [],
+              serialNumbers: line.serialNumbers.join('\n'),
+              discountType: '',
+              discountValue: '',
+              discountReason: '',
+              expiredLotOverrideReason: '',
+            })),
+          );
+          this.cashForm.patchValue({
+            customerId: suspended.customer?.id ?? '',
+            notes: suspended.notes ?? '',
+          });
+          this.resumedSuspendedSaleId.set(suspended.id);
+          this.suspendedSaleConflicts.set(data.conflicts);
+          this.cartQuote.set(data.quote);
+          if (data.quote) this.syncSinglePaymentAmount();
+          this.posError.set(
+            data.conflicts.length
+              ? 'La venta cambió desde que se suspendió. Revisa los conflictos antes de cobrar.'
+              : null,
+          );
+          this.suspendedSaleSuccess.set('Carrito reanudado y recalculado con datos actuales.');
+          document.getElementById('pos-title')?.scrollIntoView?.({ behavior: 'smooth' });
+          this.loadAuditEvents();
+        },
+        error: (error: HttpErrorResponse) => this.suspendedSaleError.set(this.posMessageFor(error)),
+      });
+  }
+
+  protected cancelSuspendedSale(sale: SuspendedSaleData): void {
+    if (this.suspendedSaleActionId()) return;
+    this.suspendedSaleActionId.set(sale.id);
+    this.suspendedSaleError.set(null);
+    this.suspendedSaleSuccess.set(null);
+    this.pos
+      .cancelSuspendedSale(sale.id)
+      .pipe(finalize(() => this.suspendedSaleActionId.set(null)))
+      .subscribe({
+        next: () => {
+          if (this.resumedSuspendedSaleId() === sale.id) {
+            this.cart.set([]);
+            this.cartQuote.set(null);
+            this.resumedSuspendedSaleId.set(null);
+            this.suspendedSaleConflicts.set([]);
+            this.resetPaymentForm();
           }
-          return;
-        }
-        this.savingSale.set(false);
-        if (error.status > 0 && error.status < 500) this.pendingSale = null;
-        this.posError.set(this.posMessageFor(error));
-      },
-    });
+          this.suspendedSaleSuccess.set('Venta suspendida cancelada sin afectar stock ni caja.');
+          this.loadSuspendedSales();
+          this.loadAuditEvents();
+        },
+        error: (error: HttpErrorResponse) => this.suspendedSaleError.set(this.posMessageFor(error)),
+      });
+  }
+
+  protected suspendedConflictLabel(conflict: SuspendedSaleConflict): string {
+    const product = this.cart().find((entry) => entry.product.id === conflict.productId)?.product;
+    const name = product?.name ?? conflict.productId;
+    if (conflict.code === 'PRICE_CHANGED')
+      return `${name}: precio ${conflict.previous} → ${conflict.current}`;
+    if (conflict.code === 'AVAILABILITY_CHANGED')
+      return `${name}: existencia ${conflict.previous} → ${conflict.current}`;
+    if (conflict.code === 'INSUFFICIENT_STOCK') return `${name}: existencia insuficiente`;
+    return `${name}: producto no disponible`;
   }
 
   protected changePaymentMethod(index: number): void {
@@ -1721,8 +2453,13 @@ export class ApplicationPage implements OnInit {
       reference.clearValidators();
       reference.setValue('');
       if (this.paymentRows.length === 1 && this.cartQuote()) {
-        cash.setValue(this.cartQuote()!.totals.total);
+        cash.setValue(this.cartQuote()!.totals.payable ?? this.cartQuote()!.totals.total);
       }
+    } else if (method === 'CARD') {
+      cash.clearValidators();
+      cash.setValue('');
+      reference.clearValidators();
+      reference.setValue('');
     } else {
       cash.clearValidators();
       cash.setValue('');
@@ -1763,7 +2500,7 @@ export class ApplicationPage implements OnInit {
     return this.paymentRows.length < this.paymentMethods().length;
   }
 
-  protected availablePaymentMethods(index: number): PaymentMethod[] {
+  protected availablePaymentMethods(index: number): CollectedPaymentMethod[] {
     const current = this.paymentRows.at(index).controls.method.value;
     const used = new Set(this.paymentRows.controls.map((row) => row.controls.method.value));
     return this.paymentMethods().filter((method) => method === current || !used.has(method));
@@ -1775,6 +2512,7 @@ export class ApplicationPage implements OnInit {
       CARD: 'Tarjeta',
       TRANSFER: 'Transferencia',
       VOUCHER: 'Vale',
+      CREDIT: 'Crédito',
       MIXED: 'Mixto',
     }[method];
   }
@@ -1808,6 +2546,28 @@ export class ApplicationPage implements OnInit {
     this.loadSales(1);
   }
 
+  protected productVariantsSaved(product: ProductData): void {
+    this.selectedProduct.set(product);
+    this.loadProducts(1);
+    if (this.canViewAudit()) this.loadAuditEvents();
+  }
+
+  protected productKitSaved(product: ProductData): void {
+    this.selectedProduct.set(product);
+    this.loadProducts(1);
+    this.loadBalance(product.id);
+    this.loadStockList(1);
+    if (this.canViewAudit()) this.loadAuditEvents();
+  }
+
+  protected kitInventoryCompleted(): void {
+    const product = this.selectedProduct();
+    if (!product) return;
+    this.loadBalance(product.id);
+    this.loadStockList(this.stockPage());
+    if (this.canViewAudit()) this.loadAuditEvents();
+  }
+
   protected viewSerialHistory(serialId: string): void {
     this.inventory.serialHistory(serialId).subscribe({
       next: ({ data }) => this.selectedSerialHistory.set(data),
@@ -1819,7 +2579,27 @@ export class ApplicationPage implements OnInit {
   }
 
   protected filterSalesCashReport(): void {
+    const { dateFrom, dateTo } = this.salesCashReportForm.getRawValue();
+    if (dateFrom && dateTo && dateFrom > dateTo) {
+      this.salesCashReportError.set('La fecha inicial no puede ser posterior a la fecha final.');
+      return;
+    }
+    this.persistSalesCashReportFilters();
+    this.reportFilterStatus.set('Filtros aplicados y guardados para este usuario.');
     this.loadSalesCashReport(1);
+    if (this.canViewProfitability()) this.loadProfitabilityReport(1);
+  }
+
+  protected previousProfitabilityReportPage(): void {
+    if (this.profitabilityReportPage() > 1) {
+      this.loadProfitabilityReport(this.profitabilityReportPage() - 1);
+    }
+  }
+
+  protected nextProfitabilityReportPage(): void {
+    if (this.profitabilityReportPage() < this.profitabilityReportTotalPages()) {
+      this.loadProfitabilityReport(this.profitabilityReportPage() + 1);
+    }
   }
 
   protected previousSalesCashReportPage(): void {
@@ -1913,8 +2693,49 @@ export class ApplicationPage implements OnInit {
       });
   }
 
+  protected saleReturnCompleted(): void {
+    const saleId = this.selectedSale()?.id;
+    if (saleId) this.selectSale(saleId);
+    this.loadStockList(this.stockPage());
+    this.loadMovementHistory(1);
+    this.loadAuditEvents();
+    const product = this.selectedProduct();
+    if (product) this.loadBalance(product.id);
+  }
+
   protected dateTime(value: string): string {
     return new Date(value).toLocaleString('es-MX');
+  }
+
+  private salesCashReportStorageKey(): string | null {
+    const session = this.session();
+    return session ? `uinventario:reports:${session.tenant.id}:${session.user.id}` : null;
+  }
+
+  private restoreSalesCashReportFilters(): void {
+    const key = this.salesCashReportStorageKey();
+    if (!key || typeof localStorage === 'undefined') return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(key) ?? '{}') as Record<string, unknown>;
+      const status = saved['status'];
+      this.salesCashReportForm.patchValue({
+        dateFrom: typeof saved['dateFrom'] === 'string' ? saved['dateFrom'] : '',
+        dateTo: typeof saved['dateTo'] === 'string' ? saved['dateTo'] : '',
+        branchId: typeof saved['branchId'] === 'string' ? saved['branchId'] : '',
+        cashRegisterId: typeof saved['cashRegisterId'] === 'string' ? saved['cashRegisterId'] : '',
+        userId: typeof saved['userId'] === 'string' ? saved['userId'] : '',
+        status: status === 'COMPLETED' || status === 'VOIDED' || status === 'ALL' ? status : 'ALL',
+      });
+    } catch {
+      // An invalid personal preference must not block access to reconciled reports.
+    }
+  }
+
+  private persistSalesCashReportFilters(): void {
+    const key = this.salesCashReportStorageKey();
+    if (key && typeof localStorage !== 'undefined') {
+      localStorage.setItem(key, JSON.stringify(this.salesCashReportForm.getRawValue()));
+    }
   }
 
   protected auditActionLabel(action: string): string {
@@ -1943,6 +2764,9 @@ export class ApplicationPage implements OnInit {
         INVENTORY_IMPORT_CONFIRMED: 'Importación de inventario confirmada',
         SALE_COMPLETED: 'Venta completada',
         SALE_VOIDED: 'Venta anulada',
+        SALE_RETURNED: 'Devolución de venta registrada',
+        SALE_RECEIPT_REPRINTED: 'Comprobante reimpreso',
+        SALE_RECEIPT_SENT: 'Comprobante enviado',
         ACCESS_ROLE_CREATED: 'Rol operativo creado',
         ACCESS_USER_CREATED: 'Usuario operativo creado',
         ACCESS_USER_UPDATED: 'Acceso operativo actualizado',
@@ -2050,6 +2874,8 @@ export class ApplicationPage implements OnInit {
       reason: value.reason.trim(),
       ...(value.reference.trim() ? { reference: value.reference.trim() } : {}),
       ...(value.lotCode.trim() ? { lotCode: value.lotCode.trim() } : {}),
+      ...(value.manufacturedOn ? { manufacturedOn: value.manufacturedOn } : {}),
+      ...(value.expiresOn ? { expiresOn: value.expiresOn } : {}),
       ...(value.serialNumbers.trim()
         ? {
             serialNumbers: value.serialNumbers
@@ -2080,6 +2906,8 @@ export class ApplicationPage implements OnInit {
             reason: '',
             reference: '',
             lotCode: '',
+            manufacturedOn: '',
+            expiresOn: '',
             serialNumbers: '',
           });
           this.movementTypeChanged();
@@ -2111,7 +2939,7 @@ export class ApplicationPage implements OnInit {
     }
     const value = this.stateTransitionForm.getRawValue();
     if (
-      Number(value.quantity) <= 0 ||
+      this.quantityUnits(value.quantity) <= 0n ||
       !this.transitionTargets().includes(value.toState) ||
       value.fromState === value.toState
     ) {
@@ -2184,7 +3012,7 @@ export class ApplicationPage implements OnInit {
       !product ||
       !product.active ||
       this.transferForm.invalid ||
-      Number(value.quantity) <= 0 ||
+      this.quantityUnits(value.quantity) <= 0n ||
       this.savingTransfer()
     ) {
       this.transferForm.markAllAsTouched();
@@ -2311,18 +3139,19 @@ export class ApplicationPage implements OnInit {
     if (
       !POSITIVE_QUANTITY_PATTERN.test(received) ||
       !POSITIVE_QUANTITY_PATTERN.test(discrepancy) ||
-      Number(received) + Number(discrepancy) <= 0 ||
-      Number(received) + Number(discrepancy) > Number(line.pendingQuantity)
+      this.quantityUnits(received) + this.quantityUnits(discrepancy) <= 0n ||
+      this.quantityUnits(received) + this.quantityUnits(discrepancy) >
+        this.quantityUnits(line.pendingQuantity)
     ) {
       this.transferError.set('La recepción debe ser positiva y no superar lo pendiente.');
       return;
     }
-    if (Number(discrepancy) > 0 && reason.length < 2) {
+    if (this.quantityUnits(discrepancy) > 0n && reason.length < 2) {
       this.transferError.set('Describe el motivo de la diferencia de recepción.');
       return;
     }
     const input: InventoryTransferReceiptInput = {
-      ...(Number(discrepancy) > 0 ? { discrepancyReason: reason } : {}),
+      ...(this.quantityUnits(discrepancy) > 0n ? { discrepancyReason: reason } : {}),
       lines: [
         {
           transferLineId: line.id,
@@ -2389,8 +3218,12 @@ export class ApplicationPage implements OnInit {
       PRODUCTS_MANAGE: 'Administrar productos',
       SALES_MANAGE: 'Operar ventas',
       SALES_VOID: 'Anular ventas',
+      SALES_RETURN: 'Registrar devoluciones y cambios',
       SALES_DISCOUNT: 'Aplicar descuentos',
+      SALES_PRICE_OVERRIDE: 'Modificar precios de venta con motivo',
+      SALES_CREDIT: 'Configurar y vender a crédito',
       SALE_REPRINT: 'Reimprimir comprobantes',
+      CASH_DRAWER_OPEN: 'Abrir cajon de dinero',
       CASH_REGISTER_OPEN: 'Abrir caja',
       CASH_REGISTER_CLOSE: 'Cerrar caja y realizar arqueo',
       CASH_REGISTER_MOVE: 'Registrar y reversar movimientos de caja',
@@ -2408,6 +3241,9 @@ export class ApplicationPage implements OnInit {
       INVENTORY_COUNT: 'Realizar conteos',
       INVENTORY_APPROVE: 'Despachar, cancelar y aprobar operaciones',
       INVENTORY_VALUATION_MANAGE: 'Cambiar el método de valorización',
+      INVENTORY_EXPIRED_STOCK_OVERRIDE: 'Autorizar stock caducado con motivo',
+      NOTIFICATIONS_VIEW: 'Consultar notificaciones operativas',
+      NOTIFICATIONS_MANAGE: 'Configurar notificaciones y reintentos',
     }[permission];
   }
 
@@ -2778,6 +3614,7 @@ export class ApplicationPage implements OnInit {
           this.stockPage.set(meta.pagination.page);
           this.stockTotalPages.set(meta.pagination.totalPages);
           this.stockTotal.set(meta.pagination.total);
+          this.stockAlertRefreshToken.update((value) => value + 1);
         },
         error: (error: HttpErrorResponse) =>
           this.stockListError.set(
@@ -2924,6 +3761,36 @@ export class ApplicationPage implements OnInit {
       });
   }
 
+  private loadProfitabilityReport(page: number): void {
+    this.loadingProfitabilityReport.set(true);
+    this.profitabilityReportError.set(null);
+    const value = this.salesCashReportForm.getRawValue();
+    this.pos
+      .profitabilityReport({
+        ...(value.dateFrom ? { dateFrom: value.dateFrom } : {}),
+        ...(value.dateTo ? { dateTo: value.dateTo } : {}),
+        ...(value.branchId ? { branchId: value.branchId } : {}),
+        ...(value.cashRegisterId ? { cashRegisterId: value.cashRegisterId } : {}),
+        ...(value.userId ? { userId: value.userId } : {}),
+        page,
+        pageSize: 10,
+      })
+      .pipe(finalize(() => this.loadingProfitabilityReport.set(false)))
+      .subscribe({
+        next: ({ data, meta }) => {
+          this.profitabilityReport.set(data);
+          this.profitabilityReportPage.set(meta.pagination.page);
+          this.profitabilityReportTotalPages.set(meta.pagination.totalPages);
+        },
+        error: (error: HttpErrorResponse) => {
+          this.profitabilityReport.set(null);
+          this.profitabilityReportError.set(
+            this.operationMessage(error, 'No fue posible cargar el reporte de rentabilidad.'),
+          );
+        },
+      });
+  }
+
   private loadCustomers(): void {
     const q = this.customerSearchForm.controls.q.value.trim();
     this.customerError.set(null);
@@ -3034,6 +3901,92 @@ export class ApplicationPage implements OnInit {
     };
   }
 
+  private saleLinesInput() {
+    return this.cart().map((entry) => {
+      const discount = this.discountInput(
+        entry.discountType,
+        entry.discountValue,
+        entry.discountReason,
+      );
+      return {
+        productId: entry.product.id,
+        quantity: entry.quantity,
+        ...(this.lineNoteInput(entry) ? { note: this.lineNoteInput(entry) } : {}),
+        ...this.priceOverrideInput(entry),
+        ...(entry.lotId ? { lotId: entry.lotId } : {}),
+        ...(this.isExpiredLotSelected(entry) ? this.expiredLotOverrideInput(entry) : {}),
+        ...((entry.serialNumbers ?? '').trim()
+          ? {
+              serialNumbers: entry.serialNumbers
+                .split(/\r?\n/)
+                .map((serialNumber) => serialNumber.trim())
+                .filter(Boolean),
+            }
+          : {}),
+        ...(discount ? { discount } : {}),
+      };
+    });
+  }
+
+  private lineNoteInput(entry: CartEntry): string | undefined {
+    const note = (entry.note ?? '').replace(/\s+/g, ' ').trim();
+    if (!note) return undefined;
+    if (note.length > 240 || /\p{Cc}/u.test(note)) {
+      throw new Error('La nota de la lÃ­nea debe tener como mÃ¡ximo 240 caracteres vÃ¡lidos.');
+    }
+    return note;
+  }
+
+  private priceOverrideInput(entry: CartEntry): {
+    manualUnitPrice?: string;
+    priceOverrideReason?: string;
+  } {
+    const price = (entry.manualUnitPrice ?? '').trim();
+    const reason = (entry.priceOverrideReason ?? '').replace(/\s+/g, ' ').trim();
+    if (!price && !reason) return {};
+    if (!this.canOverridePrice()) throw new Error('No tienes permiso para modificar precios.');
+    if (!POSITIVE_MONEY_PATTERN.test(price) || reason.length < 3 || reason.length > 240) {
+      throw new Error('Captura un precio manual vÃ¡lido y un motivo de 3 a 240 caracteres.');
+    }
+    return { manualUnitPrice: price, priceOverrideReason: reason };
+  }
+
+  private expiredLotOverrideInput(entry: CartEntry): { expiredLotOverrideReason: string } {
+    const reason = entry.expiredLotOverrideReason.trim();
+    if (!this.canOverrideExpiredStock() || !entry.product.allowExpiredStockOverride) {
+      throw new Error('No tienes permiso para vender el lote caducado seleccionado.');
+    }
+    if (reason.length < 3) {
+      throw new Error('Captura el motivo de la excepción para el lote caducado.');
+    }
+    return { expiredLotOverrideReason: reason };
+  }
+
+  private saleDiscountInput(): SaleDiscountInput | undefined {
+    const value = this.cashForm.getRawValue();
+    return this.discountInput(value.discountType, value.discountValue, value.discountReason);
+  }
+
+  private discountInput(
+    type: '' | 'PERCENT' | 'AMOUNT' | undefined,
+    value: string | undefined,
+    reason: string | undefined,
+  ): SaleDiscountInput | undefined {
+    const normalizedValue = value?.trim() ?? '';
+    const normalizedReason = reason?.trim() ?? '';
+    if (!type && !normalizedValue && !normalizedReason) return undefined;
+    if (!this.canApplyDiscount()) {
+      throw new Error('No tienes permiso para aplicar descuentos.');
+    }
+    if (!type || !POSITIVE_MONEY_PATTERN.test(normalizedValue) || normalizedReason.length < 3) {
+      throw new Error('Completa el tipo, importe y motivo del descuento.');
+    }
+    if (type === 'PERCENT' && Number(normalizedValue) > 50) {
+      throw new Error('El descuento porcentual no puede superar 50%.');
+    }
+    return { type, value: normalizedValue, reason: normalizedReason };
+  }
+
   private quoteCart(): void {
     if (!this.assertOpenCashRegisterShift()) return;
     if (this.cart().length === 0) return;
@@ -3041,40 +3994,40 @@ export class ApplicationPage implements OnInit {
       void this.quoteCartOffline();
       return;
     }
+    let lines: ReturnType<ApplicationPage['saleLinesInput']>;
+    let discount: SaleDiscountInput | undefined;
+    try {
+      lines = this.saleLinesInput();
+      discount = this.saleDiscountInput();
+    } catch (error) {
+      this.cartQuote.set(null);
+      this.posError.set(error instanceof Error ? error.message : 'Revisa los descuentos.');
+      return;
+    }
     this.quotingCart.set(true);
     this.posError.set(null);
-    this.pos
-      .quote(
-        this.cart().map((entry) => ({
-          productId: entry.product.id,
-          quantity: entry.quantity,
-          ...(entry.lotId ? { lotId: entry.lotId } : {}),
-          ...((entry.serialNumbers ?? '').trim()
-            ? {
-                serialNumbers: entry.serialNumbers
-                  .split(/\r?\n/)
-                  .map((serialNumber) => serialNumber.trim())
-                  .filter(Boolean),
-              }
-            : {}),
-        })),
-      )
-      .pipe(finalize(() => this.quotingCart.set(false)))
-      .subscribe({
-        next: ({ data }) => {
-          this.offlinePosActive.set(false);
-          this.cartQuote.set(data);
-          this.syncSinglePaymentAmount();
-        },
-        error: (error: HttpErrorResponse) => {
-          if (error.status === 0) {
-            void this.quoteCartOffline();
-            return;
-          }
-          this.cartQuote.set(null);
-          this.posError.set(this.posMessageFor(error));
-        },
-      });
+    const customerId = this.cashForm.controls.customerId.value || undefined;
+    const points = this.cashForm.controls.loyaltyPointsToRedeem.value || undefined;
+    const quoteRequest = points
+      ? this.pos.quote(lines, undefined, customerId, discount, points)
+      : discount
+        ? this.pos.quote(lines, undefined, customerId, discount)
+        : this.pos.quote(lines, undefined, customerId);
+    quoteRequest.pipe(finalize(() => this.quotingCart.set(false))).subscribe({
+      next: ({ data }) => {
+        this.offlinePosActive.set(false);
+        this.cartQuote.set(data);
+        this.syncSinglePaymentAmount();
+      },
+      error: (error: HttpErrorResponse) => {
+        if (error.status === 0) {
+          void this.quoteCartOffline();
+          return;
+        }
+        this.cartQuote.set(null);
+        this.posError.set(this.posMessageFor(error));
+      },
+    });
   }
 
   private async searchPosOffline(): Promise<void> {
@@ -3106,11 +4059,22 @@ export class ApplicationPage implements OnInit {
     this.quotingCart.set(true);
     this.posError.set(null);
     try {
+      if (
+        this.cart().some(
+          (entry) =>
+            entry.note?.trim() ||
+            entry.manualUnitPrice?.trim() ||
+            entry.priceOverrideReason?.trim(),
+        )
+      ) {
+        throw new Error('Las notas y los precios manuales requieren conexiÃ³n al servidor.');
+      }
       const quote = await this.offlinePos.quote(
         this.cart().map((entry) => ({
           productId: entry.product.id,
           quantity: entry.quantity,
         })),
+        this.cashForm.controls.customerId.value || undefined,
       );
       this.cartQuote.set(quote);
       this.syncSinglePaymentAmount();
@@ -3177,14 +4141,38 @@ export class ApplicationPage implements OnInit {
     });
   }
 
+  private loadSuspendedSales(): void {
+    this.loadingSuspendedSales.set(true);
+    this.suspendedSaleError.set(null);
+    this.pos
+      .listSuspendedSales()
+      .pipe(finalize(() => this.loadingSuspendedSales.set(false)))
+      .subscribe({
+        next: ({ data }) => this.suspendedSales.set(data),
+        error: (error: HttpErrorResponse) => {
+          this.suspendedSales.set([]);
+          this.suspendedSaleError.set(this.posMessageFor(error));
+        },
+      });
+  }
+
   private resetPaymentForm(): void {
-    this.cashForm.reset({ customerId: '' });
+    this.cashForm.reset({
+      customerId: '',
+      loyaltyPointsToRedeem: 0,
+      creditSale: false,
+      installmentCount: 1,
+      notes: '',
+      discountType: '',
+      discountValue: '',
+      discountReason: '',
+    });
     this.paymentRows.clear();
     this.paymentRows.push(this.createPaymentRow());
     this.syncSinglePaymentAmount();
   }
 
-  private createPaymentRow(method: PaymentMethod = 'CASH') {
+  private createPaymentRow(method: CollectedPaymentMethod = 'CASH') {
     const row = this.formBuilder.nonNullable.group({
       method: [method, [Validators.required]],
       amount: ['', [Validators.required, Validators.pattern(POSITIVE_MONEY_PATTERN)]],
@@ -3196,7 +4184,7 @@ export class ApplicationPage implements OnInit {
         Validators.required,
         Validators.pattern(MONEY_PATTERN),
       ]);
-    } else {
+    } else if (method !== 'CARD') {
       row.controls.reference.setValidators([
         Validators.required,
         Validators.minLength(4),
@@ -3212,9 +4200,10 @@ export class ApplicationPage implements OnInit {
   private syncSinglePaymentAmount(): void {
     if (this.paymentRows.length !== 1 || !this.cartQuote()) return;
     const row = this.paymentRows.at(0);
-    row.controls.amount.setValue(this.cartQuote()!.totals.total);
+    const payable = this.cartQuote()!.totals.payable ?? this.cartQuote()!.totals.total;
+    row.controls.amount.setValue(payable);
     if (row.controls.method.value === 'CASH') {
-      row.controls.amountReceived.setValue(this.cartQuote()!.totals.total);
+      row.controls.amountReceived.setValue(payable);
     }
   }
 
@@ -3232,17 +4221,68 @@ export class ApplicationPage implements OnInit {
     );
   }
 
+  protected quantityStep(product: ProductData): string {
+    return ['1', '0.1', '0.01', '0.001'][product.quantityPrecision ?? 3];
+  }
+
+  protected baseUnitLabel(unit: ProductBaseUnit): string {
+    return (
+      {
+        UNIT: 'unidad',
+        KILOGRAM: 'kg',
+        GRAM: 'g',
+        LITER: 'L',
+        MILLILITER: 'mL',
+        METER: 'm',
+        CENTIMETER: 'cm',
+      } as const
+    )[unit];
+  }
+
+  private quantityUnits(value: string): bigint {
+    const [whole, fraction = ''] = value.split('.');
+    return BigInt(whole) * 1000n + BigInt(fraction.padEnd(3, '0'));
+  }
+
+  private quantityFromUnits(value: bigint): string {
+    return `${value / 1000n}.${String(value % 1000n).padStart(3, '0')}`;
+  }
+
   private toInput(): ProductInput {
     const value = this.form.getRawValue();
+    const hadExpirationPolicy = (this.editingProduct()?.lotExpirationPolicy ?? 'NONE') !== 'NONE';
     return {
       name: value.name.trim(),
-      sku: value.sku.trim(),
+      ...(value.withoutCode ? {} : { sku: value.sku.trim() }),
+      ...(value.withoutCode || this.editingProduct()?.withoutCode
+        ? { withoutCode: value.withoutCode }
+        : {}),
+      ...(value.stockBehavior !== 'TRACKED' || this.editingProduct()?.stockBehavior === 'UNTRACKED'
+        ? { stockBehavior: value.stockBehavior }
+        : {}),
+      ...(value.taxBehavior !== 'STANDARD' || this.editingProduct()?.taxBehavior === 'EXEMPT'
+        ? { taxBehavior: value.taxBehavior }
+        : {}),
       ...(value.barcode.trim() ? { barcode: value.barcode.trim() } : {}),
       ...(value.categoryName.trim() ? { categoryName: value.categoryName.trim() } : {}),
       ...(value.brandName.trim() ? { brandName: value.brandName.trim() } : {}),
       cost: value.cost.trim(),
       price: value.price.trim(),
+      baseUnit: value.trackSerials ? 'UNIT' : value.baseUnit,
+      quantityPrecision: value.trackSerials ? 0 : value.quantityPrecision,
+      quantityRounding: value.quantityRounding,
+      minimumQuantity: value.trackSerials ? '1.000' : value.minimumQuantity.trim(),
       trackLots: value.trackLots,
+      ...((value.trackLots && value.lotExpirationPolicy !== 'NONE') || hadExpirationPolicy
+        ? {
+            lotExpirationPolicy: value.trackLots ? value.lotExpirationPolicy : 'NONE',
+            lotExpirationAlertDays: value.lotExpirationAlertDays,
+            allowExpiredStockOverride:
+              value.trackLots && value.lotExpirationPolicy !== 'NONE'
+                ? value.allowExpiredStockOverride
+                : false,
+          }
+        : {}),
       ...(value.trackSerials || this.editingProduct()?.trackSerials
         ? { trackSerials: value.trackSerials }
         : {}),
@@ -3253,12 +4293,22 @@ export class ApplicationPage implements OnInit {
     this.form.reset({
       name: '',
       sku: '',
+      withoutCode: product?.withoutCode ?? false,
+      stockBehavior: product?.stockBehavior ?? 'TRACKED',
+      taxBehavior: product?.taxBehavior ?? 'STANDARD',
       barcode: '',
       categoryName: product?.category?.name ?? '',
       brandName: product?.brand?.name ?? '',
       cost: '',
       price: '',
+      baseUnit: product?.baseUnit ?? 'UNIT',
+      quantityPrecision: product ? (product.quantityPrecision ?? 3) : 0,
+      quantityRounding: product?.quantityRounding ?? 'HALF_UP',
+      minimumQuantity: product ? (product.minimumQuantity ?? '0.001') : '1.000',
       trackLots: product?.trackLots ?? false,
+      lotExpirationPolicy: product?.lotExpirationPolicy ?? 'NONE',
+      lotExpirationAlertDays: product?.lotExpirationAlertDays ?? 30,
+      allowExpiredStockOverride: product?.allowExpiredStockOverride ?? false,
       trackSerials: product?.trackSerials ?? false,
     });
   }
@@ -3268,6 +4318,9 @@ export class ApplicationPage implements OnInit {
     if (code === 'SKU_ALREADY_EXISTS') return 'Ya existe un producto con ese SKU.';
     if (code === 'BARCODE_ALREADY_EXISTS') {
       return 'Ya existe un producto con ese código de barras.';
+    }
+    if (code === 'PRODUCT_QUANTITY_POLICY_LOCKED') {
+      return 'La medici\u00f3n del producto no puede cambiar despu\u00e9s del primer movimiento.';
     }
     if (code === 'PRODUCT_VERSION_CONFLICT') {
       return 'El producto cambió desde que lo abriste. Cancela y vuelve a abrirlo antes de guardar.';
@@ -3287,6 +4340,15 @@ export class ApplicationPage implements OnInit {
     }
     if (code === 'MOVEMENT_REFERENCE_REQUIRED') {
       return 'Agrega una referencia o evidencia para este movimiento.';
+    }
+    if (code === 'INVENTORY_LOT_EXPIRATION_REQUIRED') {
+      return 'Captura la fecha de caducidad obligatoria para este lote.';
+    }
+    if (code === 'INVALID_INVENTORY_LOT_DATES') {
+      return 'Revisa las fechas: fabricación no puede ser posterior a caducidad.';
+    }
+    if (code === 'EXPIRED_INVENTORY_LOT') {
+      return 'El lote está caducado y no puede salir del inventario.';
     }
     if (error.status === 403) return this.permissionMessage();
     if (error.status === 0) return 'No pudimos conectar con el servicio. Intenta nuevamente.';
@@ -3355,9 +4417,24 @@ export class ApplicationPage implements OnInit {
 
   private posMessageFor(error: HttpErrorResponse): string {
     const code = (error.error as { code?: string } | null)?.code;
+    if (code === 'SUSPENDED_SALE_EXPIRED') {
+      return 'La venta suspendida expiró. Crea una nueva cotización.';
+    }
+    if (code === 'SUSPENDED_SALE_NOT_ACTIVE') {
+      return 'La venta suspendida ya fue cancelada o cobrada.';
+    }
     if (code === 'INSUFFICIENT_STOCK') return 'No hay existencia suficiente para esa cantidad.';
     if (code === 'PRODUCT_NOT_AVAILABLE') return 'Uno de los productos ya no está disponible.';
     if (code === 'PRODUCT_NOT_FOUND') return 'Uno de los productos ya no existe.';
+    if (code === 'EXPIRED_INVENTORY_LOT') {
+      return 'El lote seleccionado está caducado.';
+    }
+    if (code === 'EXPIRED_INVENTORY_LOT_PERMISSION_REQUIRED') {
+      return 'No tienes permiso para autorizar stock caducado.';
+    }
+    if (code === 'EXPIRED_INVENTORY_LOT_REASON_REQUIRED') {
+      return 'Captura el motivo de la excepción de caducidad.';
+    }
     if (code === 'INSUFFICIENT_CASH_RECEIVED') {
       return 'El efectivo recibido no cubre el total de la venta.';
     }
@@ -3483,6 +4560,7 @@ export class ApplicationPage implements OnInit {
   private resetCompletedSale(): void {
     this.completedSale.set(null);
     this.queuedOfflineSale.set(null);
+    this.suspendedSaleConflicts.set([]);
     this.pendingSale = null;
   }
 }

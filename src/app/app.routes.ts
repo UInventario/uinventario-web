@@ -1,5 +1,4 @@
 import { Routes } from '@angular/router';
-import { ApplicationPage } from './auth/application.page';
 import { LoginPage } from './auth/login.page';
 import { OnboardingPage } from './auth/onboarding.page';
 import { PasswordResetPage } from './auth/password-reset.page';
@@ -28,8 +27,18 @@ export const routes: Routes = [
     title: 'Configuración inicial | UInventario',
   },
   {
+    path: 'app/inventory-activity',
+    loadComponent: () =>
+      import('./inventory/inventory-activity-report.component').then(
+        ({ InventoryActivityReportComponent }) => InventoryActivityReportComponent,
+      ),
+    canActivate: [sessionGuard],
+    title: 'Actividad de inventario | UInventario',
+  },
+  {
     path: 'app',
-    component: ApplicationPage,
+    loadComponent: () =>
+      import('./auth/application.page').then(({ ApplicationPage }) => ApplicationPage),
     canActivate: [sessionGuard],
     title: 'UInventario',
   },

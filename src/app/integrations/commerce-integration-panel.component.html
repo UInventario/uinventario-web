@@ -1,0 +1,181 @@
+<section class="commerce-panel" id="commerce-integrations-title" aria-labelledby="commerce-title">
+  <header>
+    <div>
+      <p class="eyebrow">Canales externos</p>
+      <h2 id="commerce-title">E-commerce y marketplaces</h2>
+      <p>API v1 aislada por empresa para catálogo, stock y pedidos con reserva inmediata.</p>
+      <small>Firma: HMAC-SHA256 del JSON usando SHA256(clave API) como secreto.</small>
+    </div>
+    <span class="mode">Webhook SIMULATOR</span>
+  </header>
+
+  @if (error()) {
+    <p class="error" role="alert">{{ error() }}</p>
+  }
+  @if (success()) {
+    <p class="success" role="status">{{ success() }}</p>
+  }
+  @if (apiKey(); as key) {
+    <aside class="secret" role="status">
+      <strong>Clave visible una sola vez</strong>
+      <code>{{ key }}</code>
+      <button type="button" class="secondary" (click)="dismissKey()">Ya la guardé</button>
+    </aside>
+  }
+
+  <form [formGroup]="form" (ngSubmit)="submit()">
+    <div class="fields">
+      <label>
+        Nombre
+        <input formControlName="name" maxlength="80" placeholder="Marketplace principal" />
+      </label>
+      <label>
+        Cliente operativo
+        <select formControlName="customerId">
+          <option value="">Selecciona</option>
+          @for (customer of customers(); track customer.id) {
+            @if (customer.active) {
+              <option [value]="customer.id">{{ customer.name }}</option>
+            }
+          }
+        </select>
+      </label>
+      <label>
+        Ubicación de reserva
+        <select formControlName="locationId">
+          <option value="">Selecciona</option>
+          @for (location of locations(); track location.id) {
+            <option [value]="location.id">{{ location.name }} · {{ location.code }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        Solicitudes por minuto
+        <input type="number" min="10" max="600" formControlName="rateLimitPerMinute" />
+      </label>
+      <label class="wide">
+        URL webhook HTTPS
+        <input formControlName="webhookUrl" placeholder="https://marketplace.example/webhooks" />
+      </label>
+      <label class="check">
+        <input type="checkbox" formControlName="webhookEnabled" /> Activar webhook
+      </label>
+    </div>
+
+    <fieldset>
+      <legend>Alcances</legend>
+      @for (scope of scopes; track scope) {
+        <label class="check">
+          <input
+            type="checkbox"
+            [checked]="form.controls.scopes.value.includes(scope)"
+            (change)="toggleScope(scope, $any($event.target).checked)"
+          />
+          {{ scope }}
+        </label>
+      }
+    </fieldset>
+    <fieldset>
+      <legend>Eventos webhook</legend>
+      @for (event of events; track event) {
+        <label class="check">
+          <input
+            type="checkbox"
+            [checked]="form.controls.webhookEvents.value.includes(event)"
+            (change)="toggleEvent(event, $any($event.target).checked)"
+          />
+          {{ event }}
+        </label>
+      }
+    </fieldset>
+    <button type="submit" [disabled]="saving()">
+      {{ saving() ? 'Emitiendo…' : 'Emitir credencial' }}
+    </button>
+  </form>
+
+  <section aria-labelledby="commerce-credentials-title">
+    <h3 id="commerce-credentials-title">Credenciales</h3>
+    @if (loading()) {
+      <p role="status">Cargando integración…</p>
+    } @else if (credentials().length === 0) {
+      <p>Aún no hay credenciales externas.</p>
+    } @else {
+      <div class="records">
+        @for (credential of credentials(); track credential.id) {
+          <article [class.inactive]="!credential.active">
+            <div>
+              <strong>{{ credential.name }}</strong>
+              <small>{{ credential.keyPrefix }}… · {{ credential.scopes.join(', ') }}</small>
+              <small>
+                {{ credential.context.branch.name }} / {{ credential.context.location.name }} ·
+                {{ credential.rateLimitPerMinute }} rpm
+              </small>
+            </div>
+            <span>{{ credential.active ? 'ACTIVA' : 'REVOCADA' }}</span>
+            @if (credential.active) {
+              <button type="button" class="secondary" (click)="rotate(credential)">Rotar</button>
+              <button type="button" class="danger" (click)="revoke(credential)">Revocar</button>
+            }
+          </article>
+        }
+      </div>
+    }
+  </section>
+
+  <section aria-labelledby="commerce-deliveries-title">
+    <h3 id="commerce-deliveries-title">Entregas webhook recientes</h3>
+    @if (deliveries().length === 0) {
+      <p>No hay eventos entregados.</p>
+    } @else {
+      <div class="records">
+        @for (delivery of deliveries(); track delivery.id) {
+          <article [class.inactive]="delivery.status !== 'SUCCEEDED'">
+            <div>
+              <strong>{{ delivery.eventType }}</strong>
+              <small
+                >{{ delivery.updatedAt | date: 'short' }} ·
+                {{ delivery.attemptCount }} intento(s)</small
+              >
+            </div>
+            <span>{{ delivery.status }}</span>
+            @if (delivery.errorCode) {
+              <code>{{ delivery.errorCode }}</code>
+            }
+            @if (canReplay(delivery)) {
+              <button type="button" class="secondary" (click)="replay(delivery)">
+                Reintentar entrega
+              </button>
+            }
+          </article>
+        }
+      </div>
+    }
+  </section>
+
+  @if (openapi(); as contract) {
+    <section aria-labelledby="commerce-openapi-title">
+      <h3 id="commerce-openapi-title">Contrato OpenAPI {{ contract.openapi }}</h3>
+      <p>
+        Base <code>{{ contract.servers[0].url }}</code> · Bearer API key · máximo
+        {{ contract['x-webhook-contract'].attempts.controlledMaximumTotal }} intentos webhook.
+      </p>
+      <div class="records">
+        @for (path of contract.paths | keyvalue; track path.key) {
+          @for (operation of path.value | keyvalue; track operation.key) {
+            <article>
+              <strong>{{ operation.key.toUpperCase() }} {{ path.key }}</strong>
+              <small
+                >{{ operation.value.summary }} · {{ operation.value['x-required-scope'] }}</small
+              >
+            </article>
+          }
+        }
+      </div>
+      <small>
+        Firma {{ contract['x-webhook-contract'].signatureHeader }}:
+        <code>{{ contract['x-webhook-contract'].signature }}</code
+        >. Los ejemplos no contienen credenciales.
+      </small>
+    </section>
+  }
+</section>

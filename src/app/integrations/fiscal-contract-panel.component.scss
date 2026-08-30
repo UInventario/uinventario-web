@@ -1,0 +1,129 @@
+:host {
+  display: block;
+}
+.fiscal-panel {
+  display: grid;
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 1.25rem;
+  border: 1px solid var(--line, #d8dee8);
+  border-radius: 1rem;
+  background: var(--surface, #fff);
+}
+h2,
+p {
+  margin: 0.2rem 0;
+}
+.eyebrow,
+small {
+  color: var(--muted, #566274);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.eyebrow {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.notice,
+.validation,
+.summary {
+  padding: 0.7rem;
+  border-radius: 0.6rem;
+  background: #eef5ff;
+}
+.summary,
+.validation {
+  display: grid;
+  gap: 0.25rem;
+}
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.75rem;
+}
+label {
+  display: grid;
+  gap: 0.25rem;
+}
+fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  border: 1px solid #d8dee8;
+  border-radius: 0.6rem;
+}
+fieldset label,
+.enabled {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.validation:not(.ready),
+.warning,
+.error {
+  color: #9e251d;
+}
+.validation.ready,
+.success {
+  color: #176b3a;
+}
+button {
+  width: fit-content;
+}
+.simulator {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+  border: 1px dashed #7393bd;
+  border-radius: 0.75rem;
+  background: #f7faff;
+}
+.simulator h3 {
+  margin: 0.15rem 0;
+}
+.simulator-controls {
+  display: grid;
+  grid-template-columns: minmax(9rem, 0.6fr) minmax(14rem, 1fr) auto;
+  gap: 0.65rem;
+  align-items: end;
+}
+.simulator-list {
+  display: grid;
+  gap: 0.6rem;
+}
+.simulator-list article {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.7rem;
+  border: 1px solid #d8dee8;
+  border-radius: 0.6rem;
+  background: #fff;
+}
+.simulator-list article > div:first-child,
+.document-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.simulator-list article > div:first-child {
+  flex-direction: column;
+}
+.document-actions {
+  align-items: center;
+  justify-content: flex-end;
+}
+.empty {
+  color: var(--muted, #566274);
+}
+@media (max-width: 720px) {
+  .simulator-controls {
+    grid-template-columns: 1fr;
+  }
+  .simulator-list article {
+    flex-direction: column;
+  }
+  .document-actions {
+    justify-content: flex-start;
+  }
+}

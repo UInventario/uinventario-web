@@ -56,7 +56,7 @@ gcloud run deploy "$service_name" \
   --min=0 \
   --max=3 \
   --timeout=60s \
-  --labels="app=uinventario,environment=${environment},component=web" \
+  --labels="app=uinventario,environment=${environment},component=web,owner=uinventario" \
   --startup-probe=httpGet.path=/health/live,initialDelaySeconds=0,timeoutSeconds=3,periodSeconds=3,failureThreshold=10 \
   --liveness-probe=httpGet.path=/health/live,initialDelaySeconds=10,timeoutSeconds=3,periodSeconds=30,failureThreshold=3 \
   --quiet

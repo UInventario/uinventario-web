@@ -106,7 +106,7 @@ describe('OfflineInventoryPanelComponent', () => {
       expect.objectContaining({
         productId: 'product-1',
         locationId: 'location-1',
-        countedQuantity: '4',
+        countedQuantity: '4.000',
         snapshotQuantity: '5.000',
         reference: 'FOTO-001',
         capturedAt: expect.any(String),

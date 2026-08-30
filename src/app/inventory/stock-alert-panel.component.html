@@ -1,0 +1,159 @@
+<section class="stock-alerts" aria-labelledby="stock-alerts-title" [attr.aria-busy]="loading()">
+  <div class="heading">
+    <div>
+      <p class="eyebrow">Reposición</p>
+      <h2 id="stock-alerts-title">Alertas de stock</h2>
+      <p>Bajo, agotado y recuperado por producto y ubicación, sin avisos duplicados.</p>
+      <small>Umbral predeterminado: {{ defaultThreshold() }}</small>
+    </div>
+    <strong>{{ total() }} alerta(s)</strong>
+  </div>
+
+  <section aria-labelledby="expiration-alerts-title">
+    <div class="heading">
+      <div>
+        <p class="eyebrow">Caducidad</p>
+        <h3 id="expiration-alerts-title">Lotes por vencer</h3>
+        <p>El horizonte se configura por producto y usa la fecha local de la sucursal.</p>
+        @if (expirationBusinessDate()) {
+          <small>Fecha operativa: {{ expirationBusinessDate() }}</small>
+        }
+      </div>
+      <strong>{{ expirationAlerts().length }} alerta(s)</strong>
+    </div>
+    @if (expirationAlerts().length === 0) {
+      <p class="healthy">No hay lotes activos dentro del horizonte de caducidad.</p>
+    } @else {
+      <div class="alert-list" aria-label="Alertas de caducidad">
+        @for (alert of expirationAlerts(); track alert.id) {
+          <article [class]="alert.status.toLowerCase()">
+            <div>
+              <span class="status">{{ expirationLabel(alert.status) }}</span>
+              <strong>{{ alert.product.name }} · lote {{ alert.lot.code }}</strong>
+              <small>
+                {{ alert.product.sku }} · {{ alert.location.name }} · caduca
+                {{ alert.lot.expiresOn }}
+              </small>
+            </div>
+            <dl>
+              <div>
+                <dt>Existencia</dt>
+                <dd>{{ alert.quantity }}</dd>
+              </div>
+              <div>
+                <dt>Días</dt>
+                <dd>{{ alert.daysUntilExpiration }}</dd>
+              </div>
+            </dl>
+            <button type="button" class="secondary" (click)="viewStock.emit(alert.product.sku)">
+              Ver stock
+            </button>
+          </article>
+        }
+      </div>
+    }
+  </section>
+
+  <form class="filters" [formGroup]="filterForm" (ngSubmit)="filter()">
+    <label>
+      Buscar
+      <input formControlName="q" maxlength="80" placeholder="Producto, SKU o ubicación" />
+    </label>
+    <label>
+      Estado
+      <select formControlName="status">
+        <option value="">Todos</option>
+        <option value="OUT_OF_STOCK">Agotado</option>
+        <option value="LOW">Stock bajo</option>
+        <option value="RECOVERED">Recuperado</option>
+      </select>
+    </label>
+    <button class="secondary" type="submit">Filtrar</button>
+  </form>
+
+  @if (canConfigure()) {
+    <form class="threshold" [formGroup]="thresholdForm" (ngSubmit)="saveThreshold()">
+      <label>
+        Producto
+        <select formControlName="productId">
+          <option value="">Selecciona</option>
+          @for (item of products(); track item.product.id) {
+            <option [value]="item.product.id">
+              {{ item.product.name }} · {{ item.product.sku }}
+            </option>
+          }
+        </select>
+      </label>
+      <label>
+        Ubicación
+        <select formControlName="locationId">
+          <option value="">Selecciona</option>
+          @for (location of locations(); track location.id) {
+            <option [value]="location.id">{{ location.name }} · {{ location.code }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        Umbral bajo
+        <input formControlName="threshold" inputmode="decimal" />
+      </label>
+      <button type="submit" [disabled]="saving()">
+        {{ saving() ? 'Guardando…' : 'Guardar umbral' }}
+      </button>
+    </form>
+  }
+
+  @if (error()) {
+    <div class="form-error" role="alert">{{ error() }}</div>
+  }
+  @if (success()) {
+    <div class="success" role="status">{{ success() }}</div>
+  }
+  @if (loading()) {
+    <p role="status">Cargando alertas…</p>
+  } @else if (alerts().length === 0) {
+    <p class="healthy" role="status">No hay alertas para los filtros actuales.</p>
+  } @else {
+    <div class="alert-list" aria-label="Alertas de stock operativas">
+      @for (alert of alerts(); track alert.product.id + alert.location.id) {
+        <article [class]="alert.status.toLowerCase()">
+          <div>
+            <span class="status">{{ statusLabel(alert.status) }}</span>
+            <strong>{{ alert.product.name }}</strong>
+            <small
+              >{{ alert.product.sku }} · {{ alert.location.name }} ({{
+                alert.location.code
+              }})</small
+            >
+          </div>
+          <dl>
+            <div>
+              <dt>Disponible</dt>
+              <dd>{{ alert.availableQuantity }}</dd>
+            </div>
+            <div>
+              <dt>Umbral</dt>
+              <dd>{{ alert.threshold }}</dd>
+            </div>
+          </dl>
+          <small>{{ alert.transitionedAt | date: 'short' }}</small>
+          <button type="button" class="secondary" (click)="viewStock.emit(alert.product.sku)">
+            Ver stock
+          </button>
+        </article>
+      }
+    </div>
+  }
+
+  @if (totalPages() > 1) {
+    <div class="pagination">
+      <button class="secondary" type="button" (click)="previous()" [disabled]="page() === 1">
+        Anterior
+      </button>
+      <span>Página {{ page() }} de {{ totalPages() }}</span>
+      <button class="secondary" type="button" (click)="next()" [disabled]="page() === totalPages()">
+        Siguiente
+      </button>
+    </div>
+  }
+</section>

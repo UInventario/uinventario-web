@@ -22,6 +22,14 @@ steps:
         npm run test:server
         npm run build
 
+  - id: verify-infrastructure
+    name: python:3.13-alpine
+    entrypoint: python
+    args:
+      - -m
+      - py_compile
+      - deploy/verify-cloud-run-scaling.py
+
   - id: build-image
     name: gcr.io/cloud-builders/docker
     args:
@@ -55,6 +63,14 @@ steps:
           api_upstream="https://placeholder.invalid"
         fi
         sh deploy/cloud-run.sh "${_DEPLOY_ENV}" "$$image" "$$api_upstream"
+        gcloud run services describe uinventario-web --project="$PROJECT_ID" --region="${_REGION}" --format=json > /workspace/deployed-web-service.json
+
+  - id: verify-scaling
+    name: python:3.13-alpine
+    entrypoint: python
+    args:
+      - deploy/verify-cloud-run-scaling.py
+      - /workspace/deployed-web-service.json
 
 substitutions:
   _DEPLOY_ENV: dev

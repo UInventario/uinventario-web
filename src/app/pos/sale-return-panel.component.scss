@@ -1,0 +1,123 @@
+:host {
+  display: block;
+  margin-top: 1rem;
+}
+
+.return-panel {
+  border: 1px solid var(--border-color, #d7dce5);
+  border-radius: 0.8rem;
+  padding: 1rem;
+  background: #f8fafc;
+}
+
+.return-heading,
+.return-history > li,
+.return-lines fieldset {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.return-heading h3,
+.return-heading p,
+.return-lines p {
+  margin: 0;
+}
+
+.return-heading > span,
+.exchange,
+.settlement-note {
+  color: #674c00;
+  font-size: 0.85rem;
+}
+
+.return-history {
+  display: grid;
+  gap: 0.45rem;
+  padding-left: 1.25rem;
+}
+
+.return-history span,
+.return-history small {
+  display: block;
+}
+
+.settlement-history {
+  grid-column: 1 / -1;
+  margin: 0.45rem 0 0;
+  padding-left: 1.2rem;
+  color: #166534;
+  font-size: 0.82rem;
+}
+
+.settlement-history .failed {
+  color: #9f1239;
+}
+
+.settlement-form {
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  margin: 1rem 0;
+  padding: 0.85rem;
+  border: 1px solid #bfd0e8;
+  border-radius: 0.65rem;
+  background: #eef5ff;
+}
+
+.settlement-form h4,
+.settlement-form button,
+.credit-recipient {
+  grid-column: 1 / -1;
+}
+
+.settlement-form h4,
+.credit-recipient {
+  margin: 0;
+}
+
+form,
+.return-lines {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.return-lines fieldset {
+  flex-wrap: wrap;
+  border: 1px solid #d7dce5;
+  border-radius: 0.6rem;
+  padding: 0.75rem;
+}
+
+.return-lines legend {
+  font-weight: 700;
+}
+
+.return-lines label {
+  min-width: 10rem;
+}
+
+.return-lines .series {
+  flex: 1 1 14rem;
+}
+
+label,
+label input,
+label select,
+label textarea {
+  display: block;
+  width: 100%;
+}
+
+input,
+select,
+textarea {
+  box-sizing: border-box;
+  margin-top: 0.25rem;
+}
+
+@media (max-width: 700px) {
+  .return-heading,
+  .return-history > li,
+  .return-lines fieldset {
+    display: grid;
+  }
+}

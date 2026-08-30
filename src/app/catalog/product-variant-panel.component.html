@@ -1,0 +1,118 @@
+<section class="variant-panel" aria-labelledby="variant-title">
+  <div class="variant-heading">
+    <div>
+      <p class="eyebrow">Variantes</p>
+      <h4 id="variant-title">Atributos y combinaciones</h4>
+      <p>Cada combinación tendrá SKU, código, precio y stock independientes.</p>
+    </div>
+    <button
+      class="secondary"
+      type="button"
+      (click)="addAttribute()"
+      [disabled]="attributes.length >= 3"
+    >
+      Agregar atributo
+    </button>
+  </div>
+
+  @for (attribute of attributes; track $index; let index = $index) {
+    <div class="attribute-row">
+      <label>
+        Atributo
+        <input [(ngModel)]="attribute.name" maxlength="40" placeholder="Talla" />
+      </label>
+      <label>
+        Valores separados por comas
+        <input [(ngModel)]="attribute.valuesText" maxlength="400" placeholder="CH, M, G" />
+      </label>
+      <button
+        class="secondary"
+        type="button"
+        (click)="removeAttribute(index)"
+        [disabled]="attributes.length === 1"
+      >
+        Quitar
+      </button>
+    </div>
+  }
+
+  <button class="secondary" type="button" (click)="rebuild()">Generar combinaciones</button>
+
+  @if (variants.length > 0) {
+    <div class="variant-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Combinación</th>
+            <th>SKU</th>
+            <th>Código</th>
+            <th>Costo</th>
+            <th>Precio</th>
+            <th>Activa</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (variant of variants; track variant.id || variant.label) {
+            <tr>
+              <td>
+                <strong>{{ variant.label }}</strong>
+              </td>
+              <td>
+                <input
+                  [(ngModel)]="variant.sku"
+                  maxlength="40"
+                  aria-label="SKU de {{ variant.label }}"
+                />
+              </td>
+              <td>
+                <input
+                  [(ngModel)]="variant.barcode"
+                  maxlength="64"
+                  aria-label="Código de {{ variant.label }}"
+                />
+              </td>
+              <td>
+                <input
+                  [(ngModel)]="variant.cost"
+                  inputmode="decimal"
+                  aria-label="Costo de {{ variant.label }}"
+                />
+              </td>
+              <td>
+                <input
+                  [(ngModel)]="variant.price"
+                  inputmode="decimal"
+                  aria-label="Precio de {{ variant.label }}"
+                />
+              </td>
+              <td>
+                <input
+                  type="checkbox"
+                  [(ngModel)]="variant.active"
+                  aria-label="Activar {{ variant.label }}"
+                />
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  @if (error) {
+    <div class="form-error" role="alert">{{ error }}</div>
+  }
+  @if (success) {
+    <div class="success" role="status">{{ success }}</div>
+  }
+  <div class="variant-actions">
+    <button
+      class="primary"
+      type="button"
+      (click)="save()"
+      [disabled]="saving || variants.length === 0"
+    >
+      {{ saving ? 'Guardando…' : 'Guardar variantes' }}
+    </button>
+  </div>
+</section>

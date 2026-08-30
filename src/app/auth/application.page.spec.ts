@@ -39,6 +39,8 @@ describe('ApplicationPage', () => {
   let inventory: {
     listLocations: ReturnType<typeof vi.fn>;
     listStock: ReturnType<typeof vi.fn>;
+    listStockAlerts: ReturnType<typeof vi.fn>;
+    setStockAlertThreshold: ReturnType<typeof vi.fn>;
     listLots: ReturnType<typeof vi.fn>;
     listFifoLayers: ReturnType<typeof vi.fn>;
     listMovements: ReturnType<typeof vi.fn>;
@@ -68,12 +70,28 @@ describe('ApplicationPage', () => {
     closeShift: ReturnType<typeof vi.fn>;
     quote: ReturnType<typeof vi.fn>;
     getPaymentOptions: ReturnType<typeof vi.fn>;
+    startTerminalPayment: ReturnType<typeof vi.fn>;
+    getTerminalPayment: ReturnType<typeof vi.fn>;
+    cancelTerminalPayment: ReturnType<typeof vi.fn>;
     createSale: ReturnType<typeof vi.fn>;
     createCashSale: ReturnType<typeof vi.fn>;
     voidSale: ReturnType<typeof vi.fn>;
     listSales: ReturnType<typeof vi.fn>;
     getSale: ReturnType<typeof vi.fn>;
+    reprintSaleReceipt: ReturnType<typeof vi.fn>;
+    sendSaleReceipt: ReturnType<typeof vi.fn>;
+    getPeripheralProfile: ReturnType<typeof vi.fn>;
+    updatePeripheralProfile: ReturnType<typeof vi.fn>;
+    printSaleReceipt: ReturnType<typeof vi.fn>;
+    openCashDrawer: ReturnType<typeof vi.fn>;
+    listSaleReturns: ReturnType<typeof vi.fn>;
+    createSaleReturn: ReturnType<typeof vi.fn>;
+    listSuspendedSales: ReturnType<typeof vi.fn>;
+    suspendSale: ReturnType<typeof vi.fn>;
+    resumeSuspendedSale: ReturnType<typeof vi.fn>;
+    cancelSuspendedSale: ReturnType<typeof vi.fn>;
     salesCashReport: ReturnType<typeof vi.fn>;
+    profitabilityReport: ReturnType<typeof vi.fn>;
   };
   let audit: {
     list: ReturnType<typeof vi.fn>;
@@ -107,6 +125,7 @@ describe('ApplicationPage', () => {
     list: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
+    configureCredit: ReturnType<typeof vi.fn>;
     deactivate: ReturnType<typeof vi.fn>;
     history: ReturnType<typeof vi.fn>;
   };
@@ -127,6 +146,7 @@ describe('ApplicationPage', () => {
   let sessionState: ReturnType<typeof signal<SessionData | null>>;
 
   beforeEach(async () => {
+    localStorage.clear();
     products = {
       getOptions: vi
         .fn()
@@ -178,6 +198,21 @@ describe('ApplicationPage', () => {
           },
         }),
       ),
+      listStockAlerts: vi.fn().mockReturnValue(
+        of({
+          data: [],
+          meta: {
+            apiVersion: '1',
+            defaultThreshold: '5.000',
+            scope: {
+              branch: { id: 'branch', name: 'Sucursal' },
+              warehouse: { id: 'warehouse', name: 'Bodega' },
+            },
+            pagination: { page: 1, pageSize: 10, total: 0, totalPages: 0 },
+          },
+        }),
+      ),
+      setStockAlertThreshold: vi.fn(),
       listLots: vi.fn().mockReturnValue(
         of({
           data: [],
@@ -297,6 +332,9 @@ describe('ApplicationPage', () => {
           meta: { apiVersion: '1' },
         }),
       ),
+      startTerminalPayment: vi.fn(),
+      getTerminalPayment: vi.fn(),
+      cancelTerminalPayment: vi.fn(),
       createSale: vi.fn(),
       createCashSale: vi.fn(),
       voidSale: vi.fn(),
@@ -310,6 +348,36 @@ describe('ApplicationPage', () => {
         }),
       ),
       getSale: vi.fn(),
+      reprintSaleReceipt: vi.fn(),
+      sendSaleReceipt: vi.fn(),
+      getPeripheralProfile: vi.fn(),
+      updatePeripheralProfile: vi.fn(),
+      printSaleReceipt: vi.fn(),
+      openCashDrawer: vi.fn().mockReturnValue(
+        of({
+          data: {
+            id: 'drawer-operation',
+            action: 'OPEN_DRAWER',
+            trigger: 'CASH_SALE_COMPLETED',
+            status: 'COMPLETED',
+            attemptCount: 1,
+            errorCode: null,
+            saleId: 'sale',
+            deviceId: 'SIM-register',
+            createdAt: '2026-08-28T12:00:00.000Z',
+            completedAt: '2026-08-28T12:00:00.000Z',
+          },
+          meta: { apiVersion: '1', idempotentReplay: false },
+        }),
+      ),
+      listSaleReturns: vi.fn().mockReturnValue(of({ data: [], meta: { apiVersion: '1' } })),
+      createSaleReturn: vi.fn(),
+      listSuspendedSales: vi
+        .fn()
+        .mockReturnValue(of({ data: [], meta: { apiVersion: '1', expirationHours: 24 } })),
+      suspendSale: vi.fn(),
+      resumeSuspendedSale: vi.fn(),
+      cancelSuspendedSale: vi.fn(),
       salesCashReport: vi.fn().mockReturnValue(
         of({
           data: {
@@ -334,6 +402,33 @@ describe('ApplicationPage', () => {
             },
             sales: [],
             shifts: [],
+            total: 0,
+          },
+          meta: {
+            apiVersion: '1',
+            pagination: { page: 1, pageSize: 10, total: 0, totalPages: 0 },
+            periodTimezone: 'BRANCH_LOCAL',
+          },
+        }),
+      ),
+      profitabilityReport: vi.fn().mockReturnValue(
+        of({
+          data: {
+            scope: [{ id: 'branch', name: 'Sucursal', timezone: 'America/Mexico_City' }],
+            formulas: {
+              grossRevenue: 'gross',
+              discounts: 'discounts',
+              netRevenue: 'revenue',
+              taxes: 'taxes',
+              cost: 'cost',
+              margin: 'margin',
+              returnsAndRefunds: 'returns',
+              credit: 'credit',
+              cancellations: 'voids',
+            },
+            currencies: [],
+            products: [],
+            activities: [],
             total: 0,
           },
           meta: {
@@ -420,6 +515,7 @@ describe('ApplicationPage', () => {
       ),
       create: vi.fn(),
       update: vi.fn(),
+      configureCredit: vi.fn(),
       deactivate: vi.fn(),
       history: vi.fn(),
     };
@@ -437,8 +533,11 @@ describe('ApplicationPage', () => {
           'PRODUCTS_MANAGE',
           'SALES_MANAGE',
           'SALES_VOID',
+          'SALES_RETURN',
           'SALES_DISCOUNT',
+          'SALES_CREDIT',
           'SALE_REPRINT',
+          'CASH_DRAWER_OPEN',
           'CASH_REGISTER_OPEN',
           'CASH_REGISTER_CLOSE',
           'CASH_REGISTER_MOVE',
@@ -534,6 +633,14 @@ describe('ApplicationPage', () => {
     fill('brandName', 'Casa');
     fill('cost', '1.20');
     fill('price', '2.50');
+    fill('quantityPrecision', '2');
+    fill('minimumQuantity', '0.250');
+    const baseUnit = fixture.nativeElement.querySelector('#baseUnit') as HTMLSelectElement;
+    baseUnit.value = 'KILOGRAM';
+    baseUnit.dispatchEvent(new Event('change'));
+    const rounding = fixture.nativeElement.querySelector('#quantityRounding') as HTMLSelectElement;
+    rounding.value = 'DOWN';
+    rounding.dispatchEvent(new Event('change'));
     submit();
 
     expect(products.create).toHaveBeenCalledWith({
@@ -543,10 +650,14 @@ describe('ApplicationPage', () => {
       brandName: 'Casa',
       cost: '1.20',
       price: '2.50',
+      baseUnit: 'KILOGRAM',
+      quantityPrecision: 2,
+      quantityRounding: 'DOWN',
+      minimumQuantity: '0.250',
       trackLots: false,
     });
     expect(fixture.nativeElement.textContent).toContain('Producto creado');
-    expect(products.list).toHaveBeenLastCalledWith({ page: 1, pageSize: 5 });
+    expect(products.list).toHaveBeenCalledWith({ page: 1, pageSize: 5 });
   });
 
   it('searches and opens a tenant-scoped product detail', () => {
@@ -559,6 +670,10 @@ describe('ApplicationPage', () => {
       brand: null,
       cost: '1.20',
       price: '2.50',
+      baseUnit: 'UNIT' as const,
+      quantityPrecision: 0,
+      quantityRounding: 'HALF_UP' as const,
+      minimumQuantity: '1.000',
       active: true,
     };
     products.list.mockReturnValue(
@@ -773,6 +888,10 @@ describe('ApplicationPage', () => {
       brand: { id: 'brand', name: 'Casa' },
       cost: '1.20',
       price: '2.50',
+      baseUnit: 'UNIT' as const,
+      quantityPrecision: 0,
+      quantityRounding: 'HALF_UP' as const,
+      minimumQuantity: '1.000',
       active: true,
       version: 1,
     };
@@ -812,6 +931,10 @@ describe('ApplicationPage', () => {
       brandName: 'Casa',
       cost: '1.20',
       price: '3.00',
+      baseUnit: 'UNIT',
+      quantityPrecision: 0,
+      quantityRounding: 'HALF_UP',
+      minimumQuantity: '1.000',
       trackLots: false,
       version: 1,
     });
@@ -1707,6 +1830,10 @@ describe('ApplicationPage', () => {
       brand: null,
       cost: '1.20',
       price: '119.90',
+      baseUnit: 'UNIT' as const,
+      quantityPrecision: 0,
+      quantityRounding: 'HALF_UP' as const,
+      minimumQuantity: '1.000',
       active: true,
     };
     products.list.mockReturnValue(
@@ -1735,6 +1862,8 @@ describe('ApplicationPage', () => {
               quantity: doubled ? '2.000' : '1.000',
               availableQuantity: '5.000',
               unitPrice: '119.90',
+              priceSource: 'BASE' as const,
+              priceList: null,
               subtotal: doubled ? '206.72' : '103.36',
               tax: doubled ? '33.08' : '16.54',
               total: doubled ? '239.80' : '119.90',
@@ -1759,7 +1888,11 @@ describe('ApplicationPage', () => {
     ).click();
     fixture.detectChanges();
 
-    expect(pos.quote).toHaveBeenLastCalledWith([{ productId: 'product', quantity: '1' }]);
+    expect(pos.quote).toHaveBeenLastCalledWith(
+      [{ productId: 'product', quantity: '1.000' }],
+      undefined,
+      undefined,
+    );
     expect(fixture.nativeElement.querySelector('.cart-panel').textContent).toContain('MXN 119.90');
 
     const quantity = fixture.nativeElement.querySelector(
@@ -1768,8 +1901,78 @@ describe('ApplicationPage', () => {
     quantity.value = '2';
     quantity.dispatchEvent(new Event('change', { bubbles: true }));
     fixture.detectChanges();
-    expect(pos.quote).toHaveBeenLastCalledWith([{ productId: 'product', quantity: '2' }]);
+    expect(pos.quote).toHaveBeenLastCalledWith(
+      [{ productId: 'product', quantity: '2' }],
+      undefined,
+      undefined,
+    );
     expect(fixture.nativeElement.querySelector('.cart-panel').textContent).toContain('MXN 239.80');
+
+    const discounts = fixture.componentInstance as unknown as {
+      updateCartDiscount(
+        productId: string,
+        field: 'type' | 'value' | 'reason',
+        value: string,
+      ): void;
+      updateSaleDiscount(): void;
+      cashForm: {
+        controls: {
+          discountType: { setValue(value: string): void };
+          discountValue: { setValue(value: string): void };
+          discountReason: { setValue(value: string): void };
+        };
+      };
+    };
+    discounts.updateCartDiscount('product', 'type', 'PERCENT');
+    discounts.updateCartDiscount('product', 'value', '10');
+    discounts.updateCartDiscount('product', 'reason', 'Empaque deteriorado');
+    expect(pos.quote).toHaveBeenLastCalledWith(
+      [
+        {
+          productId: 'product',
+          quantity: '2',
+          discount: {
+            type: 'PERCENT',
+            value: '10',
+            reason: 'Empaque deteriorado',
+          },
+        },
+      ],
+      undefined,
+      undefined,
+    );
+    discounts.cashForm.controls.discountType.setValue('AMOUNT');
+    discounts.cashForm.controls.discountValue.setValue('5.00');
+    discounts.cashForm.controls.discountReason.setValue('Cortesía autorizada');
+    discounts.updateSaleDiscount();
+    expect(pos.quote).toHaveBeenLastCalledWith(
+      [
+        {
+          productId: 'product',
+          quantity: '2',
+          discount: {
+            type: 'PERCENT',
+            value: '10',
+            reason: 'Empaque deteriorado',
+          },
+        },
+      ],
+      undefined,
+      undefined,
+      { type: 'AMOUNT', value: '5.00', reason: 'Cortesía autorizada' },
+    );
+    discounts.updateCartDiscount('product', 'value', '');
+    discounts.updateCartDiscount('product', 'reason', '');
+    discounts.updateCartDiscount('product', 'type', '');
+    discounts.cashForm.controls.discountValue.setValue('');
+    discounts.cashForm.controls.discountReason.setValue('');
+    discounts.cashForm.controls.discountType.setValue('');
+    discounts.updateSaleDiscount();
+    expect(pos.quote).toHaveBeenLastCalledWith(
+      [{ productId: 'product', quantity: '2' }],
+      undefined,
+      undefined,
+    );
 
     const saleResponse = new Subject<{
       data: CashSaleData;
@@ -1779,6 +1982,11 @@ describe('ApplicationPage', () => {
     const customerSelect = fixture.nativeElement.querySelector('#posCustomer') as HTMLSelectElement;
     customerSelect.value = 'customer';
     customerSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(pos.quote).toHaveBeenLastCalledWith(
+      [{ productId: 'product', quantity: '2' }],
+      undefined,
+      'customer',
+    );
     fill('cashReceived', '250.00');
     (fixture.componentInstance as unknown as { completeCashSale(): void }).completeCashSale();
     (fixture.componentInstance as unknown as { completeCashSale(): void }).completeCashSale();
@@ -1805,18 +2013,35 @@ describe('ApplicationPage', () => {
         userId: 'user',
         currency: 'MXN',
         taxRate: '0.1600',
+        discount: null,
         lines: [
           {
+            id: 'sale-line-1',
             product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
             quantity: '2.000',
             unitPrice: '119.90',
+            priceSource: 'BASE',
+            priceList: null,
+            grossTotal: '239.80',
+            discount: { line: null, sale: null, total: '0.00' },
             subtotal: '206.72',
             tax: '33.08',
             total: '239.80',
+            grossProfit: '46.72',
           },
         ],
-        totals: { subtotal: '206.72', tax: '33.08', total: '239.80' },
+        totals: {
+          gross: '239.80',
+          lineDiscount: '0.00',
+          saleDiscount: '0.00',
+          discount: '0.00',
+          subtotal: '206.72',
+          tax: '33.08',
+          total: '239.80',
+          grossProfit: '46.72',
+        },
         payment: {
+          id: 'payment-1',
           method: 'CASH',
           status: 'COMPLETED',
           amountReceived: '250.00',
@@ -1828,6 +2053,7 @@ describe('ApplicationPage', () => {
         },
         payments: [
           {
+            id: 'payment-1',
             method: 'CASH',
             status: 'COMPLETED',
             amountReceived: '250.00',
@@ -1846,8 +2072,143 @@ describe('ApplicationPage', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Venta V-123456789012 completada');
     expect(fixture.nativeElement.textContent).toContain('Cambio MXN 10.20');
+    expect(pos.openCashDrawer).toHaveBeenCalledWith(
+      { trigger: 'CASH_SALE_COMPLETED', saleId: 'sale' },
+      'web-drawer-sale-sale',
+    );
+    expect(fixture.nativeElement.textContent).toContain('Cajon abierto en SIM-register');
     expect(inventory.listStock).toHaveBeenCalledTimes(2);
     expect(pos.listSales).toHaveBeenCalledTimes(2);
+  });
+
+  it('suspends a cart and presents recalculation conflicts when it is resumed', () => {
+    const product = {
+      id: 'product',
+      name: 'Café',
+      sku: 'CAFE-1',
+      barcode: '7501',
+      trackLots: false,
+      trackSerials: false,
+      category: null,
+      brand: null,
+      cost: '80.00',
+      price: '119.90',
+      active: true,
+      version: 1,
+    };
+    const quote = {
+      context: {
+        branch: { id: 'branch', name: 'Sucursal' },
+        warehouse: { id: 'warehouse', name: 'Bodega' },
+        cashRegister: { id: 'register', name: 'Caja', code: 'MAIN' },
+      },
+      currency: 'MXN',
+      taxRate: '0.1600',
+      discount: null,
+      lines: [
+        {
+          product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
+          quantity: '1.000',
+          lotId: null,
+          serialNumbers: [],
+          availableQuantity: '5.000',
+          unitPrice: '119.90',
+          priceSource: 'BASE' as const,
+          priceList: null,
+          grossTotal: '119.90',
+          discount: { line: null, sale: null, total: '0.00' },
+          subtotal: '103.36',
+          tax: '16.54',
+          total: '119.90',
+        },
+      ],
+      totals: {
+        gross: '119.90',
+        lineDiscount: '0.00',
+        saleDiscount: '0.00',
+        discount: '0.00',
+        subtotal: '103.36',
+        tax: '16.54',
+        total: '119.90',
+      },
+    };
+    const suspended = {
+      id: '11111111-1111-4111-8111-111111111111',
+      status: 'ACTIVE' as const,
+      context: quote.context,
+      author: { id: 'user', email: 'admin@example.com' },
+      customer: null,
+      notes: 'Cliente regresa',
+      lines: [
+        {
+          product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
+          quantity: '1.000',
+          lotId: null,
+          serialNumbers: [],
+          unitPriceSnapshot: '119.90',
+          availableQuantitySnapshot: '5.000',
+        },
+      ],
+      completedSaleId: null,
+      expiresAt: '2026-08-29T18:00:00.000Z',
+      createdAt: '2026-08-28T18:00:00.000Z',
+      cancelledAt: null,
+      resumedAt: null,
+    };
+    const component = fixture.componentInstance as unknown as {
+      cart: { set(value: unknown[]): void };
+      cartQuote: { set(value: typeof quote | null): void };
+      cashForm: { controls: { notes: { setValue(value: string): void } } };
+      suspendCurrentSale(): void;
+      resumeSuspendedSale(value: typeof suspended): void;
+    };
+    component.cart.set([{ product, quantity: '1', lotId: '', lots: [], serialNumbers: '' }]);
+    component.cartQuote.set(quote);
+    component.cashForm.controls.notes.setValue('Cliente regresa');
+    pos.suspendSale.mockReturnValue(
+      of({ data: suspended, meta: { apiVersion: '1', idempotentReplay: false } }),
+    );
+
+    component.suspendCurrentSale();
+    fixture.detectChanges();
+
+    expect(pos.suspendSale).toHaveBeenCalledWith(
+      {
+        lines: [{ productId: 'product', quantity: '1' }],
+        notes: 'Cliente regresa',
+      },
+      expect.stringMatching(/^web-suspend-/),
+    );
+    expect(fixture.nativeElement.textContent).toContain('Venta suspendida hasta');
+
+    const currentQuote = {
+      ...quote,
+      lines: [{ ...quote.lines[0], unitPrice: '129.90', total: '129.90' }],
+      totals: { subtotal: '112.00', tax: '17.90', total: '129.90' },
+    };
+    pos.resumeSuspendedSale.mockReturnValue(
+      of({
+        data: {
+          suspendedSale: suspended,
+          quote: currentQuote,
+          conflicts: [
+            {
+              code: 'PRICE_CHANGED',
+              productId: 'product',
+              previous: '119.90',
+              current: '129.90',
+            },
+          ],
+        },
+        meta: { apiVersion: '1', recalculatedAt: '2026-08-28T18:05:00.000Z' },
+      }),
+    );
+
+    component.resumeSuspendedSale(suspended);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Carrito reanudado y recalculado');
+    expect(fixture.nativeElement.textContent).toContain('precio 119.90 → 129.90');
   });
 
   it('queues a cash sale with the original idempotency key when the response is lost', async () => {
@@ -1873,6 +2234,7 @@ describe('ApplicationPage', () => {
       taxRate: '0.1600',
       lines: [
         {
+          id: 'sale-line-1',
           product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
           quantity: '1.000',
           availableQuantity: '5.000',
@@ -1920,7 +2282,7 @@ describe('ApplicationPage', () => {
     expect(fixture.nativeElement.textContent).toContain('Sólo efectivo, sin sobreventa');
   });
 
-  it('submits referenced and mixed payments and explains a simulated rejection', () => {
+  it('captures card payments through the terminal before submitting a mixed sale', () => {
     const product = {
       id: 'product',
       name: 'Café',
@@ -1976,48 +2338,87 @@ describe('ApplicationPage', () => {
     component.paymentRows.at(0).controls.method.setValue('CARD');
     component.changePaymentMethod(0);
     component.paymentRows.at(0).controls.amount.setValue('116.00');
-    component.paymentRows.at(0).controls.reference.setValue('DECLINE-001');
-    pos.createSale.mockReturnValue(
-      throwError(
-        () =>
-          new HttpErrorResponse({
-            status: 409,
-            error: { code: 'PAYMENT_DECLINED' },
-          }),
-      ),
+    pos.startTerminalPayment.mockReturnValue(
+      of({
+        data: {
+          id: 'terminal-declined',
+          provider: 'SIMULATOR',
+          providerReference: 'TERM-DECLINED',
+          amount: '116.00',
+          currency: 'MXN',
+          status: 'DECLINED',
+          errorCode: 'SIMULATED_DECLINE',
+          saleId: null,
+        },
+        meta: { apiVersion: '1', idempotentReplay: false },
+      }),
     );
 
     fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain('Autorización simulada');
+    expect(fixture.nativeElement.textContent).toContain('UInventario no solicita');
     component.completeCashSale();
     fixture.detectChanges();
 
-    expect(pos.createSale).toHaveBeenCalledWith(
-      {
-        lines: [{ productId: 'product', quantity: '1' }],
-        payments: [{ method: 'CARD', amount: '116.00', reference: 'DECLINE-001' }],
-      },
-      expect.stringMatching(/^web-sale-/),
-    );
-    expect(fixture.nativeElement.textContent).toContain('El pago fue rechazado');
+    expect(pos.createSale).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('terminal rechazó el pago');
 
-    component.paymentRows.at(0).controls.reference.setValue('CARD-OK-001');
     component.addPayment();
     component.paymentRows.at(0).controls.amount.setValue('56.00');
     component.paymentRows.at(1).controls.amount.setValue('60.00');
     component.paymentRows.at(1).controls.amountReceived.setValue('70.00');
-    pos.createSale.mockReturnValue(new Subject());
+    pos.startTerminalPayment.mockReturnValue(
+      of({
+        data: {
+          id: 'terminal-captured',
+          provider: 'SIMULATOR',
+          providerReference: 'TERM-CAPTURED',
+          amount: '56.00',
+          currency: 'MXN',
+          status: 'CAPTURED',
+          errorCode: null,
+          saleId: null,
+        },
+        meta: { apiVersion: '1', idempotentReplay: false },
+      }),
+    );
+    pos.createSale.mockReturnValue(
+      throwError(() => new HttpErrorResponse({ status: 0, statusText: 'Lost response' })),
+    );
     component.completeCashSale();
 
+    expect(pos.startTerminalPayment).toHaveBeenLastCalledWith(
+      { amount: '56.00', currency: 'MXN', scenario: 'SUCCESS' },
+      expect.stringMatching(/^terminal-web-sale-/),
+    );
     expect(pos.createSale).toHaveBeenLastCalledWith(
       {
         lines: [{ productId: 'product', quantity: '1' }],
         payments: [
-          { method: 'CARD', amount: '56.00', reference: 'CARD-OK-001' },
+          {
+            method: 'CARD',
+            amount: '56.00',
+            terminalOperationId: 'terminal-captured',
+            reference: undefined,
+          },
           { method: 'CASH', amount: '60.00', amountReceived: '70.00' },
         ],
       },
       expect.stringMatching(/^web-sale-/),
+    );
+
+    const terminalKey = pos.startTerminalPayment.mock.calls.at(-1)?.[1] as string;
+    const saleKey = pos.createSale.mock.calls.at(-1)?.[1] as string;
+    pos.createSale.mockReturnValue(new Subject());
+    component.completeCashSale();
+
+    expect(pos.startTerminalPayment.mock.calls.at(-1)?.[1]).toBe(terminalKey);
+    expect(pos.createSale.mock.calls.at(-1)?.[1]).toBe(saleKey);
+    expect(pos.createSale.mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({
+        payments: expect.arrayContaining([
+          expect.objectContaining({ terminalOperationId: 'terminal-captured' }),
+        ]),
+      }),
     );
   });
 
@@ -2112,6 +2513,87 @@ describe('ApplicationPage', () => {
         },
       }),
     );
+    pos.profitabilityReport.mockReturnValue(
+      of({
+        data: {
+          scope: [{ id: 'branch', name: 'Sucursal', timezone: 'America/Mexico_City' }],
+          formulas: {
+            grossRevenue: 'gross',
+            discounts: 'discounts',
+            netRevenue: 'revenue',
+            taxes: 'taxes',
+            cost: 'cost',
+            margin: 'margin',
+            returnsAndRefunds: 'returns once',
+            credit: 'credit once',
+            cancellations: 'excluded',
+          },
+          currencies: [
+            {
+              currency: 'MXN',
+              sales: 1,
+              returns: 1,
+              cancellations: 1,
+              grossRevenue: '119.90',
+              discounts: '10.00',
+              salesTotal: '109.90',
+              returnTotal: '20.00',
+              netTotal: '89.90',
+              netRevenue: '77.50',
+              taxes: '12.40',
+              historicalCost: '50.00',
+              returnedCost: '10.00',
+              netCost: '40.00',
+              margin: '37.50',
+              marginRate: 48.39,
+              paymentObligations: '109.90',
+              creditSales: '20.00',
+              refundsSettled: '20.00',
+              voidedAmount: '119.90',
+              salesMatchPayments: true,
+            },
+          ],
+          products: [
+            {
+              product: { id: 'product', name: 'Producto', sku: 'SKU-1' },
+              currency: 'MXN',
+              soldQuantity: '1.000',
+              returnedQuantity: '0.200',
+              grossRevenue: '119.90',
+              discounts: '10.00',
+              netRevenue: '77.50',
+              taxes: '12.40',
+              netCost: '40.00',
+              margin: '37.50',
+            },
+          ],
+          activities: [
+            {
+              id: 'sale-report',
+              type: 'SALE' as const,
+              saleId: 'sale-report',
+              receiptNumber: 'V-REPORT000001',
+              branchName: 'Sucursal',
+              cashRegisterName: 'Caja',
+              currency: 'MXN',
+              netRevenue: '93.02',
+              taxes: '16.88',
+              historicalCost: '50.00',
+              marginImpact: '43.02',
+              paymentOrSettlement: '109.90',
+              reconciles: true,
+              occurredAt: '2026-08-27T14:00:00.000Z',
+            },
+          ],
+          total: 1,
+        },
+        meta: {
+          apiVersion: '1' as const,
+          pagination: { page: 1, pageSize: 10, total: 1, totalPages: 1 },
+          periodTimezone: 'BRANCH_LOCAL' as const,
+        },
+      }),
+    );
     const component = fixture.componentInstance as unknown as {
       salesCashReportForm: {
         controls: {
@@ -2138,9 +2620,72 @@ describe('ApplicationPage', () => {
       page: 1,
       pageSize: 10,
     });
+    expect(pos.profitabilityReport).toHaveBeenLastCalledWith({
+      dateFrom: '2026-08-27',
+      dateTo: '2026-08-27',
+      branchId: 'branch',
+      page: 1,
+      pageSize: 10,
+    });
     expect(fixture.nativeElement.textContent).toContain('Conciliación correcta');
+    expect(fixture.nativeElement.textContent).toContain('Rentabilidad de POS');
+    expect(fixture.nativeElement.textContent).toContain('Margen 37.50');
     expect(fixture.nativeElement.textContent).toContain('V-REPORT000001');
     expect(fixture.nativeElement.textContent).toContain('Diferencia 0.00');
+    expect(fixture.nativeElement.querySelectorAll('dl.cart-totals')).toHaveLength(2);
+    expect(fixture.nativeElement.querySelector('[aria-label="Ventas del periodo"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.report-export-link').textContent).toContain(
+      'CSV o Excel',
+    );
+    expect(localStorage.getItem('uinventario:reports:tenant:user')).toContain(
+      '"dateFrom":"2026-08-27"',
+    );
+
+    fixture.destroy();
+    fixture = TestBed.createComponent(ApplicationPage);
+    fixture.detectChanges();
+
+    const restored = (
+      fixture.componentInstance as unknown as {
+        salesCashReportForm: {
+          getRawValue(): Record<string, string>;
+        };
+      }
+    ).salesCashReportForm.getRawValue();
+    expect(restored).toEqual({
+      dateFrom: '2026-08-27',
+      dateTo: '2026-08-27',
+      branchId: 'branch',
+      cashRegisterId: '',
+      userId: '',
+      status: 'ALL',
+    });
+  });
+
+  it('announces an invalid report period without replacing reconciled data', () => {
+    const component = fixture.componentInstance as unknown as {
+      salesCashReportForm: {
+        controls: {
+          dateFrom: { setValue(value: string): void };
+          dateTo: { setValue(value: string): void };
+        };
+      };
+      filterSalesCashReport(): void;
+    };
+    pos.salesCashReport.mockClear();
+    pos.profitabilityReport.mockClear();
+    component.salesCashReportForm.controls.dateFrom.setValue('2026-08-30');
+    component.salesCashReportForm.controls.dateTo.setValue('2026-08-29');
+
+    component.filterSalesCashReport();
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('[aria-labelledby="sales-cash-report-title"] .form-error')
+        .textContent,
+    ).toContain('La fecha inicial no puede ser posterior');
+    expect(pos.salesCashReport).not.toHaveBeenCalled();
+    expect(pos.profitabilityReport).not.toHaveBeenCalled();
   });
 
   it('creates a customer only after contact consent and selects it for the sale', () => {
@@ -2194,6 +2739,141 @@ describe('ApplicationPage', () => {
     ).toBe('customer');
   });
 
+  it('configures customer credit and submits a credit sale without a cash collection', () => {
+    const customer = {
+      id: 'credit-customer',
+      name: 'Cliente Crédito',
+      identifier: 'CREDIT-1',
+      email: null,
+      phone: null,
+      dataProcessingConsent: false,
+      privacyStatus: 'ACTIVE' as const,
+      anonymizedAt: null,
+      privacyRetentionUntil: null,
+      active: true,
+      version: 1,
+      createdAt: '2026-08-29T13:00:00.000Z',
+      updatedAt: '2026-08-29T13:00:00.000Z',
+      credit: null,
+    };
+    const configured = {
+      ...customer,
+      version: 2,
+      credit: {
+        enabled: true,
+        limit: '500.00',
+        currency: 'MXN',
+        termDays: 30,
+        maxInstallments: 3,
+        balance: '0.00',
+        available: '500.00',
+        overdueAmount: '0.00',
+        status: 'AVAILABLE' as const,
+      },
+    };
+    customers.create.mockReturnValue(of({ data: customer, meta: { apiVersion: '1' } }));
+    customers.configureCredit.mockReturnValue(of({ data: configured, meta: { apiVersion: '1' } }));
+    fill('customerName', customer.name);
+    const enabled = fixture.nativeElement.querySelector(
+      '[formControlName="creditEnabled"]',
+    ) as HTMLInputElement;
+    enabled.click();
+    fixture.detectChanges();
+    fill('customerCreditLimit', '500.00');
+    (fixture.nativeElement.querySelector('#customerName') as HTMLElement)
+      .closest('form')
+      ?.dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+
+    expect(customers.configureCredit).toHaveBeenCalledWith('credit-customer', {
+      enabled: true,
+      creditLimit: '500.00',
+      currency: 'MXN',
+      termDays: 30,
+      maxInstallments: 3,
+      version: 1,
+    });
+
+    const product = {
+      id: 'product-credit',
+      name: 'Producto Crédito',
+      sku: 'CREDIT-PRODUCT',
+      barcode: null,
+      category: null,
+      brand: null,
+      cost: '50.00',
+      price: '100.00',
+      active: true,
+      version: 1,
+    };
+    const quote = {
+      context: {
+        branch: { id: 'branch', name: 'Sucursal' },
+        warehouse: { id: 'warehouse', name: 'Bodega' },
+        cashRegister: { id: 'register', name: 'Caja', code: 'MAIN' },
+      },
+      currency: 'MXN',
+      taxRate: '0.1600',
+      discount: null,
+      lines: [
+        {
+          product: { id: product.id, name: product.name, sku: product.sku },
+          quantity: '1.000',
+          availableQuantity: '5.000',
+          unitPrice: '100.00',
+          priceSource: 'BASE' as const,
+          priceList: null,
+          grossTotal: '100.00',
+          discount: { line: null, sale: null, total: '0.00' },
+          subtotal: '86.21',
+          tax: '13.79',
+          total: '100.00',
+        },
+      ],
+      totals: {
+        gross: '100.00',
+        lineDiscount: '0.00',
+        saleDiscount: '0.00',
+        discount: '0.00',
+        subtotal: '86.21',
+        tax: '13.79',
+        total: '100.00',
+      },
+    };
+    const component = fixture.componentInstance as unknown as {
+      customers: { set(value: (typeof configured)[]): void };
+      cart: { set(value: Array<{ product: typeof product; quantity: string }>): void };
+      cartQuote: { set(value: typeof quote): void };
+      cashForm: {
+        controls: {
+          customerId: { setValue(value: string): void };
+          creditSale: { setValue(value: boolean): void };
+          installmentCount: { setValue(value: number): void };
+        };
+      };
+      completeCashSale(): void;
+    };
+    component.customers.set([configured]);
+    component.cart.set([{ product, quantity: '1' }]);
+    component.cartQuote.set(quote);
+    component.cashForm.controls.customerId.setValue(configured.id);
+    component.cashForm.controls.creditSale.setValue(true);
+    component.cashForm.controls.installmentCount.setValue(2);
+    pos.createSale.mockReturnValue(new Subject());
+    fixture.detectChanges();
+    component.completeCashSale();
+
+    expect(pos.createSale).toHaveBeenCalledWith(
+      {
+        lines: [{ productId: product.id, quantity: '1' }],
+        customerId: configured.id,
+        credit: { installmentCount: 2 },
+      },
+      expect.stringMatching(/^web-sale-/),
+    );
+    expect(fixture.nativeElement.textContent).toContain('Confirmar venta a crédito');
+  });
+
   it('voids a completed sale once and exposes the compensation result', () => {
     const completed: SaleDetailData = {
       id: 'sale-to-void',
@@ -2207,18 +2887,35 @@ describe('ApplicationPage', () => {
       user: { id: 'user', email: 'admin@example.com' },
       currency: 'MXN',
       taxRate: '0.1600',
+      discount: null,
       lines: [
         {
+          id: 'sale-line-detail-1',
           product: { id: 'product', name: 'Café', sku: 'CAFE-1' },
           quantity: '1.000',
           unitPrice: '119.90',
+          priceSource: 'BASE',
+          priceList: null,
+          grossTotal: '119.90',
+          discount: { line: null, sale: null, total: '0.00' },
           subtotal: '103.36',
           tax: '16.54',
           total: '119.90',
+          grossProfit: '23.36',
         },
       ],
-      totals: { subtotal: '103.36', tax: '16.54', total: '119.90' },
+      totals: {
+        gross: '119.90',
+        lineDiscount: '0.00',
+        saleDiscount: '0.00',
+        discount: '0.00',
+        subtotal: '103.36',
+        tax: '16.54',
+        total: '119.90',
+        grossProfit: '23.36',
+      },
       payment: {
+        id: 'payment-detail-1',
         method: 'CASH',
         status: 'COMPLETED',
         amountReceived: '120.00',
@@ -2230,6 +2927,7 @@ describe('ApplicationPage', () => {
       },
       payments: [
         {
+          id: 'payment-detail-1',
           method: 'CASH',
           status: 'COMPLETED',
           amountReceived: '120.00',

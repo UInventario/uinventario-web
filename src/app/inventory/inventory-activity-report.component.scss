@@ -1,0 +1,168 @@
+:host {
+  display: block;
+}
+.activity-report {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1px solid var(--line, #d8dee8);
+  border-radius: 1rem;
+  background: var(--surface, #fff);
+}
+.heading,
+.filters,
+article,
+.metrics,
+.actions,
+.pagination,
+.drilldown li,
+.drilldown li dl {
+  display: flex;
+  gap: 0.9rem;
+  align-items: end;
+  flex-wrap: wrap;
+}
+.heading,
+article,
+.actions,
+.drilldown li {
+  justify-content: space-between;
+}
+.heading h2,
+.heading h3,
+.heading p {
+  margin: 0.2rem 0;
+}
+.eyebrow,
+small,
+dt {
+  color: var(--muted, #566274);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.back {
+  width: max-content;
+  color: #185abd;
+  font-weight: 800;
+}
+.eyebrow,
+dt,
+.badge {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.definitions {
+  padding: 0.8rem 1rem;
+  border: 1px solid #d8dee8;
+  border-radius: 0.75rem;
+  background: #f7f9fc;
+}
+.definitions summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+.definitions dl {
+  display: grid;
+  gap: 0.6rem;
+}
+.definitions dd {
+  margin: 0.2rem 0 0;
+}
+.filters label,
+.product,
+.drilldown li > div:first-child {
+  display: grid;
+  gap: 0.35rem;
+}
+.filters label {
+  min-width: 10rem;
+  flex: 1;
+}
+.filters input,
+.filters select,
+.filters button,
+article button {
+  min-height: 44px;
+}
+.items,
+.drilldown,
+.drilldown ol {
+  display: grid;
+  gap: 0.7rem;
+}
+article,
+.drilldown {
+  padding: 0.9rem 1rem;
+  border: 1px solid #d8dee8;
+  border-radius: 0.8rem;
+}
+article.slow {
+  border-color: #d39b41;
+  background: #fff8e9;
+}
+.badge {
+  width: max-content;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  background: #925f09;
+  color: white;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+.metrics,
+.metrics dl,
+.drilldown dl {
+  margin: 0;
+}
+.metrics div,
+.drilldown li dl div {
+  min-width: 5.5rem;
+}
+dd {
+  margin: 0.15rem 0 0;
+  font-weight: 800;
+}
+.actions {
+  align-items: center;
+}
+.pagination {
+  justify-content: flex-end;
+  align-items: center;
+}
+.drilldown {
+  background: #f8fafc;
+}
+.drilldown ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.drilldown li {
+  padding: 0.75rem;
+  border-bottom: 1px solid #d8dee8;
+}
+.form-error {
+  color: #9e251d;
+  font-weight: 700;
+}
+.empty {
+  color: var(--muted, #566274);
+}
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 3px solid #185abd;
+  outline-offset: 2px;
+}
+@media (max-width: 720px) {
+  .filters button,
+  article button {
+    width: 100%;
+  }
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+}

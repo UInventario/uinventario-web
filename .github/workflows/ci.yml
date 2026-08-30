@@ -37,3 +37,7 @@ jobs:
         run: npm run test:server
       - name: Build
         run: npm run build
+      - name: Install Chromium for offline shell smoke
+        run: npx playwright install --with-deps chromium
+      - name: Verify the production shell without a server
+        run: npm run test:service-worker

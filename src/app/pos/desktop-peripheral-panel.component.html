@@ -1,0 +1,99 @@
+@if (desktop.available()) {
+  <section class="desktop-peripherals" aria-labelledby="desktop-peripherals-title">
+    <header>
+      <div>
+        <p class="eyebrow">Desktop</p>
+        <h2 id="desktop-peripherals-title">Periféricos de esta caja</h2>
+      </div>
+      <span class="status">{{ loading() ? 'Conectando…' : 'Puente nativo disponible' }}</span>
+    </header>
+
+    @if (error()) {
+      <p class="form-error" role="alert">{{ error() }}</p>
+    }
+    @if (message()) {
+      <p class="success" role="status">{{ message() }}</p>
+    }
+
+    <div class="diagnostics" aria-label="Diagnóstico de periféricos sin venta">
+      <label>
+        Código de prueba del lector
+        <input [formControl]="form.controls.scanSample" maxlength="120" autocomplete="off" />
+      </label>
+      <button
+        type="button"
+        class="secondary"
+        (click)="diagnose('SCANNER')"
+        [disabled]="!allowed('SCANNER')"
+      >
+        Probar lector HID
+      </button>
+      <button
+        type="button"
+        class="secondary"
+        (click)="diagnose('PRINTER')"
+        [disabled]="!allowed('PRINTER')"
+      >
+        Probar impresora
+      </button>
+      <button
+        type="button"
+        class="secondary"
+        (click)="diagnose('DRAWER')"
+        [disabled]="!allowed('DRAWER')"
+      >
+        Probar cajón
+      </button>
+      <button
+        type="button"
+        class="secondary"
+        (click)="diagnose('DISPLAY')"
+        [disabled]="!allowed('DISPLAY')"
+      >
+        Probar pantalla cliente
+      </button>
+    </div>
+
+    @if (canConfigure()) {
+      <form [formGroup]="form" (ngSubmit)="save()">
+        <label>
+          Adaptador de impresora
+          <select formControlName="printerAdapter">
+            <option value="SIMULATOR">Simulador</option>
+            <option value="SYSTEM">Impresora instalada en Windows</option>
+          </select>
+        </label>
+        <label>
+          Impresora del sistema
+          <select formControlName="printerName">
+            <option value="">Seleccionar</option>
+            @for (printer of printers(); track printer.name) {
+              <option [value]="printer.name">
+                {{ printer.displayName || printer.name
+                }}{{ printer.isDefault ? ' · Predeterminada' : '' }}
+              </option>
+            }
+          </select>
+        </label>
+        <label>
+          Pantalla cliente
+          <select formControlName="displayAdapter">
+            <option value="SIMULATOR">Simulador</option>
+            <option value="WINDOW">Ventana en pantalla disponible</option>
+          </select>
+        </label>
+        <label class="check">
+          <input type="checkbox" formControlName="simulateDisconnected" /> Simular desconexión
+        </label>
+        <button type="submit" [disabled]="saving() || loading()">
+          {{ saving() ? 'Guardando…' : 'Guardar periféricos Desktop' }}
+        </button>
+      </form>
+    }
+
+    <small>
+      El lector físico HID funciona como teclado. Impresora, cajón y pantalla se ejecutan después de
+      la confirmación del servidor; un fallo no revierte ni repite la venta.
+    </small>
+  </section>
+}

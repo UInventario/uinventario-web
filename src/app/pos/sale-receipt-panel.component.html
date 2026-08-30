@@ -1,0 +1,356 @@
+<section class="receipt-panel" aria-labelledby="receipt-panel-title">
+  <div class="receipt-launch">
+    <div>
+      <h3 id="receipt-panel-title">Comprobante de venta</h3>
+      <p>Vista digital accesible y formato de 80 mm para impresión térmica.</p>
+    </div>
+    <button type="button" class="secondary" (click)="openReceipt()" [disabled]="loading()">
+      {{ loading() ? 'Generando…' : receipt() ? 'Reimprimir ticket' : 'Ver ticket' }}
+    </button>
+  </div>
+
+  @if (error()) {
+    <div class="form-error" role="alert">{{ error() }}</div>
+  }
+
+  @if (receipt(); as ticket) {
+    <article
+      class="thermal-receipt"
+      tabindex="0"
+      [attr.aria-label]="'Comprobante no fiscal ' + ticket.receiptNumber"
+    >
+      <header>
+        <strong>{{ ticket.merchant.name }}</strong>
+        @if (ticket.merchant.legalName) {
+          <span>{{ ticket.merchant.legalName }}</span>
+        }
+        <span>{{ ticket.branchName }}</span>
+        <span>{{ ticket.cashRegister.name }} · {{ ticket.cashRegister.code }}</span>
+        <h4>{{ ticket.fiscalNotice }}</h4>
+        @if (ticket.saleStatus === 'VOIDED') {
+          <strong class="voided">VENTA ANULADA</strong>
+        }
+      </header>
+
+      <dl class="receipt-meta">
+        <div>
+          <dt>Ticket</dt>
+          <dd>{{ ticket.receiptNumber }}</dd>
+        </div>
+        <div>
+          <dt>Fecha</dt>
+          <dd>
+            <time [attr.datetime]="ticket.issuedAt">{{ ticket.issuedAt | date: 'short' }}</time>
+          </dd>
+        </div>
+        <div>
+          <dt>Caja</dt>
+          <dd>{{ ticket.sellerEmail }}</dd>
+        </div>
+        <div>
+          <dt>Cliente</dt>
+          <dd>{{ ticket.customer?.name || 'Venta anónima' }}</dd>
+        </div>
+      </dl>
+
+      <table>
+        <caption>
+          Productos vendidos
+        </caption>
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th>Cant.</th>
+            <th>Importe</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (line of ticket.lines; track line.lineNumber) {
+            <tr>
+              <td>
+                {{ line.productName
+                }}<small>{{ line.withoutCode ? 'Sin código' : line.productSku }}</small>
+                @if (line.note) {
+                  <small>Nota: {{ line.note }}</small>
+                }
+                @if (line.priceSource === 'MANUAL') {
+                  <small>Precio manual: {{ line.priceOverrideReason }}</small>
+                }
+                @if (line.discountTotal !== '0.00') {
+                  <small>
+                    Descuento {{ ticket.currency }} {{ line.discountTotal }}
+                    @if (line.lineDiscountReason) {
+                      · Producto: {{ line.lineDiscountReason }}
+                    }
+                    @if (line.saleDiscountReason) {
+                      · Venta: {{ line.saleDiscountReason }}
+                    }
+                  </small>
+                }
+              </td>
+              <td>{{ line.quantity }}</td>
+              <td>{{ ticket.currency }} {{ line.total }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      <dl class="totals">
+        @if (ticket.totals.discount !== '0.00') {
+          <div>
+            <dt>Importe original</dt>
+            <dd>{{ ticket.currency }} {{ ticket.totals.gross }}</dd>
+          </div>
+          <div>
+            <dt>Descuentos</dt>
+            <dd>-{{ ticket.currency }} {{ ticket.totals.discount }}</dd>
+          </div>
+        }
+        <div>
+          <dt>Subtotal</dt>
+          <dd>{{ ticket.currency }} {{ ticket.totals.subtotal }}</dd>
+        </div>
+        <div>
+          <dt>Impuestos incluidos</dt>
+          <dd>{{ ticket.currency }} {{ ticket.totals.tax }}</dd>
+        </div>
+        <div class="grand-total">
+          <dt>Total</dt>
+          <dd>{{ ticket.currency }} {{ ticket.totals.total }}</dd>
+        </div>
+      </dl>
+
+      <section aria-labelledby="receipt-payments-title">
+        <h5 id="receipt-payments-title">Pagos</h5>
+        @for (payment of ticket.payments; track $index) {
+          <p>
+            {{ paymentLabel(payment.method) }} · {{ ticket.currency }} {{ payment.amountApplied }}
+            @if (payment.change !== '0.00') {
+              · Cambio {{ ticket.currency }} {{ payment.change }}
+            }
+          </p>
+        }
+      </section>
+      @if (ticket.loyalty; as loyalty) {
+        <p>
+          Fidelización · Canje {{ loyalty.pointsRedeemed }} puntos ({{ ticket.currency }}
+          {{ loyalty.redemptionValue }}) · Acumulados {{ loyalty.pointsEarned }} puntos
+        </p>
+      }
+      @if (ticket.void; as voidData) {
+        <p class="voided">
+          Anulada {{ voidData.voidedAt | date: 'short' }} · {{ voidData.reason }}
+        </p>
+      }
+      <footer>{{ ticket.fiscalNotice }} · No sustituye un documento fiscal.</footer>
+    </article>
+
+    <section class="fiscal-document" aria-labelledby="sale-fiscal-heading">
+      <div>
+        <p class="eyebrow">Documento separado del ticket</p>
+        <h4 id="sale-fiscal-heading">Documento fiscal</h4>
+        <p>La venta y el ticket no fiscal permanecen válidos aunque el proveedor fiscal falle.</p>
+      </div>
+      @if (fiscalDocument(); as fiscal) {
+        <div class="fiscal-summary">
+          <strong>{{ fiscal.documentType }} · {{ fiscal.status }}</strong>
+          <span>{{ fiscal.provider }} v{{ fiscal.providerVersion }}</span>
+          <span>{{ fiscal.providerReference || 'Referencia pendiente' }}</span>
+          @if (fiscal.errorCode) {
+            <span class="form-error">{{ fiscal.errorCode }}</span>
+          }
+        </div>
+        <ol class="fiscal-timeline" aria-label="Historial del documento fiscal">
+          @for (event of fiscal.events; track event.status) {
+            <li>
+              <strong>{{ event.status }}</strong>
+              <time [attr.datetime]="event.occurredAt">{{ event.occurredAt | date: 'short' }}</time>
+            </li>
+          }
+        </ol>
+        <div class="fiscal-actions">
+          @if (fiscal.status === 'PENDING') {
+            <button type="button" (click)="retryFiscalDocument()" [disabled]="fiscalBusy()">
+              Reintentar emisiÃ³n
+            </button>
+          } @else {
+            <button
+              type="button"
+              class="secondary"
+              (click)="queryFiscalDocument()"
+              [disabled]="fiscalBusy()"
+            >
+              Consultar estado
+            </button>
+          }
+          @if (fiscal.status === 'INDETERMINATE') {
+            <button
+              type="button"
+              class="secondary"
+              (click)="resolveFiscalCallback('ACCEPTED')"
+              [disabled]="fiscalBusy()"
+            >
+              Callback aceptado
+            </button>
+            <button
+              type="button"
+              class="secondary"
+              (click)="resolveFiscalCallback('REJECTED')"
+              [disabled]="fiscalBusy()"
+            >
+              Callback rechazado
+            </button>
+          }
+          @if (fiscal.status === 'ACCEPTED') {
+            <button
+              type="button"
+              (click)="downloadFiscalArtifact('PDF', true)"
+              [disabled]="fiscalBusy()"
+            >
+              Imprimir fiscal
+            </button>
+            <button
+              type="button"
+              class="secondary"
+              (click)="downloadFiscalArtifact('PDF')"
+              [disabled]="fiscalBusy()"
+            >
+              Descargar PDF
+            </button>
+            <button
+              type="button"
+              class="secondary"
+              (click)="downloadFiscalArtifact('XML')"
+              [disabled]="fiscalBusy()"
+            >
+              Descargar XML
+            </button>
+            <button
+              type="button"
+              class="secondary"
+              (click)="cancelFiscalDocument()"
+              [disabled]="fiscalBusy()"
+            >
+              Cancelar fiscal
+            </button>
+          }
+        </div>
+      } @else {
+        <div class="fiscal-issue-controls">
+          <label>
+            Tipo
+            <select
+              [value]="fiscalDocumentType()"
+              (change)="fiscalDocumentType.set($any($event.target).value)"
+            >
+              <option value="INVOICE">Factura</option>
+              <option value="RECEIPT">Boleta / recibo</option>
+            </select>
+          </label>
+          <label>
+            Escenario del simulador
+            <select
+              [value]="fiscalScenario()"
+              (change)="fiscalScenario.set($any($event.target).value)"
+            >
+              <option value="SUCCESS">Éxito</option>
+              <option value="REJECT">Rechazo</option>
+              <option value="TIMEOUT">Timeout / indeterminado</option>
+            </select>
+          </label>
+          <button type="button" (click)="issueFiscalDocument()" [disabled]="fiscalBusy()">
+            {{ fiscalBusy() ? 'Procesando…' : 'Emitir documento fiscal' }}
+          </button>
+        </div>
+      }
+      @if (fiscalMessage()) {
+        <p class="simulation" role="status">{{ fiscalMessage() }}</p>
+      }
+      @if (fiscalDelivery(); as sentFiscal) {
+        <p class="simulation" role="status">
+          Entrega fiscal {{ sentFiscal.mode }} aceptada para {{ sentFiscal.recipient }}.
+        </p>
+      }
+    </section>
+
+    <div class="receipt-actions">
+      <button type="button" (click)="printReceipt()" [disabled]="printing()">
+        {{ printing() ? 'Enviando a impresora...' : 'Imprimir 80 mm' }}
+      </button>
+      <button type="button" class="secondary" (click)="printManually()">Impresion manual</button>
+      @if (canOpenDrawer()) {
+        <button type="button" class="secondary" (click)="openDrawer()" [disabled]="openingDrawer()">
+          {{ openingDrawer() ? 'Abriendo...' : 'Abrir cajon' }}
+        </button>
+      }
+      <form [formGroup]="emailForm" (ngSubmit)="sendReceipt()">
+        <label>
+          Correo del destinatario
+          <input type="email" formControlName="email" maxlength="254" autocomplete="email" />
+        </label>
+        <button type="submit" class="secondary" [disabled]="sending()">
+          {{ sending() ? 'Enviando…' : 'Enviar ticket' }}
+        </button>
+        @if (fiscalDocument()?.status === 'ACCEPTED') {
+          <button
+            type="button"
+            class="secondary"
+            (click)="sendFiscalDocument()"
+            [disabled]="fiscalBusy()"
+          >
+            Enviar documento fiscal
+          </button>
+        }
+      </form>
+    </div>
+    @if (emailForm.controls.email.touched && emailForm.controls.email.invalid) {
+      <p class="form-error">Ingresa un correo válido.</p>
+    }
+    @if (delivery(); as sent) {
+      <p class="simulation" role="status">
+        Simulación completada para {{ sent.recipient }}. No se envió correo real porque aún no hay
+        proveedor externo configurado.
+      </p>
+    }
+    @if (peripheralMessage()) {
+      <p class="simulation" role="status">{{ peripheralMessage() }}</p>
+    }
+    @if (profile(); as device) {
+      <section class="peripheral-profile" aria-labelledby="peripheral-profile-title">
+        <div>
+          <h4 id="peripheral-profile-title">Periferico de {{ device.cashRegister.name }}</h4>
+          <p>{{ device.label }} - {{ device.deviceId }} - Adaptador simulado</p>
+        </div>
+        @if (canConfigure()) {
+          <form [formGroup]="profileForm" (ngSubmit)="saveProfile()">
+            <label>
+              Identificador del dispositivo
+              <input formControlName="deviceId" maxlength="80" />
+            </label>
+            <label>
+              Nombre operativo
+              <input formControlName="label" maxlength="120" />
+            </label>
+            <label class="check">
+              <input type="checkbox" formControlName="printerEnabled" /> Impresora habilitada
+            </label>
+            <label class="check">
+              <input type="checkbox" formControlName="drawerEnabled" /> Cajon habilitado
+            </label>
+            <label class="check">
+              <input type="checkbox" formControlName="autoOpenCashSale" /> Abrir tras venta en
+              efectivo
+            </label>
+            <button type="submit" class="secondary" [disabled]="savingProfile()">
+              {{ savingProfile() ? 'Guardando...' : 'Guardar dispositivo' }}
+            </button>
+          </form>
+        }
+        <small>
+          Si el dispositivo falla, la venta no se repite: reintenta la impresion o usa la apertura
+          manual.
+        </small>
+      </section>
+    }
+  }
+</section>

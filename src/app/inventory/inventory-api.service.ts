@@ -18,6 +18,7 @@ export type InventoryMovementType =
   | 'TRANSFER_DISCREPANCY'
   | 'SALE'
   | 'SALE_VOID'
+  | 'SALE_RETURN'
   | 'PURCHASE_RECEIPT'
   | 'SUPPLIER_RETURN';
 
@@ -118,6 +119,8 @@ export interface InventoryMovementInput {
   reason: string;
   reference?: string;
   lotCode?: string;
+  manufacturedOn?: string;
+  expiresOn?: string;
   serialNumbers?: string[];
 }
 
@@ -167,6 +170,30 @@ export interface InventoryStockItem {
   };
 }
 
+export type InventoryStockAlertStatus = 'LOW' | 'OUT_OF_STOCK' | 'RECOVERED';
+
+export interface InventoryStockAlertData {
+  product: { id: string; name: string; sku: string };
+  location: InventoryLocationData;
+  status: InventoryStockAlertStatus;
+  availableQuantity: string;
+  threshold: string;
+  transitionedAt: string;
+}
+
+interface InventoryStockAlertListResponse {
+  data: InventoryStockAlertData[];
+  meta: {
+    apiVersion: '1';
+    defaultThreshold: string;
+    scope: {
+      branch: { id: string; name: string };
+      warehouse: { id: string; name: string };
+    };
+    pagination: { page: number; pageSize: number; total: number; totalPages: number };
+  };
+}
+
 export interface InventoryStockValuationReport {
   method: InventoryValuationMethod;
   policyVersion: number;
@@ -183,6 +210,10 @@ export interface InventoryLotData {
   unitCost: string;
   currency: string;
   inventoryValue: string;
+  manufacturedOn: string | null;
+  expiresOn: string | null;
+  expirationStatus: 'NO_EXPIRATION' | 'ACTIVE' | 'EXPIRING' | 'EXPIRED' | 'EXHAUSTED';
+  daysUntilExpiration: number | null;
   createdAt: string;
   origins: Array<{
     purchaseReceiptLineId: string;
@@ -193,6 +224,16 @@ export interface InventoryLotData {
     purchaseOrder: { id: string; folio: string };
   }>;
   balances: Array<{ location: InventoryLocationData; quantity: string }>;
+}
+
+export interface InventoryLotExpirationAlertData {
+  id: string;
+  status: 'EXPIRING' | 'EXPIRED';
+  product: { id: string; name: string; sku: string };
+  lot: { id: string; code: string; expiresOn: string };
+  location: InventoryLocationData;
+  quantity: string;
+  daysUntilExpiration: number;
 }
 
 export interface InventoryFifoLayerData {
@@ -336,6 +377,19 @@ interface MovementResponse {
     } | null;
   };
   meta: { apiVersion: '1'; idempotentReplay: boolean };
+}
+
+export interface InventoryKitOperationData {
+  id: string;
+  operationType: 'ASSEMBLE' | 'DISASSEMBLE';
+  kit: { id: string; name: string; sku: string };
+  locationId: string;
+  quantity: string;
+  components: Array<{
+    product: { id: string; name: string; sku: string };
+    quantityChange: string;
+  }>;
+  createdAt: string;
 }
 
 export interface StockListResponse {
@@ -529,6 +583,32 @@ export class InventoryApiService {
     });
   }
 
+  listStockAlerts(query: {
+    q?: string;
+    status?: InventoryStockAlertStatus;
+    page: number;
+    pageSize: number;
+  }) {
+    let params = new HttpParams().set('page', query.page).set('pageSize', query.pageSize);
+    if (query.q) params = params.set('q', query.q);
+    if (query.status) params = params.set('status', query.status);
+    return this.http.get<InventoryStockAlertListResponse>(
+      `${this.config.apiBaseUrl()}/inventory/stock-alerts`,
+      { params, withCredentials: true },
+    );
+  }
+
+  setStockAlertThreshold(productId: string, locationId: string, threshold: string) {
+    return this.http.put<{
+      data: InventoryStockAlertData;
+      meta: { apiVersion: '1'; defaultThreshold: string };
+    }>(
+      `${this.config.apiBaseUrl()}/inventory/stock-alerts/products/${productId}/locations/${locationId}/threshold`,
+      { threshold },
+      { withCredentials: true },
+    );
+  }
+
   listLots(productId: string) {
     return this.http.get<{
       data: InventoryLotData[];
@@ -542,6 +622,15 @@ export class InventoryApiService {
         inventoryValue: string;
       };
     }>(`${this.config.apiBaseUrl()}/inventory/products/${productId}/lots`, {
+      withCredentials: true,
+    });
+  }
+
+  listLotExpirationAlerts() {
+    return this.http.get<{
+      data: InventoryLotExpirationAlertData[];
+      meta: { apiVersion: '1'; businessDate: string };
+    }>(`${this.config.apiBaseUrl()}/inventory/lot-expiration-alerts`, {
       withCredentials: true,
     });
   }
@@ -625,6 +714,25 @@ export class InventoryApiService {
       input,
       { headers, withCredentials: true },
     );
+  }
+
+  operateKit(
+    productId: string,
+    input: {
+      operationType: InventoryKitOperationData['operationType'];
+      locationId: string;
+      quantity: string;
+    },
+    idempotencyKey: string,
+  ) {
+    const headers = new HttpHeaders().set('Idempotency-Key', idempotencyKey);
+    return this.http.post<{
+      data: InventoryKitOperationData;
+      meta: { apiVersion: '1'; idempotentReplay: boolean };
+    }>(`${this.config.apiBaseUrl()}/inventory/kits/${productId}/operations`, input, {
+      headers,
+      withCredentials: true,
+    });
   }
 
   createStateTransition(input: InventoryStateTransitionInput, idempotencyKey: string) {

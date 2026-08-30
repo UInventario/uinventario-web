@@ -1,5 +1,9 @@
 <a class="skip-link" routerLink="/app" fragment="products-title">Saltar al contenido</a>
 <main id="application-shell">
+  <app-application-inventory-styles />
+  <app-application-catalog-styles />
+  <app-application-pos-styles />
+  <app-application-sales-styles />
   <header id="company-context">
     <div>
       <span class="brand">UI</span><strong>{{ session()?.tenant?.name }}</strong>
@@ -7,6 +11,7 @@
     <button class="secondary" type="button" (click)="logout()">Cerrar sesión</button>
   </header>
   <nav aria-label="Módulos principales">
+    <a routerLink="/app" fragment="dashboard-title">Dashboard</a>
     @if (canManageTenant()) {
       <a routerLink="/onboarding">Empresa</a>
       <a routerLink="/app" fragment="organization-title">Sucursales</a>
@@ -24,12 +29,15 @@
       <a routerLink="/app" fragment="stock-overview-title">Inventario</a>
       <a routerLink="/app" fragment="transfers-title">Transferencias</a>
       <a routerLink="/app" fragment="movement-history-title">Movimientos</a>
+      <a routerLink="/app/inventory-activity">Actividad</a>
     }
     @if (canManageAccess()) {
       <a routerLink="/app" fragment="access-title">Accesos</a>
     }
     @if (canManageSales()) {
       <a routerLink="/app" fragment="pos-title">Punto de venta</a>
+      <a routerLink="/app" fragment="customer-orders-title">Pedidos</a>
+      <a routerLink="/app" fragment="sales-quotations-title">Cotizaciones</a>
       <a routerLink="/app" fragment="sales-title">Historial</a>
     }
     @if (canViewAudit()) {
@@ -41,7 +49,45 @@
     @if (canManagePrivacy()) {
       <a routerLink="/app" fragment="privacy-title">Privacidad</a>
     }
+    @if (canViewNotifications()) {
+      <a routerLink="/app" fragment="notifications-title">Notificaciones</a>
+    }
+    @if (canManageTenant()) {
+      <a routerLink="/app" fragment="integrations-title">Integraciones</a>
+      <a routerLink="/app" fragment="fiscal-contract-title">Fiscalidad</a>
+      <a routerLink="/app" fragment="commerce-integrations-title">E-commerce</a>
+      <a routerLink="/app" fragment="erp-integrations-title">ERP</a>
+      <a routerLink="/app" fragment="psp-title">PSP</a>
+      <a routerLink="/app" fragment="accounting-title">Contabilidad</a>
+      <a routerLink="/app" fragment="whatsapp-title">WhatsApp</a>
+    }
   </nav>
+
+  @defer (on immediate) {
+    <app-operational-dashboard />
+  } @placeholder {
+    <section aria-busy="true"><p role="status">Cargando dashboard…</p></section>
+  }
+
+  @if (canViewNotifications()) {
+    <app-notification-panel [canManage]="canManageNotifications()" />
+  }
+
+  @if (canManageTenant()) {
+    <app-external-adapter-panel />
+    <app-fiscal-contract-panel />
+    <app-erp-integration-panel />
+    <app-psp-panel />
+    <app-accounting-panel />
+    <app-whatsapp-panel />
+    @if (session(); as currentSession) {
+      <app-commerce-integration-panel
+        [session]="currentSession"
+        [locations]="locations()"
+        [customers]="customers()"
+      />
+    }
+  }
 
   <app-offline-bootstrap-panel />
   @if (canExportAudit()) {
@@ -376,18 +422,59 @@
           </div>
           <div class="field wide">
             <label>
-              <input type="checkbox" formControlName="trackSerials" />
+              <input
+                type="checkbox"
+                formControlName="trackSerials"
+                [attr.disabled]="form.controls.stockBehavior.value === 'UNTRACKED' ? true : null"
+              />
               Controlar cada unidad por nÃºmero de serie
             </label>
             <small>Las entradas, traslados y ventas exigirÃ¡n una serie Ãºnica por unidad.</small>
           </div>
 
           <div class="field">
+            <label>
+              <input
+                type="checkbox"
+                formControlName="withoutCode"
+                (change)="updateProductCodeMode($any($event.target).checked)"
+              />
+              Producto sin código
+            </label>
+            <small
+              >El sistema conservará un identificador interno que no se muestra al vender.</small
+            >
+          </div>
+          <div class="field">
             <label for="sku">SKU</label>
-            <input id="sku" formControlName="sku" maxlength="40" autocomplete="off" />
+            <input
+              id="sku"
+              formControlName="sku"
+              maxlength="40"
+              autocomplete="off"
+              [attr.disabled]="form.controls.withoutCode.value ? true : null"
+            />
             @if (form.controls.sku.touched && form.controls.sku.invalid) {
               <p class="field-error">Usa letras, números, punto, guion o guion bajo.</p>
             }
+          </div>
+          <div class="field">
+            <label for="stockBehavior">Control de stock</label>
+            <select
+              id="stockBehavior"
+              formControlName="stockBehavior"
+              (change)="updateProductStockBehavior($any($event.target).value)"
+            >
+              <option value="TRACKED">Descontar inventario</option>
+              <option value="UNTRACKED">Sin control de inventario</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="taxBehavior">Impuesto</label>
+            <select id="taxBehavior" formControlName="taxBehavior">
+              <option value="STANDARD">Tasa configurada</option>
+              <option value="EXEMPT">Exento</option>
+            </select>
           </div>
           <div class="field">
             <label for="barcode">Código de barras <span>Opcional</span></label>
@@ -430,15 +517,97 @@
               <p class="field-error">Escribe un precio no negativo, con máximo 2 decimales.</p>
             }
           </div>
+          <div class="field">
+            <label for="baseUnit">Unidad base</label>
+            <select id="baseUnit" formControlName="baseUnit">
+              <option value="UNIT">Unidad / fracci\u00f3n</option>
+              <option value="KILOGRAM">Kilogramo (kg)</option>
+              <option value="GRAM">Gramo (g)</option>
+              <option value="LITER">Litro (L)</option>
+              <option value="MILLILITER">Mililitro (mL)</option>
+              <option value="METER">Metro (m)</option>
+              <option value="CENTIMETER">Cent\u00edmetro (cm)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="quantityPrecision">Decimales de cantidad</label>
+            <input
+              id="quantityPrecision"
+              type="number"
+              min="0"
+              max="3"
+              formControlName="quantityPrecision"
+            />
+          </div>
+          <div class="field">
+            <label for="quantityRounding">Redondeo</label>
+            <select id="quantityRounding" formControlName="quantityRounding">
+              <option value="HALF_UP">Al m\u00e1s cercano</option>
+              <option value="DOWN">Hacia abajo</option>
+              <option value="UP">Hacia arriba</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="minimumQuantity">Cantidad m\u00ednima</label>
+            <input
+              id="minimumQuantity"
+              formControlName="minimumQuantity"
+              inputmode="decimal"
+              placeholder="1.000"
+            />
+            @if (form.controls.minimumQuantity.touched && form.controls.minimumQuantity.invalid) {
+              <p class="field-error">Usa una cantidad positiva con m\u00e1ximo 3 decimales.</p>
+            }
+          </div>
+          @if (form.controls.trackSerials.value) {
+            <div class="field wide">
+              <small
+                >El control por serie usa unidad entera, precisi\u00f3n 0 y m\u00ednimo 1.</small
+              >
+            </div>
+          }
           <div class="field wide">
             <label>
-              <input type="checkbox" formControlName="trackLots" />
+              <input
+                type="checkbox"
+                formControlName="trackLots"
+                [attr.disabled]="form.controls.stockBehavior.value === 'UNTRACKED' ? true : null"
+              />
               Controlar existencias por lote
             </label>
             <small
               >Las entradas solicitarán un código y cada salida conservará su trazabilidad.</small
             >
           </div>
+          @if (form.controls.trackLots.value) {
+            <div class="field">
+              <label for="lotExpirationPolicy">Caducidad</label>
+              <select id="lotExpirationPolicy" formControlName="lotExpirationPolicy">
+                <option value="NONE">No controlar</option>
+                <option value="OPTIONAL">Fecha opcional</option>
+                <option value="REQUIRED">Fecha obligatoria</option>
+              </select>
+            </div>
+            @if (form.controls.lotExpirationPolicy.value !== 'NONE') {
+              <div class="field">
+                <label for="lotExpirationAlertDays">Alertar con anticipación (días)</label>
+                <input
+                  id="lotExpirationAlertDays"
+                  type="number"
+                  min="1"
+                  max="365"
+                  formControlName="lotExpirationAlertDays"
+                />
+              </div>
+              <div class="field wide">
+                <label>
+                  <input type="checkbox" formControlName="allowExpiredStockOverride" />
+                  Permitir excepción documentada para stock caducado
+                </label>
+                <small>Además exige el permiso específico y un motivo en cada venta.</small>
+              </div>
+            }
+          }
         </div>
 
         @if (errorMessage()) {
@@ -516,7 +685,15 @@
                 <button type="button" (click)="selectProduct(product.id)">
                   <span
                     ><strong>{{ product.name }}</strong
-                    ><small>{{ product.sku }}</small></span
+                    ><small
+                      >{{
+                        product.parentProductId
+                          ? 'Variante · '
+                          : product.sellable === false
+                            ? 'Producto padre · '
+                            : ''
+                      }}{{ product.withoutCode ? 'Sin código' : product.sku }}</small
+                    ></span
                   >
                   <span
                     ><strong>{{ product.price }}</strong
@@ -587,7 +764,7 @@
             <dl>
               <div>
                 <dt>SKU</dt>
-                <dd>{{ product.sku }}</dd>
+                <dd>{{ product.withoutCode ? 'Sin código' : product.sku }}</dd>
               </div>
               <div>
                 <dt>Código</dt>
@@ -613,13 +790,56 @@
                 <dt>Lotes</dt>
                 <dd>{{ product.trackLots ? 'Controlados' : 'No controlados' }}</dd>
               </div>
+              @if (product.trackLots) {
+                <div>
+                  <dt>Caducidad</dt>
+                  <dd>
+                    {{ product.lotExpirationPolicy || 'NONE' }} · alerta
+                    {{ product.lotExpirationAlertDays || 30 }} días
+                  </dd>
+                </div>
+              }
               <div>
                 <dt>Series</dt>
                 <dd>{{ product.trackSerials ? 'Controladas' : 'No controladas' }}</dd>
               </div>
+              <div>
+                <dt>Medici\u00f3n</dt>
+                <dd>
+                  {{ baseUnitLabel(product.baseUnit || 'UNIT') }} \u00b7
+                  {{ product.quantityPrecision ?? 3 }} decimales \u00b7 m\u00ednimo
+                  {{ product.minimumQuantity || '0.001' }}
+                </dd>
+              </div>
             </dl>
 
-            <section class="stock-card" aria-labelledby="stock-title" [hidden]="!canManageStock()">
+            @if (canManageProducts() && product.active && !product.parentProductId) {
+              @if (!product.kit) {
+                <app-product-variant-panel
+                  [product]="product"
+                  (saved)="productVariantsSaved($event)"
+                />
+              }
+              <app-product-kit-panel [product]="product" (saved)="productKitSaved($event)" />
+            }
+
+            @if (canManageStock() && product.kit?.stockMode === 'ASSEMBLED') {
+              <app-inventory-kit-panel
+                [product]="product"
+                [locations]="locations()"
+                (completed)="kitInventoryCompleted()"
+              />
+            }
+
+            <section
+              class="stock-card"
+              aria-labelledby="stock-title"
+              [hidden]="
+                !canManageStock() ||
+                product.sellable === false ||
+                product.kit?.stockMode === 'DERIVED'
+              "
+            >
               <div class="stock-heading">
                 <div>
                   <p class="eyebrow">Inventario</p>
@@ -650,7 +870,10 @@
                   @for (lot of selectedProductLots(); track lot.id) {
                     <span>
                       {{ lot.code }} · {{ lot.quantity }} · {{ lot.currency }} {{ lot.unitCost }}/u
-                      · valor {{ lot.inventoryValue }}
+                      · valor {{ lot.inventoryValue }} · {{ lot.expirationStatus }}
+                      @if (lot.expiresOn) {
+                        · caduca {{ lot.expiresOn | date: 'mediumDate' }}
+                      }
                     </span>
                     @for (origin of lot.origins; track origin.purchaseReceiptLineId) {
                       <small>
@@ -764,6 +987,8 @@
                       id="stockQuantity"
                       formControlName="quantity"
                       inputmode="decimal"
+                      [attr.step]="quantityStep(product)"
+                      [attr.min]="product.minimumQuantity || '0.001'"
                       placeholder="0.000"
                     />
                     @if (
@@ -807,6 +1032,26 @@
                         >En entradas crea o reutiliza el lote; en salidas permite elegirlo.</small
                       >
                     </div>
+                    @if (
+                      stockForm.controls.type.value === 'INITIAL' ||
+                      stockForm.controls.type.value === 'ENTRY' ||
+                      stockForm.controls.type.value === 'RETURN' ||
+                      (stockForm.controls.type.value === 'ADJUSTMENT' &&
+                        !stockForm.controls.quantity.value.startsWith('-'))
+                    ) {
+                      <div class="field">
+                        <label for="stockManufacturedOn">Fabricación</label>
+                        <input
+                          id="stockManufacturedOn"
+                          type="date"
+                          formControlName="manufacturedOn"
+                        />
+                      </div>
+                      <div class="field">
+                        <label for="stockExpiresOn">Caducidad</label>
+                        <input id="stockExpiresOn" type="date" formControlName="expiresOn" />
+                      </div>
+                    }
                   }
                   @if (product.trackSerials) {
                     <div class="field wide">
@@ -946,6 +1191,12 @@
     @if (canManageStock()) {
       <app-inventory-valuation-policy-panel />
       <app-inventory-reconciliation-panel />
+      <app-stock-alert-panel
+        [products]="stockList()"
+        [locations]="locations()"
+        [refreshToken]="stockAlertRefreshToken()"
+        (viewStock)="viewAlertStock($event)"
+      />
     }
 
     <section
@@ -1160,6 +1411,8 @@
             id="transferQuantity"
             formControlName="quantity"
             inputmode="decimal"
+            [attr.step]="selectedProduct() ? quantityStep(selectedProduct()!) : '0.001'"
+            [attr.min]="selectedProduct()?.minimumQuantity || '0.001'"
             placeholder="0.000"
           />
         </div>
@@ -1536,6 +1789,15 @@
     </section>
   </section>
 
+  @if (canManageProducts()) {
+    <app-price-list-panel />
+    <app-promotion-panel />
+  }
+
+  @if (canManageSales()) {
+    <app-loyalty-panel />
+  }
+
   <section
     class="pos-workspace"
     aria-labelledby="pos-title"
@@ -1840,6 +2102,47 @@
               <input type="checkbox" formControlName="dataProcessingConsent" />
               Autorizó guardar sus datos de contacto
             </label>
+            @if (canSellCredit()) {
+              <fieldset class="sale-discount customer-credit-config">
+                <legend>Crédito del cliente</legend>
+                <label class="customer-consent">
+                  <input type="checkbox" formControlName="creditEnabled" />
+                  Habilitar ventas a crédito
+                </label>
+                @if (customerForm.controls.creditEnabled.value) {
+                  <label for="customerCreditLimit">Límite</label>
+                  <input
+                    id="customerCreditLimit"
+                    formControlName="creditLimit"
+                    inputmode="decimal"
+                    autocomplete="off"
+                  />
+                  <label for="customerCreditCurrency">Moneda</label>
+                  <input
+                    id="customerCreditCurrency"
+                    formControlName="creditCurrency"
+                    maxlength="3"
+                    autocomplete="off"
+                  />
+                  <label for="customerCreditTerm">Plazo máximo (días)</label>
+                  <input
+                    id="customerCreditTerm"
+                    formControlName="creditTermDays"
+                    type="number"
+                    min="1"
+                    max="365"
+                  />
+                  <label for="customerCreditInstallments">Cuotas máximas</label>
+                  <input
+                    id="customerCreditInstallments"
+                    formControlName="creditMaxInstallments"
+                    type="number"
+                    min="1"
+                    max="36"
+                  />
+                }
+              </fieldset>
+            }
             <button type="submit" [disabled]="savingCustomer()">
               {{
                 savingCustomer()
@@ -1863,6 +2166,19 @@
                         'Sin datos adicionales'
                     }}</small>
                   </div>
+                  @if (customer.credit; as credit) {
+                    <small>
+                      Crédito
+                      {{
+                        credit.status === 'OVERDUE'
+                          ? 'vencido'
+                          : credit.enabled
+                            ? 'activo'
+                            : 'deshabilitado'
+                      }}
+                      - Disponible {{ credit.currency }} {{ credit.available }}
+                    </small>
+                  }
                   <div class="customer-actions">
                     <button class="secondary" type="button" (click)="openCustomerHistory(customer)">
                       Historial
@@ -1881,7 +2197,10 @@
           @if (customerHistoryCustomer(); as historyCustomer) {
             <app-customer-history-panel
               [customer]="historyCustomer"
+              [canManageCredit]="canSellCredit()"
+              [paymentMethods]="paymentMethods()"
               (saleSelected)="openCustomerSale($event)"
+              (customerUpdated)="updateCustomerCredit($event)"
               (dismissed)="customerHistoryCustomer.set(null)"
             />
           }
@@ -1893,6 +2212,16 @@
             [globalCapture]="!!currentCashRegisterShift()"
             (resolved)="addToCart($event)"
           />
+          @if (session()?.context.cashRegister; as desktopCashRegister) {
+            <app-desktop-peripheral-panel
+              [tenantId]="session()!.tenant.id"
+              [cashRegisterId]="desktopCashRegister.id"
+              [canConfigure]="canManageTenant()"
+              [canOpenDrawer]="canOpenCashDrawer()"
+              [canPrint]="canReprintSales()"
+              [display]="desktopCustomerDisplay()"
+            />
+          }
           <form class="search" [formGroup]="posSearchForm" (ngSubmit)="searchPos()">
             <label for="posSearch">Buscar producto para venta por nombre, SKU o código</label>
             <div>
@@ -1989,6 +2318,9 @@
             }
             <span>Cliente: {{ sale.customer?.name || 'Venta anónima' }}</span>
           </div>
+          @if (peripheralNotice()) {
+            <div class="catalog-state" role="status">{{ peripheralNotice() }}</div>
+          }
         }
         @if (cart().length === 0) {
           <div class="empty pos-empty">
@@ -2001,14 +2333,76 @@
               <li>
                 <div class="cart-product">
                   <strong>{{ entry.product.name }}</strong
-                  ><small>{{ entry.product.sku }}</small>
+                  ><small>{{ entry.product.withoutCode ? 'Sin código' : entry.product.sku }}</small>
+                  @if (quotedLine(entry.product.id); as priced) {
+                    <small>
+                      {{ priced.unitPrice }} ·
+                      {{ priced.priceList?.name || 'Precio base' }}
+                    </small>
+                    @if (priced.discount?.total && priced.discount.total !== '0.00') {
+                      <small>
+                        Descuento {{ cartQuote()?.currency }} {{ priced.discount.total }}
+                      </small>
+                    }
+                    @for (promotion of priced.promotions || []; track promotion.promotion.id) {
+                      <small class="promotion-note">{{ promotion.explanation }}</small>
+                    }
+                  }
                 </div>
+                <label>
+                  Nota de la línea <span>Opcional</span>
+                  <input
+                    [value]="entry.note"
+                    maxlength="240"
+                    [disabled]="offlinePosActive()"
+                    (change)="
+                      updateCartLineDetail(entry.product.id, 'note', $any($event.target).value)
+                    "
+                  />
+                </label>
+                @if (canOverridePrice()) {
+                  <label>
+                    Precio manual <span>Opcional</span>
+                    <input
+                      [value]="entry.manualUnitPrice"
+                      inputmode="decimal"
+                      [disabled]="offlinePosActive()"
+                      (change)="
+                        updateCartLineDetail(
+                          entry.product.id,
+                          'manualUnitPrice',
+                          $any($event.target).value
+                        )
+                      "
+                    />
+                  </label>
+                  @if (entry.manualUnitPrice || entry.priceOverrideReason) {
+                    <label>
+                      Motivo del precio manual
+                      <input
+                        [value]="entry.priceOverrideReason"
+                        minlength="3"
+                        maxlength="240"
+                        [disabled]="offlinePosActive()"
+                        (change)="
+                          updateCartLineDetail(
+                            entry.product.id,
+                            'priceOverrideReason',
+                            $any($event.target).value
+                          )
+                        "
+                      />
+                    </label>
+                  }
+                }
                 <label>
                   Cantidad
                   <input
                     [attr.aria-label]="'Cantidad de ' + entry.product.name"
                     [value]="entry.quantity"
                     inputmode="decimal"
+                    [attr.step]="quantityStep(entry.product)"
+                    [attr.min]="entry.product.minimumQuantity || '0.001'"
                     (change)="updateCartQuantity(entry.product.id, $any($event.target).value)"
                   />
                 </label>
@@ -2020,12 +2414,34 @@
                       [value]="entry.lotId"
                       (change)="updateCartLot(entry.product.id, $any($event.target).value)"
                     >
-                      <option value="">Automático (primero recibido)</option>
+                      <option value="">Automático FEFO (caducidad más cercana)</option>
                       @for (lot of entry.lots; track lot.id) {
-                        <option [value]="lot.id">{{ lot.code }} · {{ lot.quantity }}</option>
+                        <option
+                          [value]="lot.id"
+                          [disabled]="
+                            lot.expirationStatus === 'EXPIRED' &&
+                            (!canOverrideExpiredStock() || !entry.product.allowExpiredStockOverride)
+                          "
+                        >
+                          {{ lot.code }} · {{ lot.quantity }} ·
+                          {{ lot.expiresOn || 'sin caducidad' }} · {{ lot.expirationStatus }}
+                        </option>
                       }
                     </select>
                   </label>
+                  @if (isExpiredLotSelected(entry)) {
+                    <label>
+                      Motivo de excepción de caducidad
+                      <input
+                        [value]="entry.expiredLotOverrideReason"
+                        minlength="3"
+                        maxlength="240"
+                        (change)="
+                          updateExpiredLotReason(entry.product.id, $any($event.target).value)
+                        "
+                      />
+                    </label>
+                  }
                 }
                 @if (entry.product.trackSerials) {
                   <label>
@@ -2038,6 +2454,46 @@
                       (change)="updateCartSerials(entry.product.id, $any($event.target).value)"
                     ></textarea>
                   </label>
+                }
+                @if (canApplyDiscount()) {
+                  <label>
+                    Descuento del producto
+                    <select
+                      [value]="entry.discountType"
+                      [disabled]="offlinePosActive()"
+                      (change)="
+                        updateCartDiscount(entry.product.id, 'type', $any($event.target).value)
+                      "
+                    >
+                      <option value="">Sin descuento</option>
+                      <option value="PERCENT">Porcentaje</option>
+                      <option value="AMOUNT">Importe</option>
+                    </select>
+                  </label>
+                  @if (entry.discountType) {
+                    <label>
+                      {{ entry.discountType === 'PERCENT' ? 'Porcentaje' : 'Importe' }}
+                      <input
+                        [value]="entry.discountValue"
+                        inputmode="decimal"
+                        [disabled]="offlinePosActive()"
+                        (change)="
+                          updateCartDiscount(entry.product.id, 'value', $any($event.target).value)
+                        "
+                      />
+                    </label>
+                    <label>
+                      Motivo
+                      <input
+                        [value]="entry.discountReason"
+                        maxlength="240"
+                        [disabled]="offlinePosActive()"
+                        (change)="
+                          updateCartDiscount(entry.product.id, 'reason', $any($event.target).value)
+                        "
+                      />
+                    </label>
+                  }
                 }
                 <div class="line-total">
                   <small>Total validado</small
@@ -2053,6 +2509,22 @@
             <p class="catalog-state" role="status">Validando precios y existencia…</p>
           } @else if (cartQuote(); as quote) {
             <dl class="cart-totals">
+              @if (quote.totals.discount && quote.totals.discount !== '0.00') {
+                <div>
+                  <dt>Importe antes de descuentos</dt>
+                  <dd>{{ quote.currency }} {{ quote.totals.gross }}</dd>
+                </div>
+                <div>
+                  <dt>Descuentos</dt>
+                  <dd>-{{ quote.currency }} {{ quote.totals.discount }}</dd>
+                </div>
+                @if (quote.totals.promotionDiscount && quote.totals.promotionDiscount !== '0.00') {
+                  <div>
+                    <dt>Incluye promociones</dt>
+                    <dd>-{{ quote.currency }} {{ quote.totals.promotionDiscount }}</dd>
+                  </div>
+                }
+              }
               <div>
                 <dt>Subtotal</dt>
                 <dd>{{ quote.currency }} {{ quote.totals.subtotal }}</dd>
@@ -2065,106 +2537,336 @@
                 <dt>Total</dt>
                 <dd>{{ quote.currency }} {{ quote.totals.total }}</dd>
               </div>
+              @if (quote.loyalty && quote.loyalty.pointsRedeemed > 0) {
+                <div>
+                  <dt>Canje de {{ quote.loyalty.pointsRedeemed }} puntos</dt>
+                  <dd>-{{ quote.currency }} {{ quote.loyalty.redemptionValue }}</dd>
+                </div>
+                <div class="grand-total">
+                  <dt>Por cobrar</dt>
+                  <dd>{{ quote.currency }} {{ quote.totals.payable || quote.totals.total }}</dd>
+                </div>
+              }
             </dl>
             <div class="success cart-ready" role="status">Carrito validado y listo para cobrar</div>
             <form class="cash-payment" [formGroup]="cashForm" (ngSubmit)="completeCashSale()">
               <label for="posCustomer">Cliente (opcional)</label>
-              <select id="posCustomer" formControlName="customerId">
+              <select id="posCustomer" formControlName="customerId" (change)="quoteForCustomer()">
                 <option value="">Venta anónima</option>
                 @for (customer of customers(); track customer.id) {
-                  <option [value]="customer.id">{{ customer.name }}</option>
+                  <option [value]="customer.id">
+                    {{ customer.name }} · {{ customer.loyalty?.balance || 0 }} puntos
+                  </option>
                 }
               </select>
-              @for (payment of paymentRows.controls; track payment; let index = $index) {
-                <div class="sale-payment" [formGroup]="payment">
-                  <label [for]="'paymentMethod-' + index">Método de pago {{ index + 1 }}</label>
-                  <select
-                    [id]="'paymentMethod-' + index"
-                    formControlName="method"
-                    (change)="changePaymentMethod(index)"
-                  >
-                    @for (method of availablePaymentMethods(index); track method) {
-                      <option [value]="method">{{ paymentMethodLabel(method) }}</option>
-                    }
-                  </select>
-                  <label [for]="'paymentAmount-' + index">Importe aplicado</label>
+              @if (creditCustomer(); as loyaltyCustomer) {
+                <fieldset class="sale-discount">
+                  <legend>Canjear puntos</legend>
+                  <p>Disponibles: {{ loyaltyCustomer.loyalty?.balance || 0 }} puntos</p>
+                  <label for="loyaltyPointsToRedeem">Puntos a canjear</label>
                   <input
-                    [id]="'paymentAmount-' + index"
-                    formControlName="amount"
-                    inputmode="decimal"
-                    autocomplete="off"
+                    id="loyaltyPointsToRedeem"
+                    formControlName="loyaltyPointsToRedeem"
+                    type="number"
+                    min="0"
+                    [max]="loyaltyCustomer.loyalty?.balance || 0"
+                    [attr.disabled]="offlinePosActive() ? '' : null"
+                    (change)="updateLoyaltyRedemption()"
                   />
-                  @if (payment.controls.amount.touched && payment.controls.amount.invalid) {
-                    <small class="field-error">Escribe un importe mayor a cero.</small>
+                  @if (quote.loyalty; as loyalty) {
+                    <small>
+                      Canje: -{{ quote.currency }} {{ loyalty.redemptionValue }} · Acumulará
+                      {{ loyalty.pointsEarned }} puntos · Saldo final {{ loyalty.balanceAfter }}
+                    </small>
                   }
-                  @if (payment.controls.method.value === 'CASH') {
-                    <label [for]="index === 0 ? 'cashReceived' : 'cashReceived-' + index"
-                      >Efectivo recibido</label
-                    >
+                </fieldset>
+              }
+              @if (canSellCredit() && creditCustomer()?.credit?.enabled) {
+                <fieldset class="sale-discount credit-sale-config">
+                  <legend>Condición de venta</legend>
+                  <label class="customer-consent">
+                    <input type="checkbox" formControlName="creditSale" />
+                    Vender a crédito
+                  </label>
+                  @if (cashForm.controls.creditSale.value) {
+                    <p>
+                      Disponible: {{ creditCustomer()!.credit!.currency }}
+                      {{ creditCustomer()!.credit!.available }} - Plazo
+                      {{ creditCustomer()!.credit!.termDays }} días
+                    </p>
+                    <label for="creditInstallmentCount">Número de cuotas</label>
                     <input
-                      [id]="index === 0 ? 'cashReceived' : 'cashReceived-' + index"
-                      formControlName="amountReceived"
+                      id="creditInstallmentCount"
+                      formControlName="installmentCount"
+                      type="number"
+                      min="1"
+                      [max]="creditCustomer()!.credit!.maxInstallments"
+                    />
+                  }
+                </fieldset>
+              }
+              @if (canApplyDiscount()) {
+                <fieldset class="sale-discount">
+                  <legend>Descuento sobre la venta</legend>
+                  <label for="saleDiscountType">Tipo</label>
+                  <select
+                    id="saleDiscountType"
+                    formControlName="discountType"
+                    [attr.disabled]="offlinePosActive() ? '' : null"
+                    (change)="updateSaleDiscount()"
+                  >
+                    <option value="">Sin descuento global</option>
+                    <option value="PERCENT">Porcentaje</option>
+                    <option value="AMOUNT">Importe</option>
+                  </select>
+                  @if (cashForm.controls.discountType.value) {
+                    <label for="saleDiscountValue">Valor</label>
+                    <input
+                      id="saleDiscountValue"
+                      formControlName="discountValue"
+                      inputmode="decimal"
+                      autocomplete="off"
+                      [attr.disabled]="offlinePosActive() ? '' : null"
+                      (change)="updateSaleDiscount()"
+                    />
+                    <label for="saleDiscountReason">Motivo</label>
+                    <input
+                      id="saleDiscountReason"
+                      formControlName="discountReason"
+                      maxlength="240"
+                      autocomplete="off"
+                      [attr.disabled]="offlinePosActive() ? '' : null"
+                      (change)="updateSaleDiscount()"
+                    />
+                  }
+                </fieldset>
+              }
+              <label for="suspendedSaleNotes">Notas del carrito (opcional)</label>
+              <textarea
+                id="suspendedSaleNotes"
+                formControlName="notes"
+                rows="2"
+                maxlength="500"
+                placeholder="Referencia para recuperar la venta"
+              ></textarea>
+              @if (!cashForm.controls.creditSale.value) {
+                @for (payment of paymentRows.controls; track payment; let index = $index) {
+                  <div class="sale-payment" [formGroup]="payment">
+                    <label [for]="'paymentMethod-' + index">Método de pago {{ index + 1 }}</label>
+                    <select
+                      [id]="'paymentMethod-' + index"
+                      formControlName="method"
+                      (change)="changePaymentMethod(index)"
+                    >
+                      @for (method of availablePaymentMethods(index); track method) {
+                        <option [value]="method">{{ paymentMethodLabel(method) }}</option>
+                      }
+                    </select>
+                    <label [for]="'paymentAmount-' + index">Importe aplicado</label>
+                    <input
+                      [id]="'paymentAmount-' + index"
+                      formControlName="amount"
                       inputmode="decimal"
                       autocomplete="off"
                     />
-                    @if (
-                      payment.controls.amountReceived.touched &&
-                      payment.controls.amountReceived.invalid
-                    ) {
-                      <small class="field-error">Escribe un importe válido.</small>
+                    @if (payment.controls.amount.touched && payment.controls.amount.invalid) {
+                      <small class="field-error">Escribe un importe mayor a cero.</small>
                     }
-                  } @else {
-                    <label [for]="'paymentReference-' + index">Referencia de autorización</label>
-                    <input
-                      [id]="'paymentReference-' + index"
-                      formControlName="reference"
-                      autocomplete="off"
-                    />
-                    @if (payment.controls.reference.touched && payment.controls.reference.invalid) {
-                      <small class="field-error"
-                        >Usa de 4 a 120 letras, números o los caracteres . _ : / -</small
+                    @if (payment.controls.method.value === 'CASH') {
+                      <label [for]="index === 0 ? 'cashReceived' : 'cashReceived-' + index"
+                        >Efectivo recibido</label
                       >
+                      <input
+                        [id]="index === 0 ? 'cashReceived' : 'cashReceived-' + index"
+                        formControlName="amountReceived"
+                        inputmode="decimal"
+                        autocomplete="off"
+                      />
+                      @if (
+                        payment.controls.amountReceived.touched &&
+                        payment.controls.amountReceived.invalid
+                      ) {
+                        <small class="field-error">Escribe un importe válido.</small>
+                      }
+                    } @else if (payment.controls.method.value === 'CARD') {
+                      <p class="muted" role="status">
+                        El importe se autorizará y capturará en el terminal. UInventario no solicita
+                        ni almacena datos de la tarjeta.
+                      </p>
+                    } @else {
+                      <label [for]="'paymentReference-' + index">Referencia de autorización</label>
+                      <input
+                        [id]="'paymentReference-' + index"
+                        formControlName="reference"
+                        autocomplete="off"
+                      />
+                      @if (
+                        payment.controls.reference.touched && payment.controls.reference.invalid
+                      ) {
+                        <small class="field-error"
+                          >Usa de 4 a 120 letras, números o los caracteres . _ : / -</small
+                        >
+                      }
+                      @if (nonCashProvider() === 'SIMULATOR') {
+                        <small role="status">Autorización simulada para este ambiente.</small>
+                      }
                     }
-                    @if (nonCashProvider() === 'SIMULATOR') {
-                      <small role="status">Autorización simulada para este ambiente.</small>
+                    @if (paymentRows.length > 1) {
+                      <button type="button" class="remove" (click)="removePayment(index)">
+                        Quitar pago
+                      </button>
                     }
-                  }
-                  @if (paymentRows.length > 1) {
-                    <button type="button" class="remove" (click)="removePayment(index)">
-                      Quitar pago
-                    </button>
-                  }
-                </div>
+                  </div>
+                }
+                @if (canAddPayment()) {
+                  <button type="button" (click)="addPayment()">Agregar otro pago</button>
+                }
+                @if (terminalPayment(); as terminal) {
+                  <div class="notice" role="status">
+                    <strong>Terminal: {{ terminal.status }}</strong>
+                    <span>Referencia {{ terminal.providerReference ?? 'pendiente' }}</span>
+                    @if (terminal.status === 'INDETERMINATE') {
+                      <button
+                        type="button"
+                        (click)="refreshTerminalPayment()"
+                        [disabled]="savingSale()"
+                      >
+                        Consultar resultado
+                      </button>
+                    }
+                    @if (
+                      !terminal.saleId &&
+                      terminal.status !== 'DECLINED' &&
+                      terminal.status !== 'CANCELLED'
+                    ) {
+                      <button
+                        type="button"
+                        class="remove"
+                        (click)="cancelTerminalPayment()"
+                        [disabled]="savingSale()"
+                      >
+                        Cancelar cobro
+                      </button>
+                    }
+                  </div>
+                }
+                @if (paymentRows.invalid) {
+                  <small class="field-error">Completa todos los datos del desglose de pago.</small>
+                }
               }
-              @if (canAddPayment()) {
-                <button type="button" (click)="addPayment()">Agregar otro pago</button>
-              }
-              @if (paymentRows.invalid) {
-                <small class="field-error">Completa todos los datos del desglose de pago.</small>
-              }
+              <button
+                type="button"
+                class="secondary"
+                (click)="suspendCurrentSale()"
+                [disabled]="savingSuspendedSale() || savingSale() || !!resumedSuspendedSaleId()"
+              >
+                {{ savingSuspendedSale() ? 'Suspendiendo…' : 'Suspender venta' }}
+              </button>
               <button type="submit" [disabled]="savingSale() || quotingCart()">
                 {{
                   savingSale()
                     ? 'Registrando venta…'
                     : offlinePosActive()
                       ? 'Guardar venta offline'
-                      : 'Confirmar pago'
+                      : cashForm.controls.creditSale.value
+                        ? 'Confirmar venta a crédito'
+                        : 'Confirmar pago'
                 }}
               </button>
             </form>
           }
+          @if (suspendedSaleConflicts().length > 0) {
+            <div class="form-error suspended-conflicts" role="alert">
+              <strong>Conflictos al reanudar</strong>
+              <ul>
+                @for (conflict of suspendedSaleConflicts(); track $index) {
+                  <li>{{ suspendedConflictLabel(conflict) }}</li>
+                }
+              </ul>
+            </div>
+          }
         }
       </div>
     </div>
+
+    <article class="suspended-sales" [attr.aria-busy]="loadingSuspendedSales()">
+      <div class="overview-heading">
+        <div>
+          <p class="eyebrow">Carritos pendientes</p>
+          <h3>Ventas suspendidas</h3>
+          <p>Caducan después de 24 horas y no apartan inventario ni registran pagos.</p>
+        </div>
+        <strong>{{ suspendedSales().length }}</strong>
+      </div>
+      @if (suspendedSaleError()) {
+        <div class="form-error" role="alert">{{ suspendedSaleError() }}</div>
+      }
+      @if (suspendedSaleSuccess()) {
+        <div class="success" role="status">{{ suspendedSaleSuccess() }}</div>
+      }
+      @if (loadingSuspendedSales()) {
+        <p class="catalog-state" role="status">Cargando ventas suspendidas…</p>
+      } @else if (suspendedSales().length === 0) {
+        <p class="catalog-state">No hay ventas suspendidas para esta caja y cajero.</p>
+      } @else {
+        <ul class="suspended-sale-list">
+          @for (sale of suspendedSales(); track sale.id) {
+            <li>
+              <span>
+                <strong>{{ sale.notes || 'Venta sin nota' }}</strong>
+                <small>
+                  {{ sale.lines.length }} línea(s) · {{ sale.customer?.name || 'Sin cliente' }} ·
+                  {{
+                    sale.status === 'ACTIVE'
+                      ? 'Activa'
+                      : sale.status === 'EXPIRED'
+                        ? 'Expirada'
+                        : sale.status === 'CANCELLED'
+                          ? 'Cancelada'
+                          : 'Cobrada'
+                  }}
+                </small>
+                <small
+                  >Creada {{ dateTime(sale.createdAt) }} · vence
+                  {{ dateTime(sale.expiresAt) }}</small
+                >
+              </span>
+              @if (sale.status === 'ACTIVE') {
+                <div class="suspended-sale-actions">
+                  <button
+                    type="button"
+                    (click)="resumeSuspendedSale(sale)"
+                    [disabled]="!!suspendedSaleActionId()"
+                  >
+                    Reanudar
+                  </button>
+                  <button
+                    type="button"
+                    class="remove"
+                    (click)="cancelSuspendedSale(sale)"
+                    [disabled]="!!suspendedSaleActionId()"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              }
+            </li>
+          }
+        </ul>
+      }
+    </article>
   </section>
 
   @if (canManageSales()) {
+    <app-customer-order-panel />
+    <app-sales-quotation-panel />
     <app-product-reservation-panel />
   }
 
   <section
     class="sales-workspace"
     aria-labelledby="sales-cash-report-title"
+    aria-describedby="sales-cash-report-description"
     [hidden]="!canManageSales()"
     [attr.aria-busy]="loadingSalesCashReport()"
   >
@@ -2172,7 +2874,11 @@
     <div class="sales-heading">
       <div>
         <h2 id="sales-cash-report-title">Reporte de ventas y caja</h2>
-        <p class="context">Los periodos se interpretan en la zona horaria de cada sucursal.</p>
+        <p id="sales-cash-report-description" class="context">
+          Resumen textual reconciliado. Los periodos se interpretan en la zona horaria de cada
+          sucursal; todos los datos visibles también pueden recorrerse con teclado y lector de
+          pantalla.
+        </p>
       </div>
     </div>
     <form
@@ -2220,14 +2926,22 @@
       <button class="secondary" type="submit" [disabled]="loadingSalesCashReport()">
         Actualizar reporte
       </button>
+      @if (canExportAudit()) {
+        <a class="secondary report-export-link" routerLink="/app" fragment="data-exports-title">
+          Exportar ventas en CSV o Excel
+        </a>
+      }
     </form>
+    @if (reportFilterStatus()) {
+      <p class="catalog-state" role="status">{{ reportFilterStatus() }}</p>
+    }
     @if (salesCashReportError()) {
       <div class="form-error" role="alert">{{ salesCashReportError() }}</div>
     }
     @if (loadingSalesCashReport()) {
       <p class="catalog-state" role="status">Conciliando ventas, pagos y cajas…</p>
     } @else if (salesCashReport(); as report) {
-      <div class="cart-totals">
+      <dl class="cart-totals" aria-label="Resumen de ventas y caja">
         <div>
           <dt>Ventas netas</dt>
           <dd>{{ report.summary.sales.net }}</dd>
@@ -2252,7 +2966,7 @@
           <dt>Diferencia de caja</dt>
           <dd>{{ report.summary.cash.difference }}</dd>
         </div>
-      </div>
+      </dl>
       <div
         class="success"
         [class.form-error]="!report.summary.reconciliation.matches"
@@ -2269,14 +2983,20 @@
         </span>
       </div>
       <h3>Pagos</h3>
-      <ul class="sale-lines">
+      <ul class="sale-lines" aria-label="Pagos conciliados por método y estado">
         @for (payment of report.summary.payments; track payment.method + payment.status) {
           <li>
             <span>
               <strong>{{ paymentMethodLabel(payment.method) }}</strong>
               <small
-                >{{ payment.status === 'REVERSED' ? 'Revertido' : 'Aplicado' }} ·
-                {{ payment.count }}</small
+                >{{
+                  payment.status === 'REVERSED'
+                    ? 'Revertido'
+                    : payment.status === 'PENDING'
+                      ? 'Pendiente'
+                      : 'Aplicado'
+                }}
+                · {{ payment.count }}</small
               >
             </span>
             <strong>{{ payment.amount }}</strong>
@@ -2285,9 +3005,9 @@
       </ul>
       <h3>Turnos de caja</h3>
       @if (report.shifts.length === 0) {
-        <p class="catalog-state">Sin turnos en el periodo.</p>
+        <p class="catalog-state" role="status">Sin turnos en el periodo.</p>
       } @else {
-        <ul class="sale-lines">
+        <ul class="sale-lines" aria-label="Turnos de caja del periodo">
           @for (shift of report.shifts; track shift.id) {
             <li>
               <span>
@@ -2304,9 +3024,9 @@
       }
       <h3>Ventas del periodo</h3>
       @if (report.sales.length === 0) {
-        <p class="catalog-state">Sin ventas para los filtros seleccionados.</p>
+        <p class="catalog-state" role="status">Sin ventas para los filtros seleccionados.</p>
       } @else {
-        <ul class="sale-lines">
+        <ul class="sale-lines" aria-label="Ventas del periodo">
           @for (sale of report.sales; track sale.id) {
             <li>
               <span>
@@ -2347,8 +3067,175 @@
           Siguiente
         </button>
       </div>
+      @if (canViewProfitability()) {
+        <hr />
+        <div class="sales-heading">
+          <div>
+            <h3>Rentabilidad de POS</h3>
+            <p class="context">
+              Ingresos sin impuestos menos costo histórico. Las devoluciones reducen el resultado
+              una sola vez; reembolsos y cobros de crédito son flujo, no ingreso nuevo.
+            </p>
+          </div>
+        </div>
+        @if (profitabilityReportError()) {
+          <div class="form-error" role="alert">{{ profitabilityReportError() }}</div>
+        }
+        @if (loadingProfitabilityReport()) {
+          <p class="catalog-state" role="status">Calculando costos y margen…</p>
+        } @else if (profitabilityReport(); as profitability) {
+          @for (currency of profitability.currencies; track currency.currency) {
+            <h4>{{ currency.currency }}</h4>
+            <dl
+              class="cart-totals"
+              [attr.aria-label]="'Resumen de rentabilidad en ' + currency.currency"
+            >
+              <div>
+                <dt>Ingreso neto</dt>
+                <dd>{{ currency.netRevenue }}</dd>
+              </div>
+              <div>
+                <dt>Costo neto</dt>
+                <dd>{{ currency.netCost }}</dd>
+              </div>
+              <div>
+                <dt>Margen</dt>
+                <dd>{{ currency.margin }}</dd>
+              </div>
+              <div>
+                <dt>Margen %</dt>
+                <dd>{{ currency.marginRate === null ? '—' : currency.marginRate + '%' }}</dd>
+              </div>
+              <div>
+                <dt>Descuentos</dt>
+                <dd>{{ currency.discounts }}</dd>
+              </div>
+              <div>
+                <dt>Devoluciones</dt>
+                <dd>{{ currency.returnTotal }}</dd>
+              </div>
+              <div>
+                <dt>Impuestos netos</dt>
+                <dd>{{ currency.taxes }}</dd>
+              </div>
+              <div>
+                <dt>Ventas a crédito</dt>
+                <dd>{{ currency.creditSales }}</dd>
+              </div>
+            </dl>
+            <div class="success" [class.form-error]="!currency.salesMatchPayments" role="status">
+              <strong>
+                {{
+                  currency.salesMatchPayments ? 'Ventas y pagos conciliados' : 'Diferencia en pagos'
+                }}
+              </strong>
+              <span>
+                Ventas {{ currency.salesTotal }} · obligaciones {{ currency.paymentObligations }} ·
+                reembolsos liquidados {{ currency.refundsSettled }}
+              </span>
+            </div>
+          }
+          @if (profitability.currencies.length === 0) {
+            <p class="catalog-state" role="status">
+              Sin actividad financiera para los filtros seleccionados.
+            </p>
+          }
+          <h4>Resultado por producto</h4>
+          @if (profitability.products.length === 0) {
+            <p class="catalog-state" role="status">Sin productos con actividad en el periodo.</p>
+          } @else {
+            <ul class="sale-lines" aria-label="Rentabilidad por producto">
+              @for (
+                product of profitability.products;
+                track product.product.id + product.currency
+              ) {
+                <li>
+                  <span>
+                    <strong>{{ product.product.name }} · {{ product.product.sku }}</strong>
+                    <small>
+                      Vendido {{ product.soldQuantity }} · devuelto {{ product.returnedQuantity }} ·
+                      descuentos {{ product.discounts }} {{ product.currency }}
+                    </small>
+                  </span>
+                  <strong>
+                    Margen {{ product.margin }} · ingreso {{ product.netRevenue }} · costo
+                    {{ product.netCost }} {{ product.currency }}
+                  </strong>
+                </li>
+              }
+            </ul>
+          }
+          <h4>Detalle reconciliable</h4>
+          @if (profitability.activities.length === 0) {
+            <p class="catalog-state" role="status">Sin movimientos para el periodo.</p>
+          } @else {
+            <ul class="sale-lines" aria-label="Actividades reconciliables de rentabilidad">
+              @for (activity of profitability.activities; track activity.type + activity.id) {
+                <li>
+                  <span>
+                    <strong>
+                      {{ activity.receiptNumber }} ·
+                      {{
+                        activity.type === 'SALE'
+                          ? 'Venta'
+                          : activity.type === 'RETURN'
+                            ? 'Devolución'
+                            : 'Anulación'
+                      }}
+                    </strong>
+                    <small>
+                      {{ activity.branchName }} · {{ activity.cashRegisterName }} ·
+                      {{ dateTime(activity.occurredAt) }}
+                    </small>
+                    <small>
+                      Pago/liquidación {{ activity.paymentOrSettlement }} ·
+                      {{ activity.reconciles ? 'conciliado' : 'pendiente de liquidar' }}
+                    </small>
+                  </span>
+                  <strong>
+                    Margen {{ activity.marginImpact }} · ingreso {{ activity.netRevenue }} · costo
+                    {{ activity.historicalCost }} {{ activity.currency }}
+                  </strong>
+                </li>
+              }
+            </ul>
+          }
+          <div class="pagination" aria-label="Paginación del detalle de rentabilidad">
+            <button
+              type="button"
+              class="secondary"
+              (click)="previousProfitabilityReportPage()"
+              [disabled]="profitabilityReportPage() <= 1 || loadingProfitabilityReport()"
+            >
+              Anterior
+            </button>
+            <span>
+              Página {{ profitabilityReportPage() }} de
+              {{ profitabilityReportTotalPages() || 1 }}
+            </span>
+            <button
+              type="button"
+              class="secondary"
+              (click)="nextProfitabilityReportPage()"
+              [disabled]="
+                profitabilityReportPage() >= profitabilityReportTotalPages() ||
+                loadingProfitabilityReport()
+              "
+            >
+              Siguiente
+            </button>
+          </div>
+        }
+      }
     }
   </section>
+
+  @if (!canManageSales()) {
+    <section class="empty report-permission" role="status" aria-labelledby="reports-denied-title">
+      <h2 id="reports-denied-title">Reportes de ventas no disponibles</h2>
+      <p>Tu rol no incluye permiso para consultar ventas, caja ni rentabilidad.</p>
+    </section>
+  }
 
   <section
     class="sales-workspace"
@@ -2465,6 +3352,31 @@
               {{ dateTime(sale.createdAt) }}
             </p>
             <p><strong>Cliente:</strong> {{ sale.customer?.name || 'Venta anónima' }}</p>
+            @if (sale.credit; as credit) {
+              <div class="success" role="status">
+                <strong>
+                  Crédito
+                  {{
+                    credit.status === 'CANCELLED'
+                      ? 'cancelado'
+                      : credit.status === 'OVERDUE'
+                        ? 'vencido'
+                        : credit.status === 'PAID'
+                          ? 'pagado'
+                          : 'abierto'
+                  }}
+                </strong>
+                <p>Saldo {{ credit.currency }} {{ credit.balance }} - Vence {{ credit.dueDate }}</p>
+                <ul class="sale-lines">
+                  @for (installment of credit.installments; track installment.number) {
+                    <li>
+                      <span>Cuota {{ installment.number }} - {{ installment.dueDate }}</span>
+                      <strong>{{ credit.currency }} {{ installment.amount }}</strong>
+                    </li>
+                  }
+                </ul>
+              </div>
+            }
             @if (sale.void; as voidData) {
               <div class="success" role="status">
                 <strong>Anulada por {{ voidData.user.email }}</strong>
@@ -2472,10 +3384,32 @@
               </div>
             }
             <dl class="sale-payment">
+              @if (sale.totals.discount !== '0.00') {
+                <div>
+                  <dt>Importe original</dt>
+                  <dd>{{ sale.currency }} {{ sale.totals.gross }}</dd>
+                </div>
+                <div>
+                  <dt>Descuentos</dt>
+                  <dd>-{{ sale.currency }} {{ sale.totals.discount }}</dd>
+                </div>
+                @if (sale.totals.promotionDiscount && sale.totals.promotionDiscount !== '0.00') {
+                  <div>
+                    <dt>Incluye promociones</dt>
+                    <dd>-{{ sale.currency }} {{ sale.totals.promotionDiscount }}</dd>
+                  </div>
+                }
+              }
               <div>
                 <dt>Total</dt>
                 <dd>{{ sale.currency }} {{ sale.totals.total }}</dd>
               </div>
+              @if (sale.totals.grossProfit !== null) {
+                <div>
+                  <dt>Margen bruto</dt>
+                  <dd>{{ sale.currency }} {{ sale.totals.grossProfit }}</dd>
+                </div>
+              }
               @for (payment of sale.payments; track $index) {
                 <div>
                   <dt>{{ paymentMethodLabel(payment.method) }}</dt>
@@ -2495,21 +3429,59 @@
                 }
                 <div>
                   <dt>Estado</dt>
-                  <dd>{{ payment.status === 'REVERSED' ? 'Revertido' : 'Aplicado' }}</dd>
+                  <dd>
+                    {{
+                      payment.status === 'REVERSED'
+                        ? 'Revertido'
+                        : payment.status === 'PENDING'
+                          ? 'Pendiente'
+                          : 'Aplicado'
+                    }}
+                  </dd>
                 </div>
               }
             </dl>
             <h3>Líneas</h3>
             <ul class="sale-lines">
-              @for (line of sale.lines; track line.product.id) {
+              @for (line of sale.lines; track line.id) {
                 <li>
-                  <span
-                    ><strong>{{ line.product.name }}</strong
-                    ><small>{{ line.product.sku }} · {{ line.quantity }}</small></span
-                  ><strong>{{ sale.currency }} {{ line.total }}</strong>
+                  <span>
+                    <strong>{{ line.product.name }}</strong>
+                    <small>{{ line.product.sku }} · {{ line.quantity }}</small>
+                    @if (line.discount.total !== '0.00') {
+                      <small>
+                        Descuento {{ sale.currency }} {{ line.discount.total }}
+                        @if (line.discount.line; as lineDiscount) {
+                          · Producto: {{ lineDiscount.reason }}
+                        }
+                        @if (line.discount.sale; as saleDiscount) {
+                          · Venta: {{ saleDiscount.reason }}
+                        }
+                      </small>
+                    }
+                    @for (promotion of line.promotions || []; track promotion.promotion.id) {
+                      <small class="promotion-note">{{ promotion.explanation }}</small>
+                    }
+                  </span>
+                  <strong>{{ sale.currency }} {{ line.total }}</strong>
                 </li>
               }
             </ul>
+            @if (canReturnSales()) {
+              <app-sale-return-panel
+                [sale]="sale"
+                [exchangeOptions]="salesHistory()"
+                (completed)="saleReturnCompleted()"
+              />
+            }
+            @if (canReprintSales()) {
+              <app-sale-receipt-panel
+                [saleId]="sale.id"
+                [tenantId]="session()!.tenant.id"
+                [canConfigure]="canManageTenant()"
+                [canOpenDrawer]="canOpenCashDrawer()"
+              />
+            }
             @if (sale.status === 'COMPLETED' && canVoidSales() && currentCashRegisterShift()) {
               <form
                 class="cash-payment sale-void-form"
@@ -2544,8 +3516,14 @@
                   <span
                     ><strong>{{ movement.location.name }}</strong
                     ><small
-                      >{{ movement.type === 'SALE_VOID' ? 'Anulación' : 'Venta' }} ·
-                      {{ movement.reference }}</small
+                      >{{
+                        movement.type === 'SALE_VOID'
+                          ? 'Anulación'
+                          : movement.type === 'SALE_RETURN'
+                            ? 'Devolución'
+                            : 'Venta'
+                      }}
+                      · {{ movement.reference }}</small
                     ></span
                   ><strong>{{ movement.quantityChange }} → {{ movement.resultingQuantity }}</strong>
                 </li>
