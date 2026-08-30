@@ -30,6 +30,28 @@ describe('CommerceIntegrationPanelComponent', () => {
     updatedAt: '2026-08-30T00:00:00.000Z',
   };
   const api = {
+    openapi: vi.fn(() =>
+      of({
+        openapi: '3.1.0' as const,
+        info: { title: 'UInventario External Commerce API', version: '1.0.0' },
+        servers: [{ url: '/external/v1' }],
+        paths: {
+          '/catalog': {
+            get: {
+              summary: 'Catálogo incremental',
+              'x-required-scope': 'CATALOG_READ' as const,
+              responses: { '200': { description: 'Página incremental de catálogo' } },
+            },
+          },
+        },
+        'x-webhook-contract': {
+          version: '1' as const,
+          signatureHeader: 'X-UInventario-Signature',
+          signature: 'HMAC-SHA256(JSON, SHA256(apiKey))',
+          attempts: { automatic: 3, controlledMaximumTotal: 5 },
+        },
+      }),
+    ),
     credentials: vi.fn(() => of({ data: [credential], meta: { apiVersion: '1' as const } })),
     deliveries: vi.fn(() =>
       of({
@@ -47,6 +69,19 @@ describe('CommerceIntegrationPanelComponent', () => {
             updatedAt: '2026-08-30T00:00:01.000Z',
             deliveredAt: '2026-08-30T00:00:01.000Z',
           },
+          {
+            id: 'delivery-2',
+            eventId: 'event-2',
+            eventType: 'ORDER_READY' as const,
+            targetUrl: 'https://retry.example.test/webhook',
+            signature: `sha256=${'b'.repeat(64)}`,
+            status: 'RETRYABLE_FAILURE' as const,
+            attemptCount: 3,
+            errorCode: 'SIMULATED_TIMEOUT',
+            createdAt: '2026-08-30T00:00:00.000Z',
+            updatedAt: '2026-08-30T00:00:01.000Z',
+            deliveredAt: null,
+          },
         ],
         meta: { apiVersion: '1' as const },
       }),
@@ -59,6 +94,34 @@ describe('CommerceIntegrationPanelComponent', () => {
     ),
     revoke: vi.fn(() =>
       of({ data: { revoked: true as const }, meta: { apiVersion: '1' as const } }),
+    ),
+    rotate: vi.fn(() =>
+      of({
+        data: {
+          ...credential,
+          keyPrefix: 'uic_87654321',
+          apiKey: `uic_87654321_${'r'.repeat(43)}`,
+        },
+        meta: { apiVersion: '1' as const, warning: 'visible una vez' },
+      }),
+    ),
+    replay: vi.fn(() =>
+      of({
+        data: {
+          id: 'delivery-2',
+          eventId: 'event-2',
+          eventType: 'ORDER_READY' as const,
+          targetUrl: 'https://retry.example.test/webhook',
+          signature: `sha256=${'c'.repeat(64)}`,
+          status: 'SUCCEEDED' as const,
+          attemptCount: 4,
+          errorCode: null,
+          createdAt: '2026-08-30T00:00:00.000Z',
+          updatedAt: '2026-08-30T00:00:02.000Z',
+          deliveredAt: '2026-08-30T00:00:02.000Z',
+        },
+        meta: { apiVersion: '1' as const },
+      }),
     ),
   };
 
@@ -108,6 +171,7 @@ describe('CommerceIntegrationPanelComponent', () => {
     expect(text).toContain('CATALOG_READ');
     expect(text).toContain('ORDER_CONFIRMED');
     expect(text).toContain('SUCCEEDED');
+    expect(text).toContain('OpenAPI 3.1.0');
   });
 
   it('emits the current context and shows the raw key only after creation', () => {
@@ -131,5 +195,28 @@ describe('CommerceIntegrationPanelComponent', () => {
     );
     expect(fixture.nativeElement.textContent as string).toContain('Clave visible una sola vez');
     expect(fixture.nativeElement.textContent as string).toContain('uic_12345678_');
+  });
+
+  it('rotates the credential and reveals only the new key', () => {
+    const rotate = [...fixture.nativeElement.querySelectorAll('button')].find(
+      (candidate: HTMLButtonElement) => candidate.textContent?.includes('Rotar'),
+    ) as HTMLButtonElement;
+    rotate.click();
+    fixture.detectChanges();
+
+    expect(api.rotate).toHaveBeenCalledWith(credential.id);
+    expect(fixture.nativeElement.textContent).toContain('uic_87654321_');
+    expect(fixture.nativeElement.textContent).toContain('clave anterior dejó de funcionar');
+  });
+
+  it('allows a controlled replay only for a retryable delivery', () => {
+    const replay = [...fixture.nativeElement.querySelectorAll('button')].find(
+      (candidate: HTMLButtonElement) => candidate.textContent?.includes('Reintentar entrega'),
+    ) as HTMLButtonElement;
+    replay.click();
+    fixture.detectChanges();
+
+    expect(api.replay).toHaveBeenCalledWith('delivery-2');
+    expect(fixture.nativeElement.textContent).toContain('Replay controlado completado: SUCCEEDED');
   });
 });

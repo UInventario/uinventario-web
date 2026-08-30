@@ -1,4 +1,4 @@
-import { DatePipe } from '@angular/common';
+import { DatePipe, KeyValuePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, effect, inject, input, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -8,6 +8,7 @@ import type { CustomerData } from '../customers/customer-api.service';
 import {
   CommerceApiService,
   CommerceCredentialData,
+  CommerceOpenApiData,
   CommerceScope,
   CommerceWebhookDeliveryData,
   CommerceWebhookEvent,
@@ -15,7 +16,7 @@ import {
 
 @Component({
   selector: 'app-commerce-integration-panel',
-  imports: [DatePipe, ReactiveFormsModule],
+  imports: [DatePipe, KeyValuePipe, ReactiveFormsModule],
   templateUrl: './commerce-integration-panel.component.html',
   styleUrl: './commerce-integration-panel.component.scss',
 })
@@ -29,6 +30,7 @@ export class CommerceIntegrationPanelComponent implements OnInit {
 
   protected readonly credentials = signal<CommerceCredentialData[]>([]);
   protected readonly deliveries = signal<CommerceWebhookDeliveryData[]>([]);
+  protected readonly openapi = signal<CommerceOpenApiData | null>(null);
   protected readonly apiKey = signal<string | null>(null);
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
@@ -145,15 +147,61 @@ export class CommerceIntegrationPanelComponent implements OnInit {
       });
   }
 
+  protected rotate(credential: CommerceCredentialData): void {
+    if (!credential.active || this.saving()) return;
+    this.clearMessages();
+    this.saving.set(true);
+    this.api
+      .rotate(credential.id)
+      .pipe(finalize(() => this.saving.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.apiKey.set(data.apiKey);
+          this.credentials.update((items) =>
+            items.map((item) => (item.id === data.id ? data : item)),
+          );
+          this.success.set('Credencial rotada. La clave anterior dejó de funcionar.');
+        },
+        error: (error: HttpErrorResponse) => this.error.set(this.message(error)),
+      });
+  }
+
+  protected replay(delivery: CommerceWebhookDeliveryData): void {
+    if (!this.canReplay(delivery) || this.saving()) return;
+    this.clearMessages();
+    this.saving.set(true);
+    this.api
+      .replay(delivery.id)
+      .pipe(finalize(() => this.saving.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.deliveries.update((items) =>
+            items.map((item) => (item.id === data.id ? data : item)),
+          );
+          this.success.set(`Replay controlado completado: ${data.status}.`);
+        },
+        error: (error: HttpErrorResponse) => this.error.set(this.message(error)),
+      });
+  }
+
+  protected canReplay(delivery: CommerceWebhookDeliveryData): boolean {
+    return ['FAILED', 'RETRYABLE_FAILURE'].includes(delivery.status) && delivery.attemptCount < 5;
+  }
+
   protected dismissKey(): void {
     this.apiKey.set(null);
   }
 
   private load(): void {
-    forkJoin({ credentials: this.api.credentials(), deliveries: this.api.deliveries() })
+    forkJoin({
+      openapi: this.api.openapi(),
+      credentials: this.api.credentials(),
+      deliveries: this.api.deliveries(),
+    })
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
-        next: ({ credentials, deliveries }) => {
+        next: ({ openapi, credentials, deliveries }) => {
+          this.openapi.set(openapi);
           this.credentials.set(credentials.data);
           this.deliveries.set(deliveries.data);
         },
