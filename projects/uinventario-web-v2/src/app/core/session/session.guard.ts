@@ -12,8 +12,12 @@ export const sessionGuard: CanActivateFn = (_route, state) => {
   return manager.restore().pipe(
     map((session) => {
       if (session.nextStep === 'ONBOARDING') {
+        if (state.url.split(/[?#]/, 1)[0].replace(/\/$/, '') === '/onboarding') return true;
         navigation.openAuthorizedWorkspace(session);
         return false;
+      }
+      if (state.url.split(/[?#]/, 1)[0].replace(/\/$/, '') === '/onboarding') {
+        return router.createUrlTree(['/dashboard']);
       }
       return true;
     }),

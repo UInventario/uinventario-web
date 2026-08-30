@@ -1,4 +1,3 @@
-import { DOCUMENT } from '@angular/common';
 import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { SessionData } from './session.models';
@@ -7,12 +6,11 @@ const PUBLIC_IDENTITY_PATHS = ['/login', '/registro', '/recuperar', '/restablece
 
 @Injectable({ providedIn: 'root' })
 export class SessionNavigation {
-  private readonly document = inject(DOCUMENT);
   private readonly router = inject(Router);
 
   openAuthorizedWorkspace(session: SessionData, requestedUrl: string | null = null): void {
     if (session.nextStep === 'ONBOARDING') {
-      this.document.defaultView?.location.assign('/onboarding');
+      void this.router.navigateByUrl('/onboarding');
       return;
     }
     void this.router.navigateByUrl(safeReturnUrl(requestedUrl));
