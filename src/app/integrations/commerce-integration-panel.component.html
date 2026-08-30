@@ -113,6 +113,7 @@
             </div>
             <span>{{ credential.active ? 'ACTIVA' : 'REVOCADA' }}</span>
             @if (credential.active) {
+              <button type="button" class="secondary" (click)="rotate(credential)">Rotar</button>
               <button type="button" class="danger" (click)="revoke(credential)">Revocar</button>
             }
           </article>
@@ -140,9 +141,41 @@
             @if (delivery.errorCode) {
               <code>{{ delivery.errorCode }}</code>
             }
+            @if (canReplay(delivery)) {
+              <button type="button" class="secondary" (click)="replay(delivery)">
+                Reintentar entrega
+              </button>
+            }
           </article>
         }
       </div>
     }
   </section>
+
+  @if (openapi(); as contract) {
+    <section aria-labelledby="commerce-openapi-title">
+      <h3 id="commerce-openapi-title">Contrato OpenAPI {{ contract.openapi }}</h3>
+      <p>
+        Base <code>{{ contract.servers[0].url }}</code> · Bearer API key · máximo
+        {{ contract['x-webhook-contract'].attempts.controlledMaximumTotal }} intentos webhook.
+      </p>
+      <div class="records">
+        @for (path of contract.paths | keyvalue; track path.key) {
+          @for (operation of path.value | keyvalue; track operation.key) {
+            <article>
+              <strong>{{ operation.key.toUpperCase() }} {{ path.key }}</strong>
+              <small
+                >{{ operation.value.summary }} · {{ operation.value['x-required-scope'] }}</small
+              >
+            </article>
+          }
+        }
+      </div>
+      <small>
+        Firma {{ contract['x-webhook-contract'].signatureHeader }}:
+        <code>{{ contract['x-webhook-contract'].signature }}</code
+        >. Los ejemplos no contienen credenciales.
+      </small>
+    </section>
+  }
 </section>

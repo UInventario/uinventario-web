@@ -50,6 +50,30 @@ export interface CommerceWebhookDeliveryData {
   deliveredAt: string | null;
 }
 
+export interface CommerceOpenApiData {
+  openapi: '3.1.0';
+  info: { title: string; version: string };
+  servers: Array<{ url: string }>;
+  paths: Record<
+    string,
+    Record<
+      string,
+      {
+        summary: string;
+        'x-required-scope': CommerceScope;
+        'x-limits'?: { default: number; maximum: number };
+        responses: Record<string, { description: string }>;
+      }
+    >
+  >;
+  'x-webhook-contract': {
+    version: '1';
+    signatureHeader: string;
+    signature: string;
+    attempts: { automatic: number; controlledMaximumTotal: number };
+  };
+}
+
 interface ApiResponse<T> {
   data: T;
   meta: { apiVersion: '1' };
@@ -81,6 +105,12 @@ export class CommerceApiService {
     });
   }
 
+  openapi() {
+    return this.http.get<CommerceOpenApiData>(`${this.baseUrl}/openapi`, {
+      withCredentials: true,
+    });
+  }
+
   create(input: CreateCommerceCredentialInput) {
     return this.http.post<
       ApiResponse<CommerceCredentialData & { apiKey: string }> & {
@@ -95,9 +125,25 @@ export class CommerceApiService {
     });
   }
 
+  rotate(id: string) {
+    return this.http.post<
+      ApiResponse<CommerceCredentialData & { apiKey: string }> & {
+        meta: { apiVersion: '1'; warning: string };
+      }
+    >(`${this.baseUrl}/credentials/${id}/rotate`, {}, { withCredentials: true });
+  }
+
   deliveries() {
     return this.http.get<ApiResponse<CommerceWebhookDeliveryData[]>>(
       `${this.baseUrl}/webhook-deliveries`,
+      { withCredentials: true },
+    );
+  }
+
+  replay(deliveryId: string) {
+    return this.http.post<ApiResponse<CommerceWebhookDeliveryData>>(
+      `${this.baseUrl}/webhook-deliveries/${deliveryId}/replay`,
+      {},
       { withCredentials: true },
     );
   }
