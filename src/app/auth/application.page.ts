@@ -104,6 +104,7 @@ import { CommerceIntegrationPanelComponent } from '../integrations/commerce-inte
 import { FiscalContractPanelComponent } from '../integrations/fiscal-contract-panel.component';
 import { ErpIntegrationPanelComponent } from '../integrations/erp-integration-panel.component';
 import { PspPanelComponent } from '../integrations/psp-panel.component';
+import { AccountingPanelComponent } from '../integrations/accounting-panel.component';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const POSITIVE_MONEY_PATTERN = /^(?:[1-9]\d{0,11}(?:\.\d{1,2})?|0\.(?:0[1-9]|[1-9]\d?))$/;
@@ -172,6 +173,7 @@ type PosSaleInput = Parameters<PosApiService['createSale']>[0];
     FiscalContractPanelComponent,
     ErpIntegrationPanelComponent,
     PspPanelComponent,
+    AccountingPanelComponent,
   ],
   templateUrl: './application.page.html',
   styleUrl: './application.page.scss',
