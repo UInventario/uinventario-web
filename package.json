@@ -13,6 +13,8 @@
     "test:server": "node --test server.spec.mjs",
     "test:e2e": "playwright test",
     "test:service-worker": "node scripts/service-worker-smoke.mjs",
+    "parity:generate": "node scripts/generate-api-parity-matrix.mjs",
+    "parity:verify": "node scripts/verify-api-parity-matrix.mjs",
     "typecheck": "tsc -p tsconfig.app.json --noEmit"
   },
   "private": true,
