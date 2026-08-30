@@ -1,10 +1,8 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
-
 // prettier-ignore
 const saleId = '11111111-1111-4111-8111-111111111111', lineId = '22222222-2222-4222-8222-222222222222', paymentId = '33333333-3333-4333-8333-333333333333';
 // prettier-ignore
 const suspendedId = '44444444-4444-4444-8444-444444444444', returnId = '55555555-5555-4555-8555-555555555555', productId = '66666666-6666-4666-8666-666666666666';
-
 // prettier-ignore
 const product = {
   id: productId, name: 'Café de altura', sku: 'CAF-ALT-01', barcode: '750100000009',
@@ -393,8 +391,6 @@ test('reissues the non-fiscal ticket and exposes the real fiscal adapter status'
 }, testInfo) => {
   const state = await mockSales(page, fullPermissions);
   await page.goto('./ventas/historial');
-  await expect(page.getByRole('button', { name: 'Suspendidas' })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'Nueva venta' })).toHaveCount(0);
   await page.getByRole('button', { name: /V-2026-0042/ }).click();
   await page.getByRole('button', { name: 'Ticket' }).click();
   const receipt = page.getByRole('dialog', { name: 'V-2026-0042' });
@@ -487,6 +483,8 @@ test('hides mutation actions without permissions and remains usable on mobile', 
   await page.setViewportSize({ width: 390, height: 844 });
   await mockSales(page, ['SALE_REPRINT']);
   await page.goto('./ventas/historial');
+  await expect(page.getByRole('button', { name: 'Suspendidas' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Nueva venta' })).toHaveCount(0);
   await page.getByRole('button', { name: /V-2026-0042/ }).click();
   await expect(page.getByRole('button', { name: 'Ticket' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Devolver' })).toHaveCount(0);
