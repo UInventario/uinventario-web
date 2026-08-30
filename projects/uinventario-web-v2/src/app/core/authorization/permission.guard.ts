@@ -12,3 +12,13 @@ export function requireAnyPermission(...permissions: readonly AppPermission[]): 
     });
   };
 }
+
+export function requireAllPermissions(...permissions: readonly AppPermission[]): CanActivateFn {
+  return () => {
+    const authorization = inject(AuthorizationService);
+    if (authorization.hasAll(permissions)) return true;
+    return inject(Router).createUrlTree(['/dashboard'], {
+      queryParams: { accessDenied: 'true' },
+    });
+  };
+}

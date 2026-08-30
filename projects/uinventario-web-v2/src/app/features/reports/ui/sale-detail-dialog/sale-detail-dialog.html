@@ -1,0 +1,141 @@
+<div class="backdrop" (click)="closed.emit()">
+  <section
+    class="detail"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="sale-detail-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <p>Venta y trazabilidad</p>
+        <h2 id="sale-detail-title">{{ sale()?.receiptNumber || 'Consultando venta' }}</h2>
+      </div>
+      <button type="button" aria-label="Cerrar detalle" (click)="closed.emit()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+    @if (loading()) {
+      <div class="state"><i class="pi pi-spin pi-spinner"></i>Cargando detalle…</div>
+    }
+    @if (error()) {
+      <div class="notice" role="alert">{{ error() }}</div>
+    }
+    @if (sale(); as item) {
+      <div class="facts">
+        <span
+          ><small>Fecha local</small><strong>{{ date(item.createdAt, timezone()) }}</strong></span
+        ><span
+          ><small>Sucursal / caja</small
+          ><strong
+            >{{ item.context.branch.name }} · {{ item.context.cashRegister.name }}</strong
+          ></span
+        ><span
+          ><small>Responsable</small><strong>{{ item.user.email }}</strong></span
+        ><span
+          ><small>Total</small><strong>{{ money(item.totals.total, item.currency) }}</strong></span
+        >
+      </div>
+      <section>
+        <h3>Productos</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>SKU</th>
+                <th class="number">Cantidad</th>
+                <th class="number">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of item.lines; track line.id) {
+                <tr>
+                  <td>{{ line.product.name }}</td>
+                  <td>{{ line.product.sku }}</td>
+                  <td class="number">{{ line.quantity }}</td>
+                  <td class="number">{{ money(line.total, item.currency) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section>
+        <h3>Pagos</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Método</th>
+                <th>Estado</th>
+                <th>Referencia</th>
+                <th class="number">Aplicado</th>
+                <th class="number">Cambio</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (payment of item.payments; track payment.id) {
+                <tr>
+                  <td>{{ payment.method }}</td>
+                  <td>{{ payment.status }}</td>
+                  <td>{{ payment.reference || '—' }}</td>
+                  <td class="number">{{ money(payment.amountApplied, item.currency) }}</td>
+                  <td class="number">{{ money(payment.change, item.currency) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section>
+        <h3>Movimientos de inventario</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Ubicación</th>
+                <th>Tipo</th>
+                <th class="number">Cambio</th>
+                <th class="number">Existencia</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (movement of item.movements; track movement.id) {
+                <tr>
+                  <td>{{ movement.product.name }}</td>
+                  <td>{{ movement.location.name }}</td>
+                  <td>{{ movement.type }}</td>
+                  <td class="number">{{ movement.quantityChange }}</td>
+                  <td class="number">{{ movement.resultingQuantity }}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5">Sin movimientos asociados.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+      @if (canViewReturns()) {
+        <section>
+          <h3>Devoluciones</h3>
+          <div class="returns">
+            @for (returned of returns(); track returned.id) {
+              <article>
+                <span
+                  ><strong>{{ date(returned.createdAt, timezone()) }}</strong
+                  ><small>{{ returned.reason }} · {{ returned.settlementStatus }}</small></span
+                ><strong>{{ money(returned.totals.total, item.currency) }}</strong>
+              </article>
+            } @empty {
+              <p>No existen devoluciones para esta venta.</p>
+            }
+          </div>
+        </section>
+      }
+    }
+  </section>
+</div>

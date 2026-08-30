@@ -1,0 +1,25 @@
+<section class="reports-workspace" aria-labelledby="reports-title">
+  <header>
+    <div>
+      <p>Operación y control</p>
+      <h1 id="reports-title">Reportes</h1>
+      <span>Consulta información real sin interrumpir la operación.</span>
+    </div>
+  </header>
+  <nav class="report-tabs" aria-label="Tipos de reporte">
+    @if (canSales()) {
+      <a routerLink="ventas" routerLinkActive="active">Ventas</a
+      ><a routerLink="caja" routerLinkActive="active">Caja</a>
+    }
+    @if (canProfitability()) {
+      <a routerLink="margenes" routerLinkActive="active">Márgenes</a>
+    }
+    @if (canInventory()) {
+      <a routerLink="inventario" routerLinkActive="active">Inventario</a>
+    }
+    @if (canProfitability()) {
+      <a routerLink="actividad" routerLinkActive="active">Actividad</a>
+    }
+  </nav>
+  <router-outlet />
+</section>

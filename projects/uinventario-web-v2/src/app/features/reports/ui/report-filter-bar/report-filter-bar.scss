@@ -1,0 +1,87 @@
+.report-filters {
+  align-items: end;
+  background: white;
+  border: 1px solid var(--p-surface-200);
+  border-radius: var(--radius-lg);
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  padding: 0.9rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.3rem;
+
+  label {
+    color: var(--p-text-muted-color);
+    font-size: 0.72rem;
+    font-weight: 750;
+  }
+
+  input,
+  select {
+    background: white;
+    border: 1px solid var(--p-surface-300);
+    border-radius: var(--radius-md);
+    font: inherit;
+    min-height: var(--ui-control-height);
+    min-width: 0;
+    padding: 0 0.65rem;
+    width: 100%;
+  }
+}
+
+.product-field {
+  min-width: 12rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+button {
+  align-items: center;
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-weight: 700;
+  gap: 0.4rem;
+  justify-content: center;
+  min-height: var(--ui-control-height);
+  padding: 0 0.9rem;
+}
+
+.primary {
+  background: var(--p-primary-600);
+  color: white;
+}
+
+.secondary {
+  background: var(--p-surface-100);
+  color: var(--p-text-color);
+}
+
+.filter-error {
+  color: var(--p-red-700);
+  font-size: 0.8rem;
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 42rem) {
+  .report-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .actions,
+  .product-field {
+    grid-column: 1 / -1;
+  }
+
+  .actions button {
+    flex: 1;
+  }
+}

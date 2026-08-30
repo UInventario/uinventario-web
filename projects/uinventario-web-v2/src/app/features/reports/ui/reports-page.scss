@@ -1,0 +1,50 @@
+:host {
+  display: block;
+}
+.reports-workspace {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+}
+header p,
+header h1,
+header span {
+  margin: 0;
+}
+header p {
+  color: var(--p-primary-600);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+header h1 {
+  margin: 0.15rem 0;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+}
+header span {
+  color: var(--p-text-muted-color);
+}
+.report-tabs {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--p-surface-200);
+}
+.report-tabs a {
+  flex: 0 0 auto;
+  padding: 0.8rem 1rem;
+  border-bottom: 3px solid transparent;
+  color: var(--p-text-muted-color);
+  font-weight: 700;
+  text-decoration: none;
+}
+.report-tabs a.active {
+  border-color: var(--p-primary-500);
+  color: var(--p-primary-700);
+}
+@media (max-width: 40rem) {
+  .reports-workspace {
+    padding: 0.85rem;
+  }
+}
