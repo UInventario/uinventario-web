@@ -1,0 +1,84 @@
+<div class="backdrop" (click)="closed.emit()">
+  <section
+    class="dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="transition-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <p>Estado de existencias</p>
+        <h2 id="transition-title">{{ product().name }}</h2>
+        <span>Mueve unidades sin alterar el total físico.</span>
+      </div>
+      <button class="icon" type="button" aria-label="Cerrar" (click)="closed.emit()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <div class="field full">
+        <label for="transitionLocation">Ubicación</label>
+        <select id="transitionLocation" formControlName="locationId">
+          @for (location of locations(); track location.id) {
+            <option [value]="location.id">{{ location.name }} · {{ location.code }}</option>
+          }
+        </select>
+      </div>
+      <div class="field">
+        <label for="transitionFrom">Desde</label>
+        <select id="transitionFrom" formControlName="fromState">
+          @for (state of states; track state.value) {
+            <option [value]="state.value">{{ state.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="field">
+        <label for="transitionTo">Hacia</label>
+        <select id="transitionTo" formControlName="toState">
+          @for (state of states; track state.value) {
+            <option [value]="state.value">{{ state.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="field">
+        <label for="transitionQuantity">Cantidad</label>
+        <input id="transitionQuantity" formControlName="quantity" inputmode="decimal" />
+      </div>
+      <div class="field full">
+        <label for="transitionReason">Razón</label>
+        <input id="transitionReason" formControlName="reason" maxlength="160" />
+      </div>
+      <div class="field full">
+        <label for="transitionReference">Referencia o evidencia</label>
+        <input id="transitionReference" formControlName="reference" maxlength="120" />
+      </div>
+      @if (product().trackSerials) {
+        <div class="field full">
+          <label for="transitionSerials">Números de serie</label>
+          <textarea
+            id="transitionSerials"
+            formControlName="serialNumbers"
+            rows="4"
+            placeholder="Uno por línea o separados por coma"
+          ></textarea>
+        </div>
+      }
+      @if (form.touched && form.invalid) {
+        <div class="notice error full" role="alert">
+          El origen y destino deben ser distintos; completa cantidad, razón y referencia.
+        </div>
+      }
+      @if (error()) {
+        <div class="notice error full" role="alert">{{ error() }}</div>
+      }
+      <footer class="actions full">
+        <button class="secondary" type="button" (click)="closed.emit()">Cancelar</button>
+        <button class="primary" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Moviendo…' : 'Cambiar estado' }}
+        </button>
+      </footer>
+    </form>
+  </section>
+</div>
