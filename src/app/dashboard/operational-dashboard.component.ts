@@ -13,8 +13,12 @@ import {
   SalesCashReportData,
 } from '../pos/pos-api.service';
 import { PurchaseOrderApiService } from '../procurement/purchase-order-api.service';
+import {
+  DemandForecastApiService,
+  DemandForecastData,
+} from '../forecasting/demand-forecast-api.service';
 
-type DashboardWidget = 'sales' | 'margin' | 'stock' | 'purchases' | 'sync';
+type DashboardWidget = 'sales' | 'margin' | 'stock' | 'purchases' | 'forecast' | 'sync';
 
 interface SyncSummary {
   entities: number;
@@ -39,6 +43,7 @@ export class OperationalDashboardComponent implements OnInit {
   private readonly pos = inject(PosApiService);
   private readonly inventory = inject(InventoryApiService);
   private readonly purchases = inject(PurchaseOrderApiService);
+  private readonly forecasts = inject(DemandForecastApiService);
   private readonly offline = inject(OfflineStoreService);
   private readonly formBuilder = inject(FormBuilder);
 
@@ -63,6 +68,10 @@ export class OperationalDashboardComponent implements OnInit {
       permissions.includes('PURCHASE_ORDERS_APPROVE')
     );
   });
+  protected readonly canViewForecast = computed(() => {
+    const permissions = this.session()?.user.permissions ?? [];
+    return permissions.includes('SALES_MANAGE') && permissions.includes('INVENTORY_VIEW');
+  });
 
   protected readonly periodForm = this.formBuilder.nonNullable.group({
     dateFrom: [this.today()],
@@ -73,6 +82,7 @@ export class OperationalDashboardComponent implements OnInit {
     margin: true,
     stock: true,
     purchases: true,
+    forecast: true,
     sync: true,
   });
   protected readonly periodError = signal<string | null>(null);
@@ -96,6 +106,20 @@ export class OperationalDashboardComponent implements OnInit {
   protected readonly purchaseLoading = signal(false);
   protected readonly purchaseError = signal<string | null>(null);
   protected readonly purchaseUpdatedAt = signal<string | null>(null);
+  protected readonly forecast = signal<DemandForecastData | null>(null);
+  protected readonly forecastLoading = signal(false);
+  protected readonly forecastError = signal<string | null>(null);
+  protected readonly forecastHorizon = signal<7 | 14 | 30>(14);
+  protected readonly topForecast = computed(
+    () =>
+      [...(this.forecast()?.items ?? [])]
+        .filter((item) => item.forecast)
+        .sort(
+          (left, right) =>
+            (right.forecast?.suggestedReorderQuantity ?? 0) -
+            (left.forecast?.suggestedReorderQuantity ?? 0),
+        )[0],
+  );
   protected readonly sync = signal<SyncSummary | null>(null);
   protected readonly syncLoading = signal(false);
   protected readonly syncError = signal<string | null>(null);
@@ -118,6 +142,7 @@ export class OperationalDashboardComponent implements OnInit {
     if (this.canViewMargin() && this.widgetEnabled('margin')) this.loadMargin();
     if (this.canViewStock() && this.widgetEnabled('stock')) this.loadStock();
     if (this.canViewPurchases() && this.widgetEnabled('purchases')) this.loadPurchases();
+    if (this.canViewForecast() && this.widgetEnabled('forecast')) this.loadLatestForecast();
     if (this.widgetEnabled('sync')) void this.loadSync();
   }
 
@@ -147,6 +172,24 @@ export class OperationalDashboardComponent implements OnInit {
 
   protected salesEmpty(report: SalesCashReportData): boolean {
     return report.summary.sales.total === 0;
+  }
+
+  protected setForecastHorizon(event: Event): void {
+    this.forecastHorizon.set(Number((event.target as HTMLSelectElement).value) as 7 | 14 | 30);
+  }
+
+  protected generateForecast(): void {
+    this.forecastLoading.set(true);
+    this.forecastError.set(null);
+    this.forecasts
+      .generate(this.forecastHorizon(), `web-demand-forecast-${globalThis.crypto.randomUUID()}`)
+      .pipe(finalize(() => this.forecastLoading.set(false)))
+      .subscribe({
+        next: ({ data }) => this.forecast.set(data),
+        error: (error: HttpErrorResponse) => {
+          this.forecastError.set(this.message(error, 'No fue posible generar el pronóstico.'));
+        },
+      });
   }
 
   private loadSales(): void {
@@ -222,6 +265,26 @@ export class OperationalDashboardComponent implements OnInit {
         error: (error: HttpErrorResponse) => {
           this.purchaseTotal.set(0);
           this.purchaseError.set(this.message(error, 'No fue posible consultar compras.'));
+        },
+      });
+  }
+
+  private loadLatestForecast(): void {
+    this.forecastLoading.set(true);
+    this.forecastError.set(null);
+    this.forecasts
+      .latest()
+      .pipe(finalize(() => this.forecastLoading.set(false)))
+      .subscribe({
+        next: ({ data }) => {
+          this.forecast.set(data);
+          if (data) this.forecastHorizon.set(data.horizonDays as 7 | 14 | 30);
+        },
+        error: (error: HttpErrorResponse) => {
+          this.forecast.set(null);
+          this.forecastError.set(
+            this.message(error, 'No fue posible consultar el último pronóstico.'),
+          );
         },
       });
   }
