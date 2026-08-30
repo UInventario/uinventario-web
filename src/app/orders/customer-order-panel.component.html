@@ -332,14 +332,37 @@
             }
             @if (order.fulfillment.carrier; as carrier) {
               <span>
-                {{ carrier.name }} · {{ carrier.attempts }} intento(s)
+                {{ carrier.name }} v{{ carrier.providerVersion }} ·
+                {{ carrier.attempts }} intento(s)
                 @if (carrier.trackingReference) {
                   · Guía {{ carrier.trackingReference }}
+                }
+                @if (carrier.trackingStatus) {
+                  · Tracking {{ carrier.trackingStatus }} #{{ carrier.latestEventSequence }}
                 }
                 @if (carrier.lastErrorCode) {
                   · {{ carrier.lastErrorCode }}
                 }
               </span>
+              @if (carrier.manualActionRequired) {
+                <strong class="carrier-warning"
+                  >Acción manual requerida; el pedido sigue disponible.</strong
+                >
+              }
+              @if (carrier.label) {
+                <details class="shipping-label">
+                  <summary>Etiqueta {{ carrier.label.format }}</summary>
+                  <pre>{{ carrier.label.payload }}</pre>
+                </details>
+              }
+            }
+            @if (shippingQuote(); as quote) {
+              @if (quote.orderId === order.id) {
+                <span>
+                  Cotización {{ quote.service }} · {{ quote.amount }} {{ quote.currency }} · entrega
+                  {{ quote.estimatedDeliveryAt | date: 'short' }}
+                </span>
+              }
             }
             @if (order.fulfillment.responsible.preparation) {
               <span>Preparó {{ order.fulfillment.responsible.preparation.email }}</span>
@@ -358,6 +381,16 @@
             }
           </small>
           <div class="actions">
+            @if (order.fulfillment.method === 'DELIVERY') {
+              <button
+                type="button"
+                class="secondary"
+                (click)="quoteShipping(order)"
+                [disabled]="!!shippingActionId()"
+              >
+                Cotizar transporte
+              </button>
+            }
             @if (order.status === 'DRAFT') {
               <button
                 type="button"
@@ -411,6 +444,28 @@
                 [disabled]="!!actionId()"
               >
                 Cancelar
+              </button>
+            }
+            @if (
+              order.fulfillment.method === 'DELIVERY' &&
+              order.fulfillment.status === 'DISPATCHED' &&
+              order.fulfillment.carrier?.trackingReference
+            ) {
+              <button
+                type="button"
+                class="secondary"
+                (click)="pollShipping(order, 'IN_TRANSIT')"
+                [disabled]="!!shippingActionId()"
+              >
+                Consultar tracking
+              </button>
+              <button
+                type="button"
+                class="secondary"
+                (click)="cancelShipping(order, 'SUCCESS')"
+                [disabled]="!!shippingActionId()"
+              >
+                Cancelar envío
               </button>
             }
           </div>

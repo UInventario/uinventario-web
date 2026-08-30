@@ -71,12 +71,22 @@ describe('CustomerOrderPanelComponent', () => {
       pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
     },
   };
-  const api = { list: vi.fn(), create: vi.fn(), transition: vi.fn() };
+  const api = {
+    list: vi.fn(),
+    create: vi.fn(),
+    transition: vi.fn(),
+    quoteShipping: vi.fn(),
+    cancelShipping: vi.fn(),
+    pollShipping: vi.fn(),
+  };
 
   beforeEach(async () => {
     api.list.mockReset().mockReturnValue(of(listResponse));
     api.create.mockReset();
     api.transition.mockReset();
+    api.quoteShipping.mockReset();
+    api.cancelShipping.mockReset();
+    api.pollShipping.mockReset();
     await TestBed.configureTestingModule({
       imports: [CustomerOrderPanelComponent],
       providers: [
@@ -269,9 +279,15 @@ describe('CustomerOrderPanelComponent', () => {
         carrier: {
           code: 'SIMULATED_RETRY',
           name: 'Transportista simulado con reintento',
+          providerVersion: '1',
           trackingReference: null,
+          label: null,
+          trackingStatus: null,
+          latestEventSequence: 0,
+          latestEventAt: null,
+          manualActionRequired: false,
           attempts: 1,
-          lastErrorCode: 'SIMULATED_CARRIER_UNAVAILABLE',
+          lastErrorCode: 'SIMULATED_CARRIER_TIMEOUT',
           lastAttemptAt: '2026-08-29T13:00:00.000Z',
         },
         responsible: { preparation: null, delivery: null },
@@ -302,6 +318,8 @@ describe('CustomerOrderPanelComponent', () => {
             ...deliveryOrder.fulfillment.carrier!,
             attempts: 2,
             trackingReference: 'SIM-O-123-2',
+            label: { format: 'ZPL', payload: '^XA^FDO-123^FS^XZ' },
+            trackingStatus: 'LABEL_READY',
             lastErrorCode: null,
           },
         },
@@ -311,5 +329,88 @@ describe('CustomerOrderPanelComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('en tránsito');
+  });
+
+  it('quotes, displays a label and preserves manual fallback on carrier timeout', () => {
+    const deliveryOrder: CustomerOrderData = {
+      ...order,
+      status: 'READY',
+      version: 5,
+      fulfillment: {
+        method: 'DELIVERY',
+        status: 'DISPATCHED',
+        deliveryCost: '85.50',
+        window: order.fulfillment.window,
+        address: {
+          recipientNameMasked: 'P***',
+          phoneMasked: '***9876',
+          summary: 'Ciudad de México, CDMX, MX',
+          countryCode: 'MX',
+        },
+        carrier: {
+          code: 'SIMULATED',
+          name: 'Transportista simulado',
+          providerVersion: '1',
+          trackingReference: 'SIM-O-123-1',
+          label: { format: 'ZPL', payload: '^XA^FDO-123^FS^XZ' },
+          trackingStatus: 'LABEL_READY',
+          latestEventSequence: 0,
+          latestEventAt: null,
+          manualActionRequired: false,
+          attempts: 1,
+          lastErrorCode: null,
+          lastAttemptAt: '2026-08-29T13:00:00.000Z',
+        },
+        responsible: { preparation: null, delivery: null },
+      },
+    };
+    api.quoteShipping.mockReturnValue(
+      of({
+        data: {
+          quoteReference: 'QUOTE-O-123',
+          service: 'SIMULATED_STANDARD',
+          amount: '80.00',
+          currency: 'MXN',
+          estimatedDeliveryAt: order.fulfillment.window.end,
+        },
+        meta: { apiVersion: '1' },
+      }),
+    );
+    api.cancelShipping.mockReturnValue(
+      of({
+        data: {
+          ...deliveryOrder,
+          fulfillment: {
+            ...deliveryOrder.fulfillment,
+            carrier: {
+              ...deliveryOrder.fulfillment.carrier!,
+              manualActionRequired: true,
+              lastErrorCode: 'SIMULATED_CARRIER_CANCEL_TIMEOUT',
+            },
+          },
+        },
+        meta: { apiVersion: '1', idempotentReplay: false },
+      }),
+    );
+    const component = fixture.componentInstance as unknown as {
+      orders: { set(value: CustomerOrderData[]): void };
+      quoteShipping(order: CustomerOrderData): void;
+      cancelShipping(order: CustomerOrderData, scenario: 'TIMEOUT'): void;
+    };
+    component.orders.set([deliveryOrder]);
+    fixture.detectChanges();
+    component.quoteShipping(deliveryOrder);
+    component.cancelShipping(deliveryOrder, 'TIMEOUT');
+    fixture.detectChanges();
+
+    expect(api.quoteShipping).toHaveBeenCalledWith(deliveryOrder.id);
+    expect(api.cancelShipping).toHaveBeenCalledWith(
+      deliveryOrder.id,
+      'TIMEOUT',
+      expect.stringMatching(/^web-shipping-cancel-/),
+    );
+    expect(fixture.nativeElement.textContent).toContain('SIMULATED_STANDARD');
+    expect(fixture.nativeElement.textContent).toContain('Etiqueta ZPL');
+    expect(fixture.nativeElement.textContent).toContain('Acción manual requerida');
   });
 });
