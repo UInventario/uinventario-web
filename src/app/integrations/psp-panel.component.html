@@ -1,0 +1,150 @@
+<section class="psp-panel" id="psp-title" aria-labelledby="psp-heading">
+  <header>
+    <div>
+      <p class="eyebrow">Pagos remotos versionados</p>
+      <h2 id="psp-heading">PSP · contrato v1</h2>
+      <p>Intención, captura, conciliación y reembolso sin recopilar datos de tarjeta.</p>
+    </div>
+    <span class="mode">SIMULATOR · NO PRODUCTIVO</span>
+  </header>
+
+  @if (error()) {
+    <p class="error" role="alert">{{ error() }}</p>
+  }
+  @if (success()) {
+    <p class="success" role="status">{{ success() }}</p>
+  }
+
+  @if (contract(); as definition) {
+    <div class="contract">
+      @for (operation of definition.operations; track operation) {
+        <span>{{ operation }}</span>
+      }
+      <small
+        >Stripe compatible: runtime inactivo; requiere referencias de secretos por ambiente.</small
+      >
+    </div>
+
+    <form (submit)="$event.preventDefault(); create()">
+      <label>
+        Referencia comercio
+        <input
+          [value]="merchantReference()"
+          (input)="merchantReference.set($any($event.target).value)"
+          required
+        />
+      </label>
+      <label>
+        Importe
+        <input [value]="amount()" (input)="amount.set($any($event.target).value)" required />
+      </label>
+      <label>
+        Moneda
+        <input
+          [value]="currency()"
+          (input)="currency.set($any($event.target).value.toUpperCase())"
+          maxlength="3"
+          required
+        />
+      </label>
+      <label>
+        Escenario
+        <select [value]="scenario()" (change)="scenario.set($any($event.target).value)">
+          <option value="SUCCESS">Éxito</option>
+          <option value="DECLINE">Rechazo</option>
+          <option value="TIMEOUT">Timeout de captura</option>
+        </select>
+      </label>
+      <button type="submit" [disabled]="busy()">Crear intención</button>
+    </form>
+
+    <div class="refund-control">
+      <label>
+        Importe de reembolso
+        <input [value]="refundAmount()" (input)="refundAmount.set($any($event.target).value)" />
+      </label>
+      <label>
+        Evento webhook simulado
+        <select [value]="webhookStatus()" (change)="webhookStatus.set($any($event.target).value)">
+          <option value="AUTHORIZED">AUTHORIZED</option>
+          <option value="CAPTURED">CAPTURED</option>
+          <option value="DECLINED">DECLINED</option>
+        </select>
+      </label>
+      <button type="button" class="secondary" (click)="reload()" [disabled]="loading()">
+        Recargar
+      </button>
+    </div>
+
+    <div class="payments">
+      @for (payment of payments(); track payment.id) {
+        <article>
+          <div class="payment-heading">
+            <div>
+              <strong>{{ payment.merchantReference }}</strong>
+              <small
+                >{{ payment.providerReference }} · {{ payment.updatedAt | date: 'short' }}</small
+              >
+            </div>
+            <span class="status" [class.warning]="payment.status === 'INDETERMINATE'">
+              {{ payment.status }}
+            </span>
+          </div>
+          <p>
+            {{ payment.amount }} {{ payment.currency }} · reembolsado {{ payment.refundedAmount }} ·
+            {{ payment.scenario }}
+          </p>
+          @if (payment.errorCode) {
+            <code>{{ payment.errorCode }}</code>
+          }
+          <div class="actions">
+            <button
+              type="button"
+              (click)="action(payment, 'confirm')"
+              [disabled]="busy() || payment.status !== 'REQUIRES_CONFIRMATION'"
+            >
+              Confirmar
+            </button>
+            <button
+              type="button"
+              (click)="action(payment, 'capture')"
+              [disabled]="busy() || payment.status !== 'AUTHORIZED'"
+            >
+              Capturar
+            </button>
+            <button
+              type="button"
+              class="secondary"
+              (click)="action(payment, 'query')"
+              [disabled]="busy()"
+            >
+              Consultar
+            </button>
+            <button
+              type="button"
+              class="secondary"
+              (click)="refund(payment)"
+              [disabled]="busy() || !canRefund(payment)"
+            >
+              Reembolsar
+            </button>
+            @if (webhookAccess()?.paymentId === payment.id) {
+              <button
+                type="button"
+                class="secondary"
+                (click)="webhook(payment)"
+                [disabled]="busy()"
+              >
+                Enviar webhook verificado
+              </button>
+            }
+          </div>
+        </article>
+      } @empty {
+        <p>No hay pagos PSP simulados.</p>
+      }
+    </div>
+  } @else if (loading()) {
+    <p role="status">Cargando contrato PSP…</p>
+  }
+</section>
