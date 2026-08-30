@@ -4,6 +4,8 @@ export const routes: Routes = [
   {
     path: '',
     loadComponent: () =>
-      import('./shell/bootstrap-page/bootstrap-page').then((module) => module.BootstrapPage),
+      import('./shell/visual-system-page/visual-system-page').then(
+        (module) => module.VisualSystemPage,
+      ),
   },
 ];
