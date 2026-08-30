@@ -13,7 +13,10 @@
         {{ !shiftLoaded() ? 'Consultando turno…' : shift() ? 'Turno abierto' : 'Caja cerrada' }}
       </strong>
     </div>
-    <a routerLink="/ventas/clientes"><i class="pi pi-users"></i>Clientes</a>
+    <div class="pos-links">
+      <a routerLink="/ventas/caja"><i class="pi pi-wallet"></i>Caja</a>
+      <a routerLink="/ventas/clientes"><i class="pi pi-users"></i>Clientes</a>
+    </div>
   </header>
 
   <div class="pos-grid">
