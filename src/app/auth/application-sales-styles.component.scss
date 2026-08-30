@@ -1,0 +1,5 @@
+@use 'sass:meta';
+
+app-application-page.application-page {
+  @include meta.load-css('application.page', $with: ('application-style-segment': sales));
+}

@@ -16,6 +16,7 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   page,
   context,
 }, testInfo) => {
+  test.setTimeout(60_000);
   const email = `login-${testInfo.project.name}-${Date.now()}@example.com`;
   await createAccount(page, email);
 
@@ -60,9 +61,20 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await expect(
     products.getByRole('heading', { level: 1, name: 'Productos', exact: true }),
   ).toBeVisible();
-  await expect(page.locator('.context').first()).toContainText(
+  await expect(products.locator('.context')).toContainText(
     'Sucursal Principal · Bodega Principal · Caja Principal',
   );
+  const viewportWidth = page.viewportSize()?.width ?? 0;
+  for (const regionName of [
+    'Productos',
+    'Existencias reales',
+    'Punto de venta',
+    'Historial de ventas',
+  ]) {
+    const bounds = await page.getByRole('region', { name: regionName, exact: true }).boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewportWidth + 1);
+  }
   const coreNavigation = page.getByRole('navigation', { name: 'Módulos principales' });
   const productLink = coreNavigation.getByRole('link', { name: 'Productos' });
   const inventoryLink = coreNavigation.getByRole('link', { name: 'Inventario' });
@@ -94,6 +106,7 @@ test('logs in, reaches onboarding and restores the session after reload', async 
   await products.locator('#barcode').fill('7501234567890');
   await products.locator('#categoryName').fill('Abarrotes');
   await products.locator('#brandName').fill('Casa');
+  await products.locator('#quantityPrecision').fill('3');
   await products.locator('#cost').fill('-1');
   await products.locator('#price').fill('119.90');
   await products.getByRole('button', { name: 'Crear producto' }).click();
@@ -240,18 +253,20 @@ test('logs in, reaches onboarding and restores the session after reload', async 
 
   await page.reload();
   await expect(page).toHaveURL(/\/app$/);
-  await expect(page.locator('.context').first()).toContainText(
+  await expect(products.locator('.context')).toContainText(
     'Sucursal Principal · Bodega Principal · Caja Principal',
   );
 
   const refresh = await page.request.post('http://localhost:3000/api/v1/auth/sessions/refresh');
   expect(refresh.status()).toBe(200);
   await page.reload();
-  await expect(page.locator('.context').first()).toContainText('Caja Principal');
+  await expect(products.locator('.context')).toContainText('Caja Principal');
 
   const secondTab = await context.newPage();
   await secondTab.goto('/app');
-  await expect(secondTab.locator('.context').first()).toContainText('Caja Principal');
+  await expect(
+    secondTab.getByRole('region', { name: 'Productos', exact: true }).locator('.context'),
+  ).toContainText('Caja Principal');
 
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
   await expect(page).toHaveURL(/\/login$/);

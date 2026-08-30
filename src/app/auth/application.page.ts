@@ -106,6 +106,10 @@ import { ErpIntegrationPanelComponent } from '../integrations/erp-integration-pa
 import { PspPanelComponent } from '../integrations/psp-panel.component';
 import { AccountingPanelComponent } from '../integrations/accounting-panel.component';
 import { WhatsappPanelComponent } from '../integrations/whatsapp-panel.component';
+import { ApplicationInventoryStylesComponent } from './application-inventory-styles.component';
+import { ApplicationCatalogStylesComponent } from './application-catalog-styles.component';
+import { ApplicationPosStylesComponent } from './application-pos-styles.component';
+import { ApplicationSalesStylesComponent } from './application-sales-styles.component';
 
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const POSITIVE_MONEY_PATTERN = /^(?:[1-9]\d{0,11}(?:\.\d{1,2})?|0\.(?:0[1-9]|[1-9]\d?))$/;
@@ -136,6 +140,7 @@ type PosSaleInput = Parameters<PosApiService['createSale']>[0];
 
 @Component({
   selector: 'app-application-page',
+  host: { class: 'application-page' },
   imports: [
     DatePipe,
     ReactiveFormsModule,
@@ -176,6 +181,10 @@ type PosSaleInput = Parameters<PosApiService['createSale']>[0];
     PspPanelComponent,
     AccountingPanelComponent,
     WhatsappPanelComponent,
+    ApplicationInventoryStylesComponent,
+    ApplicationCatalogStylesComponent,
+    ApplicationPosStylesComponent,
+    ApplicationSalesStylesComponent,
   ],
   templateUrl: './application.page.html',
   styleUrl: './application.page.scss',
