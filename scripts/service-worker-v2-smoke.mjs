@@ -1,15 +1,17 @@
 import assert from 'node:assert/strict';
-import { cp, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 import { createApplicationServer } from '../server.mjs';
 
 const deploymentRoot = await mkdtemp(join(tmpdir(), 'uinventario-v2-sw-'));
+const buildRoot = resolve('dist', 'uinventario-web-v2', 'browser');
 await mkdir(join(deploymentRoot, 'v2'));
-await cp(resolve('dist', 'uinventario-web-v2', 'browser'), join(deploymentRoot, 'v2'), {
+await cp(buildRoot, join(deploymentRoot, 'v2'), {
   recursive: true,
 });
+const builtScripts = (await readdir(buildRoot)).filter((file) => file.endsWith('.js'));
 const application = createApplicationServer({
   rootDirectory: deploymentRoot,
   environment: 'dev',
@@ -39,6 +41,19 @@ try {
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
   await page.locator('ui-root').filter({ hasText: 'Iniciar sesión' }).waitFor();
+  const cachedScripts = await page.evaluate(async () => {
+    const urls = [];
+    for (const cacheName of await caches.keys()) {
+      const cache = await caches.open(cacheName);
+      urls.push(...(await cache.keys()).map((request) => request.url));
+    }
+    return [...new Set(urls.filter((url) => url.endsWith('.js')))];
+  });
+  assert.ok(cachedScripts.length > 0, 'El shell usado debe quedar cacheado.');
+  assert.ok(
+    cachedScripts.length < builtScripts.length,
+    'La instalación inicial no debe descargar todos los chunks de ruta.',
+  );
 
   await closeApplication();
   await page.goto(`${origin}/v2/login`, { waitUntil: 'domcontentloaded' });

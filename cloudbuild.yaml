@@ -20,6 +20,7 @@ steps:
         npm run typecheck
         npm run parity:verify
         npm run architecture:verify
+        npm run performance:verify
         npm run test:strategy
         npm run test:ci
         npm run test:server
