@@ -1,0 +1,131 @@
+<section class="report-view" aria-labelledby="audit-title">
+  <div class="view-heading">
+    <div>
+      <h2 id="audit-title">Auditoría</h2>
+      <p>Traza quién cambió qué, cuándo y desde dónde.</p>
+    </div>
+    @if (canExport) {
+      <button class="export" type="button" [disabled]="downloading()" (click)="exportAudit()">
+        <i
+          class="pi"
+          [class.pi-spin]="downloading()"
+          [class.pi-spinner]="downloading()"
+          [class.pi-download]="!downloading()"
+        ></i>
+        {{ downloading() ? 'Preparando…' : 'Exportar CSV' }}
+      </button>
+    }
+  </div>
+
+  <form class="audit-filters card" [formGroup]="filters" (ngSubmit)="apply()">
+    <label class="wide"
+      >Buscar <input formControlName="q" placeholder="Actor, correlación o entidad"
+    /></label>
+    <label>Acción <input formControlName="action" placeholder="PRODUCT_UPDATED" /></label>
+    <label>Tipo de entidad <input formControlName="entityType" placeholder="PRODUCT" /></label>
+    <label class="wide"
+      >Actor (ID exacto) <input formControlName="actorId" placeholder="UUID del usuario"
+    /></label>
+    <label>Desde <input type="date" formControlName="dateFrom" /></label>
+    <label>Hasta <input type="date" formControlName="dateTo" /></label>
+    <div class="filter-actions">
+      <button class="secondary" type="button" (click)="reset()">Limpiar</button>
+      <button class="primary" type="submit"><i class="pi pi-filter"></i>Aplicar</button>
+    </div>
+  </form>
+
+  @if (error()) {
+    <div class="state error" role="alert">{{ error() }}</div>
+  }
+  @if (notice()) {
+    <p class="notice" role="status">{{ notice() }}</p>
+  }
+
+  @if (loading()) {
+    <div class="state"><i class="pi pi-spin pi-spinner"></i>Consultando auditoría…</div>
+  } @else if (result(); as page) {
+    <div class="audit-summary" aria-label="Estado de auditoría">
+      <span [class.bad]="!page.integrity.valid"
+        ><i
+          class="pi"
+          [class.pi-verified]="page.integrity.valid"
+          [class.pi-exclamation-triangle]="!page.integrity.valid"
+        ></i
+        >{{ page.integrity.valid ? 'Cadena íntegra' : 'Integridad por revisar' }}</span
+      >
+      <span><i class="pi pi-lock"></i>Retención mínima: {{ page.retention.minimumDays }} días</span>
+      <span><i class="pi pi-list"></i>{{ page.pagination.total }} eventos</span>
+    </div>
+
+    <section class="event-list" aria-label="Eventos de auditoría">
+      @for (event of page.events; track event.id) {
+        <article class="audit-event" [class.integrity-error]="!event.integrity.valid">
+          <header>
+            <div class="event-title">
+              <span class="sequence">#{{ event.sequence }}</span>
+              <strong>{{ event.action }}</strong>
+              <span class="badge" [class.good]="event.integrity.valid">{{
+                event.integrity.valid ? 'Íntegro' : 'Revisar'
+              }}</span>
+            </div>
+            <time [attr.datetime]="event.createdAt">{{ event.createdAt | date: 'medium' }}</time>
+          </header>
+          <dl>
+            <div>
+              <dt>Actor</dt>
+              <dd>
+                {{ event.actor.email }}
+                <button class="row-action" type="button" (click)="filterActor(event)">
+                  Filtrar
+                </button>
+              </dd>
+            </div>
+            <div>
+              <dt>Entidad</dt>
+              <dd>{{ event.entityType }} · {{ event.entityId }}</dd>
+            </div>
+            <div>
+              <dt>Origen</dt>
+              <dd>{{ event.origin }}</dd>
+            </div>
+            <div>
+              <dt>Correlación</dt>
+              <dd>{{ event.correlationId }}</dd>
+            </div>
+          </dl>
+          <button
+            class="details-toggle"
+            type="button"
+            [attr.aria-expanded]="expandedId() === event.id"
+            (click)="toggleDetails(event.id)"
+          >
+            <i
+              class="pi"
+              [class.pi-chevron-down]="expandedId() !== event.id"
+              [class.pi-chevron-up]="expandedId() === event.id"
+            ></i>
+            {{ expandedId() === event.id ? 'Ocultar cambios' : 'Ver cambios' }}
+          </button>
+          @if (expandedId() === event.id) {
+            <div class="change-detail">
+              <section>
+                <h3>Antes</h3>
+                <pre>{{ json(event.before) }}</pre>
+              </section>
+              <section>
+                <h3>Después</h3>
+                <pre>{{ json(event.after) }}</pre>
+              </section>
+            </div>
+          }
+        </article>
+      } @empty {
+        <div class="empty">
+          <i class="pi pi-search"></i><strong>Sin eventos</strong
+          ><span>No hay actividad con estos filtros.</span>
+        </div>
+      }
+    </section>
+    <ui-report-pagination [pagination]="page.pagination" (pageChange)="goToPage($event)" />
+  }
+</section>

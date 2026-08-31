@@ -6,6 +6,10 @@ export function csvBlob(headers: readonly string[], rows: readonly (readonly unk
 }
 
 export function downloadCsv(blob: Blob, filename: string): void {
+  downloadFile(blob, filename);
+}
+
+export function downloadFile(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;

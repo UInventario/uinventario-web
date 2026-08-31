@@ -47,4 +47,23 @@ header span {
   .reports-workspace {
     padding: 0.85rem;
   }
+  .report-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.3rem;
+    overflow: visible;
+    border-bottom: 0;
+  }
+  .report-tabs a {
+    min-width: 0;
+    padding: 0.65rem 0.35rem;
+    overflow-wrap: anywhere;
+    border: 1px solid var(--p-surface-200);
+    border-radius: var(--radius-md);
+    text-align: center;
+  }
+  .report-tabs a.active {
+    border-color: var(--p-primary-400);
+    background: var(--p-primary-50);
+  }
 }

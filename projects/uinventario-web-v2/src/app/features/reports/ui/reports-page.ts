@@ -17,4 +17,6 @@ export class ReportsPage {
   protected readonly canProfitability = computed(() =>
     this.authorization.hasAll(['SALES_MANAGE', 'INVENTORY_VALUATION_MANAGE']),
   );
+  protected readonly canAudit = computed(() => this.authorization.has('AUDIT_VIEW'));
+  protected readonly canExportData = computed(() => this.authorization.has('AUDIT_EXPORT'));
 }
