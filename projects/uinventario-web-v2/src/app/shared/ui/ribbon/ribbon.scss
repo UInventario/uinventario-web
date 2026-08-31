@@ -49,8 +49,16 @@
   display: flex;
   gap: calc(var(--spacing) * 2);
   min-height: 6.5rem;
+  overscroll-behavior-inline: contain;
   overflow-x: auto;
   padding: calc(var(--spacing) * 2);
+  scroll-padding-inline: calc(var(--spacing) * 2);
+  scrollbar-gutter: stable;
+
+  &:focus-visible {
+    outline: 2px solid var(--p-primary-500);
+    outline-offset: -2px;
+  }
 }
 
 .ribbon-group {
@@ -108,4 +116,34 @@
   font-size: 0.625rem;
   padding-top: var(--spacing);
   text-align: center;
+}
+
+.ribbon-scroll-hint {
+  display: none;
+}
+
+@media (max-width: 48rem) {
+  .ribbon-panel {
+    padding-right: calc(var(--spacing) * 5);
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+  }
+
+  .ribbon-command {
+    scroll-snap-align: start;
+  }
+
+  .ribbon-panel:has(.ribbon-command:nth-child(5)) + .ribbon-scroll-hint {
+    align-items: center;
+    background: var(--p-surface-50);
+    border-top: 1px solid var(--p-surface-200);
+    color: var(--p-text-muted-color);
+    display: flex;
+    font-size: 0.625rem;
+    font-weight: 650;
+    gap: var(--spacing);
+    justify-content: flex-end;
+    min-height: 1.5rem;
+    padding-inline: calc(var(--spacing) * 2);
+  }
 }

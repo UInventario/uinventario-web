@@ -77,7 +77,9 @@ async function mockBase(
   });
 }
 
-test('keeps catalog read-only when product management permission is absent', async ({ page }) => {
+test('keeps catalog read-only when product management permission is absent', async ({
+  page,
+}, testInfo) => {
   await mockBase(
     page,
     async (route, path) => {
@@ -109,6 +111,12 @@ test('keeps catalog read-only when product management permission is absent', asy
   await expect(page.getByRole('button', { name: 'Editar Café molido' })).toHaveCount(0);
   await expectViewportFit(page, 'Catálogo de solo lectura');
   await expectAccessible(page, 'Catálogo de solo lectura');
+  if ((page.viewportSize()?.width ?? 0) <= 768) {
+    await page.screenshot({
+      path: testInfo.outputPath('uin-215-catalog-mobile.png'),
+      fullPage: true,
+    });
+  }
 });
 
 test('filters, creates, edits and safely retires products', async ({ page }) => {

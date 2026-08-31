@@ -9,7 +9,10 @@ import { mockPos, product } from './pos.fixtures';
 
 test('supports touch, reader keyboard and non-blocking search while quoting the cart', async ({
   page,
-}) => {
+}, testInfo) => {
+  if (testInfo.project.name === 'mobile-chromium') {
+    await page.setViewportSize({ width: 393, height: 851 });
+  }
   const writes: Array<Array<Record<string, unknown>>> = [];
   await mockPos(page, { quoteWrites: writes });
   await page.goto('./ventas/pos');
@@ -41,6 +44,7 @@ test('supports touch, reader keyboard and non-blocking search while quoting the 
   );
   await expectAccessible(page, 'POS con carrito');
   if ((page.viewportSize()?.width ?? 0) <= 768) {
+    expect(page.viewportSize()).toEqual({ width: 393, height: 851 });
     await expectNoOverlap(
       page,
       '.context-strip strong',
@@ -53,6 +57,10 @@ test('supports touch, reader keyboard and non-blocking search while quoting the 
       '.cart-pane > header > div:last-child',
       'Título y acciones del carrito',
     );
+    await page.screenshot({
+      path: testInfo.outputPath('uin-215-pos-mobile.png'),
+      fullPage: true,
+    });
   }
 });
 

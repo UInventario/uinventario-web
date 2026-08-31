@@ -30,6 +30,10 @@ describe('Ribbon', () => {
 
     const element = fixture.nativeElement as HTMLElement;
     expect(element.querySelector('[role="tabpanel"]')?.textContent).toContain('Nuevo');
+    expect(element.querySelector('[role="tabpanel"]')?.getAttribute('tabindex')).toBe('0');
+    expect(element.querySelector('[role="tabpanel"]')?.getAttribute('aria-label')).toContain(
+      'Desplaza horizontalmente',
+    );
     expect(element.querySelector('[aria-selected="true"]')?.textContent).toContain('Catálogo');
   });
 
