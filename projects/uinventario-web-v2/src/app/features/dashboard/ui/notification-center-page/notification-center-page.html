@@ -1,0 +1,252 @@
+<section class="notifications" aria-labelledby="notifications-title">
+  <div class="section-heading">
+    <div>
+      <p>Centro de atención</p>
+      <h2 id="notifications-title">Notificaciones</h2>
+      <span>Alertas operativas deduplicadas y vinculadas con su origen.</span>
+    </div>
+    @if (panel() === 'inbox') {
+      <div class="heading-actions">
+        <span class="unread-count">{{ unread() }} sin leer</span>
+        <button class="secondary" type="button" [disabled]="acting()" (click)="refresh()">
+          <i [class]="acting() ? 'pi pi-spin pi-spinner' : 'pi pi-refresh'"></i>Conciliar
+        </button>
+      </div>
+    }
+  </div>
+
+  @if (canManage()) {
+    <nav class="panel-tabs" aria-label="Vistas de notificaciones">
+      <button type="button" [class.active]="panel() === 'inbox'" (click)="selectPanel('inbox')">
+        Bandeja
+      </button>
+      <button
+        type="button"
+        [class.active]="panel() === 'settings'"
+        (click)="selectPanel('settings')"
+      >
+        Reglas y entregas
+      </button>
+    </nav>
+  }
+
+  @if (error()) {
+    <p class="notice error" role="alert">{{ error() }}</p>
+  }
+  @if (notice()) {
+    <p class="notice success" role="status">{{ notice() }}</p>
+  }
+
+  @if (panel() === 'inbox') {
+    <form class="filters" [formGroup]="filters" (ngSubmit)="applyFilters()">
+      <label>
+        <span>Tipo de evento</span>
+        <select formControlName="type">
+          <option value="">Todos</option>
+          @for (type of eventTypes; track type) {
+            <option [value]="type">{{ eventLabel(type) }}</option>
+          }
+        </select>
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" formControlName="unreadOnly" />Sólo pendientes de lectura
+      </label>
+      <button class="primary" type="submit">Aplicar filtros</button>
+      <button
+        class="secondary"
+        type="button"
+        [disabled]="unread() === 0 || acting()"
+        (click)="markAllRead()"
+      >
+        Marcar todas leídas
+      </button>
+    </form>
+
+    @if (loading()) {
+      <div class="state" role="status">
+        <i class="pi pi-spin pi-spinner"></i>Cargando notificaciones…
+      </div>
+    } @else if (!items().length) {
+      <div class="state healthy">
+        <i class="pi pi-check-circle"></i>
+        <h3>Todo al día</h3>
+        <p>No hay notificaciones que coincidan con estos filtros.</p>
+      </div>
+    } @else {
+      <div class="notification-list" aria-label="Bandeja de notificaciones">
+        @for (item of items(); track item.id) {
+          <article [class.unread]="!item.readAt" [class.critical]="item.severity === 'CRITICAL'">
+            <span class="severity" [attr.data-severity]="item.severity">
+              <i
+                [class]="item.severity === 'CRITICAL' ? 'pi pi-exclamation-triangle' : 'pi pi-bell'"
+              ></i>
+            </span>
+            <div class="notification-copy">
+              <span class="event-type">{{ eventLabel(item.eventType) }} · {{ item.severity }}</span>
+              <strong>{{ item.title }}</strong>
+              <p>{{ item.body }}</p>
+              <small>
+                {{ item.sourceOccurredAt | date: 'dd/MM/yyyy HH:mm' }}
+                @if (item.digestCount > 1) {
+                  · {{ item.digestCount }} eventos agrupados
+                }
+              </small>
+            </div>
+            <div class="notification-actions">
+              <a
+                [routerLink]="destination(item.eventType).commands"
+                [queryParams]="destination(item.eventType).queryParams || null"
+              >
+                {{ destination(item.eventType).label }}<i class="pi pi-arrow-up-right"></i>
+              </a>
+              @if (!item.readAt) {
+                <button
+                  class="secondary compact"
+                  type="button"
+                  [disabled]="acting()"
+                  (click)="markRead(item)"
+                >
+                  Marcar leída
+                </button>
+              } @else {
+                <span class="read-state"><i class="pi pi-check"></i>Leída</span>
+              }
+            </div>
+          </article>
+        }
+      </div>
+      <p class="result-count">{{ total() }} notificación(es) encontradas.</p>
+    }
+  } @else {
+    @if (loading()) {
+      <div class="state" role="status">
+        <i class="pi pi-spin pi-spinner"></i>Cargando configuración…
+      </div>
+    } @else {
+      <section class="settings" aria-labelledby="rules-title">
+        <div class="subheading">
+          <div>
+            <h3 id="rules-title">Destinatarios y canales</h3>
+            <p>In-app funciona sin proveedor; email y push usan los adaptadores configurados.</p>
+          </div>
+          <button class="primary" type="button" [disabled]="acting()" (click)="savePreferences()">
+            Guardar reglas
+          </button>
+        </div>
+        <div class="new-rule">
+          <label
+            ><span>Destinatario</span
+            ><select
+              [value]="newRecipientId()"
+              (change)="newRecipientId.set($any($event.target).value)"
+            >
+              @for (recipient of recipients(); track recipient.id) {
+                <option [value]="recipient.id">{{ recipient.email }}</option>
+              }
+            </select></label
+          >
+          <label
+            ><span>Evento</span
+            ><select
+              [value]="newEventType()"
+              (change)="newEventType.set($any($event.target).value)"
+            >
+              @for (type of eventTypes; track type) {
+                <option [value]="type">{{ eventLabel(type) }}</option>
+              }
+            </select></label
+          >
+          <button class="secondary" type="button" (click)="addPreference()">Añadir regla</button>
+        </div>
+        <div class="rule-list">
+          @for (preference of preferences(); track preference.id) {
+            <article>
+              <div class="rule-name">
+                <strong>{{ preference.recipient.email }}</strong
+                ><span>{{ eventLabel(preference.eventType) }}</span>
+              </div>
+              <label
+                ><input
+                  type="checkbox"
+                  [checked]="preference.enabled"
+                  (change)="setEnabled(preference.id, $any($event.target).checked)"
+                />Activa</label
+              >
+              <label
+                ><input
+                  type="checkbox"
+                  [checked]="preference.channels.inApp"
+                  (change)="setChannel(preference.id, 'inApp', $any($event.target).checked)"
+                />In-app</label
+              >
+              <label
+                ><input
+                  type="checkbox"
+                  [checked]="preference.channels.email"
+                  (change)="setChannel(preference.id, 'email', $any($event.target).checked)"
+                />Email</label
+              >
+              <label
+                ><input
+                  type="checkbox"
+                  [checked]="preference.channels.push"
+                  (change)="setChannel(preference.id, 'push', $any($event.target).checked)"
+                />Push</label
+              >
+              <select
+                aria-label="Frecuencia"
+                [value]="preference.frequency"
+                (change)="setFrequency(preference.id, $any($event.target).value)"
+              >
+                <option value="IMMEDIATE">Inmediata</option>
+                <option value="DAILY_DIGEST">Resumen diario</option>
+              </select>
+              <button
+                class="icon-button"
+                type="button"
+                aria-label="Quitar regla"
+                (click)="removePreference(preference.id)"
+              >
+                <i class="pi pi-trash"></i>
+              </button>
+            </article>
+          }
+        </div>
+      </section>
+
+      <section class="deliveries" aria-labelledby="deliveries-title">
+        <div class="subheading">
+          <div>
+            <h3 id="deliveries-title">Entregas externas</h3>
+            <p>Seguimiento de email y push, sin exponer credenciales del proveedor.</p>
+          </div>
+          <button class="secondary" type="button" [disabled]="acting()" (click)="retryDeliveries()">
+            Reintentar fallidas
+          </button>
+        </div>
+        @if (!deliveries().length) {
+          <p class="empty-inline">No hay entregas externas registradas.</p>
+        } @else {
+          <div class="delivery-list">
+            @for (delivery of deliveries(); track delivery.id) {
+              <article [class.failed]="delivery.status === 'FAILED'">
+                <span class="channel"
+                  ><i [class]="delivery.channel === 'EMAIL' ? 'pi pi-envelope' : 'pi pi-mobile'"></i
+                  >{{ delivery.channel }}</span
+                >
+                <div>
+                  <strong>{{ delivery.title }}</strong
+                  ><small>{{ delivery.recipient.email }}</small>
+                </div>
+                <span>{{ delivery.status }} · intento {{ delivery.attemptCount }}/5</span>
+                <small>{{
+                  delivery.deliveredAt || delivery.nextAttemptAt | date: 'dd/MM/yyyy HH:mm'
+                }}</small>
+              </article>
+            }
+          </div>
+        }
+      </section>
+    }
+  }
+</section>

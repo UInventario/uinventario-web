@@ -1,0 +1,135 @@
+<section class="forecast" aria-labelledby="forecast-title">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">Planeación asistida</p>
+      <h2 id="forecast-title">Pronóstico de demanda</h2>
+      <span>Estima necesidades de reposición usando ventas históricas de la sucursal activa.</span>
+    </div>
+    <form class="forecast-action" (submit)="generate(); $event.preventDefault()">
+      <label>
+        <span>Horizonte</span>
+        <select [value]="horizon()" (change)="selectHorizon($any($event.target).value)">
+          <option value="7">7 días</option>
+          <option value="14">14 días</option>
+          <option value="30">30 días</option>
+        </select>
+      </label>
+      <button class="primary" type="submit" [disabled]="generating()">
+        <i [class]="generating() ? 'pi pi-spin pi-spinner' : 'pi pi-sparkles'"></i>
+        {{ generating() ? 'Calculando…' : 'Generar pronóstico' }}
+      </button>
+    </form>
+  </div>
+
+  <aside class="explanation" aria-label="Alcance del pronóstico">
+    <i class="pi pi-info-circle"></i>
+    <div>
+      <strong>Es una recomendación, no una compra automática.</strong>
+      <span>UInventario nunca crea ni envía órdenes a proveedores desde este cálculo.</span>
+    </div>
+  </aside>
+
+  @if (error()) {
+    <p class="notice error" role="alert">{{ error() }}</p>
+  }
+
+  @if (loading()) {
+    <div class="state" role="status"><i class="pi pi-spin pi-spinner"></i>Cargando análisis…</div>
+  } @else if (!result()) {
+    <div class="state">
+      <i class="pi pi-chart-line"></i>
+      <h3>Aún no hay un pronóstico</h3>
+      <p>Genera el primer cálculo cuando quieras revisar la demanda futura.</p>
+    </div>
+  } @else if (result(); as forecast) {
+    <div class="summary-grid">
+      <article>
+        <span>Productos analizables</span>
+        <strong>{{ forecast.summary.sufficient }}</strong>
+        <small>con historial suficiente</small>
+      </article>
+      <article>
+        <span>Información insuficiente</span>
+        <strong>{{ forecast.summary.insufficient }}</strong>
+        <small>sin una recomendación confiable</small>
+      </article>
+      <article [class.warning]="forecast.summary.driftWarnings > 0">
+        <span>Cambios de demanda</span>
+        <strong>{{ forecast.summary.driftWarnings }}</strong>
+        <small>alertas de drift</small>
+      </article>
+      <article>
+        <span>Horizonte</span>
+        <strong>{{ forecast.horizonDays }}</strong>
+        <small>días proyectados</small>
+      </article>
+    </div>
+
+    <div class="result-heading">
+      <div>
+        <h3>Reposición sugerida</h3>
+        <p>Ordenada por cantidad recomendada; considera existencias disponibles.</p>
+      </div>
+      <span>{{ forecast.branch.name }} · {{ forecast.branch.timezone }}</span>
+    </div>
+
+    @if (!reorderItems().length) {
+      <div class="state compact">
+        <i class="pi pi-check-circle"></i>
+        <h3>No hay productos con recomendación</h3>
+        <p>Revisa los productos con información insuficiente antes de tomar decisiones.</p>
+      </div>
+    } @else {
+      <div class="forecast-table" role="table" aria-label="Pronóstico por producto">
+        <div class="forecast-head" role="row">
+          <span role="columnheader">Producto</span>
+          <span role="columnheader">Disponible</span>
+          <span role="columnheader">Demanda esperada</span>
+          <span role="columnheader">Intervalo 80%</span>
+          <span role="columnheader">Reposición sugerida</span>
+          <span role="columnheader">Calidad</span>
+        </div>
+        @for (item of reorderItems(); track item.product.id) {
+          <article class="forecast-row" role="row">
+            <span class="product" role="cell"
+              ><strong>{{ item.product.name }}</strong
+              ><small>{{ item.product.sku }}</small></span
+            >
+            <span role="cell">{{ item.forecast!.availableQuantity | number: '1.0-3' }}</span>
+            <span role="cell">{{ item.forecast!.expectedDemand | number: '1.0-2' }}</span>
+            <span role="cell"
+              >{{ item.forecast!.interval.lower | number: '1.0-2' }} —
+              {{ item.forecast!.interval.upper | number: '1.0-2' }}</span
+            >
+            <strong class="reorder" role="cell">{{
+              item.forecast!.suggestedReorderQuantity | number: '1.0-3'
+            }}</strong>
+            <span
+              class="quality"
+              role="cell"
+              [class.warning]="item.quality.drift.status === 'WARNING'"
+            >
+              {{ item.quality.drift.status === 'WARNING' ? 'Demanda cambiante' : 'Estable' }}
+              <small>MAE {{ item.quality.backtest.meanAbsoluteError ?? '—' }}</small>
+            </span>
+          </article>
+        }
+      </div>
+    }
+
+    <details class="methodology">
+      <summary>Cómo se calculó y qué debes considerar</summary>
+      <div>
+        <p>
+          Modelo {{ forecast.model }} · datos al {{ forecast.asOfDate }} · generado
+          {{ forecast.generatedAt | date: 'dd/MM/yyyy HH:mm' }}.
+        </p>
+        <ul>
+          @for (assumption of forecast.assumptions; track assumption) {
+            <li>{{ assumption }}</li>
+          }
+        </ul>
+      </div>
+    </details>
+  }
+</section>

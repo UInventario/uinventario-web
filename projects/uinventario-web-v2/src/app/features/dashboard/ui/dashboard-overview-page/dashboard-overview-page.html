@@ -1,0 +1,155 @@
+<section class="overview" aria-labelledby="overview-title">
+  <div class="overview-heading">
+    <div>
+      <h2 id="overview-title">Resumen operativo</h2>
+      <p>Indicadores compactos del periodo y contexto activos.</p>
+    </div>
+    <button class="secondary" type="button" (click)="refresh()">
+      <i class="pi pi-refresh"></i>Actualizar
+    </button>
+  </div>
+
+  <form class="toolbar" [formGroup]="filters" (ngSubmit)="applyPeriod()">
+    <label>
+      <span>Desde</span>
+      <input type="date" formControlName="dateFrom" />
+    </label>
+    <label>
+      <span>Hasta</span>
+      <input type="date" formControlName="dateTo" />
+    </label>
+    <button class="primary" type="submit">Aplicar periodo</button>
+    <details class="widget-picker">
+      <summary><i class="pi pi-sliders-h"></i>Widgets</summary>
+      <fieldset>
+        <legend>Indicadores visibles</legend>
+        @for (option of widgetOptions(); track option.id) {
+          <label>
+            <input
+              type="checkbox"
+              [checked]="widgetEnabled(option.id)"
+              (change)="toggleWidget(option.id, $any($event.target).checked)"
+            />
+            {{ option.label }}
+          </label>
+        }
+      </fieldset>
+    </details>
+  </form>
+
+  @if (periodError()) {
+    <p class="notice error" role="alert">{{ periodError() }}</p>
+  }
+
+  @if (!visibleWidgets().length) {
+    <div class="empty-state">
+      <i class="pi pi-th-large"></i>
+      <h3>No hay widgets visibles</h3>
+      <p>Abre Widgets y elige los indicadores que necesitas.</p>
+    </div>
+  } @else {
+    <div class="widget-grid">
+      @if (widgetEnabled('sales') && widgetAvailable('sales')) {
+        <article class="metric-card sales-card" [attr.aria-busy]="widgetLoading('sales')">
+          <span class="metric-icon"><i class="pi pi-shopping-cart"></i></span>
+          <div class="metric-copy">
+            <span>Ventas netas</span><small>{{ query().dateFrom }} — {{ query().dateTo }}</small>
+          </div>
+          @if (widgetLoading('sales')) {
+            <strong class="skeleton">Cargando…</strong>
+          } @else if (errors().sales) {
+            <p class="card-error" role="alert">{{ errors().sales }}</p>
+          } @else {
+            <strong>{{ sales()?.net || '0.00' }}</strong>
+            <p>{{ sales()?.completed || 0 }} venta(s) completada(s)</p>
+          }
+          <a routerLink="/reportes/ventas">Ver reporte <i class="pi pi-arrow-right"></i></a>
+        </article>
+      }
+
+      @if (widgetEnabled('stock') && widgetAvailable('stock')) {
+        <article class="metric-card stock-card" [attr.aria-busy]="widgetLoading('stock')">
+          <span class="metric-icon"><i class="pi pi-box"></i></span>
+          <div class="metric-copy">
+            <span>Alertas de stock</span><small>Existencia disponible</small>
+          </div>
+          @if (widgetLoading('stock')) {
+            <strong class="skeleton">Cargando…</strong>
+          } @else if (errors().stock) {
+            <p class="card-error" role="alert">{{ errors().stock }}</p>
+          } @else {
+            <strong>{{ stock()?.low || 0 }}</strong>
+            <p>{{ stock()?.outOfStock || 0 }} producto(s) agotado(s)</p>
+          }
+          <a routerLink="/inventario/control" [queryParams]="{ view: 'alerts' }"
+            >Resolver alertas <i class="pi pi-arrow-right"></i
+          ></a>
+        </article>
+      }
+
+      @if (widgetEnabled('purchases') && widgetAvailable('purchases')) {
+        <article class="metric-card purchase-card" [attr.aria-busy]="widgetLoading('purchases')">
+          <span class="metric-icon"><i class="pi pi-truck"></i></span>
+          <div class="metric-copy">
+            <span>Órdenes de compra</span><small>Total operativo</small>
+          </div>
+          @if (widgetLoading('purchases')) {
+            <strong class="skeleton">Cargando…</strong>
+          } @else if (errors().purchases) {
+            <p class="card-error" role="alert">{{ errors().purchases }}</p>
+          } @else {
+            <strong>{{ purchases() || 0 }}</strong>
+            <p>órdenes registradas</p>
+          }
+          <a routerLink="/compras/ordenes">Gestionar compras <i class="pi pi-arrow-right"></i></a>
+        </article>
+      }
+
+      @if (widgetEnabled('forecast') && widgetAvailable('forecast')) {
+        <article class="metric-card forecast-card" [attr.aria-busy]="widgetLoading('forecast')">
+          <span class="metric-icon"><i class="pi pi-chart-line"></i></span>
+          <div class="metric-copy">
+            <span>Pronóstico</span><small>Reposición sugerida, no automática</small>
+          </div>
+          @if (widgetLoading('forecast')) {
+            <strong class="skeleton">Cargando…</strong>
+          } @else if (errors().forecast) {
+            <p class="card-error" role="alert">{{ errors().forecast }}</p>
+          } @else if (forecast(); as result) {
+            <strong>{{ result.summary.sufficient }}</strong>
+            <p>{{ result.summary.driftWarnings }} alerta(s) de cambio de demanda</p>
+          } @else {
+            <strong>—</strong>
+            <p>Aún no hay un cálculo disponible.</p>
+          }
+          <a routerLink="/dashboard/pronostico">Abrir análisis <i class="pi pi-arrow-right"></i></a>
+        </article>
+      }
+
+      @if (widgetEnabled('notifications') && widgetAvailable('notifications')) {
+        <article
+          class="metric-card notification-card"
+          [attr.aria-busy]="widgetLoading('notifications')"
+        >
+          <span class="metric-icon"><i class="pi pi-bell"></i></span>
+          <div class="metric-copy"><span>Notificaciones</span><small>Bandeja personal</small></div>
+          @if (widgetLoading('notifications')) {
+            <strong class="skeleton">Cargando…</strong>
+          } @else if (errors().notifications) {
+            <p class="card-error" role="alert">{{ errors().notifications }}</p>
+          } @else {
+            <strong>{{ unread() || 0 }}</strong>
+            <p>pendiente(s) de lectura</p>
+          }
+          <a routerLink="/dashboard/notificaciones"
+            >Abrir bandeja <i class="pi pi-arrow-right"></i
+          ></a>
+        </article>
+      }
+    </div>
+  }
+
+  @if (updatedAt()) {
+    <p class="updated"><i class="pi pi-clock"></i>Indicadores consultados en esta sesión.</p>
+  }
+</section>

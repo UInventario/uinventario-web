@@ -46,7 +46,7 @@ async function onboard(page: Page, company: string): Promise<void> {
   await page.getByRole('button', { name: 'Guardar y continuar' }).click();
   await expect(page.getByRole('heading', { name: 'Agrega tu primera caja' })).toBeVisible();
   await page.getByRole('button', { name: 'Finalizar configuraci\u00f3n' }).click();
-  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page).toHaveURL(/\/dashboard\/resumen\?/);
 }
 
 async function logout(page: Page): Promise<void> {
