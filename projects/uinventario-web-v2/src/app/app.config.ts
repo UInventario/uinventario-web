@@ -14,6 +14,8 @@ import { routes } from './app.routes';
 import { apiContextInterceptor } from './core/api/api-context.interceptor';
 import { apiResilienceInterceptor } from './core/api/api-resilience.interceptor';
 import { ApiRuntimeConfig } from './core/api/api-runtime-config';
+import { DesktopPeripheralPort } from './core/desktop/desktop-peripheral.port';
+import { WebDesktopPeripheralAdapter } from './core/desktop/web-desktop-peripheral.adapter';
 import { sessionRefreshInterceptor } from './core/session/session-refresh.interceptor';
 import { UINVENTARIO_PRESET } from './core/theme/uinventario-preset';
 
@@ -33,6 +35,8 @@ export const appConfig: ApplicationConfig = {
       ]),
     ),
     provideAppInitializer(() => inject(ApiRuntimeConfig).load()),
+    WebDesktopPeripheralAdapter,
+    { provide: DesktopPeripheralPort, useExisting: WebDesktopPeripheralAdapter },
     provideRouter(routes),
     providePrimeNG({
       ripple: true,

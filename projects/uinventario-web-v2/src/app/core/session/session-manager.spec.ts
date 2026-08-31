@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { Subject, firstValueFrom, of, throwError } from 'rxjs';
 import { ApiError } from '../api/api-error';
 import { ApiRequestContext } from '../api/api-request-context';
+import { DesktopPeripheralPort } from '../desktop/desktop-peripheral.port';
 import { OfflineSessionSnapshot } from '../offline/offline.models';
 import { OfflineStore } from '../offline/offline-store';
 import { SessionApi } from './session-api';
@@ -40,6 +41,7 @@ describe('SessionManager', () => {
     redirectToLogin: vi.fn(),
     openAuthorizedWorkspace: vi.fn(),
   };
+  const desktop = { notifySessionClosed: vi.fn() };
   const offline = {
     clearAll: vi.fn(() => Promise.resolve()),
     restoreSession: vi.fn<() => Promise<OfflineSessionSnapshot | null>>(() =>
@@ -57,6 +59,7 @@ describe('SessionManager', () => {
         { provide: SessionApi, useValue: api },
         { provide: SessionNavigation, useValue: navigation },
         { provide: OfflineStore, useValue: offline },
+        { provide: DesktopPeripheralPort, useValue: desktop },
       ],
     });
   });
@@ -111,6 +114,7 @@ describe('SessionManager', () => {
     expect(state.session()).toBeNull();
     expect(context.tenantId()).toBeNull();
     expect(offline.clearAll).toHaveBeenCalled();
+    expect(desktop.notifySessionClosed).toHaveBeenCalledOnce();
     expect(navigation.redirectToLogin).toHaveBeenCalledWith(null, false);
   });
 

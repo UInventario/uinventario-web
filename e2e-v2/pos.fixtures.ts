@@ -209,6 +209,7 @@ export interface MockOptions {
   register?: { current: string };
   quoteWrites?: Array<Array<Record<string, unknown>>>;
   quoteRequests?: Array<Record<string, unknown>>;
+  drawerRequests?: Array<Record<string, unknown>>;
 }
 
 export async function mockPos(page: Page, options: MockOptions = {}): Promise<void> {
@@ -240,6 +241,33 @@ export async function mockPos(page: Page, options: MockOptions = {}): Promise<vo
           openingAmount: '1000.00',
           currency: 'MXN',
           openedAt: '2026-08-30T15:00:00.000Z',
+        },
+        meta: { apiVersion: '1' },
+      });
+      return;
+    }
+    if (path === '/pos/payment-options') {
+      await json(route, {
+        data: {
+          methods: ['CASH', 'CARD', 'TRANSFER', 'VOUCHER'],
+          nonCashProvider: 'SIMULATOR',
+        },
+        meta: { apiVersion: '1' },
+      });
+      return;
+    }
+    if (path === '/pos/peripherals/profile' && route.request().method() === 'GET') {
+      await json(route, {
+        data: {
+          id: 'profile-1',
+          cashRegister: branch.cashRegisters.find(({ id }) => id === register.current),
+          deviceId: 'desktop-device-1',
+          label: 'Terminal principal',
+          adapter: 'SIMULATOR',
+          printerEnabled: true,
+          drawerEnabled: true,
+          autoOpenCashSale: true,
+          updatedAt: '2026-08-31T00:00:00.000Z',
         },
         meta: { apiVersion: '1' },
       });
@@ -356,6 +384,61 @@ export async function mockPos(page: Page, options: MockOptions = {}): Promise<vo
       options.quoteWrites?.push(body.lines);
       options.quoteRequests?.push(body);
       await json(route, quoteFor(body.lines, body));
+      return;
+    }
+    if (path === '/pos/sales/cash' && route.request().method() === 'POST') {
+      const body = route.request().postDataJSON() as {
+        lines: Array<Record<string, unknown>>;
+        cashReceived: string;
+      };
+      const quote = quoteFor(body.lines).data;
+      await json(route, {
+        data: {
+          id: 'sale-desktop-1',
+          receiptNumber: 'V-000001',
+          status: 'COMPLETED',
+          currency: quote.currency,
+          customer: null,
+          loyalty: null,
+          totals: quote.totals,
+          payments: [
+            {
+              id: 'payment-1',
+              method: 'CASH',
+              status: 'COMPLETED',
+              amountReceived: body.cashReceived,
+              amountApplied: quote.totals.total,
+              change: (Number(body.cashReceived) - Number(quote.totals.total)).toFixed(2),
+              reference: null,
+              provider: 'INTERNAL',
+              authorizationCode: null,
+            },
+          ],
+          credit: null,
+          createdAt: '2026-08-31T00:00:00.000Z',
+        },
+        meta: { apiVersion: '1' },
+      });
+      return;
+    }
+    if (path === '/pos/peripherals/cash-drawer/openings' && route.request().method() === 'POST') {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      options.drawerRequests?.push(body);
+      await json(route, {
+        data: {
+          id: 'drawer-operation-1',
+          action: 'OPEN_DRAWER',
+          trigger: body['trigger'],
+          status: 'COMPLETED',
+          attemptCount: 1,
+          errorCode: null,
+          saleId: body['saleId'] ?? null,
+          deviceId: 'desktop-device-1',
+          createdAt: '2026-08-31T00:00:00.000Z',
+          completedAt: '2026-08-31T00:00:00.100Z',
+        },
+        meta: { apiVersion: '1', idempotentReplay: false },
+      });
       return;
     }
     throw new Error(`Request no simulada: ${route.request().method()} ${path}`);

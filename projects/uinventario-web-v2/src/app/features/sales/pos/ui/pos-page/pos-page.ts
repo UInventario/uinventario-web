@@ -25,6 +25,7 @@ import {
   readPendingSuspendedSale,
 } from '../../application/pos-cart.persistence';
 import { PosFacade } from '../../application/pos.facade';
+import { PosDesktopCoordinator } from '../../application/pos-desktop.coordinator';
 import {
   CashRegisterShift,
   PosCartLine,
@@ -38,6 +39,7 @@ import {
 import { PosBenefitsDialog } from '../pos-benefits-dialog/pos-benefits-dialog';
 import { PosCheckoutDialog } from '../pos-checkout-dialog/pos-checkout-dialog';
 import { PosLineDialog } from '../pos-line-dialog/pos-line-dialog';
+import { PosPeripheralDialog } from '../pos-peripheral-dialog/pos-peripheral-dialog';
 import { PosScannerDialog } from '../pos-scanner-dialog/pos-scanner-dialog';
 import { PosSuspendDialog } from '../pos-suspend-dialog/pos-suspend-dialog';
 
@@ -52,13 +54,20 @@ interface QuoteState {
     PosBenefitsDialog,
     PosCheckoutDialog,
     PosLineDialog,
+    PosPeripheralDialog,
     PosScannerDialog,
     PosSuspendDialog,
     ReactiveFormsModule,
     RouterLink,
   ],
   selector: 'ui-pos-page',
-  styleUrls: ['./pos-page.scss', './pos-cart.scss', './pos-resumed.scss', './pos-responsive.scss'],
+  styleUrls: [
+    './pos-page.scss',
+    './pos-cart.scss',
+    './pos-desktop.scss',
+    './pos-resumed.scss',
+    './pos-responsive.scss',
+  ],
   templateUrl: './pos-page.html',
 })
 export class PosPage implements OnInit {
@@ -72,6 +81,7 @@ export class PosPage implements OnInit {
   private readonly searchInput = viewChild.required<ElementRef<HTMLInputElement>>('searchInput');
 
   protected readonly cart = inject(PosCartStore);
+  protected readonly desktop = inject(PosDesktopCoordinator);
   protected readonly searchForm = new FormBuilder().nonNullable.group({ query: [''] });
   protected readonly products = signal<PosProductPage | null>(null);
   protected readonly searching = signal(true);
@@ -88,6 +98,7 @@ export class PosPage implements OnInit {
   protected readonly editing = signal<PosCartLine | null>(null);
   protected readonly editingNew = signal(false);
   protected readonly benefitsOpen = signal(false);
+  protected readonly peripheralOpen = signal(false);
   protected readonly saleTerms = signal<PosSaleTerms>({ customer: null });
   protected readonly checkout = signal<{
     readonly quote: PosCartQuote;
@@ -108,6 +119,7 @@ export class PosPage implements OnInit {
     this.bindSearch();
     this.bindQuote();
     effect(() => this.quoteRequests.next(this.cart.lines()));
+    effect(() => void this.desktop.updateCustomerDisplay(this.quote()));
   }
 
   ngOnInit(): void {
@@ -117,6 +129,10 @@ export class PosPage implements OnInit {
     if (!this.canOverridePrice()) this.cart.stripUnauthorizedOverrides();
     if (!this.canDiscount()) this.cart.stripUnauthorizedDiscounts();
     this.loadShift();
+    this.desktop.initialize((code) => {
+      this.searchForm.controls.query.setValue(code);
+      this.resolveCode(code);
+    });
     this.searchRequests.next('');
     queueMicrotask(() => this.focusSearch());
   }
@@ -245,6 +261,7 @@ export class PosPage implements OnInit {
 
   protected saleCompleted(sale: PosSale): void {
     if (['COMPLETED', 'PENDING_SYNC'].includes(sale.status)) {
+      if (sale.status === 'COMPLETED') this.desktop.openDrawerAfterSale(sale);
       this.releaseSuspendedContext();
       this.cart.clear();
       this.saleTerms.set({ customer: null });

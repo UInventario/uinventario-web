@@ -1,0 +1,130 @@
+<div class="peripheral-backdrop" (click)="closed.emit()">
+  <section
+    class="peripheral-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="peripheral-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <p>Desktop conectado</p>
+        <h2 id="peripheral-title">Periféricos de esta caja</h2>
+        <span>{{ context().deviceId }}</span>
+      </div>
+      <button type="button" aria-label="Cerrar periféricos" (click)="closed.emit()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+
+    @if (loading()) {
+      <div class="loading" role="status"><i class="pi pi-spin pi-spinner"></i>Cargando bridge…</div>
+    } @else {
+      <form [formGroup]="form" (ngSubmit)="save()">
+        <section class="diagnostics" aria-labelledby="diagnostic-title">
+          <div>
+            <p>Prueba sin vender</p>
+            <h3 id="diagnostic-title">Diagnóstico seguro</h3>
+          </div>
+          <div class="diagnostic-grid">
+            @for (item of ['SCANNER', 'PRINTER', 'DRAWER', 'DISPLAY']; track item) {
+              <button
+                type="button"
+                [disabled]="!allowed($any(item)) || !!diagnosing()"
+                (click)="diagnose($any(item))"
+              >
+                <i
+                  class="pi"
+                  [class.pi-spin]="diagnosing() === item"
+                  [class.pi-spinner]="diagnosing() === item"
+                  [class.pi-barcode]="item === 'SCANNER' && diagnosing() !== item"
+                  [class.pi-print]="item === 'PRINTER' && diagnosing() !== item"
+                  [class.pi-inbox]="item === 'DRAWER' && diagnosing() !== item"
+                  [class.pi-desktop]="item === 'DISPLAY' && diagnosing() !== item"
+                ></i>
+                {{
+                  item === 'SCANNER'
+                    ? 'Lector'
+                    : item === 'PRINTER'
+                      ? 'Impresora'
+                      : item === 'DRAWER'
+                        ? 'Cajón'
+                        : 'Pantalla'
+                }}
+              </button>
+            }
+          </div>
+          <label>
+            Código de prueba para lector
+            <input formControlName="scanSample" maxlength="120" autocomplete="off" />
+          </label>
+        </section>
+
+        <section class="configuration" aria-labelledby="configuration-title">
+          <div>
+            <p>Adaptadores tipados</p>
+            <h3 id="configuration-title">Configuración local</h3>
+          </div>
+          <div class="fields">
+            <label>
+              Impresora
+              <select formControlName="printerAdapter" [attr.disabled]="canConfigure() ? null : ''">
+                <option value="SIMULATOR">Simulador</option>
+                <option value="SYSTEM">Sistema operativo</option>
+              </select>
+            </label>
+            <label>
+              Dispositivo del sistema
+              <select
+                formControlName="printerName"
+                [attr.disabled]="
+                  canConfigure() && form.controls.printerAdapter.value === 'SYSTEM' ? null : ''
+                "
+              >
+                <option value="">Selecciona una impresora</option>
+                @for (printer of printers(); track printer.name) {
+                  <option [value]="printer.name">
+                    {{ printer.displayName || printer.name
+                    }}{{ printer.isDefault ? ' · Predeterminada' : '' }}
+                  </option>
+                }
+              </select>
+            </label>
+            <label>
+              Pantalla cliente
+              <select formControlName="displayAdapter" [attr.disabled]="canConfigure() ? null : ''">
+                <option value="SIMULATOR">Simulador</option>
+                <option value="WINDOW">Ventana secundaria</option>
+              </select>
+            </label>
+            <label class="check-row">
+              <input
+                type="checkbox"
+                formControlName="simulateDisconnected"
+                [attr.disabled]="canConfigure() ? null : ''"
+              />
+              Simular dispositivo desconectado
+            </label>
+          </div>
+        </section>
+
+        @if (notice()) {
+          <div class="notice" role="status"><i class="pi pi-check-circle"></i>{{ notice() }}</div>
+        }
+        @if (error()) {
+          <div class="error" role="alert">
+            <i class="pi pi-exclamation-circle"></i>{{ error() }}
+          </div>
+        }
+        <footer>
+          <button class="secondary" type="button" (click)="closed.emit()">Cerrar</button>
+          @if (canConfigure()) {
+            <button class="primary" type="submit" [disabled]="saving()">
+              {{ saving() ? 'Guardando…' : 'Guardar configuración' }}
+            </button>
+          }
+        </footer>
+      </form>
+    }
+  </section>
+</div>
