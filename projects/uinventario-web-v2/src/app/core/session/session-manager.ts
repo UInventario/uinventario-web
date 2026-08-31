@@ -12,6 +12,7 @@ import {
   throwError,
 } from 'rxjs';
 import { ApiError } from '../api/api-error';
+import { DesktopPeripheralPort } from '../desktop/desktop-peripheral.port';
 import { OfflineStore } from '../offline/offline-store';
 import { OfflineSessionSnapshot } from '../offline/offline.models';
 import { SessionApi } from './session-api';
@@ -27,6 +28,7 @@ export class SessionManager implements OnDestroy {
   private readonly navigation = inject(SessionNavigation);
   private readonly state = inject(SessionState);
   private readonly offline = inject(OfflineStore);
+  private readonly desktop = inject(DesktopPeripheralPort);
   private readonly channel =
     typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('uinventario-v2-session');
   private restoreInFlight?: Observable<SessionData>;
@@ -196,6 +198,7 @@ export class SessionManager implements OnDestroy {
     this.restoreInFlight = undefined;
     this.refreshInFlight = undefined;
     this.state.clear();
+    this.desktop.notifySessionClosed();
     void this.offline.clearAll().catch(() => undefined);
     if (broadcast) this.channel?.postMessage('SESSION_CLOSED' satisfies SessionEvent);
     if (navigate) {

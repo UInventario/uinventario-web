@@ -64,8 +64,14 @@
     </article>
 
     <div class="receipt-actions">
-      <button class="primary" type="button" (click)="print()">
-        <i class="pi pi-print"></i>Imprimir
+      <button class="primary" type="button" [disabled]="printing()" (click)="print()">
+        <i
+          class="pi"
+          [class.pi-spin]="printing()"
+          [class.pi-spinner]="printing()"
+          [class.pi-print]="!printing()"
+        ></i
+        >{{ printing() ? 'Imprimiendo…' : 'Imprimir' }}
       </button>
       <form [formGroup]="emailForm" (ngSubmit)="send()">
         <input
@@ -83,6 +89,14 @@
       <div class="delivery" role="status">
         <i class="pi pi-check-circle"></i>Envío aceptado para {{ sent.recipient }} ·
         {{ sent.mode === 'SIMULATED' ? 'Simulador' : 'Proveedor real' }}
+      </div>
+    }
+    @if (peripheralNotice()) {
+      <div class="delivery" role="status">
+        <i class="pi pi-desktop"></i>{{ peripheralNotice() }}
+        @if (desktopAvailable()) {
+          <button type="button" (click)="printInBrowser()">Impresión del navegador</button>
+        }
       </div>
     }
     @if (error()) {

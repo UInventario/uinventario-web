@@ -3,6 +3,10 @@ import { ChangeDetectionStrategy, Component, inject, input, output, signal } fro
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs';
 import { ApiError } from '../../../../../core/api/api-error';
+import { DesktopPeripheralPort } from '../../../../../core/desktop/desktop-peripheral.port';
+import { PosReceiptForPeripheral } from '../../../../../core/desktop/desktop-peripheral.models';
+import { PosPeripheralApi } from '../../../../../core/desktop/pos-peripheral-api';
+import { SessionState } from '../../../../../core/session/session-state';
 import { SalesLifecycleFacade } from '../../application/sales-lifecycle.facade';
 import { ReceiptDelivery, SaleReceipt } from '../../domain/sales-lifecycle.models';
 
@@ -15,6 +19,9 @@ import { ReceiptDelivery, SaleReceipt } from '../../domain/sales-lifecycle.model
 })
 export class ReceiptDialog {
   private readonly facade = inject(SalesLifecycleFacade);
+  private readonly desktop = inject(DesktopPeripheralPort);
+  private readonly peripherals = inject(PosPeripheralApi);
+  private readonly sessions = inject(SessionState);
   private readonly formBuilder = inject(FormBuilder);
 
   readonly receipt = input.required<SaleReceipt>();
@@ -26,6 +33,10 @@ export class ReceiptDialog {
   protected readonly sending = signal(false);
   protected readonly delivery = signal<ReceiptDelivery | null>(null);
   protected readonly error = signal<string | null>(null);
+  protected readonly printing = signal(false);
+  protected readonly peripheralNotice = signal<string | null>(null);
+  protected readonly desktopAvailable = this.desktop.available;
+  private pendingPrintKey: string | null = null;
 
   protected money(value: string): string {
     return new Intl.NumberFormat('es-MX', {
@@ -52,6 +63,40 @@ export class ReceiptDialog {
   }
 
   protected print(): void {
+    if (this.printing()) return;
+    if (!this.desktop.available()) {
+      this.printInBrowser();
+      return;
+    }
+    this.printing.set(true);
+    this.error.set(null);
+    this.peripheralNotice.set(null);
+    const key = this.pendingPrintKey ?? `web-v2-receipt-${crypto.randomUUID()}`;
+    this.pendingPrintKey = key;
+    this.peripherals.printReceipt(this.receipt().saleId, key).subscribe({
+      next: ({ receipt, operation }) => {
+        if (operation.status === 'FAILED') {
+          this.pendingPrintKey = null;
+          this.printing.set(false);
+          this.peripheralNotice.set(
+            'La impresora no respondió. La venta permanece registrada; usa impresión del navegador.',
+          );
+          return;
+        }
+        void this.printOnDesktop(operation.id, operation.deviceId, receipt);
+      },
+      error: (error: unknown) => {
+        this.printing.set(false);
+        this.error.set(
+          error instanceof ApiError
+            ? error.message
+            : 'No fue posible preparar la impresión. La venta permanece registrada.',
+        );
+      },
+    });
+  }
+
+  protected printInBrowser(): void {
     const receipt = this.receipt();
     const popup = window.open('', 'uinventario-receipt', 'width=440,height=720');
     if (!popup) {
@@ -77,6 +122,57 @@ export class ReceiptDialog {
     popup.document.close();
     popup.focus();
     popup.print();
+  }
+
+  private async printOnDesktop(
+    operationId: string,
+    deviceId: string,
+    receipt: PosReceiptForPeripheral,
+  ): Promise<void> {
+    const session = this.sessions.session();
+    const cashRegister = session?.context.cashRegister;
+    if (!session || !cashRegister) {
+      this.printing.set(false);
+      this.error.set('Selecciona una caja antes de imprimir.');
+      return;
+    }
+    try {
+      const result = await this.desktop.printReceipt(
+        {
+          tenantId: session.tenant.id,
+          cashRegisterId: cashRegister.id,
+          deviceId,
+        },
+        operationId,
+        {
+          receiptNumber: receipt.receiptNumber,
+          merchantName: receipt.merchant.name,
+          currency: receipt.currency,
+          total: receipt.totals.total,
+          lines: receipt.lines.map((line) => ({
+            name: line.productName,
+            quantity: line.quantity,
+            total: line.total,
+          })),
+        },
+      );
+      this.peripheralNotice.set(
+        result.status === 'FAILED'
+          ? 'La impresora Desktop no respondió. La venta permanece registrada.'
+          : result.replayed
+            ? 'La impresión ya había sido procesada; no se duplicó.'
+            : result.adapter === 'SIMULATOR'
+              ? 'Impresión simulada correctamente; no se modificó la venta.'
+              : `Ticket enviado a la impresora ${result.adapter}.`,
+      );
+      if (result.status === 'COMPLETED') this.pendingPrintKey = null;
+    } catch {
+      this.peripheralNotice.set(
+        'El bridge Desktop no respondió. La venta permanece registrada; usa impresión del navegador.',
+      );
+    } finally {
+      this.printing.set(false);
+    }
   }
 
   private escape(value: string): string {

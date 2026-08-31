@@ -7,6 +7,7 @@ import { CashFacade } from './cash/application/cash.facade';
 import { CashApi } from './cash/data/cash-api.service';
 import { CashGateway } from './cash/domain/cash.gateway';
 import { PosCartStore } from './pos/application/pos-cart.store';
+import { PosDesktopCoordinator } from './pos/application/pos-desktop.coordinator';
 import { PosFacade } from './pos/application/pos.facade';
 import { PosApi } from './pos/data/pos-api.service';
 import { PosGateway } from './pos/domain/pos.gateway';
@@ -22,7 +23,13 @@ export const SALES_ROUTES: Routes = [
   {
     path: 'pos',
     canActivate: [requireAnyPermission('SALES_MANAGE')],
-    providers: [PosCartStore, PosFacade, PosApi, { provide: PosGateway, useExisting: PosApi }],
+    providers: [
+      PosCartStore,
+      PosDesktopCoordinator,
+      PosFacade,
+      PosApi,
+      { provide: PosGateway, useExisting: PosApi },
+    ],
     loadComponent: () => import('./pos/ui/pos-page/pos-page').then((module) => module.PosPage),
   },
   {

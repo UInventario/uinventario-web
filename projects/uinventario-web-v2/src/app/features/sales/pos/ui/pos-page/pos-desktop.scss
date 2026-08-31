@@ -1,0 +1,49 @@
+.pos {
+  position: relative;
+}
+
+.pos-links .desktop-link {
+  align-items: center;
+  background: var(--p-primary-50);
+  border: 1px solid var(--p-primary-200);
+  border-radius: var(--radius-sm);
+  color: var(--p-primary-700);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 750;
+  gap: 0.5rem;
+  min-height: var(--ui-control-height);
+  padding: 0 0.9rem;
+}
+
+.peripheral-notice {
+  align-items: center;
+  background: var(--p-blue-50);
+  border: 1px solid var(--p-blue-200);
+  border-radius: 0.6rem;
+  box-shadow: var(--ui-shadow-card);
+  color: var(--p-blue-800);
+  display: flex;
+  gap: 0.55rem;
+  max-width: min(34rem, calc(100% - 2rem));
+  padding: 0.55rem 1.25rem;
+  position: absolute;
+  right: 1rem;
+  top: 5rem;
+  z-index: 50;
+
+  span {
+    flex: 1;
+  }
+
+  button {
+    background: transparent;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    min-height: 2rem;
+    min-width: 2rem;
+  }
+}

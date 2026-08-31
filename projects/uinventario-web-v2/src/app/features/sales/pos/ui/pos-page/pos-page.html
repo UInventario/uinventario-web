@@ -14,11 +14,25 @@
       </strong>
     </div>
     <div class="pos-links">
+      @if (desktop.available() && desktop.context()) {
+        <button class="desktop-link" type="button" (click)="peripheralOpen.set(true)">
+          <i class="pi pi-desktop"></i>Desktop
+        </button>
+      }
       <a routerLink="/ventas/caja"><i class="pi pi-wallet"></i>Caja</a>
       <a routerLink="/ventas/clientes"><i class="pi pi-users"></i>Clientes</a>
       <a routerLink="/ventas/historial"><i class="pi pi-history"></i>Historial</a>
     </div>
   </header>
+
+  @if (desktop.notice()) {
+    <div class="peripheral-notice" role="status">
+      <i class="pi pi-info-circle"></i><span>{{ desktop.notice() }}</span>
+      <button type="button" aria-label="Cerrar aviso Desktop" (click)="desktop.dismissNotice()">
+        <i class="pi pi-times"></i>
+      </button>
+    </div>
+  }
 
   @if (resumedSale()) {
     <div class="resumed-banner" role="status">
@@ -372,6 +386,16 @@
     [canCredit]="canCredit()"
     (closed)="closeCheckout()"
     (completed)="saleCompleted($event)"
+  />
+}
+
+@if (peripheralOpen() && desktop.context(); as currentDesktopContext) {
+  <ui-pos-peripheral-dialog
+    [context]="currentDesktopContext"
+    [canConfigure]="desktop.canConfigure()"
+    [canPrint]="desktop.canPrint()"
+    [canOpenDrawer]="desktop.canOpenDrawer()"
+    (closed)="peripheralOpen.set(false)"
   />
 }
 
