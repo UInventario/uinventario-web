@@ -15,7 +15,11 @@
 @media (max-width: 48rem) {
   .pos-header {
     gap: 0.5rem;
+    grid-template-areas:
+      'context'
+      'links';
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
     min-height: auto;
     padding: 0.6rem 0.75rem;
 
@@ -30,7 +34,10 @@
   }
 
   .context-strip {
+    grid-area: context;
     justify-content: flex-start;
+    min-width: 0;
+    width: 100%;
 
     span {
       display: none;
@@ -38,12 +45,16 @@
 
     strong {
       font-size: 0.68rem;
+      justify-content: center;
+      width: 100%;
     }
   }
 
   .pos-links {
     display: grid;
+    grid-area: links;
     grid-template-columns: repeat(auto-fit, minmax(4.75rem, 1fr));
+    min-width: 0;
     width: 100%;
 
     a,

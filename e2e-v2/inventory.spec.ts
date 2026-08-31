@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page, Route } from '@playwright/test';
+import { expectViewportFit } from './accessibility.helpers';
 
 const branch = {
   id: 'branch-1',
@@ -129,7 +130,7 @@ async function mockBase(
   });
 }
 
-test('keeps stock read-only and filters products on the server', async ({ page }) => {
+test('keeps stock read-only and filters products on the server', async ({ page }, testInfo) => {
   let stockQuery = '';
   await mockBase(
     page,
@@ -152,6 +153,35 @@ test('keeps stock read-only and filters products on the server', async ({ page }
   await expect(page).toHaveURL(/q=caf(%C3%A9|é)/);
   expect(stockQuery).toContain('q=caf');
   expect(stockQuery).toContain('pageSize=20');
+
+  if ((page.viewportSize()?.width ?? 0) <= 768) {
+    const ribbonPanel = page.locator('.ribbon-panel');
+    await expect(ribbonPanel).toHaveAttribute('tabindex', '0');
+    await expect(page.getByText('Desliza para ver más comandos')).toBeVisible();
+    for (const command of await ribbonPanel.locator('.ribbon-command').all()) {
+      await command.evaluate((element) =>
+        element.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'center' }),
+      );
+      const bounds = await command.evaluate((element) => {
+        const commandBounds = element.getBoundingClientRect();
+        const panelBounds = element.closest('.ribbon-panel')?.getBoundingClientRect();
+        return panelBounds
+          ? {
+              left: commandBounds.left - panelBounds.left,
+              right: panelBounds.right - commandBounds.right,
+            }
+          : null;
+      });
+      expect(bounds).not.toBeNull();
+      expect(bounds?.left ?? -1).toBeGreaterThanOrEqual(-1);
+      expect(bounds?.right ?? -1).toBeGreaterThanOrEqual(-1);
+    }
+    await expectViewportFit(page, 'Inventario móvil');
+    await page.screenshot({
+      path: testInfo.outputPath('uin-215-inventory-mobile.png'),
+      fullPage: true,
+    });
+  }
 });
 
 test('registers a movement and a state transition, then refreshes balances', async ({ page }) => {

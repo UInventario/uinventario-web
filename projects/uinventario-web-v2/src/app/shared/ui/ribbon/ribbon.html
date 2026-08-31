@@ -23,6 +23,8 @@
       role="tabpanel"
       [id]="'ribbon-panel-' + tab.id"
       [attr.aria-labelledby]="'ribbon-tab-' + tab.id"
+      [attr.aria-label]="'Comandos de ' + tab.label + '. Desplaza horizontalmente para ver todos.'"
+      tabindex="0"
     >
       @for (group of tab.groups; track group.id) {
         <section class="ribbon-group" [attr.aria-label]="group.label">
@@ -51,5 +53,9 @@
         </section>
       }
     </div>
+    <span class="ribbon-scroll-hint" aria-hidden="true">
+      <i class="pi pi-arrows-h"></i>
+      Desliza para ver más comandos
+    </span>
   }
 </section>
