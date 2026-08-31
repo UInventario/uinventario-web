@@ -1,0 +1,126 @@
+<div class="receipt-backdrop" (click)="close()">
+  <section
+    class="receipt-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="receipt-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <span><i class="pi pi-inbox"></i></span>
+      <div>
+        <p>Inventario de destino</p>
+        <h2 id="receipt-title">Recibir {{ transfer().reference }}</h2>
+        <small
+          >{{ transfer().originWarehouse.name }} → {{ transfer().destinationWarehouse.name }}</small
+        >
+      </div>
+      <button type="button" aria-label="Cerrar" [disabled]="busy()" (click)="close()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+
+    <div class="receipt-summary">
+      <span
+        ><small>Procesará ahora</small
+        ><strong>{{ total('received') + total('discrepancy') }}</strong></span
+      >
+      <span
+        ><small>Recibirá disponible</small><strong>{{ total('received') }}</strong></span
+      >
+      <span class="difference"
+        ><small>Diferencia</small><strong>{{ total('discrepancy') }}</strong></span
+      >
+    </div>
+
+    <div class="receipt-body">
+      <div class="receipt-help">
+        <i class="pi pi-info-circle"></i>
+        <p>
+          <strong>Puedes recibir parcialmente.</strong> Lo recibido queda disponible en destino; una
+          diferencia sale de tránsito pero no aumenta el disponible.
+        </p>
+      </div>
+      <section class="receipt-lines">
+        @for (line of pendingLines(); track line.id) {
+          <article>
+            <div class="product">
+              <strong>{{ line.product.name }}</strong
+              ><small>{{ line.product.sku }} · pendiente {{ line.pendingQuantity }}</small>
+            </div>
+            <div class="destination">
+              <small>Ubicación destino</small
+              ><strong
+                >{{ line.destinationLocation.code }} · {{ line.destinationLocation.name }}</strong
+              >
+            </div>
+            <label
+              ><span>Recibido</span
+              ><input
+                inputmode="decimal"
+                [value]="value(line.id).received"
+                (input)="update(line.id, 'received', $any($event.target).value)"
+            /></label>
+            <label class="difference-field"
+              ><span>Diferencia</span
+              ><input
+                inputmode="decimal"
+                [value]="value(line.id).discrepancy"
+                (input)="update(line.id, 'discrepancy', $any($event.target).value)"
+            /></label>
+            <label class="serial-field"
+              ><span>Series recibidas <small>si aplica</small></span
+              ><input
+                [value]="value(line.id).receivedSerials"
+                (input)="update(line.id, 'receivedSerials', $any($event.target).value)"
+                placeholder="SER-001, SER-002"
+            /></label>
+            <label class="serial-field"
+              ><span>Series con diferencia <small>si aplica</small></span
+              ><input
+                [value]="value(line.id).discrepancySerials"
+                (input)="update(line.id, 'discrepancySerials', $any($event.target).value)"
+                placeholder="SER-003"
+            /></label>
+          </article>
+        }
+      </section>
+      <form [formGroup]="form">
+        <label class="reason" [class.required]="hasDiscrepancy()"
+          ><span>Motivo de diferencia {{ hasDiscrepancy() ? '· obligatorio' : '· opcional' }}</span
+          ><textarea
+            formControlName="discrepancyReason"
+            maxlength="160"
+            rows="3"
+            placeholder="Daño en tránsito, faltante, error de conteo…"
+          ></textarea
+          ><small>{{ form.controls.discrepancyReason.value.length }}/160</small></label
+        >
+      </form>
+    </div>
+
+    @if (error()) {
+      <div class="receipt-error" role="alert">
+        <i class="pi pi-exclamation-circle"></i>{{ error() }}
+      </div>
+    }
+    <footer>
+      <div>
+        <i class="pi pi-shield"></i
+        ><span>La recepción es transaccional, idempotente y queda auditada.</span>
+      </div>
+      <button class="secondary" type="button" [disabled]="busy()" (click)="close()">
+        Cancelar
+      </button>
+      <button class="primary" type="button" [disabled]="busy() || form.invalid" (click)="submit()">
+        <i
+          class="pi"
+          [class.pi-spin]="busy()"
+          [class.pi-spinner]="busy()"
+          [class.pi-check]="!busy()"
+        ></i
+        >{{ busy() ? 'Registrando…' : 'Confirmar recepción' }}
+      </button>
+    </footer>
+  </section>
+</div>

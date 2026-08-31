@@ -1,0 +1,204 @@
+<div class="modal-backdrop" (click)="close()">
+  <section
+    class="create-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="create-transfer-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <span><i class="pi pi-truck"></i></span>
+      <div>
+        <p>Nueva ruta de inventario</p>
+        <h2 id="create-transfer-title">Preparar transferencia</h2>
+      </div>
+      <button type="button" aria-label="Cerrar" [disabled]="busy()" (click)="close()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+
+    <div class="dialog-body">
+      <form class="transfer-data" [formGroup]="form">
+        <div class="route-card">
+          <span
+            ><small>Origen fijo por contexto</small
+            ><strong>{{ originWarehouse()?.name || 'Sin bodega' }}</strong></span
+          >
+          <i class="pi pi-arrow-right"></i>
+          <label
+            ><span>Destino</span
+            ><select formControlName="destinationWarehouseId" (change)="destinationChanged()">
+              @for (option of destinations(); track option.warehouse.id) {
+                <option [value]="option.warehouse.id">
+                  {{ option.branchName }} · {{ option.warehouse.name }}
+                </option>
+              }
+            </select></label
+          >
+        </div>
+        @if (!destinations().length) {
+          <div class="warning">
+            <i class="pi pi-exclamation-triangle"></i>No existe otra bodega activa con ubicaciones
+            disponibles.
+          </div>
+        }
+        <div class="fields">
+          <label
+            ><span>Referencia</span
+            ><input formControlName="reference" maxlength="120" placeholder="TR-2026-001"
+          /></label>
+          <label
+            ><span>Motivo</span
+            ><input formControlName="reason" maxlength="160" placeholder="Reabastecimiento semanal"
+          /></label>
+        </div>
+      </form>
+
+      <section class="product-picker">
+        <header>
+          <div>
+            <h3>Productos</h3>
+            <p>Existencia disponible en la bodega de origen.</p>
+          </div>
+          <form [formGroup]="searchForm" (ngSubmit)="searchProducts()">
+            <i class="pi pi-search"></i
+            ><input formControlName="query" placeholder="SKU o nombre" /><button
+              type="submit"
+              [disabled]="searching()"
+            >
+              Buscar
+            </button>
+          </form>
+        </header>
+        <div class="product-results">
+          @if (searching()) {
+            <span class="search-state"
+              ><i class="pi pi-spin pi-spinner"></i>Consultando existencia…</span
+            >
+          } @else {
+            @for (product of products(); track product.id) {
+              <button
+                type="button"
+                [disabled]="selected(product.id) || +product.quantity <= 0"
+                (click)="addProduct(product)"
+              >
+                <span
+                  ><strong>{{ product.name }}</strong
+                  ><small>{{ product.sku }}</small></span
+                >
+                <span
+                  ><small>Disponible</small><strong>{{ product.quantity }}</strong></span
+                >
+                <i
+                  class="pi"
+                  [class.pi-check]="selected(product.id)"
+                  [class.pi-plus]="!selected(product.id)"
+                ></i>
+              </button>
+            } @empty {
+              <span class="search-state"
+                ><i class="pi pi-box"></i>No se encontraron productos con existencia.</span
+              >
+            }
+          }
+        </div>
+      </section>
+
+      <section class="selected-lines">
+        <header>
+          <h3>Trayectos</h3>
+          <span>{{ lines().length }} producto(s)</span>
+        </header>
+        @for (line of lines(); track line.product.id) {
+          <article>
+            <div class="line-product">
+              <strong>{{ line.product.name }}</strong
+              ><small>{{ line.product.sku }} · disponible {{ line.product.quantity }}</small>
+            </div>
+            <label
+              ><span>Sale de</span
+              ><select
+                [value]="line.sourceLocationId"
+                (change)="
+                  updateLine(line.product.id, 'sourceLocationId', $any($event.target).value)
+                "
+              >
+                @for (location of sourceLocations(); track location.id) {
+                  <option [value]="location.id">{{ location.code }} · {{ location.name }}</option>
+                }
+              </select></label
+            >
+            <label
+              ><span>Llega a</span
+              ><select
+                [value]="line.destinationLocationId"
+                (change)="
+                  updateLine(line.product.id, 'destinationLocationId', $any($event.target).value)
+                "
+              >
+                @for (location of destinationLocations(); track location.id) {
+                  <option [value]="location.id">{{ location.code }} · {{ location.name }}</option>
+                }
+              </select></label
+            >
+            <label class="quantity"
+              ><span>Cantidad</span
+              ><input
+                inputmode="decimal"
+                [value]="line.quantity"
+                (input)="updateLine(line.product.id, 'quantity', $any($event.target).value)"
+            /></label>
+            <label class="serials"
+              ><span>Series <small>si aplica</small></span
+              ><input
+                [value]="line.serials"
+                (input)="updateLine(line.product.id, 'serials', $any($event.target).value)"
+                placeholder="SER-001, SER-002"
+            /></label>
+            <button
+              class="remove"
+              type="button"
+              aria-label="Quitar producto"
+              (click)="remove(line.product.id)"
+            >
+              <i class="pi pi-trash"></i>
+            </button>
+          </article>
+        } @empty {
+          <div class="line-empty">
+            <i class="pi pi-arrow-up"></i>Selecciona productos de la lista para definir su trayecto.
+          </div>
+        }
+      </section>
+    </div>
+
+    @if (error()) {
+      <div class="dialog-error" role="alert">
+        <i class="pi pi-exclamation-circle"></i>{{ error() }}
+      </div>
+    }
+    <footer>
+      <div>
+        <i class="pi pi-info-circle"></i
+        ><span>Guardar crea un borrador. El stock no cambia hasta aprobar y despachar.</span>
+      </div>
+      <button class="secondary" type="button" [disabled]="busy()" (click)="close()">
+        Cancelar
+      </button>
+      <button
+        class="primary"
+        type="button"
+        [disabled]="busy() || form.invalid || !lines().length || !destinations().length"
+        (click)="submit()"
+      >
+        <i
+          class="pi"
+          [class.pi-spin]="busy()"
+          [class.pi-spinner]="busy()"
+          [class.pi-save]="!busy()"
+        ></i
+        >{{ busy() ? 'Guardando…' : 'Guardar borrador' }}
+      </button>
+    </footer>
+  </section>
+</div>
