@@ -33,6 +33,8 @@ jobs:
         run: npm run typecheck
       - name: Verify Web V2 architecture
         run: npm run architecture:verify
+      - name: Verify Web V2 test strategy
+        run: npm run test:strategy
       - name: Unit tests
         run: npm run test:ci
       - name: Runtime server tests

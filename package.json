@@ -16,6 +16,7 @@
     "test:v2": "ng test uinventario-web-v2",
     "test:ci": "ng test uinventario-web --watch=false && ng test uinventario-web-v2 --watch=false",
     "test:server": "node --test server.spec.mjs",
+    "test:strategy": "node --test scripts/verify-web-v2-test-strategy.spec.mjs && node scripts/verify-web-v2-test-strategy.mjs",
     "test:e2e": "playwright test",
     "test:e2e:v2": "playwright test --config playwright.v2.config.ts",
     "test:service-worker": "node scripts/service-worker-smoke.mjs",
