@@ -20,12 +20,14 @@ import {
   ProductQuery,
   ProductStatus,
 } from '../../domain/catalog.models';
+import { productQuantityPolicyError } from '../../domain/product-quantity-policy';
 import { CatalogClassificationPanel } from '../classification-panel/classification-panel';
 import { ProductImportPanel } from '../product-import-panel/product-import-panel';
 
 type CatalogTab = 'PRODUCTS' | 'CLASSIFICATIONS' | 'IMPORT';
 const MONEY_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,2})?$/;
 const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/;
+const CODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{3,63}$/;
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -47,6 +49,7 @@ export class CatalogPage implements OnInit {
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly notice = signal<string | null>(null);
+  protected readonly quantityPolicyError = signal<string | null>(null);
   protected readonly page = signal<ProductPage | null>(null);
   protected readonly options = signal<CatalogOptions>({ categories: [], brands: [] });
   protected readonly editing = signal<Product | null>(null);
@@ -73,7 +76,7 @@ export class CatalogPage implements OnInit {
     name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(160)]],
     withoutCode: [false],
     sku: ['', [Validators.pattern(SKU_PATTERN)]],
-    barcode: [''],
+    barcode: ['', Validators.pattern(CODE_PATTERN)],
     categoryName: [''],
     brandName: [''],
     cost: ['0', [Validators.required, Validators.pattern(MONEY_PATTERN)]],
@@ -135,6 +138,7 @@ export class CatalogPage implements OnInit {
     if (!this.canManage()) return;
     this.clearMessages();
     this.editing.set(null);
+    this.quantityPolicyError.set(null);
     this.productForm.reset({
       name: '',
       withoutCode: false,
@@ -160,6 +164,7 @@ export class CatalogPage implements OnInit {
     if (!this.canManage()) return;
     this.clearMessages();
     this.editing.set(product);
+    this.quantityPolicyError.set(null);
     this.productForm.reset({
       name: product.name,
       withoutCode: product.withoutCode,
@@ -185,13 +190,21 @@ export class CatalogPage implements OnInit {
     if (!this.saving()) this.editorOpen.set(false);
   }
 
+  protected openAdvanced(product: Product): void {
+    if (!this.canManage()) return;
+    void this.router.navigate(['productos', product.id, 'avanzado'], { relativeTo: this.route });
+  }
+
   protected saveProduct(): void {
     if (!this.canManage()) return;
     const withoutCode = this.productForm.controls.withoutCode.value;
     if (!withoutCode && !this.productForm.controls.sku.value.trim()) {
       this.productForm.controls.sku.setErrors({ required: true });
     }
-    if (this.productForm.invalid || this.saving()) {
+    const input = this.productForm.getRawValue();
+    const policyError = productQuantityPolicyError(input);
+    this.quantityPolicyError.set(policyError);
+    if (this.productForm.invalid || policyError || this.saving()) {
       this.productForm.markAllAsTouched();
       return;
     }
@@ -199,7 +212,7 @@ export class CatalogPage implements OnInit {
     this.saving.set(true);
     this.error.set(null);
     this.catalog
-      .saveProduct(this.productForm.getRawValue(), current ?? undefined)
+      .saveProduct(input, current ?? undefined)
       .pipe(finalize(() => this.saving.set(false)))
       .subscribe({
         next: () => {

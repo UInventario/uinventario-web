@@ -24,6 +24,60 @@ export interface Product {
   readonly active: boolean;
   readonly version: number;
   readonly sellable: boolean;
+  readonly parentProductId?: string | null;
+  readonly variantAttributes?: readonly ProductVariantAttribute[];
+  readonly variantValues?: readonly ProductVariantValue[];
+  readonly variants?: readonly Product[];
+  readonly kit?: ProductKit | null;
+}
+
+export interface ProductVariantAttribute {
+  readonly name: string;
+  readonly values: readonly string[];
+}
+
+export interface ProductVariantValue {
+  readonly attribute: string;
+  readonly value: string;
+}
+
+export interface ProductKit {
+  readonly stockMode: 'DERIVED' | 'ASSEMBLED';
+  readonly priceRule: 'FIXED' | 'COMPONENT_SUM';
+  readonly effectiveFrom: string | null;
+  readonly effectiveTo: string | null;
+  readonly components: readonly {
+    readonly product: { readonly id: string; readonly name: string; readonly sku: string };
+    readonly quantity: string;
+  }[];
+}
+
+export interface UpdateProductVariantsInput {
+  readonly version: number;
+  readonly attributes: readonly ProductVariantAttribute[];
+  readonly variants: readonly {
+    readonly id?: string;
+    readonly version?: number;
+    readonly values: readonly string[];
+    readonly sku: string;
+    readonly barcode?: string;
+    readonly cost: string;
+    readonly price: string;
+    readonly active: boolean;
+  }[];
+}
+
+export interface UpdateProductKitInput {
+  readonly version: number;
+  readonly enabled: boolean;
+  readonly stockMode?: ProductKit['stockMode'];
+  readonly priceRule?: ProductKit['priceRule'];
+  readonly effectiveFrom?: string;
+  readonly effectiveTo?: string;
+  readonly components?: readonly {
+    readonly productId: string;
+    readonly quantity: string;
+  }[];
 }
 
 export interface ProductInput {

@@ -1,0 +1,175 @@
+<section class="workspace" aria-labelledby="kit-title">
+  <header>
+    <div>
+      <p>Workspace secundario</p>
+      <h2 id="kit-title">Kit de productos</h2>
+      <span>Combina productos vendibles y define cómo se calcula stock y precio.</span>
+    </div>
+    <label class="enable-switch">
+      <span>{{ enabled() ? 'Habilitado' : 'Deshabilitado' }}</span>
+      <input
+        type="checkbox"
+        aria-label="Habilitar kit"
+        [checked]="enabled()"
+        (change)="setEnabled($any($event.target).checked)"
+      />
+    </label>
+  </header>
+
+  @if (enabled() && eligibilityError()) {
+    <div class="notice warning" role="alert">
+      <i class="pi pi-info-circle"></i>{{ eligibilityError() }} Ajusta primero el producto básico.
+    </div>
+  }
+
+  <div class="kit-layout" [class.disabled]="!enabled()">
+    <aside class="rules" aria-label="Reglas del kit">
+      <h3>Reglas</h3>
+      <label>
+        <span>Control de stock</span>
+        <select
+          aria-label="Control de stock del kit"
+          [value]="stockMode()"
+          [disabled]="!enabled()"
+          (change)="setStockMode($any($event.target).value)"
+        >
+          <option value="DERIVED">Derivado de componentes</option>
+          <option value="ASSEMBLED">Existencia ensamblada</option>
+        </select>
+        <small>
+          {{
+            stockMode() === 'DERIVED'
+              ? 'Disponible según sus componentes.'
+              : 'Mantiene existencia propia ensamblada.'
+          }}
+        </small>
+      </label>
+      <label>
+        <span>Precio de venta</span>
+        <select
+          aria-label="Precio del kit"
+          [value]="priceRule()"
+          [disabled]="!enabled()"
+          (change)="setPriceRule($any($event.target).value)"
+        >
+          <option value="FIXED">Precio fijo del producto</option>
+          <option value="COMPONENT_SUM">Suma de componentes</option>
+        </select>
+      </label>
+      <div class="dates">
+        <label>
+          <span>Vigente desde</span>
+          <input
+            type="date"
+            aria-label="Vigente desde"
+            [value]="effectiveFrom()"
+            [disabled]="!enabled()"
+            (input)="effectiveFrom.set($any($event.target).value); clearMessages()"
+          />
+        </label>
+        <label>
+          <span>Vigente hasta</span>
+          <input
+            type="date"
+            aria-label="Vigente hasta"
+            [value]="effectiveTo()"
+            [disabled]="!enabled()"
+            (input)="effectiveTo.set($any($event.target).value); clearMessages()"
+          />
+        </label>
+      </div>
+    </aside>
+
+    <div class="components-region">
+      <div class="components-heading">
+        <div>
+          <h3>Componentes</h3>
+          <small>Las cantidades respetan la unidad, precisión y mínimo de cada producto.</small>
+        </div>
+        <button class="secondary" type="button" [disabled]="!enabled()" (click)="addComponent()">
+          <i class="pi pi-plus"></i>Componente
+        </button>
+      </div>
+
+      @if (components().length) {
+        <div class="component-list">
+          @for (component of components(); track $index; let index = $index) {
+            <article class="component-row">
+              <span class="position">{{ index + 1 }}</span>
+              <label class="product-field">
+                <span>Producto</span>
+                <select
+                  [attr.aria-label]="'Producto componente ' + (index + 1)"
+                  [value]="component.productId"
+                  [disabled]="!enabled()"
+                  (change)="updateComponentProduct(index, $any($event.target).value)"
+                >
+                  @for (candidateProduct of availableCandidates(index); track candidateProduct.id) {
+                    <option [value]="candidateProduct.id">
+                      {{ candidateProduct.name }} · {{ candidateProduct.sku }}
+                    </option>
+                  }
+                </select>
+              </label>
+              <label class="quantity-field">
+                <span>Cantidad</span>
+                <input
+                  inputmode="decimal"
+                  [attr.aria-label]="'Cantidad del componente ' + (index + 1)"
+                  [value]="component.quantity"
+                  [disabled]="!enabled()"
+                  (input)="updateComponentQuantity(index, $any($event.target).value)"
+                />
+                @if (enabled() && componentError(component)) {
+                  <small class="field-error">{{ componentError(component) }}</small>
+                } @else if (candidate(component.productId); as selected) {
+                  <small
+                    >{{ selected.quantityPrecision }} dec. · mín.
+                    {{ selected.minimumQuantity }}</small
+                  >
+                }
+              </label>
+              <button
+                class="icon danger"
+                type="button"
+                [disabled]="!enabled()"
+                [attr.aria-label]="'Eliminar componente ' + (index + 1)"
+                (click)="removeComponent(index)"
+              >
+                <i class="pi pi-trash"></i>
+              </button>
+            </article>
+          }
+        </div>
+      } @else {
+        <div class="empty">
+          <i class="pi pi-box"></i>
+          <strong>Sin componentes</strong>
+          <span>Habilita el kit y agrega el primer producto.</span>
+        </div>
+      }
+    </div>
+  </div>
+
+  @if (error()) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle"></i>{{ error() }}
+    </div>
+  }
+  @if (notice()) {
+    <div class="notice success" role="status"><i class="pi pi-check-circle"></i>{{ notice() }}</div>
+  }
+
+  <footer>
+    <span>Deshabilitar elimina la configuración, pero nunca borra el producto.</span>
+    <button class="primary" type="button" [disabled]="saving()" (click)="save()">
+      <i
+        class="pi"
+        [class.pi-spin]="saving()"
+        [class.pi-spinner]="saving()"
+        [class.pi-save]="!saving()"
+      ></i>
+      {{ saving() ? 'Guardando…' : enabled() ? 'Guardar kit' : 'Guardar deshabilitado' }}
+    </button>
+  </footer>
+</section>
