@@ -7,7 +7,7 @@ export function requireAnyPermission(...permissions: readonly AppPermission[]): 
   return () => {
     const authorization = inject(AuthorizationService);
     if (authorization.hasAny(permissions)) return true;
-    return inject(Router).createUrlTree(['/dashboard'], {
+    return inject(Router).createUrlTree(['/dashboard/resumen'], {
       queryParams: { accessDenied: 'true' },
     });
   };
@@ -17,7 +17,7 @@ export function requireAllPermissions(...permissions: readonly AppPermission[]):
   return () => {
     const authorization = inject(AuthorizationService);
     if (authorization.hasAll(permissions)) return true;
-    return inject(Router).createUrlTree(['/dashboard'], {
+    return inject(Router).createUrlTree(['/dashboard/resumen'], {
       queryParams: { accessDenied: 'true' },
     });
   };

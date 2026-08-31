@@ -25,7 +25,7 @@ function userSession(permissions: string[]) {
       },
       nextStep: 'APPLICATION',
     },
-    meta: { apiVersion: '1', sessionExpiresAt: '2026-08-30T23:59:00.000Z' },
+    meta: { apiVersion: '1', sessionExpiresAt: new Date(Date.now() + 3_600_000).toISOString() },
   };
 }
 

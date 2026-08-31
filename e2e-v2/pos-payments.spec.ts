@@ -113,6 +113,8 @@ function quote() {
           priceOverrideReason: null,
           priceList: null,
           grossTotal: '119.90',
+          discount: { line: null, sale: null, total: '0.00' },
+          promotions: [],
           subtotal: '119.90',
           tax: '0.00',
           total: '119.90',

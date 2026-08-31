@@ -1,6 +1,4 @@
-import { expect, test } from '@playwright/test';
-import type { Page, Route } from '@playwright/test';
-
+import { expect, test, type Page, type Route } from '@playwright/test';
 const branch = {
   id: 'branch-1',
   name: 'Centro',
@@ -489,9 +487,12 @@ test('updates retention and completes export, legal hold and anonymization flows
 
 test('requires customer management permission on the direct route', async ({ page }) => {
   await mockBase(page, async () => false, ['SALES_VOID']);
-
   await page.goto('./ventas/clientes');
 
-  await expect(page).toHaveURL(/\/v2\/dashboard\?accessDenied=true$/);
+  await expect(page).toHaveURL(
+    (url) =>
+      url.pathname.endsWith('/v2/dashboard/resumen') &&
+      url.searchParams.get('accessDenied') === 'true',
+  );
   await expect(page.getByRole('alert')).toContainText('no tiene permiso');
 });

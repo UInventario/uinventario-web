@@ -10,7 +10,6 @@ const product = {
   quantityPrecision: 0, quantityRounding: 'HALF_UP', minimumQuantity: '1.000',
   trackLots: false, trackSerials: false, price: '120.00', active: true, sellable: true,
 };
-
 function session(permissions: string[]) {
   return {
     data: {
@@ -23,7 +22,7 @@ function session(permissions: string[]) {
       },
       nextStep: 'APPLICATION',
     },
-    meta: { apiVersion: '1', sessionExpiresAt: '2026-08-31T03:00:00.000Z' },
+    meta: { apiVersion: '1', sessionExpiresAt: new Date(Date.now() + 3_600_000).toISOString() },
   };
 }
 
@@ -364,6 +363,8 @@ function quote() {
           priceOverrideReason: null,
           priceList: null,
           grossTotal: '120.00',
+          discount: { line: null, sale: null, total: '0.00' },
+          promotions: [],
           subtotal: '120.00',
           tax: '19.20',
           total: '139.20',
@@ -460,7 +461,6 @@ test('suspends with one stable key and completes a resumed cart only once', asyn
   const suspensionWrites = state.writes.filter(({ path }) => path === '/pos/suspended-sales');
   expect(suspensionWrites).toHaveLength(2);
   expect(suspensionWrites[0].key).toBe(suspensionWrites[1].key);
-
   await page.getByRole('button', { name: 'Reanudar' }).click();
   await page.getByRole('button', { name: 'Abrir carrito en POS' }).click();
   await expect(page.getByText('Venta suspendida reanudada')).toBeVisible();
@@ -477,9 +477,7 @@ test('suspends with one stable key and completes a resumed cart only once', asyn
   });
 });
 
-test('hides mutation actions without permissions and remains usable on mobile', async ({
-  page,
-}, testInfo) => {
+test('hides unauthorized actions and remains usable on mobile', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockSales(page, ['SALE_REPRINT']);
   await page.goto('./ventas/historial');

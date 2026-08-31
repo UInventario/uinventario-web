@@ -335,7 +335,7 @@ test('filters, paginates and opens complete sale traceability', async ({ page })
   await page.goto('./reportes/ventas');
   await expect(page.getByRole('heading', { name: 'Historial de ventas' })).toBeVisible();
   await page.getByLabel('Desde').fill('2026-08-01');
-  await page.getByLabel('Estado').selectOption('COMPLETED');
+  await page.getByLabel('Estado', { exact: true }).selectOption('COMPLETED');
   await page.getByRole('button', { name: 'Aplicar' }).click();
   await expect(page).toHaveURL(/dateFrom=2026-08-01/);
   await expect(page).toHaveURL(/status=COMPLETED/);

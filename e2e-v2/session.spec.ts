@@ -43,7 +43,7 @@ test('authenticates into the authorized workspace without persisting tokens', as
   await page.goto('./login');
   await completeLogin(page);
 
-  await expect(page).toHaveURL(/\/v2\/dashboard$/);
+  await expect(page).toHaveURL((url) => url.pathname.endsWith('/v2/dashboard/resumen'));
   await expect(page.getByText('Tienda Central')).toHaveText('Tienda Central');
   expect(requestBody).toEqual({ email: 'admin@example.com', password: 'SecurePass!123' });
   const browserStorage = await page.evaluate(() => ({
@@ -87,10 +87,14 @@ test('protects routes and honors a local returnUrl after login', async ({ page }
   });
 
   await page.goto('./ventas');
-  await expect(page).toHaveURL(/\/v2\/login\?returnUrl=%2Fventas$/);
+  await expect(page).toHaveURL((url) => {
+    return (
+      url.pathname.endsWith('/v2/login') && url.searchParams.get('returnUrl') === '/ventas/pos'
+    );
+  });
   await completeLogin(page);
-  await expect(page).toHaveURL(/\/v2\/ventas$/);
-  await expect(page.getByRole('heading', { name: 'Ventas' })).toBeVisible();
+  await expect(page).toHaveURL((url) => url.pathname.endsWith('/v2/ventas/pos'));
+  await expect(page.getByRole('heading', { name: 'Buscar o escanear' })).toBeVisible();
 });
 
 test('renews before expiration and logs out through the server', async ({ page }) => {
@@ -118,7 +122,7 @@ test('renews before expiration and logs out through the server', async ({ page }
   });
 
   await page.goto('./dashboard');
-  await expect(page).toHaveURL(/\/v2\/dashboard$/);
+  await expect(page).toHaveURL((url) => url.pathname.endsWith('/v2/dashboard/resumen'));
   await expect.poll(() => refreshCount, { timeout: 5_000 }).toBe(1);
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
 

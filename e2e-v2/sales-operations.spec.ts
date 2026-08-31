@@ -233,7 +233,7 @@ function session() {
       },
       nextStep: 'APPLICATION',
     },
-    meta: { apiVersion: '1', sessionExpiresAt: '2026-09-01T23:59:59.000Z' },
+    meta: { apiVersion: '1', sessionExpiresAt: new Date(Date.now() + 3_600_000).toISOString() },
   };
 }
 

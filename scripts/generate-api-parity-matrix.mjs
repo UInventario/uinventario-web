@@ -171,7 +171,7 @@ const digest = createHash('sha256')
 const manifest = {
   schemaVersion: 1,
   generatedFrom: basename(apiRoot),
-  apiRevision: apiRevisionOutput.trim(),
+  sourceCommit: apiRevisionOutput.trim(),
   controllerCount: controllerNames.length,
   endpointCount: records.length,
   controllerNames,
