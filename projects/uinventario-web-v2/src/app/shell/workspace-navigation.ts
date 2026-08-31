@@ -178,6 +178,12 @@ const COMMANDS: Record<WorkspaceId, readonly PolicyGroup[]> = {
           icon: 'pi pi-upload',
           permissionsAny: ['INVENTORY_ADJUST'],
         },
+        {
+          id: 'inventory-transfers',
+          label: 'Transferencias',
+          icon: 'pi pi-truck',
+          permissionsAny: ['INVENTORY_VIEW'],
+        },
       ],
     },
     {

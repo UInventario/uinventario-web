@@ -9,6 +9,9 @@ import { InventoryOperationsGateway } from './operations/domain/inventory-operat
 import { ValuationFacade } from './valuation/application/valuation.facade';
 import { ValuationApi } from './valuation/data/valuation-api.service';
 import { ValuationGateway } from './valuation/domain/valuation.gateway';
+import { InventoryTransferFacade } from './transfers/application/inventory-transfer.facade';
+import { InventoryTransferApi } from './transfers/data/inventory-transfer-api.service';
+import { InventoryTransferGateway } from './transfers/domain/inventory-transfer.gateway';
 
 export const INVENTORY_ROUTES: Routes = [
   {
@@ -21,6 +24,17 @@ export const INVENTORY_ROUTES: Routes = [
     ],
     loadComponent: () =>
       import('./ui/inventory-page/inventory-page').then((module) => module.InventoryPage),
+  },
+  {
+    path: 'transferencias',
+    canActivate: [requireAnyPermission('INVENTORY_VIEW')],
+    providers: [
+      InventoryTransferFacade,
+      InventoryTransferApi,
+      { provide: InventoryTransferGateway, useExisting: InventoryTransferApi },
+    ],
+    loadComponent: () =>
+      import('./transfers/ui/transfer-page/transfer-page').then((module) => module.TransferPage),
   },
   {
     path: 'control',

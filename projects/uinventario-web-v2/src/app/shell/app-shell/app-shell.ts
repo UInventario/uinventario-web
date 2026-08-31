@@ -127,6 +127,10 @@ export class AppShell {
       void this.router.navigate(['/inventario/control'], { queryParams: { view: 'alerts' } });
       return;
     }
+    if (commandId === 'inventory-transfers') {
+      void this.router.navigate(['/inventario/transferencias']);
+      return;
+    }
     this.commandStatus.set(`Comando disponible para ${this.activeWorkspace().label}: ${commandId}`);
   }
 
