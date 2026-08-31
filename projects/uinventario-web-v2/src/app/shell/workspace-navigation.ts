@@ -149,7 +149,7 @@ const COMMANDS: Record<WorkspaceId, readonly PolicyGroup[]> = {
         },
         {
           id: 'pricing-rules',
-          label: 'Precios',
+          label: 'Reglas comerciales',
           icon: 'pi pi-tags',
           permissionsAny: ['PRODUCTS_MANAGE'],
         },
