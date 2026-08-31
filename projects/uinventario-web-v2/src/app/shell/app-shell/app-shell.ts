@@ -77,6 +77,10 @@ export class AppShell {
       this.commandStatus.set('No tienes permiso para ejecutar este comando.');
       return;
     }
+    if (commandId === 'refresh-dashboard') {
+      globalThis.location.reload();
+      return;
+    }
     if (commandId === 'new-sale') {
       void this.router.navigate(['/ventas/pos']);
       return;

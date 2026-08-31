@@ -1,0 +1,29 @@
+<section class="dashboard-workspace" aria-labelledby="dashboard-title">
+  <header class="page-header">
+    <span class="page-icon" aria-hidden="true"><i class="pi pi-chart-pie"></i></span>
+    <div>
+      <p>Centro operativo</p>
+      <h1 id="dashboard-title">Dashboard</h1>
+      <span>
+        {{ context()?.branch?.name || 'Sin sucursal' }} ·
+        {{ context()?.warehouse?.name || 'Sin bodega' }}
+      </span>
+    </div>
+  </header>
+
+  <nav class="dashboard-tabs" aria-label="Secciones del dashboard">
+    <a routerLink="resumen" routerLinkActive="active"> <i class="pi pi-th-large"></i>Resumen </a>
+    @if (canForecast()) {
+      <a routerLink="pronostico" routerLinkActive="active">
+        <i class="pi pi-chart-line"></i>Pronóstico
+      </a>
+    }
+    @if (canNotifications()) {
+      <a routerLink="notificaciones" routerLinkActive="active">
+        <i class="pi pi-bell"></i>Notificaciones
+      </a>
+    }
+  </nav>
+
+  <router-outlet />
+</section>

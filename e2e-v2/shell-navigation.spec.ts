@@ -1,13 +1,23 @@
 import { expect, test } from '@playwright/test';
 
 const workspaces = [
-  ['dashboard', 'Dashboard'],
-  ['catalogo', 'Catálogo'],
-  ['inventario', 'Inventario'],
-  ['compras', 'Compras'],
-  ['ventas', 'Ventas'],
-  ['reportes', 'Reportes'],
-  ['administracion', 'Administración'],
+  { path: 'dashboard', workspace: 'Dashboard', heading: 'Dashboard', posMode: false },
+  { path: 'catalogo', workspace: 'Catálogo', heading: 'Catálogo', posMode: false },
+  { path: 'inventario', workspace: 'Inventario', heading: 'Inventario', posMode: false },
+  {
+    path: 'compras/proveedores',
+    workspace: 'Compras',
+    heading: 'Proveedores',
+    posMode: false,
+  },
+  { path: 'ventas/pos', workspace: 'Ventas', heading: 'Venta rápida', posMode: true },
+  { path: 'reportes', workspace: 'Reportes', heading: 'Reportes', posMode: false },
+  {
+    path: 'administracion',
+    workspace: 'Administración',
+    heading: 'Administración',
+    posMode: false,
+  },
 ] as const;
 
 test.beforeEach(async ({ page }) => {
@@ -24,6 +34,7 @@ test.beforeEach(async ({ page }) => {
             permissions: [
               'PRODUCTS_MANAGE',
               'INVENTORY_VIEW',
+              'SUPPLIERS_MANAGE',
               'PURCHASE_ORDERS_MANAGE',
               'SALES_MANAGE',
               'AUDIT_VIEW',
@@ -68,19 +79,29 @@ test.beforeEach(async ({ page }) => {
 
 test('navigates independent workspaces without hashes or a giant document', async ({ page }) => {
   await page.goto('./');
-  await expect(page).toHaveURL(/\/v2\/dashboard$/);
+  await expect(page).toHaveURL(/\/v2\/dashboard\/resumen\?/);
 
-  for (const [path, label] of workspaces) {
+  for (const { path, workspace, heading, posMode } of workspaces) {
     if (path !== 'dashboard') {
       const toggle = page.getByRole('button', { name: 'Alternar navegación' });
       if (await toggle.isVisible()) await toggle.click();
-      await page.getByRole('link', { name: label, exact: true }).click();
+      await page.getByRole('link', { name: workspace, exact: true }).click();
     }
 
-    await expect(page).toHaveURL(new RegExp(`/v2/${path}$`));
-    await expect(page.getByRole('heading', { level: 1, name: label })).toBeVisible();
-    await expect(page.getByLabel('Breadcrumb')).toContainText(label);
-    await expect(page.getByRole('tab', { name: label })).toHaveAttribute('aria-selected', 'true');
+    await expect(page).toHaveURL(
+      path === 'dashboard' ? /\/v2\/dashboard\/resumen\?/ : new RegExp(`/v2/${path}$`),
+    );
+    const content = posMode
+      ? page.getByRole('region', { name: heading })
+      : page.getByRole('heading', { level: 1, name: heading });
+    await expect(content).toBeVisible();
+    if (!posMode) {
+      await expect(page.getByLabel('Breadcrumb')).toContainText(workspace);
+      await expect(page.getByRole('tab', { name: workspace })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      );
+    }
     expect(page.url()).not.toContain('#');
   }
 
@@ -106,7 +127,7 @@ test('loads an unvisited workspace only when the user opens it', async ({ page }
   const toggle = page.getByRole('button', { name: 'Alternar navegación' });
   if (await toggle.isVisible()) await toggle.click();
   await page.getByRole('link', { name: 'Compras', exact: true }).click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Compras' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Proveedores' })).toBeVisible();
 
   const deferredScripts = [...loadedScripts].filter((script) => !initialScripts.has(script));
   expect(deferredScripts.length).toBeGreaterThan(0);
