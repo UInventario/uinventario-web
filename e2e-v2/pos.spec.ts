@@ -1,4 +1,10 @@
 import { expect, test } from '@playwright/test';
+import {
+  expectAccessible,
+  expectMinimumTargetSize,
+  expectNoOverlap,
+  expectViewportFit,
+} from './accessibility.helpers';
 import { mockPos, product } from './pos.fixtures';
 
 test('supports touch, reader keyboard and non-blocking search while quoting the cart', async ({
@@ -27,6 +33,27 @@ test('supports touch, reader keyboard and non-blocking search while quoting the 
       expect.objectContaining({ productId: product().id, quantity: '0.500' }),
     ]),
   );
+  await expectViewportFit(page, 'POS con carrito');
+  await expectMinimumTargetSize(
+    page,
+    '.product-card button, .cart-line button, .pos-links a, .pos-links button',
+    'Controles críticos del POS',
+  );
+  await expectAccessible(page, 'POS con carrito');
+  if ((page.viewportSize()?.width ?? 0) <= 768) {
+    await expectNoOverlap(
+      page,
+      '.context-strip strong',
+      '.pos-links',
+      'Estado de caja y accesos del POS',
+    );
+    await expectNoOverlap(
+      page,
+      '.cart-pane > header > div:first-child',
+      '.cart-pane > header > div:last-child',
+      'Título y acciones del carrito',
+    );
+  }
 });
 
 test('applies fractional quantities and price overrides only with permission', async ({ page }) => {

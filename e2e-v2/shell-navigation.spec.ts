@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { expectAccessible, expectViewportFit } from './accessibility.helpers';
 
 const workspaces = [
   { path: 'dashboard', workspace: 'Dashboard', heading: 'Dashboard', posMode: false },
@@ -80,6 +81,7 @@ test.beforeEach(async ({ page }) => {
 test('navigates independent workspaces without hashes or a giant document', async ({ page }) => {
   await page.goto('./');
   await expect(page).toHaveURL(/\/v2\/dashboard\/resumen\?/);
+  await expect(page.locator('.command-status')).toHaveAttribute('role', 'status');
 
   for (const { path, workspace, heading, posMode } of workspaces) {
     if (path !== 'dashboard') {
@@ -101,8 +103,20 @@ test('navigates independent workspaces without hashes or a giant document', asyn
         'aria-selected',
         'true',
       );
+      const commands = page.locator('ui-ribbon .ribbon-command:not([disabled])');
+      await expect(commands.first()).toBeVisible();
+      await commands.last().scrollIntoViewIfNeeded();
+      await expect(commands.last()).toBeVisible();
+    }
+    if (path !== 'dashboard') {
+      const expectedFocus = posMode
+        ? page.getByLabel('Buscar o escanear producto')
+        : page.locator('#workspace-content');
+      await expect(expectedFocus).toBeFocused();
     }
     expect(page.url()).not.toContain('#');
+    await expectViewportFit(page, workspace);
+    await expectAccessible(page, workspace);
   }
 
   const dimensions = await page.evaluate(() => ({
@@ -112,6 +126,23 @@ test('navigates independent workspaces without hashes or a giant document', asyn
   }));
   expect(dimensions.documentScrollsX).toBe(false);
   expect(dimensions.shellHeight).toBe(dimensions.viewportHeight);
+});
+
+test('supports the skip link and restores focus after workspace navigation', async ({ page }) => {
+  await page.goto('./dashboard');
+  const skipLink = page.getByRole('link', { name: 'Saltar al contenido' });
+  await skipLink.focus();
+  await expect(skipLink).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#workspace-content')).toBeFocused();
+
+  const toggle = page.getByRole('button', { name: 'Alternar navegación' });
+  if (await toggle.isVisible()) await toggle.click();
+  const catalog = page.getByRole('link', { name: 'Catálogo', exact: true });
+  await catalog.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { level: 1, name: 'Catálogo' })).toBeVisible();
+  await expect(page.locator('#workspace-content')).toBeFocused();
 });
 
 test('loads an unvisited workspace only when the user opens it', async ({ page }) => {

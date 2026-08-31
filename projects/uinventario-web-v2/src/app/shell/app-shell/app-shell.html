@@ -1,4 +1,6 @@
-<a class="skip-link" href="#workspace-content">Saltar al contenido</a>
+<a class="skip-link" href="#workspace-content" (click)="skipToWorkspace($event)"
+  >Saltar al contenido</a
+>
 
 <div class="app-shell" [class.pos-mode]="posMode()">
   <header class="topbar">
@@ -66,6 +68,7 @@
     </aside>
 
     <main
+      #workspaceContent
       id="workspace-content"
       class="workspace-content"
       [class.pos-workspace]="posMode()"
