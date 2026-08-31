@@ -15,7 +15,7 @@
 @media (max-width: 48rem) {
   .pos-header {
     gap: 0.5rem;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
     min-height: auto;
     padding: 0.6rem 0.75rem;
 
@@ -41,10 +41,23 @@
     }
   }
 
+  .pos-links {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(4.75rem, 1fr));
+    width: 100%;
+
+    a,
+    button {
+      justify-content: center;
+      min-width: 0;
+      padding-inline: 0.45rem;
+    }
+  }
+
   .pos-grid {
     gap: 0.5rem;
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(15rem, 0.9fr) minmax(19rem, 1.1fr);
+    grid-template-rows: minmax(14rem, 0.75fr) minmax(22rem, 1.25fr);
     padding: 0.5rem;
   }
 
@@ -58,12 +71,29 @@
     padding: 0.55rem 0.7rem;
   }
 
+  .cart-pane > header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.5rem;
+
+    > div:last-child {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      width: 100%;
+    }
+
+    .benefits {
+      justify-content: center;
+      max-width: none;
+    }
+  }
+
   .search {
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
     padding: 0.45rem;
 
     .resolve {
-      display: none;
+      padding-inline: 0.65rem;
     }
   }
 

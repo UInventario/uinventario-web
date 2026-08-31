@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page, Route } from '@playwright/test';
+import { expectAccessible, expectViewportFit } from './accessibility.helpers';
 
 const branch = {
   id: 'branch-1',
@@ -106,6 +107,8 @@ test('keeps catalog read-only when product management permission is absent', asy
     0,
   );
   await expect(page.getByRole('button', { name: 'Editar Café molido' })).toHaveCount(0);
+  await expectViewportFit(page, 'Catálogo de solo lectura');
+  await expectAccessible(page, 'Catálogo de solo lectura');
 });
 
 test('filters, creates, edits and safely retires products', async ({ page }) => {

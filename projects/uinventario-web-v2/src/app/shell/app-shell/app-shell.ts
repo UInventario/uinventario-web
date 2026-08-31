@@ -1,5 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  computed,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
@@ -36,6 +44,9 @@ export class AppShell {
   private readonly router = inject(Router);
   private readonly authorization = inject(AuthorizationService);
   private readonly sessionManager = inject(SessionManager);
+  private readonly workspaceContent = viewChild<ElementRef<HTMLElement>>('workspaceContent');
+  private receivedInitialNavigation = this.router.navigated;
+  private lastNavigationPath = this.routePath(this.router.url);
 
   protected readonly navigation = computed(() =>
     WORKSPACE_NAVIGATION.filter((workspace) =>
@@ -69,6 +80,37 @@ export class AppShell {
       ? selected
       : this.activeWorkspace().id;
   });
+
+  constructor() {
+    this.router.events
+      .pipe(
+        filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+        takeUntilDestroyed(),
+      )
+      .subscribe((event) => {
+        const path = this.routePath(event.urlAfterRedirects);
+        if (!this.receivedInitialNavigation) {
+          this.receivedInitialNavigation = true;
+          this.lastNavigationPath = path;
+          return;
+        }
+        if (path === this.lastNavigationPath) {
+          return;
+        }
+        this.lastNavigationPath = path;
+        this.navigationOpen.set(false);
+        queueMicrotask(() => this.workspaceContent()?.nativeElement.focus());
+      });
+  }
+
+  private routePath(url: string): string {
+    return url.split(/[?#]/, 1)[0];
+  }
+
+  protected skipToWorkspace(event: Event): void {
+    event.preventDefault();
+    this.workspaceContent()?.nativeElement.focus();
+  }
 
   protected invokeCommand(commandId: string): void {
     const command = this.ribbonTabs()

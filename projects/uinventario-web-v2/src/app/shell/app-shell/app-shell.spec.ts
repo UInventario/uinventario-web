@@ -103,7 +103,38 @@ describe('AppShell', () => {
   it('exposes navigation and a keyboard skip link', () => {
     fixture.detectChanges();
     const element = fixture.nativeElement as HTMLElement;
+    const skipLink = element.querySelector('.skip-link') as HTMLAnchorElement;
     expect(element.querySelectorAll('aside nav a').length).toBe(7);
-    expect(element.querySelector('.skip-link')?.getAttribute('href')).toBe('#workspace-content');
+    expect(skipLink.getAttribute('href')).toBe('#workspace-content');
+    skipLink.click();
+    expect(document.activeElement).toBe(element.querySelector('#workspace-content'));
+  });
+
+  it('moves focus to the workspace after an in-app navigation', async () => {
+    await router.navigateByUrl('/dashboard');
+    fixture.detectChanges();
+
+    await router.navigateByUrl('/ventas');
+    fixture.detectChanges();
+    await Promise.resolve();
+
+    expect(document.activeElement).toBe(
+      (fixture.nativeElement as HTMLElement).querySelector('#workspace-content'),
+    );
+  });
+
+  it('preserves focus when only route filters change', async () => {
+    await router.navigateByUrl('/dashboard');
+    fixture.detectChanges();
+    const skipLink = (fixture.nativeElement as HTMLElement).querySelector(
+      '.skip-link',
+    ) as HTMLAnchorElement;
+    skipLink.focus();
+
+    await router.navigateByUrl('/dashboard?period=today');
+    fixture.detectChanges();
+    await Promise.resolve();
+
+    expect(document.activeElement).toBe(skipLink);
   });
 });
