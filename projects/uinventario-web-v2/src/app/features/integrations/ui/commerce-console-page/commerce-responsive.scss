@@ -1,0 +1,49 @@
+@media (max-width: 48rem) {
+  .commerce {
+    padding: 0.8rem;
+  }
+  .heading,
+  .section-heading,
+  .channel-card footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .sync-summary {
+    min-width: 0;
+  }
+  .panel-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: visible;
+  }
+  .panel-tabs button {
+    min-width: 0;
+    padding-inline: 0.25rem;
+    font-size: 0.72rem;
+  }
+  .delivery-list article {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .delivery-result,
+  .delivery-list article > button {
+    grid-column: 2;
+    text-align: left;
+  }
+  .guarantees {
+    grid-template-columns: 1fr;
+  }
+  .contract-banner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .operation-list article {
+    grid-template-columns: auto 1fr;
+  }
+  .operation-list article > div,
+  .idempotent {
+    grid-column: 2;
+  }
+  .section-heading > button {
+    width: 100%;
+  }
+}

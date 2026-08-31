@@ -118,6 +118,16 @@ import { AuthorizationService } from '../../../core/authorization/authorization.
             <i class="pi pi-arrow-right" aria-hidden="true"></i>
           </a>
         }
+        @if (canManageTenant()) {
+          <a routerLink="comercio">
+            <i class="pi pi-shop" aria-hidden="true"></i>
+            <div>
+              <strong>Comercio electrónico</strong
+              ><span>Conecta marketplaces, credenciales y webhooks externos.</span>
+            </div>
+            <i class="pi pi-arrow-right" aria-hidden="true"></i>
+          </a>
+        }
       </div>
     </section>
   `,

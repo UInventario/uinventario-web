@@ -1,0 +1,250 @@
+<section class="commerce" aria-labelledby="commerce-title">
+  <header class="heading">
+    <div>
+      <p>API externa v1</p>
+      <h1 id="commerce-title">Comercio electrónico</h1>
+      <span>Conecta marketplaces con catálogo, stock, pedidos y webhooks por empresa.</span>
+    </div>
+    <div class="sync-summary" [class.degraded]="failedDeliveries()">
+      <i [class]="failedDeliveries() ? 'pi pi-exclamation-triangle' : 'pi pi-sync'"></i>
+      <div>
+        <strong>{{
+          failedDeliveries() ? failedDeliveries() + ' entregas pendientes' : 'Sincronización al día'
+        }}</strong>
+        <span>Pedidos externos idempotentes y reservas inmediatas.</span>
+      </div>
+    </div>
+  </header>
+
+  <nav class="panel-tabs" aria-label="Secciones de comercio electrónico">
+    <button type="button" [class.active]="panel() === 'channels'" (click)="selectPanel('channels')">
+      <i class="pi pi-shop"></i>Canales
+    </button>
+    <button type="button" [class.active]="panel() === 'sync'" (click)="selectPanel('sync')">
+      <i class="pi pi-sync"></i>Sincronización
+    </button>
+    <button type="button" [class.active]="panel() === 'contract'" (click)="selectPanel('contract')">
+      <i class="pi pi-code"></i>Contrato API
+    </button>
+  </nav>
+
+  @if (error()) {
+    <p class="notice error" role="alert">{{ error() }}</p>
+  }
+  @if (notice()) {
+    <p class="notice" role="status">{{ notice() }}</p>
+  }
+  @if (sourceErrors().length) {
+    <p class="notice error" role="alert">Fuente no disponible: {{ sourceErrors()[0] }}</p>
+  }
+
+  @if (loading()) {
+    <div class="state" role="status"><i class="pi pi-spin pi-spinner"></i>Cargando canales…</div>
+  } @else if (panel() === 'channels') {
+    <section aria-labelledby="channels-title">
+      <div class="section-heading">
+        <div>
+          <h2 id="channels-title">Canales y credenciales</h2>
+          <p>Las claves existentes nunca se muestran; sólo su prefijo no sensible.</p>
+        </div>
+        <button
+          class="primary"
+          type="button"
+          [disabled]="!options().contexts.length || !options().customers.length"
+          (click)="openEditor()"
+        >
+          <i class="pi pi-plus"></i>Nuevo canal
+        </button>
+      </div>
+      <div class="channel-grid">
+        @for (credential of credentials(); track credential.id) {
+          <article class="channel-card" [class.inactive]="!credential.active">
+            <header>
+              <div class="channel-name">
+                <span class="channel-icon"><i class="pi pi-shopping-bag"></i></span>
+                <div>
+                  <h3>{{ credential.name }}</h3>
+                  <small>{{ credential.keyPrefix }}•••• · {{ credential.webhook.mode }}</small>
+                </div>
+              </div>
+              <span class="badge" [attr.data-active]="credential.active">{{
+                credential.active ? 'Activo' : 'Revocado'
+              }}</span>
+            </header>
+            <p>
+              {{ credential.context.branch.name }} · {{ credential.context.location.name }} ·
+              {{ credential.context.cashRegister.name }}
+            </p>
+            <div class="scope-list">
+              @for (scope of credential.scopes; track scope) {
+                <span>{{ scope }}</span>
+              }
+            </div>
+            <dl>
+              <div>
+                <dt>Límite</dt>
+                <dd>{{ credential.rateLimitPerMinute }} rpm</dd>
+              </div>
+              <div>
+                <dt>Webhook</dt>
+                <dd>{{ credential.webhook.enabled ? 'Activo' : 'Inactivo' }}</dd>
+              </div>
+              <div>
+                <dt>Último uso</dt>
+                <dd>
+                  {{
+                    credential.lastUsedAt
+                      ? (credential.lastUsedAt | date: 'dd/MM HH:mm')
+                      : 'Sin uso'
+                  }}
+                </dd>
+              </div>
+            </dl>
+            @if (credential.active) {
+              <footer>
+                <button
+                  class="secondary"
+                  type="button"
+                  [disabled]="acting()"
+                  (click)="rotate(credential)"
+                >
+                  <i class="pi pi-refresh"></i>Rotar</button
+                ><button
+                  class="danger"
+                  type="button"
+                  [disabled]="acting()"
+                  (click)="revoke(credential)"
+                >
+                  <i class="pi pi-ban"></i>Revocar
+                </button>
+              </footer>
+            }
+          </article>
+        } @empty {
+          <div class="state">
+            <i class="pi pi-shop"></i>
+            <div>
+              <strong>No hay canales</strong
+              ><span>Crea una credencial acotada para conectar el primer marketplace.</span>
+            </div>
+          </div>
+        }
+      </div>
+    </section>
+  } @else if (panel() === 'sync') {
+    <section aria-labelledby="sync-title">
+      <div class="section-heading">
+        <div>
+          <h2 id="sync-title">Entregas webhook</h2>
+          <p>Estado, intentos y errores de sincronización por evento.</p>
+        </div>
+      </div>
+      <div class="delivery-list">
+        @for (delivery of deliveries(); track delivery.id) {
+          <article>
+            <span class="status-dot" [attr.data-status]="delivery.status"></span>
+            <div>
+              <strong>{{ delivery.eventType }}</strong
+              ><small>{{ delivery.targetUrl }}</small>
+            </div>
+            <div class="delivery-result">
+              <span>{{ delivery.status }}</span
+              ><small
+                >Intento {{ delivery.attemptCount }}/5 ·
+                {{ delivery.updatedAt | date: 'dd/MM/yyyy HH:mm' }}</small
+              >
+              @if (delivery.errorCode) {
+                <code>{{ delivery.errorCode }}</code>
+              }
+            </div>
+            @if (canReplay(delivery)) {
+              <button
+                class="secondary"
+                type="button"
+                [disabled]="acting()"
+                (click)="replay(delivery)"
+              >
+                Reintentar
+              </button>
+            }
+          </article>
+        } @empty {
+          <div class="state"><i class="pi pi-check-circle"></i>No hay entregas registradas.</div>
+        }
+      </div>
+    </section>
+  } @else {
+    <section aria-labelledby="contract-title">
+      <div class="contract-banner">
+        <i class="pi pi-shield"></i>
+        <div>
+          <h2 id="contract-title">{{ contract()?.info?.title }}</h2>
+          <p>
+            OpenAPI {{ contract()?.openapi }} · versión {{ contract()?.info?.version }} · Bearer API
+            key
+          </p>
+        </div>
+        <span>Base {{ contract()?.servers?.[0]?.url }}</span>
+      </div>
+      <div class="guarantees">
+        <article>
+          <i class="pi pi-clone"></i>
+          <div>
+            <strong>Idempotencia</strong
+            ><span>POST /orders reproduce el resultado para el mismo identificador externo.</span>
+          </div>
+        </article>
+        <article>
+          <i class="pi pi-lock"></i>
+          <div>
+            <strong>Firma de webhooks</strong
+            ><span>{{ contract()?.['x-webhook-contract']?.signatureHeader }} · HMAC-SHA256</span>
+          </div>
+        </article>
+        <article>
+          <i class="pi pi-replay"></i>
+          <div>
+            <strong>Reintentos controlados</strong
+            ><span
+              >{{ contract()?.['x-webhook-contract']?.attempts?.automatic }} automáticos, máximo
+              {{ contract()?.['x-webhook-contract']?.attempts?.controlledMaximumTotal }}.</span
+            >
+          </div>
+        </article>
+      </div>
+      <div class="operation-list" aria-label="Operaciones de la API externa">
+        @for (operation of operations(); track operation.method + operation.path) {
+          <article>
+            <span class="method" [attr.data-method]="operation.method">{{ operation.method }}</span
+            ><code>{{ operation.path }}</code>
+            <div>
+              <strong>{{ operation.summary }}</strong
+              ><small>Alcance {{ operation.scope }}</small>
+            </div>
+            @if (operation.idempotent) {
+              <span class="idempotent"><i class="pi pi-check"></i>Idempotente</span>
+            }
+          </article>
+        }
+      </div>
+    </section>
+  }
+</section>
+
+<ui-commerce-credential-dialogs
+  [editorOpen]="editorOpen()"
+  [oneTimeKey]="oneTimeKey()"
+  [revealKey]="revealKey()"
+  [acting]="acting()"
+  [form]="form"
+  [options]="options()"
+  [scopes]="scopes"
+  [events]="events"
+  (editorClosed)="closeEditor()"
+  (createRequested)="create()"
+  (scopeChanged)="toggleScope($event.scope, $event.checked)"
+  (eventChanged)="toggleEvent($event.event, $event.checked)"
+  (revealRequested)="revealKey.set(true)"
+  (copyRequested)="copyKey()"
+  (keyClosed)="closeKey()"
+/>
