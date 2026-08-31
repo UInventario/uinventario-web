@@ -8,7 +8,8 @@ La suite valida comportamiento público del frontend Angular nuevo. No importa p
 - `application`: normalización, composición y comandos enviados a gateways.
 - `data`: rutas, parámetros, envelopes, idempotencia y propagación de errores normalizados.
 - `ui`: estados visibles, permisos y acciones del usuario mediante `TestBed`.
-- `e2e-v2`: recorridos completos; UIN-211 cubre los críticos contra datos aislados.
+- `e2e-v2`: recorridos rápidos de navegador contra contratos simulados.
+- `e2e-real`: recorridos críticos contra NestJS, migraciones y MySQL reales y efímeros.
 
 ## Riesgos obligatorios
 
@@ -22,6 +23,12 @@ La suite valida comportamiento público del frontend Angular nuevo. No importa p
 | Componentes   | estados, permisos y confirmaciones visibles                   |
 
 Los identificadores usados por una prueba pertenecen al escenario aislado de esa prueba. Está prohibido importar seeds, fixtures demo o código del frontend anterior.
+
+## Gate E2E real
+
+- `npm run test:e2e:real`: registro, onboarding, producto, stock y venta real en escritorio y móvil; también verifica permisos, aislamiento entre tenants, dinero y descuento de inventario.
+
+El gate crea un contenedor MySQL con `tmpfs`, usa puertos locales libres y elimina el contenedor al finalizar. La API se toma del repositorio hermano `uinventario-api`; en CI ambos repositorios se instalan desde sus lockfiles. Ningún dato sobrevive a la ejecución.
 
 ## Gates
 

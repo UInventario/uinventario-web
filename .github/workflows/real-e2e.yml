@@ -1,0 +1,59 @@
+name: Real Web V2 E2E
+
+on:
+  pull_request:
+    branches: [develop, master]
+  push:
+    branches: [develop, master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-real-e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  critical-flow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout Web
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: uinventario-web
+      - name: Checkout matching API integration branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: UInventario/uinventario-api
+          ref: ${{ (github.base_ref == 'master' || github.ref_name == 'master') && 'master' || 'develop' }}
+          path: uinventario-api
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            uinventario-web/package-lock.json
+            uinventario-api/package-lock.json
+      - name: Install locked Web dependencies
+        working-directory: uinventario-web
+        run: npm ci
+      - name: Install locked API dependencies
+        working-directory: uinventario-api
+        run: npm ci
+      - name: Install Chromium
+        working-directory: uinventario-web
+        run: npx playwright install --with-deps chromium
+      - name: Run isolated real critical flow
+        working-directory: uinventario-web
+        env:
+          UINVENTARIO_API_DIR: ${{ github.workspace }}/uinventario-api
+        run: npm run test:e2e:real
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: real-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: uinventario-web/test-results-real
+          if-no-files-found: ignore
+          retention-days: 7
