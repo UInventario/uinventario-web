@@ -87,6 +87,10 @@ export class AppShell {
       void this.router.navigate(['/ventas/pos']);
       return;
     }
+    if (commandId === 'pricing-rules') {
+      void this.router.navigate(['/catalogo/precios']);
+      return;
+    }
     if (commandId === 'sales-history') {
       void this.router.navigate(['/ventas/historial']);
       return;

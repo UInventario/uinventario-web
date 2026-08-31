@@ -47,6 +47,15 @@
             {{ completedSale.credit.installments.length }} parcialidad(es)
           </div>
         }
+        @if (completedSale.loyalty; as loyalty) {
+          <div class="credit-result">
+            <i class="pi pi-star"></i>
+            @if (loyalty.pointsRedeemed) {
+              Canje {{ loyalty.pointsRedeemed }} pts ·
+            }
+            Ganó {{ loyalty.pointsEarned }} pts
+          </div>
+        }
         <button class="primary wide" type="button" (click)="closed.emit()">
           Iniciar otra venta
         </button>

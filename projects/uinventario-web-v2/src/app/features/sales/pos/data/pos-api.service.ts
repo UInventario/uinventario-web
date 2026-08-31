@@ -14,6 +14,7 @@ import {
   PaymentTerminalOperation,
   PosCustomer,
   PosCustomerPage,
+  PosLoyaltyStatement,
   PosCartQuote,
   PosCartRequest,
   PosPaymentOptions,
@@ -96,6 +97,12 @@ export class PosApi extends PosGateway {
         params: { q: query, status: 'ACTIVE', page: 1, pageSize: 12 },
       })
       .pipe(map(({ data, meta }) => ({ customers: data, pagination: meta.pagination })));
+  }
+
+  override loyaltyStatement(customerId: string) {
+    return this.api
+      .get<ApiEnvelope<PosLoyaltyStatement>>(`/loyalty/customers/${encodeURIComponent(customerId)}`)
+      .pipe(map(({ data }) => data));
   }
 
   override createCashSale(input: CreateCashSaleInput) {

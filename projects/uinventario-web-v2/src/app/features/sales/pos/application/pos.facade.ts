@@ -30,6 +30,9 @@ export class PosFacade {
   searchCustomers(query: string) {
     return this.gateway.searchCustomers(query);
   }
+  loyaltyStatement(customerId: string) {
+    return this.gateway.loyaltyStatement(customerId);
+  }
   createCashSale(input: CreateCashSaleInput) {
     return this.gateway.createCashSale(input);
   }

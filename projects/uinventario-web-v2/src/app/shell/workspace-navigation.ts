@@ -147,6 +147,12 @@ const COMMANDS: Record<WorkspaceId, readonly PolicyGroup[]> = {
           icon: 'pi pi-upload',
           permissionsAny: ['PRODUCTS_MANAGE'],
         },
+        {
+          id: 'pricing-rules',
+          label: 'Precios',
+          icon: 'pi pi-tags',
+          permissionsAny: ['PRODUCTS_MANAGE'],
+        },
       ],
     },
   ],

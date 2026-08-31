@@ -42,6 +42,34 @@
           <p>El backend limita el precio manual entre 50% y 200% del vigente.</p>
         </div>
       }
+      @if (canDiscount()) {
+        <div class="discount-editor">
+          <label class="check-row">
+            <input type="checkbox" formControlName="discountEnabled" />
+            Aplicar descuento a esta línea
+          </label>
+          @if (form.controls.discountEnabled.value) {
+            <div class="discount-grid">
+              <label>
+                Tipo
+                <select formControlName="discountType">
+                  <option value="PERCENT">Porcentaje</option>
+                  <option value="AMOUNT">Importe</option>
+                </select>
+              </label>
+              <label>
+                Valor
+                <input formControlName="discountValue" inputmode="decimal" autocomplete="off" />
+              </label>
+            </div>
+            <label>
+              Motivo del descuento
+              <input formControlName="discountReason" maxlength="240" autocomplete="off" />
+            </label>
+            <p>El permiso de descuentos se vuelve a validar al cotizar y al cobrar.</p>
+          }
+        </div>
+      }
       @if (error()) {
         <div class="notice" role="alert">{{ error() }}</div>
       }

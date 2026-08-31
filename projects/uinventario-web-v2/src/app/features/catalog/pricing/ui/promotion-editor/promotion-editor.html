@@ -1,0 +1,175 @@
+<div class="backdrop" (click)="closed.emit()">
+  <section
+    class="dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="promotion-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <p>Promoción</p>
+        <h2 id="promotion-title">{{ current() ? 'Editar promoción' : 'Nueva promoción' }}</h2>
+      </div>
+      <button class="icon" type="button" (click)="closed.emit()" aria-label="Cerrar">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <div class="grid">
+        <label>Nombre<input formControlName="name" maxlength="120" /></label
+        ><label
+          >Tipo<select formControlName="type">
+            @for (type of types; track type.value) {
+              <option [value]="type.value">{{ type.label }}</option>
+            }
+          </select></label
+        >
+      </div>
+      <div class="grid three">
+        <label
+          >Alcance<select formControlName="scope">
+            <option value="GLOBAL">Toda la empresa</option>
+            <option value="BRANCH">Sucursal · {{ branch()?.name || 'sin seleccionar' }}</option>
+          </select></label
+        ><label
+          >Canal<select formControlName="channel">
+            @for (channel of channels; track channel.value) {
+              <option [value]="channel.value">{{ channel.label }}</option>
+            }
+          </select></label
+        ><label>Prioridad<input type="number" formControlName="priority" /></label>
+      </div>
+      <div class="grid">
+        <label>Desde<input type="datetime-local" formControlName="validFrom" /></label
+        ><label>Hasta (opcional)<input type="datetime-local" formControlName="validTo" /></label>
+      </div>
+      <div class="checks">
+        <label><input type="checkbox" formControlName="active" /> Activa</label
+        ><label
+          ><input type="checkbox" formControlName="stackable" /> Acumulable con otras
+          promociones</label
+        >
+      </div>
+      <section>
+        <div class="heading">
+          <strong>Regla</strong><small>El backend validará margen, prioridad y vigencia.</small>
+        </div>
+        @if (form.controls.type.value === 'BUY_X_GET_Y') {
+          <div class="grid three">
+            <label>Compra<input formControlName="buyQuantity" inputmode="decimal" /></label
+            ><label>Recibe<input formControlName="rewardQuantity" inputmode="decimal" /></label
+            ><label
+              >Descuento recompensa %<input formControlName="discountPercent" inputmode="decimal"
+            /></label>
+          </div>
+        } @else if (form.controls.type.value === 'SECOND_UNIT_PERCENT') {
+          <label
+            >Descuento en segunda unidad %<input
+              formControlName="discountPercent"
+              inputmode="decimal"
+          /></label>
+        } @else if (form.controls.type.value === 'BUNDLE_FIXED') {
+          <label
+            >Precio fijo del paquete<input formControlName="fixedPrice" inputmode="decimal"
+          /></label>
+        } @else {
+          <div class="tiers" formArrayName="tiers">
+            @for (tier of tierRows.controls; track $index; let index = $index) {
+              <div [formGroupName]="index">
+                <label>Cantidad mínima<input formControlName="minimumQuantity" /></label
+                ><label>Descuento % (máx. 50)<input formControlName="discountPercent" /></label
+                ><button type="button" (click)="tierRows.removeAt(index)">
+                  <i class="pi pi-trash"></i>
+                </button>
+              </div>
+            }
+          </div>
+          <button class="secondary compact" type="button" (click)="addTier()">
+            <i class="pi pi-plus"></i>Agregar nivel
+          </button>
+        }
+      </section>
+      <section>
+        <div class="heading">
+          <strong>Productos</strong
+          ><small>Un producto para reglas unitarias; dos o más para paquete.</small>
+        </div>
+        <div class="add">
+          <input
+            formControlName="productQuery"
+            placeholder="Filtrar catálogo"
+            (keyup.enter)="loadProducts(); $event.preventDefault()"
+          /><button type="button" (click)="loadProducts()"><i class="pi pi-search"></i></button
+          ><select formControlName="productId">
+            <option value="">{{ loading() ? 'Cargando…' : 'Selecciona producto' }}</option>
+            @for (product of products(); track product.id) {
+              <option [value]="product.id">{{ product.name }} · {{ product.sku }}</option>
+            }</select
+          ><button type="button" (click)="addProduct()">Agregar</button>
+        </div>
+        <div class="rows" formArrayName="products">
+          @for (
+            row of productRows.controls;
+            track row.controls.productId.value;
+            let index = $index
+          ) {
+            <div [formGroupName]="index">
+              <span
+                ><strong>{{ row.controls.productName.value }}</strong
+                ><small>{{ row.controls.sku.value }}</small></span
+              ><label>Cantidad<input formControlName="quantity" inputmode="decimal" /></label
+              ><button type="button" (click)="productRows.removeAt(index)">
+                <i class="pi pi-trash"></i>
+              </button>
+            </div>
+          } @empty {
+            <p class="empty">Aún no hay productos.</p>
+          }
+        </div>
+      </section>
+      <section>
+        <div class="heading">
+          <strong>Cliente específico</strong
+          ><small>Opcional; limita la regla al contexto del cliente.</small>
+        </div>
+        @if (customer(); as selected) {
+          <div class="selected">
+            <strong>{{ selected.name }}</strong
+            ><button type="button" (click)="customer.set(null)">Quitar</button>
+          </div>
+        } @else {
+          <div class="customer-search">
+            <input formControlName="customerQuery" placeholder="Buscar cliente" /><button
+              type="button"
+              (click)="searchCustomers()"
+            >
+              Buscar
+            </button>
+          </div>
+          @if (customers().length) {
+            <div class="customers">
+              @for (item of customers(); track item.id) {
+                <button type="button" (click)="chooseCustomer(item)">
+                  <span
+                    ><strong>{{ item.name }}</strong
+                    ><small>{{ item.identifier || item.email || 'Sin identificador' }}</small></span
+                  ><i class="pi pi-plus"></i>
+                </button>
+              }
+            </div>
+          }
+        }
+      </section>
+      @if (error() || saveError()) {
+        <div class="notice" role="alert">{{ error() || saveError() }}</div>
+      }
+      <footer>
+        <button class="secondary" type="button" (click)="closed.emit()">Cancelar</button
+        ><button class="primary" type="submit" [disabled]="busy()">
+          {{ busy() ? 'Guardando…' : 'Guardar promoción' }}
+        </button>
+      </footer>
+    </form>
+  </section>
+</div>

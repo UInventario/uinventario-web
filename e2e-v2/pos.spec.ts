@@ -67,28 +67,75 @@ async function json(route: Route, body: unknown, status = 200): Promise<void> {
   await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 }
 
-function quoteFor(lines: Array<Record<string, unknown>>) {
+function quoteFor(lines: Array<Record<string, unknown>>, request: Record<string, unknown> = {}) {
   const quoted = lines.map((line) => {
     const source = line['productId'] === service.id ? service : product();
     const quantity = String(line['quantity']);
-    const price = String(line['manualUnitPrice'] ?? source.price);
-    const total = (Number(quantity) * Number(price)).toFixed(2);
+    const contextual = Boolean(request['customerId']) && source.id === product().id;
+    const price = String(line['manualUnitPrice'] ?? (contextual ? '100.00' : source.price));
+    const gross = Number(quantity) * Number(price);
+    const requestedDiscount = line['discount'] as
+      { type: 'PERCENT' | 'AMOUNT'; value: string; reason: string } | undefined;
+    const lineDiscount = requestedDiscount
+      ? requestedDiscount.type === 'PERCENT'
+        ? (gross * Number(requestedDiscount.value)) / 100
+        : Number(requestedDiscount.value)
+      : 0;
+    const promotionAmount = contextual ? Math.min(2.5, gross - lineDiscount) : 0;
+    const total = Math.max(0, gross - lineDiscount - promotionAmount).toFixed(2);
     return {
       product: source,
       quantity,
       note: line['note'] ?? null,
       availableQuantity: source.stockBehavior === 'UNTRACKED' ? '0.000' : '20.000',
       unitPrice: price,
-      priceSource: line['manualUnitPrice'] ? 'MANUAL' : 'BASE',
+      priceSource: line['manualUnitPrice'] ? 'MANUAL' : contextual ? 'PRICE_LIST' : 'BASE',
       priceOverrideReason: line['priceOverrideReason'] ?? null,
-      priceList: null,
-      grossTotal: total,
+      priceList: contextual ? { id: 'list-1', name: 'Preferente Centro' } : null,
+      grossTotal: gross.toFixed(2),
+      discount: {
+        line: requestedDiscount ? { ...requestedDiscount, amount: lineDiscount.toFixed(2) } : null,
+        sale: null,
+        total: lineDiscount.toFixed(2),
+      },
+      promotions: contextual
+        ? [
+            {
+              promotion: {
+                id: 'promotion-1',
+                name: 'Cliente frecuente',
+                type: 'SECOND_UNIT_PERCENT',
+                priority: 10,
+              },
+              amount: promotionAmount.toFixed(2),
+              explanation: 'Promoción Cliente frecuente aplicada por contexto',
+              ruleSnapshot: { customerId: request['customerId'] },
+            },
+          ]
+        : [],
       subtotal: total,
       tax: '0.00',
       total,
     };
   });
-  const total = quoted.reduce((sum, line) => sum + Number(line.total), 0).toFixed(2);
+  const gross = quoted.reduce((sum, line) => sum + Number(line.grossTotal), 0);
+  const lineDiscount = quoted.reduce((sum, line) => sum + Number(line.discount.total), 0);
+  const promotionDiscount = quoted.reduce(
+    (sum, line) =>
+      sum + line.promotions.reduce((value, promotion) => value + Number(promotion.amount), 0),
+    0,
+  );
+  const requestedSaleDiscount = request['discount'] as
+    { type: 'PERCENT' | 'AMOUNT'; value: string; reason: string } | undefined;
+  const saleBase = gross - lineDiscount - promotionDiscount;
+  const saleDiscount = requestedSaleDiscount
+    ? requestedSaleDiscount.type === 'PERCENT'
+      ? (saleBase * Number(requestedSaleDiscount.value)) / 100
+      : Number(requestedSaleDiscount.value)
+    : 0;
+  const total = Math.max(0, saleBase - saleDiscount).toFixed(2);
+  const pointsRedeemed = Number(request['loyaltyPointsToRedeem'] ?? 0);
+  const redemptionValue = pointsRedeemed ? pointsRedeemed / 10 : 0;
   return {
     data: {
       context: {
@@ -98,16 +145,42 @@ function quoteFor(lines: Array<Record<string, unknown>>) {
       },
       currency: 'MXN',
       taxRate: '0.0000',
+      discount: requestedSaleDiscount
+        ? { ...requestedSaleDiscount, amount: saleDiscount.toFixed(2) }
+        : null,
+      loyalty: request['customerId']
+        ? {
+            rule: {
+              id: 'rule-1',
+              version: 2,
+              active: true,
+              earnAmount: '100.00',
+              earnPoints: 5,
+              redeemPoints: 100,
+              redeemAmount: '10.00',
+              expirationDays: null,
+              createdAt: '2026-08-30T00:00:00.000Z',
+            },
+            balanceBefore: 300,
+            pointsRedeemed,
+            redemptionValue: redemptionValue.toFixed(2),
+            pointsEarned: 5,
+            balanceAfter: 305 - pointsRedeemed,
+          }
+        : null,
       lines: quoted,
       totals: {
-        gross: total,
-        lineDiscount: '0.00',
-        promotionDiscount: '0.00',
-        saleDiscount: '0.00',
-        discount: '0.00',
+        gross: gross.toFixed(2),
+        lineDiscount: lineDiscount.toFixed(2),
+        promotionDiscount: promotionDiscount.toFixed(2),
+        saleDiscount: saleDiscount.toFixed(2),
+        discount: (lineDiscount + promotionDiscount + saleDiscount).toFixed(2),
         subtotal: total,
         tax: '0.00',
         total,
+        ...(pointsRedeemed
+          ? { payable: Math.max(0, Number(total) - redemptionValue).toFixed(2) }
+          : {}),
       },
     },
     meta: { apiVersion: '1', recalculatedAt: '2026-08-30T17:00:00.000Z' },
@@ -118,10 +191,15 @@ interface MockOptions {
   permissions?: string[];
   register?: { current: string };
   quoteWrites?: Array<Array<Record<string, unknown>>>;
+  quoteRequests?: Array<Record<string, unknown>>;
 }
 
 async function mockPos(page: Page, options: MockOptions = {}): Promise<void> {
-  const permissions = options.permissions ?? ['SALES_MANAGE', 'SALES_PRICE_OVERRIDE'];
+  const permissions = options.permissions ?? [
+    'SALES_MANAGE',
+    'SALES_PRICE_OVERRIDE',
+    'SALES_DISCOUNT',
+  ];
   const register = options.register ?? { current: 'register-1' };
   await page.route('**/api/v1/**', async (route) => {
     const url = new URL(route.request().url());
@@ -177,10 +255,54 @@ async function mockPos(page: Page, options: MockOptions = {}): Promise<void> {
       }
       return;
     }
+    if (path === '/customers' && route.request().method() === 'GET') {
+      await json(route, {
+        data: [
+          {
+            id: 'customer-1',
+            name: 'Cliente preferente',
+            identifier: 'CUST-01',
+            email: 'cliente@example.com',
+            phone: null,
+            active: true,
+            privacyStatus: 'ACTIVE',
+            credit: null,
+          },
+        ],
+        meta: { apiVersion: '1', pagination: { page: 1, pageSize: 12, total: 1, totalPages: 1 } },
+      });
+      return;
+    }
+    if (path === '/loyalty/customers/customer-1') {
+      await json(route, {
+        data: {
+          customer: { id: 'customer-1', name: 'Cliente preferente' },
+          rule: {
+            id: 'rule-1',
+            version: 2,
+            active: true,
+            earnAmount: '100.00',
+            earnPoints: 5,
+            redeemPoints: 100,
+            redeemAmount: '10.00',
+            expirationDays: null,
+            createdAt: '2026-08-30T00:00:00.000Z',
+          },
+          balance: 300,
+          entries: [],
+        },
+        meta: { apiVersion: '1' },
+      });
+      return;
+    }
     if (path === '/pos/cart/quote' && route.request().method() === 'POST') {
-      const body = route.request().postDataJSON() as { lines: Array<Record<string, unknown>> };
+      const body = route.request().postDataJSON() as {
+        lines: Array<Record<string, unknown>>;
+        [key: string]: unknown;
+      };
       options.quoteWrites?.push(body.lines);
-      await json(route, quoteFor(body.lines));
+      options.quoteRequests?.push(body);
+      await json(route, quoteFor(body.lines, body));
       return;
     }
     throw new Error(`Request no simulada: ${route.request().method()} ${path}`);
@@ -239,7 +361,55 @@ test('applies fractional quantities and price overrides only with permission', a
     });
 });
 
-test('removes persisted overrides when the cashier lacks override permission', async ({ page }) => {
+test('applies contextual prices, authorized discounts, explained promotions and confirmed loyalty', async ({
+  page,
+}) => {
+  const requests: Array<Record<string, unknown>> = [];
+  await mockPos(page, { quoteRequests: requests });
+  await page.goto('./ventas/pos');
+  await page.getByRole('button', { name: 'Agregar Café molido' }).click();
+
+  await page.getByRole('button', { name: 'Cliente y beneficios' }).click();
+  const benefits = page.getByRole('dialog', { name: 'Cliente, descuento y puntos' });
+  await benefits.getByPlaceholder('Nombre, identificador o contacto').fill('Cliente');
+  await benefits.getByRole('button', { name: 'Buscar' }).click();
+  await benefits.getByRole('button', { name: /Cliente preferente/ }).click();
+  await benefits.getByLabel('Aplicar descuento a la venta').check();
+  await benefits.getByLabel('Valor').fill('10');
+  await benefits.getByLabel('Motivo').fill('Convenio de cliente preferente');
+  await benefits.getByLabel('Puntos a canjear').fill('100');
+  await benefits.getByLabel(/Confirmo el canje de 100 puntos/).check();
+  await benefits.getByRole('button', { name: 'Aplicar y recalcular' }).click();
+
+  await expect(page.getByText('Preferente Centro')).toBeVisible();
+  await expect(page.getByText(/Promoción Cliente frecuente aplicada por contexto/)).toBeVisible();
+  await expect(page.getByText('Descuento de venta')).toBeVisible();
+  await expect(page.getByText(/Ganará 5 pts/)).toBeVisible();
+  await expect
+    .poll(() => requests.at(-1))
+    .toMatchObject({
+      channel: 'POS',
+      customerId: 'customer-1',
+      loyaltyPointsToRedeem: 100,
+      discount: { type: 'PERCENT', value: '10', reason: 'Convenio de cliente preferente' },
+    });
+
+  await page.getByRole('button', { name: 'Editar Café molido' }).click();
+  const line = page.getByRole('dialog', { name: 'Café molido' });
+  await line.getByLabel('Aplicar descuento a esta línea').check();
+  await line.getByLabel('Valor').fill('5');
+  await line.getByLabel('Motivo del descuento').fill('Producto con convenio');
+  await line.getByRole('button', { name: 'Aplicar cambios' }).click();
+  await expect
+    .poll(() => (requests.at(-1)?.['lines'] as Array<Record<string, unknown>> | undefined)?.[0])
+    .toMatchObject({
+      discount: { type: 'PERCENT', value: '5', reason: 'Producto con convenio' },
+    });
+});
+
+test('removes persisted overrides and discounts when the cashier lacks permissions', async ({
+  page,
+}) => {
   const writes: Array<Array<Record<string, unknown>>> = [];
   await page.addInitScript(
     (line) => {
@@ -253,6 +423,7 @@ test('removes persisted overrides when the cashier lacks override permission', a
       quantity: '0.500',
       manualUnitPrice: '60.00',
       priceOverrideReason: 'Persistido anteriormente',
+      discount: { type: 'PERCENT', value: '50', reason: 'Persistido anteriormente' },
     },
   );
   await mockPos(page, { permissions: ['SALES_MANAGE'], quoteWrites: writes });
@@ -261,8 +432,12 @@ test('removes persisted overrides when the cashier lacks override permission', a
   await expect(page.getByText('Café molido', { exact: true }).last()).toBeVisible();
   await page.getByRole('button', { name: 'Editar Café molido' }).click();
   await expect(page.getByLabel('Precio manual')).toHaveCount(0);
+  await expect(page.getByLabel('Aplicar descuento a esta línea')).toHaveCount(0);
   await page.getByRole('button', { name: 'Cancelar' }).click();
   await expect.poll(() => writes.at(-1)?.[0]).not.toHaveProperty('manualUnitPrice');
+  expect(writes.at(-1)?.[0]).not.toHaveProperty('discount');
+  await page.getByRole('button', { name: 'Cliente y beneficios' }).click();
+  await expect(page.getByLabel('Aplicar descuento a la venta')).toHaveCount(0);
 });
 
 test('restores carts only inside the original operational context', async ({ page }) => {

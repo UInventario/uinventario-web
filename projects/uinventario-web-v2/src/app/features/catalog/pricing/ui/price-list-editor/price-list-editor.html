@@ -1,0 +1,132 @@
+<div class="backdrop" (click)="closed.emit()">
+  <section
+    class="dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="price-list-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <p>Lista de precios</p>
+        <h2 id="price-list-title">{{ current() ? 'Editar lista' : 'Nueva lista' }}</h2>
+      </div>
+      <button class="icon" type="button" aria-label="Cerrar" (click)="closed.emit()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <div class="field-grid">
+        <label>Nombre<input formControlName="name" maxlength="120" /></label
+        ><label>Moneda<input formControlName="currency" maxlength="3" /></label>
+      </div>
+      <div class="field-grid">
+        <label
+          >Alcance<select formControlName="scope">
+            <option value="GLOBAL">Toda la empresa</option>
+            <option value="BRANCH">
+              Sucursal actual · {{ branch()?.name || 'sin seleccionar' }}
+            </option>
+          </select></label
+        ><label
+          >Canal<select formControlName="channel">
+            @for (channel of channels; track channel.value) {
+              <option [value]="channel.value">{{ channel.label }}</option>
+            }
+          </select></label
+        >
+      </div>
+      <div class="field-grid three">
+        <label>Prioridad<input type="number" formControlName="priority" /></label
+        ><label>Desde<input type="datetime-local" formControlName="validFrom" /></label
+        ><label>Hasta (opcional)<input type="datetime-local" formControlName="validTo" /></label>
+      </div>
+      <label class="check"><input type="checkbox" formControlName="active" /> Lista activa</label>
+
+      <section class="customer">
+        <div>
+          <strong>Cliente específico</strong><small>Déjalo vacío para cualquier cliente.</small>
+        </div>
+        @if (selectedCustomer(); as customer) {
+          <span class="selection"
+            ><b>{{ customer.name }}</b
+            ><button type="button" (click)="selectedCustomer.set(null)">Quitar</button></span
+          >
+        } @else {
+          <div class="search">
+            <input formControlName="customerQuery" placeholder="Buscar cliente" /><button
+              type="button"
+              (click)="searchCustomers()"
+            >
+              {{ searchingCustomers() ? 'Buscando…' : 'Buscar' }}
+            </button>
+          </div>
+          @if (customers().length) {
+            <div class="results">
+              @for (customer of customers(); track customer.id) {
+                <button type="button" (click)="chooseCustomer(customer)">
+                  <span
+                    ><b>{{ customer.name }}</b
+                    ><small>{{
+                      customer.identifier || customer.email || 'Sin identificador'
+                    }}</small></span
+                  ><i class="pi pi-plus"></i>
+                </button>
+              }
+            </div>
+          }
+        }
+      </section>
+
+      <section class="products">
+        <div class="section-head">
+          <div>
+            <strong>Productos y precios</strong
+            ><small>El POS explicará cuándo se elige esta lista.</small>
+          </div>
+          <div class="product-search">
+            <input
+              formControlName="productQuery"
+              placeholder="Filtrar catálogo"
+              (keyup.enter)="loadProducts(); $event.preventDefault()"
+            /><button type="button" (click)="loadProducts()"><i class="pi pi-search"></i></button>
+          </div>
+        </div>
+        <div class="add-product">
+          <select formControlName="productId">
+            <option value="">
+              {{ loadingProducts() ? 'Cargando…' : 'Selecciona un producto' }}
+            </option>
+            @for (product of products(); track product.id) {
+              <option [value]="product.id">{{ product.name }} · {{ product.sku }}</option>
+            }</select
+          ><button type="button" (click)="addProduct()">Agregar</button>
+        </div>
+        <div class="item-list" formArrayName="items">
+          @for (item of items.controls; track item.controls.productId.value; let index = $index) {
+            <div class="item" [formGroupName]="index">
+              <span
+                ><strong>{{ item.controls.productName.value }}</strong
+                ><small>{{ item.controls.sku.value }}</small></span
+              ><label>Precio<input formControlName="price" inputmode="decimal" /></label
+              ><button type="button" aria-label="Quitar producto" (click)="items.removeAt(index)">
+                <i class="pi pi-trash"></i>
+              </button>
+            </div>
+          } @empty {
+            <p class="empty">Agrega al menos un producto.</p>
+          }
+        </div>
+      </section>
+      @if (error() || saveError()) {
+        <div class="notice" role="alert">{{ error() || saveError() }}</div>
+      }
+      <footer>
+        <button class="secondary" type="button" (click)="closed.emit()">Cancelar</button
+        ><button class="primary" type="submit" [disabled]="busy()">
+          {{ busy() ? 'Guardando…' : 'Guardar lista' }}
+        </button>
+      </footer>
+    </form>
+  </section>
+</div>

@@ -92,6 +92,19 @@ describe('OfflinePos', () => {
       offline.quote({ lines: [{ productId: 'product-1', quantity: '1.000' }] }),
     ).rejects.toThrow('datos offline vencieron');
   });
+
+  it('never degrades contextual prices, discounts or loyalty into an offline base-price sale', async () => {
+    await prepare(store, current);
+    await expect(
+      offline.quote({
+        channel: 'POS',
+        customerId: 'customer-1',
+        loyaltyPointsToRedeem: 100,
+        discount: { type: 'PERCENT', value: '10', reason: 'Convenio mayorista' },
+        lines: [{ productId: 'product-1', quantity: '1.000' }],
+      }),
+    ).rejects.toThrow('Conéctate para usar cliente');
+  });
 });
 
 function activeSession(): SessionData {
