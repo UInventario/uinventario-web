@@ -120,6 +120,15 @@
           <h2 id="cart-title">Carrito</h2>
         </div>
         <div>
+          <button
+            class="benefits"
+            type="button"
+            [disabled]="!cart.lines().length"
+            (click)="benefitsOpen.set(true)"
+          >
+            <i class="pi pi-user-plus"></i>
+            {{ saleTerms().customer?.name || 'Cliente y beneficios' }}
+          </button>
           <span class="item-count">{{ itemCount() }} línea(s)</span>
           <button
             class="clear"
@@ -150,6 +159,9 @@
                   <small>{{ line.product.sku }} · {{ line.product.baseUnit }}</small>
                   @if (line.note) {
                     <em>{{ line.note }}</em>
+                  }
+                  @if (quotedLine(line.product.id)?.priceList; as priceList) {
+                    <em class="rule-chip"><i class="pi pi-tag"></i>{{ priceList.name }}</em>
                   }
                 </div>
                 <strong class="line-total">
@@ -206,6 +218,26 @@
                 </button>
               </div>
               @if (quotedLine(line.product.id); as quoted) {
+                @if (+quoted.discount.total > 0 || quoted.promotions.length) {
+                  <div class="pricing-rules">
+                    @if (quoted.discount.line) {
+                      <span>
+                        <i class="pi pi-percentage"></i>Descuento de línea: −{{
+                          money(quoted.discount.line.amount, quote()?.currency)
+                        }}
+                        ·
+                        {{ quoted.discount.line.reason }}
+                      </span>
+                    }
+                    @for (promotion of quoted.promotions; track promotion.promotion.id) {
+                      <span>
+                        <i class="pi pi-sparkles"></i>{{ promotion.explanation }} · −{{
+                          money(promotion.amount, quote()?.currency)
+                        }}
+                      </span>
+                    }
+                  </div>
+                }
                 <div class="availability" [class.low]="+quoted.availableQuantity < +line.quantity">
                   <i class="pi pi-check-circle"></i>Disponible {{ quoted.availableQuantity }}
                 </div>
@@ -226,19 +258,48 @@
             <dt>Subtotal</dt>
             <dd>{{ money(quote()?.totals?.subtotal, quote()?.currency) }}</dd>
           </div>
-          <div>
-            <dt>Descuentos</dt>
-            <dd>− {{ money(quote()?.totals?.discount, quote()?.currency) }}</dd>
-          </div>
+          @if (quote() && +quote()!.totals.lineDiscount > 0) {
+            <div class="commercial-detail">
+              <dt>Descuento por línea</dt>
+              <dd>− {{ money(quote()!.totals.lineDiscount, quote()!.currency) }}</dd>
+            </div>
+          }
+          @if (quote() && +quote()!.totals.promotionDiscount > 0) {
+            <div class="commercial-detail">
+              <dt>Promociones</dt>
+              <dd>− {{ money(quote()!.totals.promotionDiscount, quote()!.currency) }}</dd>
+            </div>
+          }
+          @if (quote() && +quote()!.totals.saleDiscount > 0) {
+            <div class="commercial-detail">
+              <dt>Descuento de venta</dt>
+              <dd>− {{ money(quote()!.totals.saleDiscount, quote()!.currency) }}</dd>
+            </div>
+          }
           <div>
             <dt>Impuestos</dt>
             <dd>{{ money(quote()?.totals?.tax, quote()?.currency) }}</dd>
           </div>
           <div class="total">
-            <dt>Total</dt>
-            <dd>{{ money(quote()?.totals?.total, quote()?.currency) }}</dd>
+            <dt>{{ quote()?.totals?.payable ? 'Total a cobrar' : 'Total' }}</dt>
+            <dd>
+              {{ money(quote()?.totals?.payable || quote()?.totals?.total, quote()?.currency) }}
+            </dd>
           </div>
         </dl>
+        @if (quote()?.loyalty; as loyalty) {
+          <div class="loyalty-preview">
+            <i class="pi pi-star-fill"></i>
+            <span>
+              @if (loyalty.pointsRedeemed) {
+                Canje {{ loyalty.pointsRedeemed }} pts (−{{
+                  money(loyalty.redemptionValue, quote()!.currency)
+                }}) ·
+              }
+              Ganará {{ loyalty.pointsEarned }} pts · Saldo final {{ loyalty.balanceAfter }} pts
+            </span>
+          </div>
+        }
         <div class="checkout-next">
           <span><i class="pi pi-save"></i>Carrito guardado para esta caja</span>
           <div class="checkout-actions">
@@ -268,8 +329,18 @@
   <ui-pos-line-dialog
     [line]="line"
     [canOverridePrice]="canOverridePrice()"
+    [canDiscount]="canDiscount()"
     (closed)="editing.set(null)"
     (submitted)="saveLine($event)"
+  />
+}
+
+@if (benefitsOpen()) {
+  <ui-pos-benefits-dialog
+    [current]="saleTerms()"
+    [canDiscount]="canDiscount()"
+    (closed)="benefitsOpen.set(false)"
+    (submitted)="saveTerms($event)"
   />
 }
 

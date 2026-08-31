@@ -80,6 +80,23 @@ export class PosCartStore {
         product: line.product,
         quantity: line.quantity,
         ...(line.note ? { note: line.note } : {}),
+        ...(line.discount ? { discount: line.discount } : {}),
+      })),
+    );
+  }
+
+  stripUnauthorizedDiscounts(): void {
+    this.cartLines.update((lines) =>
+      lines.map((line) => ({
+        product: line.product,
+        quantity: line.quantity,
+        ...(line.note ? { note: line.note } : {}),
+        ...(line.manualUnitPrice
+          ? {
+              manualUnitPrice: line.manualUnitPrice,
+              priceOverrideReason: line.priceOverrideReason,
+            }
+          : {}),
       })),
     );
   }

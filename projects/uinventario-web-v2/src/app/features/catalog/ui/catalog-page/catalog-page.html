@@ -9,9 +9,14 @@
       </div>
     </div>
     @if (tab() === 'PRODUCTS' && canManage()) {
-      <button class="primary" type="button" (click)="openCreate()">
-        <i class="pi pi-plus"></i>Nuevo producto
-      </button>
+      <div class="header-actions">
+        <a class="secondary" routerLink="/catalogo/precios"
+          ><i class="pi pi-tags"></i>Precios y promociones</a
+        >
+        <button class="primary" type="button" (click)="openCreate()">
+          <i class="pi pi-plus"></i>Nuevo producto
+        </button>
+      </div>
     }
   </header>
 

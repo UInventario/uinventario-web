@@ -102,7 +102,7 @@
   .totals {
     padding: 0.55rem 0.7rem;
 
-    dl > div:not(.total) {
+    dl > div:not(.total):not(.commercial-detail) {
       display: none;
     }
 

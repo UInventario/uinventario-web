@@ -118,6 +118,16 @@ export class OfflinePos {
   }
 
   async quote(input: PosCartRequest): Promise<PosCartQuote> {
+    if (
+      input.customerId ||
+      input.loyaltyPointsToRedeem ||
+      input.discount ||
+      input.lines.some((line) => line.manualUnitPrice || line.discount)
+    ) {
+      throw new Error(
+        'Conéctate para usar cliente, precios especiales, descuentos o puntos de fidelidad.',
+      );
+    }
     const scope = await this.scope();
     const record = await this.assertFresh(scope, 'CASH_SALE');
     const session = this.sessions.session();
@@ -189,6 +199,8 @@ export class OfflinePos {
         priceOverrideReason: null,
         priceList: null,
         grossTotal: moneyValue(lineTotal),
+        discount: { line: null, sale: null, total: '0.00' },
+        promotions: [],
         subtotal: moneyValue(lineSubtotal),
         tax: moneyValue(lineTax),
         total: moneyValue(lineTotal),
@@ -202,6 +214,8 @@ export class OfflinePos {
       },
       currency: policy.currency,
       taxRate: policy.taxRate,
+      discount: null,
+      loyalty: null,
       lines,
       totals: {
         gross: moneyValue(total),

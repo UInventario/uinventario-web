@@ -70,6 +70,38 @@ describe('POS cart persistence', () => {
     ).toHaveLength(1);
   });
 
+  it('restores only validated discount fields from the scoped cart draft', () => {
+    const raw = JSON.stringify([
+      {
+        product: {
+          id: 'product-1',
+          name: 'CafÃ©',
+          sku: 'CAF-01',
+          barcode: null,
+          withoutCode: false,
+          stockBehavior: 'TRACKED',
+          taxBehavior: 'STANDARD',
+          baseUnit: 'UNIT',
+          quantityPrecision: 0,
+          quantityRounding: 'HALF_UP',
+          minimumQuantity: '1.000',
+          trackLots: false,
+          trackSerials: false,
+          price: '120.00',
+          active: true,
+          sellable: true,
+        },
+        quantity: '1.000',
+        discount: { type: 'PERCENT', value: '10', reason: 'Cliente frecuente' },
+      },
+    ]);
+    expect(parsePersistedCart(raw)[0]?.discount).toEqual({
+      type: 'PERCENT',
+      value: '10',
+      reason: 'Cliente frecuente',
+    });
+  });
+
   it('keeps a resumed sale scoped to the complete operational context', () => {
     const lines = parsePersistedCart(
       JSON.stringify([

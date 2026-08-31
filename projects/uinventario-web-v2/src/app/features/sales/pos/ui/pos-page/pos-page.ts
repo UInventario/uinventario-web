@@ -30,10 +30,12 @@ import {
   PosCartLine,
   PosCartQuote,
   PosCartRequest,
+  PosSaleTerms,
   PosProduct,
   PosProductPage,
   PosSale,
 } from '../../domain/pos.models';
+import { PosBenefitsDialog } from '../pos-benefits-dialog/pos-benefits-dialog';
 import { PosCheckoutDialog } from '../pos-checkout-dialog/pos-checkout-dialog';
 import { PosLineDialog } from '../pos-line-dialog/pos-line-dialog';
 import { PosScannerDialog } from '../pos-scanner-dialog/pos-scanner-dialog';
@@ -47,6 +49,7 @@ interface QuoteState {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PosBenefitsDialog,
     PosCheckoutDialog,
     PosLineDialog,
     PosScannerDialog,
@@ -83,6 +86,8 @@ export class PosPage implements OnInit {
   protected readonly quoteLoading = signal(false);
   protected readonly quoteError = signal<string | null>(null);
   protected readonly editing = signal<PosCartLine | null>(null);
+  protected readonly benefitsOpen = signal(false);
+  protected readonly saleTerms = signal<PosSaleTerms>({ customer: null });
   protected readonly checkout = signal<{
     readonly quote: PosCartQuote;
     readonly request: PosCartRequest;
@@ -90,6 +95,7 @@ export class PosPage implements OnInit {
   protected readonly canOverridePrice = computed(() =>
     this.authorization.has('SALES_PRICE_OVERRIDE'),
   );
+  protected readonly canDiscount = computed(() => this.authorization.has('SALES_DISCOUNT'));
   protected readonly canCredit = computed(() => this.authorization.has('SALES_CREDIT'));
   protected readonly context = computed(() => this.sessions.session()?.context ?? null);
   protected readonly itemCount = computed(() => this.cart.lines().length);
@@ -105,6 +111,7 @@ export class PosPage implements OnInit {
     this.resumedSale.set(resumed);
     if (resumed) this.cart.replace(resumed.lines);
     if (!this.canOverridePrice()) this.cart.stripUnauthorizedOverrides();
+    if (!this.canDiscount()) this.cart.stripUnauthorizedDiscounts();
     this.loadShift();
     this.searchRequests.next('');
     queueMicrotask(() => this.focusSearch());
@@ -162,6 +169,12 @@ export class PosPage implements OnInit {
     this.editing.set(null);
   }
 
+  protected saveTerms(terms: PosSaleTerms): void {
+    this.saleTerms.set(terms);
+    this.benefitsOpen.set(false);
+    this.quoteRequests.next(this.cart.lines());
+  }
+
   protected quotedLine(productId: string) {
     return this.quote()?.lines.find((line) => line.product.id === productId) ?? null;
   }
@@ -192,9 +205,14 @@ export class PosPage implements OnInit {
     if (
       this.cart
         .lines()
-        .some((line) => line.note || line.manualUnitPrice || line.priceOverrideReason)
+        .some(
+          (line) => line.note || line.manualUnitPrice || line.priceOverrideReason || line.discount,
+        ) ||
+      Boolean(this.saleTerms().discount || this.saleTerms().loyaltyPointsToRedeem)
     ) {
-      this.quoteError.set('Quita notas y precios manuales antes de suspender esta venta.');
+      this.quoteError.set(
+        'Quita notas, precios manuales, descuentos y canjes antes de suspender esta venta.',
+      );
       return;
     }
     this.suspendOpen.set(true);
@@ -211,12 +229,14 @@ export class PosPage implements OnInit {
     if (['COMPLETED', 'PENDING_SYNC'].includes(sale.status)) {
       this.releaseSuspendedContext();
       this.cart.clear();
+      this.saleTerms.set({ customer: null });
     }
   }
 
   protected clearCart(): void {
     this.releaseSuspendedContext();
     this.cart.clear();
+    this.saleTerms.set({ customer: null });
   }
 
   protected removeLine(productId: string): void {
@@ -266,7 +286,7 @@ export class PosPage implements OnInit {
             } satisfies QuoteState);
           }
           this.quoteLoading.set(true);
-          return this.facade.quoteCart({ lines: lines.map((line) => this.requestLine(line)) }).pipe(
+          return this.facade.quoteCart(this.cartRequest()).pipe(
             map((quote) => ({ quote, error: null }) satisfies QuoteState),
             catchError((error: unknown) =>
               of({
@@ -334,17 +354,25 @@ export class PosPage implements OnInit {
             priceOverrideReason: line.priceOverrideReason,
           }
         : {}),
+      ...(line.discount && this.canDiscount() ? { discount: line.discount } : {}),
     };
   }
 
   protected cartRequest(): PosCartRequest {
     const resumed = this.resumedSale();
+    const terms = this.saleTerms();
     return {
+      channel: 'POS',
       lines: this.cart.lines().map((line) => this.requestLine(line)),
+      ...(terms.customer ? { customerId: terms.customer.id } : {}),
+      ...(terms.discount && this.canDiscount() ? { discount: terms.discount } : {}),
+      ...(terms.loyaltyPointsToRedeem
+        ? { loyaltyPointsToRedeem: terms.loyaltyPointsToRedeem }
+        : {}),
       ...(resumed
         ? {
             suspendedSaleId: resumed.id,
-            ...(resumed.customerId ? { customerId: resumed.customerId } : {}),
+            ...(resumed.customerId && !terms.customer ? { customerId: resumed.customerId } : {}),
           }
         : {}),
     };
@@ -362,7 +390,7 @@ export class PosPage implements OnInit {
   }
 
   private messageFor(error: unknown, fallback: string): string {
-    if (!(error instanceof ApiError)) return fallback;
+    if (!(error instanceof ApiError)) return error instanceof Error ? error.message : fallback;
     const messages: Record<string, string> = {
       INSUFFICIENT_STOCK: 'No hay existencia suficiente para completar este carrito.',
       PRODUCT_NOT_AVAILABLE: 'Uno de los productos ya no está disponible.',
@@ -371,6 +399,9 @@ export class PosPage implements OnInit {
       SALE_PRICE_OVERRIDE_LIMIT_EXCEEDED:
         'El precio manual debe estar entre 50% y 200% del vigente.',
       CASH_REGISTER_SHIFT_REQUIRED: 'Abre un turno en la caja activa antes de cotizar.',
+      SALE_DISCOUNT_PERMISSION_REQUIRED: 'No tienes permiso para aplicar descuentos.',
+      LOYALTY_INSUFFICIENT_BALANCE: 'El cliente ya no tiene puntos suficientes para este canje.',
+      LOYALTY_RULE_CHANGED: 'La regla de fidelidad cambió; revisa el canje antes de cobrar.',
     };
     return messages[error.code] ?? (error.status === 404 ? fallback : error.message);
   }

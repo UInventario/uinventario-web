@@ -1,0 +1,270 @@
+<section class="pricing" aria-labelledby="pricing-title">
+  <header class="page-header">
+    <div class="title">
+      <a routerLink="/catalogo" aria-label="Volver al catálogo"><i class="pi pi-arrow-left"></i></a
+      ><span><i class="pi pi-tags"></i></span>
+      <div>
+        <p>Catálogo comercial</p>
+        <h1 id="pricing-title">Precios y promociones</h1>
+        <small>Reglas contextuales que el POS calcula, explica y audita.</small>
+      </div>
+    </div>
+    <div class="context">
+      <small>Contexto operativo</small
+      ><strong><i class="pi pi-building"></i>{{ branch()?.name || 'Toda la empresa' }}</strong>
+    </div>
+  </header>
+  <div class="summary">
+    <article>
+      <span><i class="pi pi-list"></i></span>
+      <div>
+        <small>Listas activas</small><strong>{{ activePriceLists() }}</strong>
+      </div>
+    </article>
+    <article>
+      <span><i class="pi pi-sparkles"></i></span>
+      <div>
+        <small>Promociones activas</small><strong>{{ activePromotions() }}</strong>
+      </div>
+    </article>
+    <article>
+      <span><i class="pi pi-star"></i></span>
+      <div>
+        <small>Fidelidad</small
+        ><strong>{{
+          !canManageLoyalty()
+            ? 'Sin permiso'
+            : loyalty()?.active
+              ? 'Activa · v' + loyalty()!.version
+              : 'Inactiva'
+        }}</strong>
+      </div>
+    </article>
+  </div>
+  <nav class="tabs" aria-label="Configuración comercial">
+    <button type="button" [class.active]="tab() === 'LISTS'" (click)="selectTab('LISTS')">
+      Listas de precios</button
+    ><button
+      type="button"
+      [class.active]="tab() === 'PROMOTIONS'"
+      (click)="selectTab('PROMOTIONS')"
+    >
+      Promociones
+    </button>
+    @if (canManageLoyalty()) {
+      <button type="button" [class.active]="tab() === 'LOYALTY'" (click)="selectTab('LOYALTY')">
+        Fidelidad
+      </button>
+    }
+  </nav>
+  @if (notice()) {
+    <div class="notice success" role="status"><i class="pi pi-check-circle"></i>{{ notice() }}</div>
+  }
+  @if (error() && editingPriceList() === undefined && editingPromotion() === undefined) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle"></i>{{ error() }}
+    </div>
+  }
+  <main>
+    @if (loading()) {
+      <div class="state">
+        <i class="pi pi-spin pi-spinner"></i>
+        <p>Cargando reglas comerciales…</p>
+      </div>
+    } @else if (tab() === 'LISTS') {
+      <div class="toolbar">
+        <div>
+          <strong>Listas vigentes</strong
+          ><small>Mayor prioridad gana dentro del contexto más específico.</small>
+        </div>
+        <button type="button" (click)="newPriceList()">
+          <i class="pi pi-plus"></i>Nueva lista
+        </button>
+      </div>
+      <div class="cards">
+        @for (item of priceLists(); track item.id) {
+          <article class="card" [class.inactive]="!item.active">
+            <header>
+              <span class="type-icon"><i class="pi pi-tag"></i></span>
+              <div>
+                <h2>{{ item.name }}</h2>
+                <p>{{ scopeLabel(item.scope) }}</p>
+              </div>
+              <span class="status">{{ item.active ? 'Activa' : 'Inactiva' }}</span>
+            </header>
+            <dl>
+              <div>
+                <dt>Prioridad</dt>
+                <dd>{{ item.priority }}</dd>
+              </div>
+              <div>
+                <dt>Productos</dt>
+                <dd>{{ item.items.length }}</dd>
+              </div>
+              <div>
+                <dt>Moneda</dt>
+                <dd>{{ item.currency }}</dd>
+              </div>
+              <div>
+                <dt>Vence</dt>
+                <dd>{{ dateLabel(item.validTo) }}</dd>
+              </div>
+            </dl>
+            <div class="preview">
+              @for (line of item.items.slice(0, 3); track line.id) {
+                <span
+                  >{{ line.product.name }}
+                  <strong>{{ line.price }} {{ item.currency }}</strong></span
+                >
+              }
+              @if (item.items.length > 3) {
+                <small>+{{ item.items.length - 3 }} producto(s)</small>
+              }
+            </div>
+            <footer>
+              <small>Versión {{ item.version }} · desde {{ dateLabel(item.validFrom) }}</small
+              ><button type="button" (click)="editPriceList(item)">
+                <i class="pi pi-pencil"></i>Editar
+              </button>
+            </footer>
+          </article>
+        } @empty {
+          <div class="state">
+            <i class="pi pi-tags"></i>
+            <h2>Sin listas de precios</h2>
+            <p>El POS utiliza el precio base hasta que crees una.</p>
+            <button type="button" (click)="newPriceList()">Crear primera lista</button>
+          </div>
+        }
+      </div>
+    } @else if (tab() === 'PROMOTIONS') {
+      <div class="toolbar">
+        <div>
+          <strong>Promociones automáticas</strong
+          ><small>La cotización mostrará la regla aplicada y el ahorro.</small>
+        </div>
+        <button type="button" (click)="newPromotion()">
+          <i class="pi pi-plus"></i>Nueva promoción
+        </button>
+      </div>
+      <div class="cards">
+        @for (item of promotions(); track item.id) {
+          <article class="card" [class.inactive]="!item.active">
+            <header>
+              <span class="type-icon promotion"><i class="pi pi-sparkles"></i></span>
+              <div>
+                <h2>{{ item.name }}</h2>
+                <p>{{ promotionLabel(item.type) }} · {{ scopeLabel(item.scope) }}</p>
+              </div>
+              <span class="status">{{ item.active ? 'Activa' : 'Inactiva' }}</span>
+            </header>
+            <dl>
+              <div>
+                <dt>Prioridad</dt>
+                <dd>{{ item.priority }}</dd>
+              </div>
+              <div>
+                <dt>Productos</dt>
+                <dd>{{ item.products.length }}</dd>
+              </div>
+              <div>
+                <dt>Acumulable</dt>
+                <dd>{{ item.stackable ? 'Sí' : 'No' }}</dd>
+              </div>
+              <div>
+                <dt>Vence</dt>
+                <dd>{{ dateLabel(item.validTo) }}</dd>
+              </div>
+            </dl>
+            <div class="preview">
+              @for (line of item.products; track line.product.id) {
+                <span
+                  >{{ line.product.name }} <strong>x {{ line.quantity }}</strong></span
+                >
+              }
+            </div>
+            <footer>
+              <small>Versión {{ item.version }} · desde {{ dateLabel(item.validFrom) }}</small
+              ><button type="button" (click)="editPromotion(item)">
+                <i class="pi pi-pencil"></i>Editar
+              </button>
+            </footer>
+          </article>
+        } @empty {
+          <div class="state">
+            <i class="pi pi-sparkles"></i>
+            <h2>Sin promociones</h2>
+            <p>Crea una regla automática para el POS.</p>
+            <button type="button" (click)="newPromotion()">Crear promoción</button>
+          </div>
+        }
+      </div>
+    } @else {
+      <section class="loyalty">
+        <header>
+          <span><i class="pi pi-star"></i></span>
+          <div>
+            <p>Programa de fidelidad</p>
+            <h2>
+              {{ loyalty() ? 'Regla vigente v' + loyalty()!.version : 'Configurar primera regla' }}
+            </h2>
+            <small
+              >Cada guardado publica una nueva versión; las ventas conservan la versión
+              utilizada.</small
+            >
+          </div>
+        </header>
+        <form [formGroup]="loyaltyForm" (ngSubmit)="saveLoyalty()">
+          <label class="check"
+            ><input type="checkbox" formControlName="active" /> Programa activo</label
+          >
+          <div class="formula">
+            <span>Por cada</span
+            ><label>Importe<input formControlName="earnAmount" inputmode="decimal" /></label
+            ><span>se acumulan</span
+            ><label>Puntos<input type="number" formControlName="earnPoints" /></label>
+          </div>
+          <div class="formula">
+            <label>Puntos<input type="number" formControlName="redeemPoints" /></label
+            ><span>equivalen a</span
+            ><label>Importe<input formControlName="redeemAmount" inputmode="decimal" /></label>
+          </div>
+          <label
+            >Vencimiento en días <small>Usa 0 para no vencer.</small
+            ><input type="number" min="0" max="3650" formControlName="expirationDays"
+          /></label>
+          <aside>
+            <i class="pi pi-info-circle"></i
+            ><span
+              >El cajero verá saldo, puntos a ganar y valor del canje antes de cobrar. El canje
+              requiere confirmación explícita.</span
+            >
+          </aside>
+          <button class="save" type="submit" [disabled]="saving()">
+            {{ saving() ? 'Publicando…' : 'Publicar nueva versión' }}
+          </button>
+        </form>
+      </section>
+    }
+  </main>
+</section>
+@if (editingPriceList() !== undefined) {
+  <ui-price-list-editor
+    [current]="editingPriceList()!"
+    [branch]="branch()"
+    [busy]="saving()"
+    [saveError]="priceListSaveError()"
+    (closed)="closePriceList()"
+    (submitted)="savePriceList($event)"
+  />
+}
+@if (editingPromotion() !== undefined) {
+  <ui-promotion-editor
+    [current]="editingPromotion()!"
+    [branch]="branch()"
+    [busy]="saving()"
+    [saveError]="promotionSaveError()"
+    (closed)="closePromotion()"
+    (submitted)="savePromotion($event)"
+  />
+}

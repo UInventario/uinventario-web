@@ -64,6 +64,18 @@
   cursor: pointer;
   font-weight: 700;
 }
+
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+
+  a {
+    align-items: center;
+    display: flex;
+    gap: 0.4rem;
+    text-decoration: none;
+  }
+}
 .primary,
 .secondary,
 .danger-button {

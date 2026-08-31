@@ -1,0 +1,234 @@
+:host {
+  position: fixed;
+  z-index: 70;
+}
+.backdrop {
+  align-items: center;
+  background: color-mix(in srgb, var(--p-surface-950) 58%, transparent);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  position: fixed;
+}
+.dialog {
+  background: var(--p-surface-0);
+  border: 1px solid var(--p-surface-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--ui-shadow-dialog);
+  max-height: min(92dvh, 52rem);
+  max-width: 42rem;
+  overflow: auto;
+  width: 100%;
+}
+header,
+footer {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+header {
+  border-bottom: 1px solid var(--p-surface-200);
+  padding: 1.15rem 1.25rem;
+}
+header p,
+header h2 {
+  margin: 0;
+}
+header p {
+  color: var(--p-primary-600);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+header h2 {
+  font-size: 1.25rem;
+  margin-top: 0.25rem;
+}
+form {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem 1.25rem 1.25rem;
+}
+.section {
+  border: 1px solid var(--p-surface-200);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem;
+}
+.section.disabled {
+  opacity: 0.7;
+}
+.section-title {
+  align-items: center;
+  display: flex;
+  gap: 0.7rem;
+}
+.section-title > span {
+  align-items: center;
+  background: var(--p-primary-50);
+  border-radius: var(--radius-sm);
+  color: var(--p-primary-700);
+  display: flex;
+  height: 2.25rem;
+  justify-content: center;
+  width: 2.25rem;
+}
+.section-title h3,
+.section-title p {
+  margin: 0;
+}
+.section-title h3 {
+  font-size: 0.9rem;
+}
+.section-title p,
+.empty {
+  color: var(--p-text-muted-color);
+  font-size: 0.72rem;
+  margin-top: 0.15rem;
+}
+label {
+  display: grid;
+  font-size: 0.78rem;
+  font-weight: 700;
+  gap: 0.35rem;
+}
+input,
+select {
+  background: var(--p-surface-0);
+  border: 1px solid var(--p-surface-300);
+  border-radius: var(--radius-sm);
+  color: var(--p-text-color);
+  font: inherit;
+  min-height: var(--ui-control-height);
+  padding: 0 0.7rem;
+}
+.search-row {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.results {
+  border: 1px solid var(--p-surface-200);
+  border-radius: var(--radius-sm);
+  max-height: 12rem;
+  overflow: auto;
+}
+.results button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--p-surface-100);
+  color: var(--p-text-color);
+  display: flex;
+  justify-content: space-between;
+  padding: 0.7rem;
+  text-align: left;
+  width: 100%;
+}
+.results span,
+.selected div {
+  display: grid;
+  gap: 0.15rem;
+}
+.results small,
+.selected small {
+  color: var(--p-text-muted-color);
+}
+.selected {
+  align-items: center;
+  background: var(--p-primary-50);
+  border-radius: var(--radius-sm);
+  display: flex;
+  justify-content: space-between;
+  padding: 0.7rem;
+}
+.selected button {
+  background: transparent;
+  border: 0;
+  color: var(--p-primary-700);
+  font-weight: 750;
+}
+.check-row,
+.confirm {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+}
+.check-row input,
+.confirm input {
+  min-height: auto;
+}
+.field-grid,
+.loyalty-summary {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.loyalty-summary span {
+  background: var(--p-surface-50);
+  border-radius: var(--radius-sm);
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.65rem;
+}
+.loyalty-summary small {
+  color: var(--p-text-muted-color);
+}
+.loading,
+.notice {
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  padding: 0.7rem;
+}
+.loading {
+  color: var(--p-text-muted-color);
+}
+.notice {
+  background: var(--p-red-50);
+  color: var(--p-red-800);
+}
+footer {
+  border-top: 1px solid var(--p-surface-200);
+  gap: 0.6rem;
+  justify-content: flex-end;
+  padding-top: 0.9rem;
+}
+button {
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 750;
+  min-height: var(--ui-control-height);
+  padding: 0 0.9rem;
+}
+.icon {
+  background: var(--p-surface-100);
+  color: var(--p-text-color);
+  min-width: var(--ui-control-height);
+  padding: 0;
+}
+.primary {
+  background: var(--p-primary-600);
+  color: var(--p-primary-contrast-color);
+}
+.secondary {
+  background: var(--p-surface-100);
+  color: var(--p-text-color);
+}
+@media (max-width: 40rem) {
+  .backdrop {
+    align-items: end;
+    padding: 0;
+  }
+  .dialog {
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    max-height: 94dvh;
+  }
+  .field-grid,
+  .loyalty-summary {
+    grid-template-columns: 1fr;
+  }
+}

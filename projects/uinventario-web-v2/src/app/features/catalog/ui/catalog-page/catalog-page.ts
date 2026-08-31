@@ -7,7 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { ApiError } from '../../../../core/api/api-error';
 import { AuthorizationService } from '../../../../core/authorization/authorization.service';
@@ -31,7 +31,7 @@ const CODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{3,63}$/;
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CatalogClassificationPanel, ProductImportPanel, ReactiveFormsModule],
+  imports: [CatalogClassificationPanel, ProductImportPanel, ReactiveFormsModule, RouterLink],
   selector: 'ui-catalog-page',
   styleUrls: ['./catalog-page.scss', './catalog-dialog.scss'],
   templateUrl: './catalog-page.html',

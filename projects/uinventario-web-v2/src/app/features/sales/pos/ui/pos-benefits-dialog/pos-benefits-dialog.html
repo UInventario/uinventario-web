@@ -1,0 +1,154 @@
+<div class="backdrop" (click)="closed.emit()">
+  <section
+    class="dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="benefits-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <p>Condiciones de venta</p>
+        <h2 id="benefits-title">Cliente, descuento y puntos</h2>
+      </div>
+      <button class="icon" type="button" aria-label="Cerrar" (click)="closed.emit()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <section class="section">
+        <div class="section-title">
+          <span><i class="pi pi-user"></i></span>
+          <div>
+            <h3>Cliente</h3>
+            <p>Define la lista de precios y promociones aplicables.</p>
+          </div>
+        </div>
+        @if (customer(); as selected) {
+          <article class="selected">
+            <div>
+              <strong>{{ selected.name }}</strong
+              ><small>{{
+                selected.identifier || selected.email || selected.phone || 'Cliente activo'
+              }}</small>
+            </div>
+            <button type="button" (click)="clearCustomer()">Cambiar</button>
+          </article>
+        } @else {
+          <div class="search-row">
+            <input
+              formControlName="query"
+              placeholder="Nombre, identificador o contacto"
+              autocomplete="off"
+            />
+            <button class="secondary" type="button" [disabled]="searching()" (click)="search()">
+              {{ searching() ? 'Buscando…' : 'Buscar' }}
+            </button>
+          </div>
+          @if (customers().length) {
+            <div class="results">
+              @for (candidate of customers(); track candidate.id) {
+                <button type="button" (click)="selectCustomer(candidate)">
+                  <span
+                    ><strong>{{ candidate.name }}</strong
+                    ><small>{{
+                      candidate.identifier || candidate.email || 'Sin identificador'
+                    }}</small></span
+                  >
+                  <i class="pi pi-chevron-right"></i>
+                </button>
+              }
+            </div>
+          }
+        }
+      </section>
+
+      @if (canDiscount()) {
+        <section class="section">
+          <div class="section-title">
+            <span><i class="pi pi-percentage"></i></span>
+            <div>
+              <h3>Descuento general</h3>
+              <p>Se distribuye por línea y queda auditado con su motivo.</p>
+            </div>
+          </div>
+          <label class="check-row"
+            ><input type="checkbox" formControlName="discountEnabled" /> Aplicar descuento a la
+            venta</label
+          >
+          @if (form.controls.discountEnabled.value) {
+            <div class="field-grid">
+              <label
+                >Tipo<select formControlName="discountType">
+                  <option value="PERCENT">Porcentaje</option>
+                  <option value="AMOUNT">Importe</option>
+                </select></label
+              >
+              <label
+                >Valor<input formControlName="discountValue" inputmode="decimal" autocomplete="off"
+              /></label>
+            </div>
+            <label
+              >Motivo<input formControlName="discountReason" maxlength="240" autocomplete="off"
+            /></label>
+          }
+        </section>
+      }
+
+      <section class="section" [class.disabled]="!customer()">
+        <div class="section-title">
+          <span><i class="pi pi-star"></i></span>
+          <div>
+            <h3>Fidelidad</h3>
+            <p>El canje requiere cliente, saldo y confirmación explícita.</p>
+          </div>
+        </div>
+        @if (loadingLoyalty()) {
+          <div class="loading"><i class="pi pi-spin pi-spinner"></i>Consultando saldo…</div>
+        } @else if (statement(); as loyalty) {
+          <div class="loyalty-summary">
+            <span
+              ><small>Saldo disponible</small><strong>{{ loyalty.balance }} puntos</strong></span
+            >
+            @if (loyalty.rule?.active) {
+              <span
+                ><small>Equivalencia</small
+                ><strong
+                  >{{ loyalty.rule!.redeemPoints }} pts = {{ loyalty.rule!.redeemAmount }}</strong
+                ></span
+              >
+            } @else {
+              <span><small>Programa</small><strong>Inactivo</strong></span>
+            }
+          </div>
+          @if (loyalty.rule?.active && loyalty.balance > 0) {
+            <label
+              >Puntos a canjear<input
+                type="number"
+                min="0"
+                [max]="loyalty.balance"
+                formControlName="loyaltyPoints"
+            /></label>
+            @if (form.controls.loyaltyPoints.value > 0) {
+              <label class="confirm"
+                ><input type="checkbox" formControlName="confirmRedemption" /> Confirmo el canje de
+                {{ form.controls.loyaltyPoints.value }} puntos en esta venta.</label
+              >
+            }
+          }
+        } @else {
+          <p class="empty">Selecciona un cliente para consultar sus puntos.</p>
+        }
+      </section>
+
+      @if (error()) {
+        <div class="notice" role="alert">{{ error() }}</div>
+      }
+      <footer>
+        <button class="secondary" type="button" (click)="closed.emit()">Cancelar</button>
+        <button class="primary" type="submit">Aplicar y recalcular</button>
+      </footer>
+    </form>
+  </section>
+</div>

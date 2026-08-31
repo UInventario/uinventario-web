@@ -15,6 +15,7 @@ const MONEY_PATTERN = /^(?:[1-9]\d{0,11}(?:\.\d{1,2})?|0\.(?:0[1-9]|[1-9]\d?))$/
 export class PosLineDialog implements OnInit {
   readonly line = input.required<PosCartLine>();
   readonly canOverridePrice = input(false);
+  readonly canDiscount = input(false);
   readonly closed = output<void>();
   readonly submitted = output<PosCartLine>();
 
@@ -24,6 +25,10 @@ export class PosLineDialog implements OnInit {
     note: ['', Validators.maxLength(240)],
     manualUnitPrice: ['', Validators.pattern(MONEY_PATTERN)],
     priceOverrideReason: ['', Validators.maxLength(240)],
+    discountEnabled: [false],
+    discountType: ['PERCENT' as 'PERCENT' | 'AMOUNT'],
+    discountValue: ['', Validators.pattern(MONEY_PATTERN)],
+    discountReason: ['', Validators.maxLength(240)],
   });
 
   ngOnInit(): void {
@@ -33,6 +38,10 @@ export class PosLineDialog implements OnInit {
       note: line.note ?? '',
       manualUnitPrice: this.canOverridePrice() ? (line.manualUnitPrice ?? '') : '',
       priceOverrideReason: this.canOverridePrice() ? (line.priceOverrideReason ?? '') : '',
+      discountEnabled: this.canDiscount() && Boolean(line.discount),
+      discountType: line.discount?.type ?? 'PERCENT',
+      discountValue: this.canDiscount() ? (line.discount?.value ?? '') : '',
+      discountReason: this.canDiscount() ? (line.discount?.reason ?? '') : '',
     });
   }
 
@@ -49,7 +58,12 @@ export class PosLineDialog implements OnInit {
       this.form.invalid ||
       (this.canOverridePrice() &&
         value.manualUnitPrice &&
-        value.priceOverrideReason.trim().length < 3)
+        value.priceOverrideReason.trim().length < 3) ||
+      (this.canDiscount() &&
+        value.discountEnabled &&
+        (!value.discountValue ||
+          value.discountReason.trim().length < 3 ||
+          (value.discountType === 'PERCENT' && Number(value.discountValue) > 100)))
     ) {
       this.form.markAllAsTouched();
       this.error.set('Revisa la cantidad, precio y motivo del cambio.');
@@ -63,6 +77,15 @@ export class PosLineDialog implements OnInit {
       quantity,
       ...(note ? { note } : {}),
       ...(manualUnitPrice ? { manualUnitPrice, priceOverrideReason } : {}),
+      ...(this.canDiscount() && value.discountEnabled
+        ? {
+            discount: {
+              type: value.discountType,
+              value: value.discountValue.trim(),
+              reason: value.discountReason.trim(),
+            },
+          }
+        : {}),
     });
   }
 }

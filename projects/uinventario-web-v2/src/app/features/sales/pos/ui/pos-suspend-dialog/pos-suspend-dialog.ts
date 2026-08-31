@@ -32,8 +32,16 @@ export class PosSuspendDialog {
     this.busy.set(true);
     this.error.set(null);
     const notes = this.form.controls.notes.value.trim();
+    const request = this.request();
     this.facade
-      .suspendSale({ ...this.request(), ...(notes ? { notes } : {}) }, this.idempotencyKey)
+      .suspendSale(
+        {
+          lines: request.lines,
+          ...(request.customerId ? { customerId: request.customerId } : {}),
+          ...(notes ? { notes } : {}),
+        },
+        this.idempotencyKey,
+      )
       .pipe(finalize(() => this.busy.set(false)))
       .subscribe({
         next: (sale) => this.completed.emit(sale),

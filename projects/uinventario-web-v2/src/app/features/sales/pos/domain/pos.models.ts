@@ -36,17 +36,34 @@ export interface PosCartLine {
   readonly note?: string;
   readonly manualUnitPrice?: string;
   readonly priceOverrideReason?: string;
+  readonly discount?: PosDiscountInput;
+}
+
+export interface PosDiscountInput {
+  readonly type: 'PERCENT' | 'AMOUNT';
+  readonly value: string;
+  readonly reason: string;
+}
+
+export interface PosSaleTerms {
+  readonly customer: PosCustomer | null;
+  readonly discount?: PosDiscountInput;
+  readonly loyaltyPointsToRedeem?: number;
 }
 
 export interface PosCartRequest {
   readonly suspendedSaleId?: string;
   readonly customerId?: string;
+  readonly channel?: 'POS';
+  readonly loyaltyPointsToRedeem?: number;
+  readonly discount?: PosDiscountInput;
   readonly lines: readonly {
     readonly productId: string;
     readonly quantity: string;
     readonly note?: string;
     readonly manualUnitPrice?: string;
     readonly priceOverrideReason?: string;
+    readonly discount?: PosDiscountInput;
   }[];
 }
 
@@ -57,7 +74,9 @@ export interface PosSuspendedSale {
   readonly expiresAt: string;
 }
 
-export interface CreatePosSuspendedSaleInput extends PosCartRequest {
+export interface CreatePosSuspendedSaleInput {
+  readonly customerId?: string;
+  readonly lines: PosCartRequest['lines'];
   readonly notes?: string;
 }
 
@@ -69,6 +88,8 @@ export interface PosCartQuote {
   };
   readonly currency: string;
   readonly taxRate: string;
+  readonly discount: PosAppliedDiscount | null;
+  readonly loyalty?: PosLoyaltyQuote | null;
   readonly lines: readonly PosQuotedLine[];
   readonly totals: {
     readonly gross: string;
@@ -104,9 +125,75 @@ export interface PosQuotedLine {
   readonly priceOverrideReason: string | null;
   readonly priceList: { readonly id: string; readonly name: string } | null;
   readonly grossTotal: string;
+  readonly discount: {
+    readonly line: PosAppliedDiscount | null;
+    readonly sale: PosAppliedDiscount | null;
+    readonly total: string;
+  };
+  readonly promotions: readonly PosAppliedPromotion[];
   readonly subtotal: string;
   readonly tax: string;
   readonly total: string;
+}
+
+export interface PosAppliedDiscount extends PosDiscountInput {
+  readonly amount: string;
+}
+
+export interface PosAppliedPromotion {
+  readonly promotion: {
+    readonly id: string;
+    readonly name: string;
+    readonly type: 'BUY_X_GET_Y' | 'SECOND_UNIT_PERCENT' | 'BUNDLE_FIXED' | 'QUANTITY_PERCENT';
+    readonly priority: number;
+  };
+  readonly amount: string;
+  readonly explanation: string;
+  readonly ruleSnapshot: Readonly<Record<string, unknown>>;
+}
+
+export interface PosLoyaltyRule {
+  readonly id: string;
+  readonly version: number;
+  readonly active: boolean;
+  readonly earnAmount: string;
+  readonly earnPoints: number;
+  readonly redeemPoints: number;
+  readonly redeemAmount: string;
+  readonly expirationDays: number | null;
+  readonly createdAt: string;
+}
+
+export interface PosLoyaltyQuote {
+  readonly rule: PosLoyaltyRule;
+  readonly balanceBefore: number;
+  readonly pointsRedeemed: number;
+  readonly redemptionValue: string;
+  readonly pointsEarned: number;
+  readonly balanceAfter: number;
+}
+
+export interface PosLoyaltyStatement {
+  readonly customer: { readonly id: string; readonly name: string };
+  readonly rule: PosLoyaltyRule | null;
+  readonly balance: number;
+  readonly entries: readonly {
+    readonly id: string;
+    readonly type:
+      | 'EARN'
+      | 'REDEEM'
+      | 'EXPIRE'
+      | 'VOID_EARN_REVERSAL'
+      | 'VOID_REDEEM_RESTORE'
+      | 'RETURN_EARN_REVERSAL'
+      | 'RETURN_REDEEM_RESTORE';
+    readonly points: number;
+    readonly monetaryValue: string;
+    readonly sale: { readonly id: string; readonly receiptNumber: string } | null;
+    readonly saleReturnId: string | null;
+    readonly expiresAt: string | null;
+    readonly createdAt: string;
+  }[];
 }
 
 export interface CashRegisterShift {
@@ -178,6 +265,12 @@ export interface PosSale {
   readonly status: 'COMPLETED' | 'VOIDED' | 'PENDING_SYNC';
   readonly currency: string;
   readonly customer: { readonly id: string; readonly name: string } | null;
+  readonly loyalty?: {
+    readonly ruleVersion: number;
+    readonly pointsRedeemed: number;
+    readonly redemptionValue: string;
+    readonly pointsEarned: number;
+  } | null;
   readonly totals: PosCartQuote['totals'];
   readonly payments: readonly {
     readonly id: string;

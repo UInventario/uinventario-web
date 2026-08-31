@@ -343,6 +343,9 @@ export class PosCheckoutDialog implements OnInit {
       POS_CUSTOMER_NOT_AVAILABLE: 'El cliente ya no está disponible.',
       INSUFFICIENT_STOCK: 'El inventario cambió y ya no alcanza para esta venta.',
       CASH_REGISTER_SHIFT_REQUIRED: 'El turno de caja ya no está abierto.',
+      SALE_DISCOUNT_PERMISSION_REQUIRED: 'No tienes permiso para aplicar el descuento.',
+      LOYALTY_INSUFFICIENT_BALANCE: 'El saldo de puntos ya no cubre el canje solicitado.',
+      LOYALTY_RULE_CHANGED: 'La regla de fidelidad cambió. Cierra el cobro y revisa el canje.',
     };
     return messages[error.code] ?? error.message;
   }

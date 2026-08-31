@@ -87,13 +87,25 @@ function parseLine(value: unknown): PosCartLine | null {
   const note = optionalString(value['note'], 240);
   const manualUnitPrice = optionalString(value['manualUnitPrice'], 32);
   const priceOverrideReason = optionalString(value['priceOverrideReason'], 240);
+  const discount = parseDiscount(value['discount']);
   return {
     product,
     quantity: value['quantity'],
     ...(note ? { note } : {}),
     ...(manualUnitPrice ? { manualUnitPrice } : {}),
     ...(priceOverrideReason ? { priceOverrideReason } : {}),
+    ...(discount ? { discount } : {}),
   };
+}
+
+function parseDiscount(value: unknown): PosCartLine['discount'] {
+  if (!isRecord(value)) return undefined;
+  const type = value['type'];
+  const amount = optionalString(value['value'], 32);
+  const reason = optionalString(value['reason'], 240);
+  return (type === 'PERCENT' || type === 'AMOUNT') && amount && reason
+    ? { type, value: amount, reason }
+    : undefined;
 }
 
 function parseProduct(value: Record<string, unknown>): PosProduct | null {

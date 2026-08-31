@@ -1,0 +1,119 @@
+.cards {
+  align-content: start;
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.card {
+  background: var(--p-surface-0);
+  border: 1px solid var(--p-surface-200);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.8rem;
+
+  &.inactive {
+    opacity: 0.65;
+  }
+  h2,
+  p {
+    margin: 0;
+  }
+  h2 {
+    font-size: 0.92rem;
+  }
+  p {
+    color: var(--p-text-muted-color);
+    font-size: 0.68rem;
+    margin-top: 0.15rem;
+  }
+
+  > header {
+    align-items: center;
+    display: grid;
+    gap: 0.65rem;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  dl {
+    display: grid;
+    gap: 0.35rem;
+    grid-template-columns: repeat(4, 1fr);
+    margin: 0;
+
+    div {
+      background: var(--p-surface-50);
+      border-radius: var(--radius-xs);
+      display: grid;
+      gap: 0.1rem;
+      padding: 0.45rem;
+    }
+  }
+
+  dt {
+    color: var(--p-text-muted-color);
+    font-size: 0.61rem;
+  }
+  dd {
+    font-size: 0.72rem;
+    font-weight: 750;
+    margin: 0;
+  }
+
+  footer {
+    align-items: center;
+    border-top: 1px solid var(--p-surface-100);
+    display: flex;
+    justify-content: space-between;
+    padding-top: 0.55rem;
+
+    small {
+      color: var(--p-text-muted-color);
+      font-size: 0.63rem;
+    }
+    button {
+      background: transparent;
+      border: 0;
+      color: var(--p-primary-700);
+      font-weight: 750;
+    }
+  }
+}
+
+.type-icon {
+  align-items: center;
+  background: var(--p-primary-50);
+  border-radius: var(--radius-sm);
+  color: var(--p-primary-700);
+  display: flex;
+  height: 2.15rem;
+  justify-content: center;
+  width: 2.15rem;
+
+  &.promotion {
+    background: var(--p-orange-50);
+    color: var(--p-orange-700);
+  }
+}
+
+.status {
+  background: var(--p-green-50);
+  border-radius: 999px;
+  color: var(--p-green-700);
+  font-size: 0.63rem;
+  font-weight: 800;
+  padding: 0.25rem 0.45rem;
+}
+.preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.preview span,
+.preview > small {
+  background: var(--p-surface-100);
+  border-radius: 999px;
+  font-size: 0.65rem;
+  padding: 0.25rem 0.45rem;
+}
