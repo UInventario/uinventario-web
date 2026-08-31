@@ -153,7 +153,7 @@
   align-items: center;
   display: grid;
   gap: 1rem;
-  grid-template-columns: minmax(14rem, 2fr) minmax(9rem, 1fr) 6rem 6rem 6rem 5rem;
+  grid-template-columns: minmax(14rem, 2fr) minmax(9rem, 1fr) 6rem 6rem 6rem 7rem;
   padding: 0.9rem 1rem;
 }
 .table-head {
@@ -177,6 +177,7 @@
 }
 .row-actions {
   display: flex;
+  justify-content: flex-end;
 }
 .icon {
   align-items: center;

@@ -1,6 +1,12 @@
 import { Injectable, inject } from '@angular/core';
 import { CatalogGateway } from '../domain/catalog.gateway';
-import { ClassificationKind, ProductInput, ProductQuery } from '../domain/catalog.models';
+import {
+  ClassificationKind,
+  ProductInput,
+  ProductQuery,
+  UpdateProductKitInput,
+  UpdateProductVariantsInput,
+} from '../domain/catalog.models';
 
 @Injectable()
 export class CatalogFacade {
@@ -19,11 +25,42 @@ export class CatalogFacade {
     return this.gateway.getOptions();
   }
 
+  getProduct(id: string) {
+    return this.gateway.getProduct(id);
+  }
+
   saveProduct(input: ProductInput, current?: { readonly id: string; readonly version: number }) {
     const normalized = this.normalizeProduct(input);
     return current
       ? this.gateway.updateProduct(current.id, normalized, current.version)
       : this.gateway.createProduct(normalized);
+  }
+
+  updateVariants(id: string, input: UpdateProductVariantsInput) {
+    return this.gateway.updateProductVariants(id, {
+      ...input,
+      attributes: input.attributes.map((attribute) => ({
+        name: attribute.name.trim(),
+        values: attribute.values.map((value) => value.trim()),
+      })),
+      variants: input.variants.map((variant) => ({
+        ...variant,
+        sku: variant.sku.trim().toUpperCase(),
+        barcode: variant.barcode?.trim() || undefined,
+        cost: variant.cost.trim(),
+        price: variant.price.trim(),
+      })),
+    });
+  }
+
+  updateKit(id: string, input: UpdateProductKitInput) {
+    return this.gateway.updateProductKit(id, {
+      ...input,
+      components: input.components?.map((component) => ({
+        ...component,
+        quantity: component.quantity.trim(),
+      })),
+    });
   }
 
   retireProduct(id: string) {

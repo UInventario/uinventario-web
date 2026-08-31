@@ -1,0 +1,164 @@
+<section class="workspace" aria-labelledby="variants-title">
+  <header>
+    <div>
+      <p>Workspace secundario</p>
+      <h2 id="variants-title">Variantes</h2>
+      <span>Define atributos y revisa cada combinación antes de publicarla.</span>
+    </div>
+    <span class="count">{{ variants().length }} / 100</span>
+  </header>
+
+  @if (product.kit) {
+    <div class="notice warning" role="alert">
+      <i class="pi pi-info-circle"></i>
+      Elimina primero la configuración del kit; un producto no puede ser kit y padre de variantes.
+    </div>
+  }
+
+  <div class="attribute-builder">
+    <div class="builder-heading">
+      <div>
+        <strong>Atributos del producto</strong>
+        <small>Hasta 3 atributos y 20 valores por atributo, separados por comas.</small>
+      </div>
+      <button
+        class="secondary"
+        type="button"
+        aria-label="Agregar atributo"
+        [disabled]="attributes().length >= 3 || !!product.kit"
+        (click)="addAttribute()"
+      >
+        <i class="pi pi-plus"></i>Atributo
+      </button>
+    </div>
+    <div class="attribute-list">
+      @for (attribute of attributes(); track $index; let index = $index) {
+        <div class="attribute-row">
+          <label>
+            <span>Nombre</span>
+            <input
+              [attr.aria-label]="'Nombre del atributo ' + (index + 1)"
+              maxlength="40"
+              placeholder="Ej. Color"
+              [value]="attribute.name"
+              [disabled]="!!product.kit"
+              (input)="updateAttribute(index, 'name', $any($event.target).value)"
+            />
+          </label>
+          <label>
+            <span>Valores</span>
+            <input
+              [attr.aria-label]="'Valores del atributo ' + (index + 1)"
+              placeholder="Ej. Negro, Blanco, Azul"
+              [value]="attribute.valuesText"
+              [disabled]="!!product.kit"
+              (input)="updateAttribute(index, 'valuesText', $any($event.target).value)"
+            />
+          </label>
+          <button
+            class="icon danger"
+            type="button"
+            [disabled]="attributes().length <= 1 || !!product.kit"
+            [attr.aria-label]="'Eliminar atributo ' + (index + 1)"
+            (click)="removeAttribute(index)"
+          >
+            <i class="pi pi-trash"></i>
+          </button>
+        </div>
+      }
+    </div>
+    <button class="generate" type="button" [disabled]="!!product.kit" (click)="generate()">
+      <i class="pi pi-sparkles"></i>Generar o actualizar combinaciones
+    </button>
+  </div>
+
+  @if (variants().length) {
+    <div class="variant-region">
+      <div class="variant-head">
+        <span>Combinación</span><span>SKU</span><span>Código / QR</span><span>Costo</span
+        ><span>Precio</span><span>Activa</span>
+      </div>
+      <div class="variant-list">
+        @for (variant of variants(); track variant.key; let index = $index) {
+          <div class="variant-row">
+            <strong>{{ variant.values.join(' · ') }}</strong>
+            <label
+              ><span>SKU</span
+              ><input
+                [attr.aria-label]="'SKU de ' + variant.values.join(' ')"
+                maxlength="40"
+                [value]="variant.sku"
+                (input)="updateVariant(index, 'sku', $any($event.target).value)"
+            /></label>
+            <label
+              ><span>Código / QR</span
+              ><input
+                [attr.aria-label]="'Código de ' + variant.values.join(' ')"
+                maxlength="64"
+                [value]="variant.barcode"
+                (input)="updateVariant(index, 'barcode', $any($event.target).value)"
+            /></label>
+            <label
+              ><span>Costo</span
+              ><input
+                inputmode="decimal"
+                [attr.aria-label]="'Costo de ' + variant.values.join(' ')"
+                [value]="variant.cost"
+                (input)="updateVariant(index, 'cost', $any($event.target).value)"
+            /></label>
+            <label
+              ><span>Precio</span
+              ><input
+                inputmode="decimal"
+                [attr.aria-label]="'Precio de ' + variant.values.join(' ')"
+                [value]="variant.price"
+                (input)="updateVariant(index, 'price', $any($event.target).value)"
+            /></label>
+            <label class="switch">
+              <span>Activa</span>
+              <input
+                type="checkbox"
+                [attr.aria-label]="'Variante activa ' + variant.values.join(' ')"
+                [checked]="variant.active"
+                (change)="updateVariantActive(index, $any($event.target).checked)"
+              />
+            </label>
+          </div>
+        }
+      </div>
+    </div>
+  } @else {
+    <div class="empty">
+      <i class="pi pi-sitemap"></i>
+      <strong>Aún no hay combinaciones</strong>
+      <span>Completa los atributos y genera la matriz de variantes.</span>
+    </div>
+  }
+
+  @if (error()) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle"></i>{{ error() }}
+    </div>
+  }
+  @if (notice()) {
+    <div class="notice success" role="status"><i class="pi pi-check-circle"></i>{{ notice() }}</div>
+  }
+
+  <footer>
+    <span>Los SKU y códigos deben ser únicos dentro de la empresa.</span>
+    <button
+      class="primary"
+      type="button"
+      [disabled]="saving() || !variants().length || !!product.kit"
+      (click)="save()"
+    >
+      <i
+        class="pi"
+        [class.pi-spin]="saving()"
+        [class.pi-spinner]="saving()"
+        [class.pi-save]="!saving()"
+      ></i>
+      {{ saving() ? 'Guardando…' : 'Guardar variantes' }}
+    </button>
+  </footer>
+</section>

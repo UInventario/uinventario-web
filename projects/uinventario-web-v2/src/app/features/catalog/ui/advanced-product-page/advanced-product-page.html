@@ -1,0 +1,78 @@
+<section class="advanced-page" aria-labelledby="advanced-product-title">
+  <header class="page-header">
+    <button class="back" type="button" (click)="backToCatalog()">
+      <i class="pi pi-arrow-left"></i><span>Volver al catálogo</span>
+    </button>
+    <div class="context-label"><i class="pi pi-sliders-h"></i>Configuración avanzada</div>
+  </header>
+
+  @if (loading()) {
+    <div class="state" role="status">
+      <i class="pi pi-spin pi-spinner"></i>
+      <p>Cargando producto…</p>
+    </div>
+  } @else if (error()) {
+    <div class="state error-state" role="alert">
+      <i class="pi pi-exclamation-circle"></i>
+      <h1>No pudimos abrir el producto</h1>
+      <p>{{ error() }}</p>
+      <button class="primary" type="button" (click)="retry()">Reintentar</button>
+    </div>
+  } @else if (product(); as current) {
+    <div class="product-heading">
+      <div>
+        <p>Producto</p>
+        <h1 id="advanced-product-title">{{ current.name }}</h1>
+        <span>La operación básica permanece disponible en el catálogo.</span>
+      </div>
+      <span class="status" [class.inactive]="!current.active">
+        {{ current.active ? 'Activo' : 'Retirado' }}
+      </span>
+    </div>
+
+    <div class="summary" aria-label="Resumen del producto">
+      <article>
+        <span>SKU</span><strong>{{ current.sku }}</strong>
+        <small>{{ current.barcode || 'Sin código de barras o QR' }}</small>
+      </article>
+      <article>
+        <span>Costo / precio</span><strong>{{ current.cost }} / {{ current.price }}</strong>
+        <small>Valores base</small>
+      </article>
+      <article>
+        <span>Política de cantidad</span
+        ><strong>{{ unitLabel(current) }} · {{ current.quantityPrecision }} dec.</strong>
+        <small>Mínimo {{ current.minimumQuantity }}</small>
+      </article>
+      <article>
+        <span>Configuración</span><strong>{{ current.variants?.length || 0 }} variante(s)</strong>
+        <small>{{ current.kit ? 'Kit habilitado' : 'Producto individual' }}</small>
+      </article>
+    </div>
+
+    <nav class="workspace-tabs" aria-label="Configuración avanzada del producto">
+      <button
+        type="button"
+        [class.active]="activeTab() === 'VARIANTS'"
+        (click)="selectTab('VARIANTS')"
+      >
+        <i class="pi pi-sitemap"></i>
+        <span><strong>Variantes</strong><small>Atributos, SKU, códigos y precios</small></span>
+      </button>
+      <button type="button" [class.active]="activeTab() === 'KIT'" (click)="selectTab('KIT')">
+        <i class="pi pi-objects-column"></i>
+        <span><strong>Kits</strong><small>Componentes y reglas comerciales</small></span>
+      </button>
+    </nav>
+
+    @if (activeTab() === 'VARIANTS') {
+      <ui-product-variants-workspace [product]="current" (saved)="productSaved($event)" />
+    } @else {
+      <ui-product-kit-workspace
+        [product]="current"
+        [candidates]="candidates()"
+        (saved)="productSaved($event)"
+      />
+    }
+  }
+</section>

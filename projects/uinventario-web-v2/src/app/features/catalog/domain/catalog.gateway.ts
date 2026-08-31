@@ -8,13 +8,21 @@ import {
   ProductInput,
   ProductPage,
   ProductQuery,
+  UpdateProductKitInput,
+  UpdateProductVariantsInput,
 } from './catalog.models';
 
 export abstract class CatalogGateway {
   abstract listProducts(query: ProductQuery): Observable<ProductPage>;
+  abstract getProduct(id: string): Observable<Product>;
   abstract getOptions(): Observable<CatalogOptions>;
   abstract createProduct(input: ProductInput): Observable<Product>;
   abstract updateProduct(id: string, input: ProductInput, version: number): Observable<Product>;
+  abstract updateProductVariants(
+    id: string,
+    input: UpdateProductVariantsInput,
+  ): Observable<Product>;
+  abstract updateProductKit(id: string, input: UpdateProductKitInput): Observable<Product>;
   abstract retireProduct(id: string): Observable<'DELETED' | 'DEACTIVATED'>;
   abstract listClassifications(
     kind: ClassificationKind,

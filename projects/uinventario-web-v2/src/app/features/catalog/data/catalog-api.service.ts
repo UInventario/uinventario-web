@@ -14,6 +14,8 @@ import {
   ProductInput,
   ProductPage,
   ProductQuery,
+  UpdateProductKitInput,
+  UpdateProductVariantsInput,
 } from '../domain/catalog.models';
 
 interface ProductListResponse {
@@ -47,6 +49,12 @@ export class CatalogApi extends CatalogGateway {
       .pipe(map(({ data }) => data));
   }
 
+  override getProduct(id: string) {
+    return this.api
+      .get<ApiEnvelope<Product>>(`/products/${encodeURIComponent(id)}`)
+      .pipe(map(({ data }) => data));
+  }
+
   override createProduct(input: ProductInput) {
     return this.api
       .post<ApiEnvelope<Product>, ProductInput>('/products', input)
@@ -58,6 +66,24 @@ export class CatalogApi extends CatalogGateway {
       .patch<ApiEnvelope<Product>, ProductInput & { readonly version: number }>(
         `/products/${encodeURIComponent(id)}`,
         { ...input, version },
+      )
+      .pipe(map(({ data }) => data));
+  }
+
+  override updateProductVariants(id: string, input: UpdateProductVariantsInput) {
+    return this.api
+      .put<ApiEnvelope<Product>, UpdateProductVariantsInput>(
+        `/products/${encodeURIComponent(id)}/variants`,
+        input,
+      )
+      .pipe(map(({ data }) => data));
+  }
+
+  override updateProductKit(id: string, input: UpdateProductKitInput) {
+    return this.api
+      .put<ApiEnvelope<Product>, UpdateProductKitInput>(
+        `/products/${encodeURIComponent(id)}/kit`,
+        input,
       )
       .pipe(map(({ data }) => data));
   }

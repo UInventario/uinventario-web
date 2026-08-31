@@ -120,6 +120,15 @@
                 <button
                   class="icon"
                   type="button"
+                  (click)="openAdvanced(product)"
+                  [attr.aria-label]="'Configuración avanzada de ' + product.name"
+                  title="Variantes y kits"
+                >
+                  <i class="pi pi-sliders-h"></i>
+                </button>
+                <button
+                  class="icon"
+                  type="button"
                   (click)="openEdit(product)"
                   [attr.aria-label]="'Editar ' + product.name"
                 >
@@ -198,7 +207,7 @@
             ><input id="productSku" formControlName="sku" maxlength="40" />
           </div>
           <div class="field">
-            <label for="productBarcode">Código de barras</label
+            <label for="productBarcode">Código de barras o QR</label
             ><input id="productBarcode" formControlName="barcode" maxlength="64" />
           </div>
         }
@@ -289,6 +298,9 @@
           <div class="notice error full" role="alert">
             Revisa nombre, SKU, costo, precio y cantidades.
           </div>
+        }
+        @if (quantityPolicyError()) {
+          <div class="notice error full" role="alert">{{ quantityPolicyError() }}</div>
         }
         @if (error()) {
           <div class="notice error full" role="alert">{{ error() }}</div>
