@@ -13,6 +13,9 @@ import { PosGateway } from './pos/domain/pos.gateway';
 import { SalesLifecycleFacade } from './lifecycle/application/sales-lifecycle.facade';
 import { SalesLifecycleApi } from './lifecycle/data/sales-lifecycle-api.service';
 import { SalesLifecycleGateway } from './lifecycle/domain/sales-lifecycle.gateway';
+import { SalesOperationsFacade } from './operations/application/sales-operations.facade';
+import { SalesOperationsApi } from './operations/data/sales-operations-api.service';
+import { SalesOperationsGateway } from './operations/domain/operations.gateway';
 
 export const SALES_ROUTES: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'pos' },
@@ -55,5 +58,42 @@ export const SALES_ROUTES: Routes = [
       import('./lifecycle/ui/sales-lifecycle-page/sales-lifecycle-page').then(
         (module) => module.SalesLifecyclePage,
       ),
+  },
+  {
+    path: 'operaciones',
+    canActivate: [requireAnyPermission('SALES_MANAGE')],
+    providers: [
+      SalesOperationsFacade,
+      SalesOperationsApi,
+      { provide: SalesOperationsGateway, useExisting: SalesOperationsApi },
+    ],
+    loadComponent: () =>
+      import('./operations/ui/operations-shell/operations-shell').then(
+        (module) => module.SalesOperationsShell,
+      ),
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'pedidos' },
+      {
+        path: 'cotizaciones',
+        loadComponent: () =>
+          import('./operations/ui/quotation-page/quotation-page').then(
+            (module) => module.QuotationPageComponent,
+          ),
+      },
+      {
+        path: 'pedidos',
+        loadComponent: () =>
+          import('./operations/ui/order-page/order-page').then(
+            (module) => module.OrderPageComponent,
+          ),
+      },
+      {
+        path: 'reservas',
+        loadComponent: () =>
+          import('./operations/ui/reservation-page/reservation-page').then(
+            (module) => module.ReservationPageComponent,
+          ),
+      },
+    ],
   },
 ];

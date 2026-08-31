@@ -1,0 +1,140 @@
+<section class="dialog large" role="dialog" aria-modal="true" aria-labelledby="order-editor-title">
+  <header>
+    <div>
+      <h2 id="order-editor-title">Nuevo pedido</h2>
+      <p>Define preparación, entrega y cobro antes de confirmar stock.</p>
+    </div>
+    <button class="close" type="button" aria-label="Cerrar" (click)="cancelled.emit()">
+      <i class="pi pi-times"></i>
+    </button>
+  </header>
+  <div class="body">
+    <form class="form-grid" id="order-editor-form" [formGroup]="form" (ngSubmit)="submit()">
+      <label
+        >Cliente<select formControlName="customerId">
+          <option value="">Selecciona…</option>
+          @for (customer of options().customers; track customer.id) {
+            <option [value]="customer.id">
+              {{ customer.name }}{{ customer.identifier ? ' · ' + customer.identifier : '' }}
+            </option>
+          }
+        </select></label
+      >
+      <label
+        >Ubicación de preparación<select formControlName="locationId">
+          <option value="">Selecciona…</option>
+          @for (location of options().locations; track location.id) {
+            <option [value]="location.id">{{ location.name }} · {{ location.code }}</option>
+          }
+        </select></label
+      >
+      <label
+        >Canal<select formControlName="channel">
+          <option value="WEB">Web</option>
+          <option value="POS">POS</option>
+          <option value="MOBILE">Móvil</option>
+          <option value="DESKTOP">Desktop</option>
+        </select></label
+      >
+      <label
+        >Prioridad<select formControlName="priority">
+          <option value="LOW">Baja</option>
+          <option value="NORMAL">Normal</option>
+          <option value="HIGH">Alta</option>
+          <option value="URGENT">Urgente</option>
+        </select></label
+      >
+      <label
+        >Reserva por (horas)<input type="number" min="1" max="720" formControlName="expiresInHours"
+      /></label>
+      <label
+        >Entrega<select formControlName="method">
+          <option value="PICKUP">Retiro en sucursal</option>
+          <option value="DELIVERY">Despacho</option>
+        </select></label
+      >
+      <label>Ventana desde<input type="datetime-local" formControlName="windowStart" /></label
+      ><label>Ventana hasta<input type="datetime-local" formControlName="windowEnd" /></label>
+      @if (form.controls.method.value === 'DELIVERY') {
+        <label>Costo de despacho<input inputmode="decimal" formControlName="deliveryCost" /></label
+        ><label
+          >Transportista<select formControlName="carrierCode">
+            <option value="SIMULATED">Simulador estable</option>
+            <option value="SIMULATED_RETRY">Simulador con reintento</option>
+          </select></label
+        >
+        <label>Destinatario<input formControlName="recipientName" /></label
+        ><label>Teléfono<input formControlName="recipientPhone" /></label>
+        <label class="wide">Dirección<input formControlName="addressLine1" /></label
+        ><label class="wide">Complemento<input formControlName="addressLine2" /></label>
+        <label>Ciudad<input formControlName="city" /></label
+        ><label>Estado / región<input formControlName="region" /></label
+        ><label>Código postal<input formControlName="postalCode" /></label
+        ><label
+          >País<select formControlName="countryCode">
+            <option value="MX">México</option>
+            <option value="CL">Chile</option>
+            <option value="US">Estados Unidos</option>
+          </select></label
+        >
+      }
+      <div class="wide">
+        <ui-operation-lines-editor [products]="options().products" [(lines)]="lines" />
+      </div>
+      <div class="quote-row wide">
+        <button class="secondary" type="button" [disabled]="quoting()" (click)="calculate()">
+          <i
+            class="pi"
+            [class.pi-spin]="quoting()"
+            [class.pi-spinner]="quoting()"
+            [class.pi-calculator]="!quoting()"
+          ></i
+          >{{ quoting() ? 'Calculando…' : 'Calcular total' }}
+        </button>
+        @if (quote(); as current) {
+          <div>
+            <span>Total del pedido</span
+            ><strong>{{ current.totals.total }} {{ current.currency }}</strong>
+          </div>
+        }
+      </div>
+      @if (quote()) {
+        <label
+          >Método de pago<select formControlName="paymentMethod">
+            <option value="CASH">Efectivo</option>
+            @for (method of options().paymentMethods; track method) {
+              @if (method !== 'CASH') {
+                <option [value]="method">{{ method }}</option>
+              }
+            }
+          </select></label
+        >
+        @if (form.controls.paymentMethod.value === 'CASH') {
+          <label
+            >Efectivo planeado<input
+              inputmode="decimal"
+              formControlName="amountReceived"
+              placeholder="0.00"
+          /></label>
+        } @else {
+          <label>Referencia<input formControlName="reference" /></label>
+        }
+      }
+      @if (error() || apiError()) {
+        <p class="error wide" role="alert">{{ error() || apiError() }}</p>
+      }
+    </form>
+  </div>
+  <footer>
+    <button class="secondary" type="button" (click)="cancelled.emit()">Cancelar</button
+    ><button class="primary" type="submit" form="order-editor-form" [disabled]="busy()">
+      <i
+        class="pi"
+        [class.pi-spin]="busy()"
+        [class.pi-spinner]="busy()"
+        [class.pi-save]="!busy()"
+      ></i
+      >{{ busy() ? 'Creando…' : 'Crear pedido' }}
+    </button>
+  </footer>
+</section>

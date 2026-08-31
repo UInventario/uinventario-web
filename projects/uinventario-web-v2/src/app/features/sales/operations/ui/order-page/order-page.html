@@ -1,0 +1,146 @@
+<section class="operation-page" aria-labelledby="orders-title">
+  <div class="page-heading">
+    <div>
+      <h2 id="orders-title">Pedidos</h2>
+      <p>Coordina reserva, preparación, retiro o despacho hasta completar la venta.</p>
+    </div>
+    <button class="primary" type="button" [disabled]="!options()" (click)="openCreate()">
+      <i class="pi pi-plus"></i>Nuevo pedido
+    </button>
+  </div>
+  <div class="toolbar">
+    <label
+      >Estado<select
+        aria-label="Estado del pedido"
+        [value]="status()"
+        (change)="filterStatus($any($event.target).value)"
+      >
+        <option value="">Todos</option>
+        <option value="DRAFT">Borradores</option>
+        <option value="CONFIRMED">Confirmados</option>
+        <option value="PREPARING">Preparando</option>
+        <option value="READY">Listos</option>
+        <option value="DELIVERED">Entregados</option>
+        <option value="CANCELLED">Cancelados</option>
+      </select></label
+    ><label
+      >Prioridad<select
+        aria-label="Prioridad del pedido"
+        [value]="priority()"
+        (change)="filterPriority($any($event.target).value)"
+      >
+        <option value="">Todas</option>
+        <option value="LOW">Baja</option>
+        <option value="NORMAL">Normal</option>
+        <option value="HIGH">Alta</option>
+        <option value="URGENT">Urgente</option>
+      </select></label
+    ><span>{{ result()?.pagination?.total ?? 0 }} pedido(s)</span>
+  </div>
+  @if (error()) {
+    <div class="state error" role="alert">{{ error() }}</div>
+  }
+  @if (notice()) {
+    <p class="notice" role="status">{{ notice() }}</p>
+  }
+  @if (loading()) {
+    <div class="state"><i class="pi pi-spin pi-spinner"></i>Cargando pedidos…</div>
+  } @else if (result(); as page) {
+    <div class="card-grid">
+      @for (order of page.orders; track order.id) {
+        <article class="card">
+          <header>
+            <div>
+              <h3>{{ order.orderNumber }}</h3>
+              <p>{{ order.customer.name }} · {{ order.createdAt | date: 'short' }}</p>
+            </div>
+            <span
+              class="badge"
+              [class.good]="order.status === 'DELIVERED'"
+              [class.warn]="order.priority === 'HIGH' || order.priority === 'URGENT'"
+              [class.bad]="order.status === 'CANCELLED'"
+              >{{ statusLabel(order.status) }}</span
+            >
+          </header>
+          <dl>
+            <div>
+              <dt>Total</dt>
+              <dd>{{ order.totals.total }} {{ order.currency }}</dd>
+            </div>
+            <div>
+              <dt>Modalidad</dt>
+              <dd>{{ order.fulfillment.method === 'PICKUP' ? 'Retiro' : 'Despacho' }}</dd>
+            </div>
+            <div>
+              <dt>Prioridad</dt>
+              <dd>{{ priorityLabel(order.priority) }}</dd>
+            </div>
+            <div>
+              <dt>Responsable</dt>
+              <dd>
+                {{
+                  order.fulfillment.responsible.preparation?.email ||
+                    order.fulfillment.responsible.delivery?.email ||
+                    'Por asignar'
+                }}
+              </dd>
+            </div>
+          </dl>
+          <footer>
+            <button class="primary" type="button" [disabled]="acting()" (click)="openDetail(order)">
+              <i class="pi pi-arrow-right"></i>Gestionar
+            </button>
+          </footer>
+        </article>
+      } @empty {
+        <div class="state">
+          <i class="pi pi-truck"></i><strong>Sin pedidos</strong
+          ><span>Crea el primero para organizar su preparación.</span>
+        </div>
+      }
+    </div>
+    <footer class="pagination">
+      <span>Página {{ page.pagination.page }} de {{ page.pagination.totalPages || 1 }}</span>
+      <div>
+        <button
+          class="secondary"
+          type="button"
+          [disabled]="page.pagination.page <= 1"
+          (click)="goToPage(page.pagination.page - 1)"
+        >
+          Anterior</button
+        ><button
+          class="secondary"
+          type="button"
+          [disabled]="page.pagination.page >= page.pagination.totalPages"
+          (click)="goToPage(page.pagination.page + 1)"
+        >
+          Siguiente
+        </button>
+      </div>
+    </footer>
+  }
+</section>
+@if (editorOpen() && options(); as loadedOptions) {
+  <ui-order-editor-dialog
+    [options]="loadedOptions"
+    [busy]="acting()"
+    [apiError]="error()"
+    (cancelled)="editorOpen.set(false)"
+    (submitted)="create($event)"
+  />
+}
+@if (selected(); as order) {
+  <ui-order-detail-dialog
+    [order]="order"
+    [contract]="contract()"
+    [shippingQuote]="shippingQuote()"
+    [busy]="acting()"
+    [apiError]="detailError()"
+    (closed)="selected.set(null)"
+    (transition)="transition($event)"
+    (quoteShipping)="quoteShipping()"
+    (pollShipping)="pollShipping($event)"
+    (cancelShipping)="cancelShipping($event)"
+  />
+}

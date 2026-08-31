@@ -1,0 +1,88 @@
+<section class="dialog" role="dialog" aria-modal="true" aria-labelledby="convert-title">
+  <header>
+    <div>
+      <h2 id="convert-title">Convertir {{ preview().quotation.quotationNumber }}</h2>
+      <p>Los productos y el cliente ya están capturados.</p>
+    </div>
+    <button class="close" type="button" aria-label="Cerrar" (click)="cancelled.emit()">
+      <i class="pi pi-times"></i>
+    </button>
+  </header>
+  <div class="body form-grid">
+    <section class="quote-total wide">
+      <span
+        >Total cotizado: {{ preview().quotation.totals.total }}
+        {{ preview().quotation.currency }}</span
+      ><strong
+        >Total actual: {{ preview().recalculated.totals.total }}
+        {{ preview().recalculated.currency }}</strong
+      >
+    </section>
+    @if (preview().differences.length) {
+      <section class="differences wide" aria-labelledby="differences-title">
+        <h3 id="differences-title">Diferencias encontradas</h3>
+        @for (difference of preview().differences; track difference.product.id + difference.field) {
+          <div [class.blocking]="difference.blocking">
+            <strong>{{ difference.product.name }}</strong
+            ><span
+              >{{ differenceLabel(difference) }}: {{ difference.quoted }} →
+              {{ difference.current }}</span
+            >
+            @if (difference.blocking) {
+              <b>Bloquea conversión</b>
+            }
+          </div>
+        }
+      </section>
+      <label class="accept wide"
+        ><input type="checkbox" [formControl]="form.controls.acceptDifferences" /><span
+          >Revisé y acepto las diferencias no bloqueantes.</span
+        ></label
+      >
+    }
+    <label
+      >Método de pago<select [formControl]="form.controls.method">
+        <option value="CASH">Efectivo</option>
+        @for (method of paymentMethods(); track method) {
+          @if (method !== 'CASH') {
+            <option [value]="method">{{ method }}</option>
+          }
+        }
+      </select></label
+    >
+    @if (form.controls.method.value === 'CASH') {
+      <label
+        >Efectivo recibido<input
+          inputmode="decimal"
+          [formControl]="form.controls.amountReceived"
+          placeholder="0.00"
+      /></label>
+    } @else {
+      <label
+        >Referencia<input
+          [formControl]="form.controls.reference"
+          placeholder="Referencia bancaria o autorización"
+      /></label>
+    }
+    @if (error() || apiError()) {
+      <p class="error wide" role="alert">{{ error() || apiError() }}</p>
+    }
+  </div>
+  <footer>
+    <button class="secondary" type="button" (click)="cancelled.emit()">Cancelar</button
+    ><button
+      class="primary"
+      type="button"
+      [disabled]="busy() || !preview().canConvert"
+      (click)="submit()"
+    >
+      <i
+        class="pi"
+        [class.pi-spin]="busy()"
+        [class.pi-spinner]="busy()"
+        [class.pi-check]="!busy()"
+      ></i
+      >{{ busy() ? 'Convirtiendo…' : 'Convertir en venta' }}
+    </button>
+  </footer>
+</section>
