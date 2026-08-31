@@ -191,6 +191,12 @@ const COMMANDS: Record<WorkspaceId, readonly PolicyGroup[]> = {
           icon: 'pi pi-truck',
           permissionsAny: ['INVENTORY_VIEW'],
         },
+        {
+          id: 'inventory-traceability',
+          label: 'Trazabilidad',
+          icon: 'pi pi-qrcode',
+          permissionsAny: ['INVENTORY_VIEW'],
+        },
       ],
     },
     {

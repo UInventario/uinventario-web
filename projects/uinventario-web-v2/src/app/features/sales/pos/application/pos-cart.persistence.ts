@@ -88,6 +88,9 @@ function parseLine(value: unknown): PosCartLine | null {
   const manualUnitPrice = optionalString(value['manualUnitPrice'], 32);
   const priceOverrideReason = optionalString(value['priceOverrideReason'], 240);
   const discount = parseDiscount(value['discount']);
+  const lotId = optionalString(value['lotId'], 64);
+  const expiredLotOverrideReason = optionalString(value['expiredLotOverrideReason'], 240);
+  const serialNumbers = parseSerialNumbers(value['serialNumbers']);
   return {
     product,
     quantity: value['quantity'],
@@ -95,7 +98,22 @@ function parseLine(value: unknown): PosCartLine | null {
     ...(manualUnitPrice ? { manualUnitPrice } : {}),
     ...(priceOverrideReason ? { priceOverrideReason } : {}),
     ...(discount ? { discount } : {}),
+    ...(lotId ? { lotId } : {}),
+    ...(expiredLotOverrideReason ? { expiredLotOverrideReason } : {}),
+    ...(serialNumbers.length ? { serialNumbers } : {}),
   };
+}
+
+function parseSerialNumbers(value: unknown): readonly string[] {
+  if (!Array.isArray(value)) return [];
+  return [
+    ...new Set(
+      value
+        .filter((candidate): candidate is string => typeof candidate === 'string')
+        .map((candidate) => candidate.trim().slice(0, 120))
+        .filter(Boolean),
+    ),
+  ].slice(0, 1000);
 }
 
 function parseDiscount(value: unknown): PosCartLine['discount'] {

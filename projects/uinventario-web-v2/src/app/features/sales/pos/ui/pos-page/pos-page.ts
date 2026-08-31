@@ -86,6 +86,7 @@ export class PosPage implements OnInit {
   protected readonly quoteLoading = signal(false);
   protected readonly quoteError = signal<string | null>(null);
   protected readonly editing = signal<PosCartLine | null>(null);
+  protected readonly editingNew = signal(false);
   protected readonly benefitsOpen = signal(false);
   protected readonly saleTerms = signal<PosSaleTerms>({ customer: null });
   protected readonly checkout = signal<{
@@ -97,6 +98,9 @@ export class PosPage implements OnInit {
   );
   protected readonly canDiscount = computed(() => this.authorization.has('SALES_DISCOUNT'));
   protected readonly canCredit = computed(() => this.authorization.has('SALES_CREDIT'));
+  protected readonly canOverrideExpired = computed(() =>
+    this.authorization.has('INVENTORY_EXPIRED_STOCK_OVERRIDE'),
+  );
   protected readonly context = computed(() => this.sessions.session()?.context ?? null);
   protected readonly itemCount = computed(() => this.cart.lines().length);
 
@@ -144,9 +148,10 @@ export class PosPage implements OnInit {
 
   protected addProduct(product: PosProduct): void {
     if (this.requiresAdvancedTracking(product)) {
-      this.searchError.set(
-        'Este producto requiere seleccionar lote o series en una tarea posterior.',
-      );
+      const existing = this.cart.lines().find((line) => line.product.id === product.id);
+      this.editing.set(existing ?? { product, quantity: product.minimumQuantity });
+      this.editingNew.set(!existing);
+      this.searchError.set(null);
       return;
     }
     this.cart.add(product);
@@ -165,8 +170,21 @@ export class PosPage implements OnInit {
   protected saveLine(line: PosCartLine): void {
     const current = this.editing();
     if (!current) return;
+    const wasNew = this.editingNew();
+    if (wasNew) this.cart.add(line.product);
     this.cart.update(current.product.id, line);
     this.editing.set(null);
+    this.editingNew.set(false);
+    if (wasNew) {
+      this.searchForm.controls.query.setValue('');
+      this.searchRequests.next('');
+    }
+    queueMicrotask(() => this.focusSearch());
+  }
+
+  protected closeLineEditor(): void {
+    this.editing.set(null);
+    this.editingNew.set(false);
   }
 
   protected saveTerms(terms: PosSaleTerms): void {
@@ -355,6 +373,11 @@ export class PosPage implements OnInit {
           }
         : {}),
       ...(line.discount && this.canDiscount() ? { discount: line.discount } : {}),
+      ...(line.lotId ? { lotId: line.lotId } : {}),
+      ...(line.expiredLotOverrideReason
+        ? { expiredLotOverrideReason: line.expiredLotOverrideReason }
+        : {}),
+      ...(line.serialNumbers?.length ? { serialNumbers: line.serialNumbers } : {}),
     };
   }
 
@@ -402,6 +425,16 @@ export class PosPage implements OnInit {
       SALE_DISCOUNT_PERMISSION_REQUIRED: 'No tienes permiso para aplicar descuentos.',
       LOYALTY_INSUFFICIENT_BALANCE: 'El cliente ya no tiene puntos suficientes para este canje.',
       LOYALTY_RULE_CHANGED: 'La regla de fidelidad cambió; revisa el canje antes de cobrar.',
+      INVENTORY_LOT_REQUIRED: 'Selecciona un lote para cada producto controlado.',
+      INVENTORY_LOT_NOT_FOUND: 'El lote seleccionado ya no está disponible.',
+      INSUFFICIENT_INVENTORY_LOT_STOCK: 'El lote seleccionado no tiene existencia suficiente.',
+      INVENTORY_SERIALS_REQUIRED: 'Selecciona una serie por cada unidad.',
+      INVENTORY_SERIAL_NOT_FOUND: 'Una serie seleccionada ya no existe en esta bodega.',
+      INVENTORY_SERIAL_STATE_CONFLICT: 'Una serie seleccionada ya no está disponible.',
+      EXPIRED_INVENTORY_LOT: 'El lote seleccionado está vencido y no puede venderse.',
+      EXPIRED_INVENTORY_LOT_PERMISSION_REQUIRED:
+        'No tienes permiso para autorizar la venta de lotes vencidos.',
+      EXPIRED_INVENTORY_LOT_REASON_REQUIRED: 'Captura el motivo para vender el lote vencido.',
     };
     return messages[error.code] ?? (error.status === 404 ? fallback : error.message);
   }

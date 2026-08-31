@@ -320,3 +320,15 @@
   border: 1px solid var(--p-surface-300);
   color: var(--p-text-color);
 }
+.tracking-quantity {
+  align-items: center;
+  background: var(--p-primary-50);
+  border: 1px solid var(--p-primary-200);
+  border-radius: var(--radius-sm);
+  color: var(--p-primary-700);
+  display: inline-flex;
+  font-weight: 750;
+  gap: 0.35rem;
+  min-height: 2.25rem;
+  padding: 0 0.65rem;
+}

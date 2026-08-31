@@ -77,11 +77,10 @@
           </div>
         } @else {
           @for (product of products()!.products; track product.id) {
-            <article class="product-card" [class.unsupported]="requiresAdvancedTracking(product)">
+            <article class="product-card" [class.tracked]="requiresAdvancedTracking(product)">
               <button
                 type="button"
                 [attr.aria-label]="'Agregar ' + product.name"
-                [disabled]="requiresAdvancedTracking(product)"
                 (click)="addProduct(product)"
               >
                 <span class="product-icon"><i class="pi pi-box"></i></span>
@@ -160,6 +159,14 @@
                   @if (line.note) {
                     <em>{{ line.note }}</em>
                   }
+                  @if (line.lotId) {
+                    <em class="rule-chip"><i class="pi pi-tag"></i>Lote identificado</em>
+                  }
+                  @if (line.serialNumbers?.length) {
+                    <em class="rule-chip"
+                      ><i class="pi pi-hashtag"></i>{{ line.serialNumbers?.join(', ') }}</em
+                    >
+                  }
                   @if (quotedLine(line.product.id)?.priceList; as priceList) {
                     <em class="rule-chip"><i class="pi pi-tag"></i>{{ priceList.name }}</em>
                   }
@@ -169,23 +176,29 @@
                 </strong>
               </div>
               <div class="line-controls">
-                <div class="stepper" aria-label="Cantidad">
-                  <button
-                    type="button"
-                    [attr.aria-label]="'Restar cantidad de ' + line.product.name"
-                    (click)="cart.change(line.product.id, -1)"
-                  >
-                    <i class="pi pi-minus"></i>
+                @if (requiresAdvancedTracking(line.product)) {
+                  <button class="tracking-quantity" type="button" (click)="editing.set(line)">
+                    <i class="pi pi-qrcode"></i>{{ line.quantity }} identificada(s)
                   </button>
-                  <strong>{{ line.quantity }}</strong>
-                  <button
-                    type="button"
-                    [attr.aria-label]="'Sumar cantidad de ' + line.product.name"
-                    (click)="cart.change(line.product.id, 1)"
-                  >
-                    <i class="pi pi-plus"></i>
-                  </button>
-                </div>
+                } @else {
+                  <div class="stepper" aria-label="Cantidad">
+                    <button
+                      type="button"
+                      [attr.aria-label]="'Restar cantidad de ' + line.product.name"
+                      (click)="cart.change(line.product.id, -1)"
+                    >
+                      <i class="pi pi-minus"></i>
+                    </button>
+                    <strong>{{ line.quantity }}</strong>
+                    <button
+                      type="button"
+                      [attr.aria-label]="'Sumar cantidad de ' + line.product.name"
+                      (click)="cart.change(line.product.id, 1)"
+                    >
+                      <i class="pi pi-plus"></i>
+                    </button>
+                  </div>
+                }
                 <span class="unit-price">
                   {{
                     money(
@@ -330,7 +343,8 @@
     [line]="line"
     [canOverridePrice]="canOverridePrice()"
     [canDiscount]="canDiscount()"
-    (closed)="editing.set(null)"
+    [canOverrideExpired]="canOverrideExpired()"
+    (closed)="closeLineEditor()"
     (submitted)="saveLine($event)"
   />
 }

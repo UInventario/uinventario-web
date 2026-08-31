@@ -33,6 +33,12 @@ export class PosFacade {
   loyaltyStatement(customerId: string) {
     return this.gateway.loyaltyStatement(customerId);
   }
+  listLots(productId: string) {
+    return this.gateway.listLots(productId);
+  }
+  listSerials(productId: string) {
+    return this.gateway.listSerials(productId);
+  }
   createCashSale(input: CreateCashSaleInput) {
     return this.gateway.createCashSale(input);
   }

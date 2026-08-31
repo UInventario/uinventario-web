@@ -24,6 +24,12 @@ const product = (overrides: Partial<PosProduct> = {}) =>
   }) satisfies PosProduct;
 
 describe('POS quantity policy', () => {
+  it('accepts canonical trailing zeroes for products sold only in whole units', () => {
+    const wholeUnit = product({ quantityPrecision: 0, minimumQuantity: '1.000' });
+    expect(normalizeQuantity('1.000', wholeUnit)).toBe('1.000');
+    expect(normalizeQuantity('1.001', wholeUnit)).toBeNull();
+  });
+
   it('keeps fractional quantities exact in thousandths', () => {
     expect(quantityUnits('12.345')).toBe(12345);
     expect(normalizeQuantity('0.5', product())).toBe('0.500');

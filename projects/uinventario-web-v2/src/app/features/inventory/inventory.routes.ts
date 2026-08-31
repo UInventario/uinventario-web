@@ -12,6 +12,9 @@ import { ValuationGateway } from './valuation/domain/valuation.gateway';
 import { InventoryTransferFacade } from './transfers/application/inventory-transfer.facade';
 import { InventoryTransferApi } from './transfers/data/inventory-transfer-api.service';
 import { InventoryTransferGateway } from './transfers/domain/inventory-transfer.gateway';
+import { TraceabilityFacade } from './traceability/application/traceability.facade';
+import { TraceabilityApi } from './traceability/data/traceability-api.service';
+import { TraceabilityGateway } from './traceability/domain/traceability.gateway';
 
 export const INVENTORY_ROUTES: Routes = [
   {
@@ -35,6 +38,22 @@ export const INVENTORY_ROUTES: Routes = [
     ],
     loadComponent: () =>
       import('./transfers/ui/transfer-page/transfer-page').then((module) => module.TransferPage),
+  },
+  {
+    path: 'trazabilidad',
+    canActivate: [requireAnyPermission('INVENTORY_VIEW')],
+    providers: [
+      InventoryFacade,
+      InventoryApi,
+      { provide: InventoryGateway, useExisting: InventoryApi },
+      TraceabilityFacade,
+      TraceabilityApi,
+      { provide: TraceabilityGateway, useExisting: TraceabilityApi },
+    ],
+    loadComponent: () =>
+      import('./traceability/ui/traceability-page/traceability-page').then(
+        (module) => module.TraceabilityPage,
+      ),
   },
   {
     path: 'control',
