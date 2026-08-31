@@ -114,6 +114,14 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'administracion/comercio',
+        canActivate: [requireAnyPermission('TENANT_MANAGE')],
+        loadChildren: () =>
+          import('./features/integrations/integrations.routes').then(
+            (module) => module.COMMERCE_INTEGRATION_ROUTES,
+          ),
+      },
+      {
         path: 'administracion',
         canActivate: [requireAnyPermission(...ADMINISTRATION_ACCESS)],
         loadChildren: () =>

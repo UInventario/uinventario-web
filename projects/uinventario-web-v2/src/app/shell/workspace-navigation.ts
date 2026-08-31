@@ -339,6 +339,12 @@ const COMMANDS: Record<WorkspaceId, readonly PolicyGroup[]> = {
           icon: 'pi pi-cloud',
           permissionsAny: ['TENANT_MANAGE'],
         },
+        {
+          id: 'manage-commerce',
+          label: 'Comercio',
+          icon: 'pi pi-shop',
+          permissionsAny: ['TENANT_MANAGE'],
+        },
       ],
     },
   ],
