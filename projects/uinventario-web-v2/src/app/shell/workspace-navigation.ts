@@ -333,6 +333,12 @@ const COMMANDS: Record<WorkspaceId, readonly PolicyGroup[]> = {
           icon: 'pi pi-users',
           permissionsAny: ['ACCESS_MANAGE'],
         },
+        {
+          id: 'manage-integrations',
+          label: 'Integraciones',
+          icon: 'pi pi-cloud',
+          permissionsAny: ['TENANT_MANAGE'],
+        },
       ],
     },
   ],

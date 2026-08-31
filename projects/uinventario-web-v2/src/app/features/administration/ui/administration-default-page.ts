@@ -108,6 +108,16 @@ import { AuthorizationService } from '../../../core/authorization/authorization.
             <i class="pi pi-arrow-right" aria-hidden="true"></i>
           </a>
         }
+        @if (canManageTenant()) {
+          <a routerLink="integraciones">
+            <i class="pi pi-cloud" aria-hidden="true"></i>
+            <div>
+              <strong>Integraciones</strong
+              ><span>Supervisa adaptadores, contratos externos, webhooks y errores.</span>
+            </div>
+            <i class="pi pi-arrow-right" aria-hidden="true"></i>
+          </a>
+        }
       </div>
     </section>
   `,

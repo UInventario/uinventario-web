@@ -157,6 +157,10 @@ export class AppShell {
       void this.router.navigate(['/administracion/accesos']);
       return;
     }
+    if (commandId === 'manage-integrations') {
+      void this.router.navigate(['/administracion/integraciones']);
+      return;
+    }
     if (commandId === 'manage-suppliers') {
       void this.router.navigate(['/compras/proveedores']);
       return;
