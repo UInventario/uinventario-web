@@ -1,0 +1,311 @@
+<section class="console" aria-labelledby="integration-title">
+  <header class="heading">
+    <div>
+      <p>Contratos externos v1</p>
+      <h1 id="integration-title">Integraciones</h1>
+      <span>Configura adaptadores y observa su operación sin exponer credenciales.</span>
+    </div>
+    <div class="health-summary" [class.degraded]="degradedCount()">
+      <i [class]="degradedCount() ? 'pi pi-exclamation-triangle' : 'pi pi-check-circle'"></i>
+      <div>
+        <strong>{{
+          degradedCount() ? degradedCount() + ' con atención' : 'Operación estable'
+        }}</strong>
+        <span>Los proveedores se supervisan por separado.</span>
+      </div>
+    </div>
+  </header>
+
+  <nav class="panel-tabs" aria-label="Secciones de integraciones">
+    <button type="button" [class.active]="panel() === 'overview'" (click)="selectPanel('overview')">
+      <i class="pi pi-th-large"></i>Resumen
+    </button>
+    <button type="button" [class.active]="panel() === 'adapters'" (click)="selectPanel('adapters')">
+      <i class="pi pi-sliders-h"></i>Adaptadores
+    </button>
+    <button type="button" [class.active]="panel() === 'activity'" (click)="selectPanel('activity')">
+      <i class="pi pi-wave-pulse"></i>Actividad
+    </button>
+  </nav>
+
+  @if (notice()) {
+    <p class="notice" role="status">{{ notice() }}</p>
+  }
+
+  @if (loading()) {
+    <div class="state" role="status">
+      <i class="pi pi-spin pi-spinner"></i>Cargando integraciones…
+    </div>
+  } @else if (panel() === 'overview') {
+    <section aria-labelledby="providers-title">
+      <div class="section-heading">
+        <div>
+          <h2 id="providers-title">Servicios conectados</h2>
+          <p>La caída de un servicio no oculta el estado de los demás.</p>
+        </div>
+      </div>
+      <div class="provider-grid">
+        @for (provider of providers(); track trackProvider($index, provider)) {
+          <article class="provider-card">
+            <div class="provider-icon"><i [class]="providerIcon(provider.key)"></i></div>
+            <div class="provider-copy">
+              <div class="provider-title">
+                <h3>{{ provider.label }}</h3>
+                <span class="badge mode" [attr.data-mode]="provider.mode">{{ provider.mode }}</span>
+              </div>
+              <p>{{ provider.detail }}</p>
+              <dl>
+                <div>
+                  <dt>Contrato</dt>
+                  <dd>v{{ provider.contractVersion }}</dd>
+                </div>
+                <div>
+                  <dt>Actividad</dt>
+                  <dd>{{ provider.activityCount }}</dd>
+                </div>
+                <div>
+                  <dt>Errores</dt>
+                  <dd>{{ provider.errorCount }}</dd>
+                </div>
+              </dl>
+            </div>
+            <span class="badge health" [attr.data-health]="provider.health">
+              <i [class]="healthIcon(provider.health)"></i>{{ healthLabel(provider.health) }}
+            </span>
+          </article>
+        }
+        @for (failure of providerErrors(); track failure.label) {
+          <article class="provider-card unavailable">
+            <div class="provider-icon"><i class="pi pi-cloud-times"></i></div>
+            <div class="provider-copy">
+              <div class="provider-title">
+                <h3>{{ failure.label }}</h3>
+              </div>
+              <p>{{ failure.message }}</p>
+              <span>El resto de integraciones continúa disponible.</span>
+            </div>
+            <span class="badge health" data-health="DEGRADED">No disponible</span>
+          </article>
+        }
+      </div>
+    </section>
+  } @else if (panel() === 'adapters') {
+    <section aria-labelledby="adapters-title">
+      <div class="section-heading">
+        <div>
+          <h2 id="adapters-title">Canales de notificación</h2>
+          <p>Las referencias seguras se conservan, pero nunca se muestran en pantalla.</p>
+        </div>
+      </div>
+      @if (sourceErrors().length) {
+        <p class="notice error" role="alert">
+          No se pudo cargar una fuente: {{ sourceErrors()[0] }}
+        </p>
+      }
+      <div class="adapter-list">
+        @for (configuration of configurations(); track configuration.capability) {
+          <article class="adapter-card">
+            <header>
+              <div>
+                <span class="eyebrow">{{ capabilityLabel(configuration.capability) }}</span>
+                <h3>{{ configuration.provider }}</h3>
+              </div>
+              <div class="card-badges">
+                <span class="badge mode" [attr.data-mode]="adapterMode(configuration)">{{
+                  adapterMode(configuration)
+                }}</span>
+                <span
+                  class="badge health"
+                  [attr.data-health]="adapterHealth(configuration.capability)"
+                  >{{ healthLabel(adapterHealth(configuration.capability)) }}</span
+                >
+              </div>
+            </header>
+            @if (drafts()[configuration.capability]; as draft) {
+              <div class="adapter-form">
+                <label
+                  ><span>País</span
+                  ><input
+                    maxlength="2"
+                    [value]="draft.countryCode"
+                    (input)="
+                      updateDraft(
+                        configuration.capability,
+                        'countryCode',
+                        $any($event.target).value
+                      )
+                    "
+                /></label>
+                <label
+                  ><span>Proveedor</span
+                  ><input
+                    [value]="draft.provider"
+                    (input)="
+                      updateDraft(configuration.capability, 'provider', $any($event.target).value)
+                    "
+                /></label>
+                <label
+                  ><span>Versión</span
+                  ><input
+                    [value]="draft.adapterVersion"
+                    (input)="
+                      updateDraft(
+                        configuration.capability,
+                        'adapterVersion',
+                        $any($event.target).value
+                      )
+                    "
+                /></label>
+                <label
+                  ><span>Timeout (ms)</span
+                  ><input
+                    type="number"
+                    min="100"
+                    [value]="draft.timeoutMs"
+                    (input)="
+                      updateDraft(
+                        configuration.capability,
+                        'timeoutMs',
+                        $any($event.target).valueAsNumber
+                      )
+                    "
+                /></label>
+                <label
+                  ><span>Intentos</span
+                  ><input
+                    type="number"
+                    min="1"
+                    max="10"
+                    [value]="draft.maxAttempts"
+                    (input)="
+                      updateDraft(
+                        configuration.capability,
+                        'maxAttempts',
+                        $any($event.target).valueAsNumber
+                      )
+                    "
+                /></label>
+                <label class="secret-field">
+                  <span>Reemplazar referencia segura</span>
+                  <input
+                    type="password"
+                    autocomplete="new-password"
+                    placeholder="Dejar vacío para conservar"
+                    [value]="draft.secretReference"
+                    (input)="
+                      updateDraft(
+                        configuration.capability,
+                        'secretReference',
+                        $any($event.target).value
+                      )
+                    "
+                  />
+                  <small
+                    ><i class="pi pi-lock"></i
+                    >{{
+                      configuration.secretReference
+                        ? 'Referencia configurada'
+                        : 'Sin referencia configurada'
+                    }}</small
+                  >
+                </label>
+              </div>
+              <footer>
+                <label class="toggle"
+                  ><input
+                    type="checkbox"
+                    [checked]="draft.enabled"
+                    (change)="
+                      updateDraft(configuration.capability, 'enabled', $any($event.target).checked)
+                    "
+                  /><span>Adaptador activo</span></label
+                >
+                <div class="actions">
+                  <button
+                    class="secondary"
+                    type="button"
+                    [disabled]="acting()"
+                    (click)="diagnose(configuration.capability, 'SUCCESS')"
+                  >
+                    <i class="pi pi-stethoscope"></i>Diagnóstico
+                  </button>
+                  <button
+                    class="primary"
+                    type="button"
+                    [disabled]="acting()"
+                    (click)="save(configuration)"
+                  >
+                    <i
+                      [class]="
+                        acting() === configuration.capability
+                          ? 'pi pi-spin pi-spinner'
+                          : 'pi pi-save'
+                      "
+                    ></i
+                    >Guardar
+                  </button>
+                </div>
+              </footer>
+            }
+          </article>
+        } @empty {
+          <div class="state"><i class="pi pi-sliders-h"></i>No hay adaptadores configurables.</div>
+        }
+      </div>
+    </section>
+  } @else {
+    <section aria-labelledby="activity-title">
+      <div class="section-heading">
+        <div>
+          <h2 id="activity-title">Eventos, webhooks y errores</h2>
+          <p>Trazabilidad reciente de los canales externos.</p>
+        </div>
+      </div>
+      <div class="activity-grid">
+        <article>
+          <h3>Ejecuciones</h3>
+          <div class="activity-list">
+            @for (execution of executions(); track execution.id) {
+              <div>
+                <span class="status-dot" [attr.data-status]="execution.status"></span>
+                <div>
+                  <strong>{{ capabilityLabel(execution.capability) }}</strong
+                  ><small>{{ execution.provider }} · intento {{ execution.attemptCount }}</small>
+                </div>
+                <div class="activity-result">
+                  <span>{{ execution.status }}</span
+                  ><small>{{ execution.createdAt | date: 'dd/MM/yyyy HH:mm' }}</small>
+                </div>
+              </div>
+            } @empty {
+              <p class="empty">Todavía no hay ejecuciones.</p>
+            }
+          </div>
+        </article>
+        <article>
+          <h3>Webhooks de correo</h3>
+          <div class="activity-list">
+            @for (event of emailEvents(); track event.webhookEventId) {
+              <div>
+                <span
+                  class="status-dot"
+                  [attr.data-status]="event.errorCode ? 'FAILED' : 'SUCCEEDED'"
+                ></span>
+                <div>
+                  <strong>{{ event.eventType }}</strong
+                  ><small>{{ event.provider }}</small>
+                </div>
+                <div class="activity-result">
+                  <span>{{ event.errorCode || 'Procesado' }}</span
+                  ><small>{{ event.occurredAt | date: 'dd/MM/yyyy HH:mm' }}</small>
+                </div>
+              </div>
+            } @empty {
+              <p class="empty">Todavía no hay webhooks recibidos.</p>
+            }
+          </div>
+        </article>
+      </div>
+    </section>
+  }
+</section>
