@@ -87,14 +87,18 @@ test('changes branch, warehouse and register without reloading the workspace', a
   await expect(page.getByRole('button', { name: 'Cambiar contexto operativo' })).toContainText(
     'Norte',
   );
-  await expect(page).toHaveURL(/\/v2\/dashboard$/);
+  await expect(page).toHaveURL((url) => url.pathname.endsWith('/v2/dashboard/resumen'));
 });
 
 test('enforces permissions on direct routes and operational commands', async ({ page }) => {
   await mockSession(page, ['INVENTORY_VIEW']);
 
   await page.goto('./ventas');
-  await expect(page).toHaveURL(/\/v2\/dashboard\?accessDenied=true$/);
+  await expect(page).toHaveURL(
+    (url) =>
+      url.pathname.endsWith('/v2/dashboard/resumen') &&
+      url.searchParams.get('accessDenied') === 'true',
+  );
   await expect(page.getByRole('alert')).toContainText('no tiene permiso');
   await expect(page.getByRole('link', { name: 'Ventas', exact: true })).toHaveCount(0);
 

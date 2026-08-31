@@ -78,7 +78,10 @@ async function mockDashboard(page: Page, requests: string[]): Promise<void> {
           },
           nextStep: 'APPLICATION',
         },
-        meta: { apiVersion: '1', sessionExpiresAt: '2026-08-31T23:00:00.000Z' },
+        meta: {
+          apiVersion: '1',
+          sessionExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+        },
       });
     }
     if (path === '/organization/branches') {

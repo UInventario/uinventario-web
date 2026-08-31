@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "generatedFrom": "uinventario-api",
-  "apiRevision": "ee25dc7b1586aa894fe2f5c6b0b9cc1096639bda",
-  "controllerCount": 49,
-  "endpointCount": 267,
+  "sourceCommit": "c41f574ab899d7f47b332bdf8908fa72f03fd6e7",
+  "controllerCount": 50,
+  "endpointCount": 270,
   "controllerNames": [
     "AccessControlController",
     "AccountingController",
@@ -49,13 +49,14 @@
     "SaleReceiptController",
     "SaleReturnController",
     "SalesQuotationController",
+    "SalesReportDetailController",
     "SessionController",
     "SupplierController",
     "SupplierProductController",
     "SuspendedSaleController",
     "WhatsappController"
   ],
-  "contractDigest": "9b2e2dd21bbdcd6b94de4196949d0a4493099940fa103eb7330865e5ac6344c6",
+  "contractDigest": "987a5cc429cc1281dd5f25fbefd6e12fd5032f4f667290a5da4b154c8b287590",
   "files": [
     "administration.jsonl",
     "catalog.jsonl",

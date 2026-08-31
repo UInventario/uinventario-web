@@ -127,6 +127,12 @@ export const CONTROLLER_UI = {
     'Ticket de venta',
   ],
   SaleReturnController: ['sales', '/app/sales/returns', 'UIN-200', 'Devoluciones'],
+  SalesReportDetailController: [
+    'reporting',
+    '/app/reports/sales/:saleId',
+    'UIN-196',
+    'Detalle de venta y devoluciones',
+  ],
   SalesQuotationController: ['sales', '/app/sales/quotations', 'UIN-201', 'Cotizaciones'],
   SessionController: ['identity', '/login', 'UIN-179', 'Sesión Web'],
   SupplierController: ['procurement', '/app/procurement/suppliers', 'UIN-184', 'Proveedores'],

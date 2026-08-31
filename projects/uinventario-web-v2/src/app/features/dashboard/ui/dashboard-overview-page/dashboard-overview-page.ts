@@ -86,6 +86,7 @@ export class DashboardOverviewPage implements OnInit {
         void this.router.navigate([], {
           relativeTo: this.route,
           queryParams: dashboardQueryParams(query),
+          queryParamsHandling: 'merge',
           replaceUrl: true,
         });
         return;
@@ -187,6 +188,7 @@ export class DashboardOverviewPage implements OnInit {
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: dashboardQueryParams(query),
+      queryParamsHandling: 'merge',
     });
   }
 

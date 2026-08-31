@@ -7,8 +7,8 @@ const root = resolve(process.argv[2] ?? 'docs/web-v2/api-parity/data');
 const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'));
 const records = [];
 
-if (!/^[0-9a-f]{40}$/.test(manifest.apiRevision ?? '')) {
-  throw new Error('Manifest has no valid API revision');
+if (!/^[0-9a-f]{40}$/.test(manifest.sourceCommit ?? '')) {
+  throw new Error('Manifest has no valid source commit');
 }
 
 for (const fileName of Object.values(DOMAIN_FILES)) {
@@ -77,8 +77,8 @@ for (const record of records) {
 }
 
 const controllers = [...new Set(records.map(({ controller }) => controller))].sort();
-if (controllers.length !== 49 || manifest.controllerCount !== 49) {
-  throw new Error(`Expected 49 controllers, found ${controllers.length}`);
+if (controllers.length !== 50 || manifest.controllerCount !== 50) {
+  throw new Error(`Expected 50 controllers, found ${controllers.length}`);
 }
 if (records.length !== manifest.endpointCount) {
   throw new Error(`Expected ${manifest.endpointCount} endpoints, found ${records.length}`);

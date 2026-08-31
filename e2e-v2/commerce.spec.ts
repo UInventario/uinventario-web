@@ -55,7 +55,10 @@ async function mockCommerce(page: Page): Promise<string[]> {
           },
           nextStep: 'APPLICATION',
         },
-        meta: { apiVersion: '1', sessionExpiresAt: '2026-09-01T00:00:00.000Z' },
+        meta: {
+          apiVersion: '1',
+          sessionExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+        },
       });
     }
     if (path === '/organization/branches') {

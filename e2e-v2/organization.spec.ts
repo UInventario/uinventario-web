@@ -120,7 +120,7 @@ test('completes the guided company, location and cash register onboarding', asyn
 
   await expect(page.getByRole('heading', { name: 'Agrega tu primera caja' })).toBeVisible();
   await page.getByRole('button', { name: 'Finalizar configuración' }).click();
-  await expect(page).toHaveURL(/\/v2\/dashboard$/);
+  await expect(page).toHaveURL((url) => url.pathname.endsWith('/v2/dashboard/resumen'));
 
   expect(requests.company).toEqual({
     legalName: 'Comercializadora Central',
