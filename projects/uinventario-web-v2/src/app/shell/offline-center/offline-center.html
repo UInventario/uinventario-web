@@ -1,0 +1,130 @@
+<button
+  class="status-button"
+  type="button"
+  [class]="'status-button ' + sync.state().toLowerCase()"
+  [attr.aria-label]="'Estado offline: ' + stateLabel(sync.state())"
+  (click)="open.set(true)"
+>
+  <span class="dot"></span>
+  <span>{{ stateLabel(sync.state()) }}</span>
+  @if (sync.summary().pending || sync.summary().conflicts) {
+    <strong>{{ sync.summary().pending + sync.summary().conflicts }}</strong>
+  }
+</button>
+
+@if (open()) {
+  <div class="backdrop" (click)="open.set(false)"></div>
+  <section class="panel" role="dialog" aria-modal="true" aria-labelledby="offline-title">
+    <header>
+      <div>
+        <p>Continuidad operativa</p>
+        <h2 id="offline-title">Trabajo sin conexión</h2>
+      </div>
+      <button type="button" aria-label="Cerrar estado offline" (click)="open.set(false)">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+
+    <div class="content">
+      <section class="summary" [class.warning]="sync.state() !== 'ONLINE'">
+        <div>
+          <span>Estado</span><strong>{{ stateLabel(sync.state()) }}</strong>
+        </div>
+        <div>
+          <span>Datos locales</span><strong>{{ sync.summary().entities }}</strong>
+        </div>
+        <div>
+          <span>Pendientes</span><strong>{{ sync.summary().pending }}</strong>
+        </div>
+        <div>
+          <span>Conflictos</span><strong>{{ sync.summary().conflicts }}</strong>
+        </div>
+      </section>
+
+      @if (sync.summary().generatedAt; as generatedAt) {
+        <p class="freshness">Actualizado {{ generatedAt | date: 'medium' }}</p>
+      }
+      @if (sync.summary().catalogStale || sync.summary().permissionsStale) {
+        <p class="warning-copy" role="alert">
+          <i class="pi pi-exclamation-triangle"></i>
+          Los datos o permisos locales vencieron. Sincroniza antes de capturar operaciones.
+        </p>
+      }
+      @if (sync.error()) {
+        <p class="error" role="alert">{{ sync.error() }}</p>
+      }
+
+      <div class="actions">
+        <button
+          class="secondary"
+          type="button"
+          [disabled]="sync.busy() || !sync.online()"
+          (click)="prepare()"
+        >
+          <i class="pi pi-download"></i
+          >{{ sync.summary().prepared ? 'Renovar descarga' : 'Preparar offline' }}
+        </button>
+        <button
+          class="primary"
+          type="button"
+          [disabled]="sync.busy() || !sync.summary().prepared"
+          (click)="synchronize()"
+        >
+          <i
+            class="pi"
+            [class.pi-spin]="sync.busy()"
+            [class.pi-spinner]="sync.busy()"
+            [class.pi-sync]="!sync.busy()"
+          ></i>
+          {{ sync.online() ? 'Sincronizar' : 'Probar conexión' }}
+        </button>
+      </div>
+
+      <section class="queue" aria-labelledby="offline-queue-title">
+        <div class="section-heading">
+          <h3 id="offline-queue-title">Cola del dispositivo</h3>
+          <span>{{ sync.commands().length }}</span>
+        </div>
+        @for (command of sync.commands(); track command.commandId) {
+          <article [class.conflict]="command.status === 'ERROR'">
+            <div>
+              <strong>{{ commandLabel(command) }}</strong
+              ><span>#{{ command.sequence }} · {{ command.createdAt | date: 'short' }}</span>
+            </div>
+            <b>{{
+              command.status === 'ERROR'
+                ? 'Revisión necesaria'
+                : command.status === 'SENDING'
+                  ? 'Enviando'
+                  : 'Pendiente'
+            }}</b>
+            @if (command.status === 'ERROR') {
+              <p>{{ commandError(command) }}</p>
+              <footer>
+                <button type="button" (click)="discard(command.commandId)">Descartar</button
+                ><button
+                  type="button"
+                  [disabled]="!sync.online()"
+                  (click)="retry(command.commandId)"
+                >
+                  Sincronizar y reintentar
+                </button>
+              </footer>
+            } @else if (command.attempts) {
+              <p>Reintento {{ command.attempts }} programado sin cambiar la clave idempotente.</p>
+            }
+          </article>
+        } @empty {
+          <div class="empty">
+            <i class="pi pi-check-circle"></i><span>No hay operaciones pendientes.</span>
+          </div>
+        }
+      </section>
+
+      <p class="policy">
+        <i class="pi pi-shield"></i>Al cerrar sesión se eliminan los datos offline de este
+        navegador.
+      </p>
+    </div>
+  </section>
+}

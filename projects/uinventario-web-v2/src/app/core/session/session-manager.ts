@@ -3,6 +3,7 @@ import {
   Observable,
   catchError,
   finalize,
+  from,
   map,
   of,
   shareReplay,
@@ -11,6 +12,8 @@ import {
   throwError,
 } from 'rxjs';
 import { ApiError } from '../api/api-error';
+import { OfflineStore } from '../offline/offline-store';
+import { OfflineSessionSnapshot } from '../offline/offline.models';
 import { SessionApi } from './session-api';
 import { SessionContextInput, SessionData, SessionResponse } from './session.models';
 import { SessionNavigation } from './session-navigation';
@@ -23,6 +26,7 @@ export class SessionManager implements OnDestroy {
   private readonly api = inject(SessionApi);
   private readonly navigation = inject(SessionNavigation);
   private readonly state = inject(SessionState);
+  private readonly offline = inject(OfflineStore);
   private readonly channel =
     typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('uinventario-v2-session');
   private restoreInFlight?: Observable<SessionData>;
@@ -57,6 +61,13 @@ export class SessionManager implements OnDestroy {
       map((response) => this.accept(response)),
       catchError((error: unknown) => {
         if (isAuthenticationRejection(error)) this.closeLocal(false, false);
+        if (isConnectivityFailure(error)) {
+          return from(this.offline.restoreSession()).pipe(
+            switchMap((snapshot) =>
+              snapshot ? of(this.acceptOffline(snapshot)) : throwError(() => error),
+            ),
+          );
+        }
         return throwError(() => error);
       }),
       finalize(() => {
@@ -116,6 +127,13 @@ export class SessionManager implements OnDestroy {
     const session = this.state.accept(response);
     this.scheduleRenewal();
     return session;
+  }
+
+  private acceptOffline(snapshot: OfflineSessionSnapshot): SessionData {
+    return this.accept({
+      data: snapshot.session,
+      meta: { apiVersion: '1', sessionExpiresAt: snapshot.sessionExpiresAt },
+    });
   }
 
   private scheduleRenewal(): void {
@@ -178,6 +196,7 @@ export class SessionManager implements OnDestroy {
     this.restoreInFlight = undefined;
     this.refreshInFlight = undefined;
     this.state.clear();
+    void this.offline.clearAll().catch(() => undefined);
     if (broadcast) this.channel?.postMessage('SESSION_CLOSED' satisfies SessionEvent);
     if (navigate) {
       this.navigation.redirectToLogin(returnUrl ?? null, preserveReturnUrl);
@@ -192,4 +211,8 @@ export class SessionManager implements OnDestroy {
 
 export function isAuthenticationRejection(error: unknown): boolean {
   return error instanceof ApiError && error.kind === 'unauthenticated';
+}
+
+function isConnectivityFailure(error: unknown): boolean {
+  return error instanceof ApiError && ['network', 'timeout'].includes(error.kind);
 }

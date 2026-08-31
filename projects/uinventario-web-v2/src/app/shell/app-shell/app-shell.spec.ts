@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { OperationalContextStore } from '../../core/operational-context/operational-context.store';
+import { OfflineSync } from '../../core/offline/offline-sync';
 import { SessionManager } from '../../core/session/session-manager';
 import { SessionState } from '../../core/session/session-state';
 import { AppShell } from './app-shell';
@@ -53,6 +54,31 @@ describe('AppShell', () => {
           },
         },
         { provide: SessionManager, useValue: { logout: vi.fn(() => of(undefined)) } },
+        {
+          provide: OfflineSync,
+          useValue: {
+            state: () => 'ONLINE',
+            summary: () => ({
+              prepared: true,
+              entities: 0,
+              pending: 0,
+              conflicts: 0,
+              generatedAt: null,
+              catalogStale: false,
+              permissionsStale: false,
+              sessionExpired: false,
+            }),
+            commands: () => [],
+            error: () => null,
+            busy: () => false,
+            online: () => true,
+            restore: vi.fn(() => Promise.resolve()),
+            prepare: vi.fn(() => Promise.resolve()),
+            reconnect: vi.fn(() => Promise.resolve()),
+            retry: vi.fn(() => Promise.resolve()),
+            discard: vi.fn(() => Promise.resolve()),
+          },
+        },
         provideRouter([
           { path: 'dashboard', component: StubWorkspace },
           { path: 'ventas', component: StubWorkspace },

@@ -73,6 +73,7 @@ export interface InventoryMovement {
     readonly to: InventoryStockState;
     readonly quantity: string;
   } | null;
+  readonly pendingSync?: boolean;
 }
 
 export interface InventoryMovementPage {

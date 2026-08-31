@@ -1,9 +1,11 @@
 import { HttpHeaders } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { map } from 'rxjs';
+import { catchError, from, map, of, throwError } from 'rxjs';
+import { ApiError } from '../../../../core/api/api-error';
 import { ApiClient } from '../../../../core/api/api-client';
 import { ApiEnvelope } from '../../../../core/api/api-contracts';
 import { PosGateway } from '../domain/pos.gateway';
+import { OfflinePos } from './offline-pos.service';
 import {
   CashRegisterShift,
   CreateCashSaleInput,
@@ -35,6 +37,7 @@ interface CustomerResponse {
 @Injectable()
 export class PosApi extends PosGateway {
   private readonly api = inject(ApiClient);
+  private readonly offline = inject(OfflinePos);
 
   override searchProducts(query: string) {
     return this.api
@@ -47,31 +50,44 @@ export class PosApi extends PosGateway {
           pageSize: 24,
         },
       })
-      .pipe(map(({ data, meta }) => ({ products: data, pagination: meta.pagination })));
+      .pipe(
+        map(({ data, meta }) => ({ products: data, pagination: meta.pagination })),
+        catchError((error: unknown) =>
+          this.fallback(error, () => this.offline.searchProducts(query)),
+        ),
+      );
   }
 
   override resolveCode(code: string) {
     return this.api
       .get<ApiEnvelope<PosProduct>>('/products/resolve-code', { params: { code } })
-      .pipe(map(({ data }) => data));
+      .pipe(
+        map(({ data }) => data),
+        catchError((error: unknown) => this.fallback(error, () => this.offline.resolveCode(code))),
+      );
   }
 
   override currentShift() {
-    return this.api
-      .get<ApiEnvelope<CashRegisterShift | null>>('/pos/register-shifts/current')
-      .pipe(map(({ data }) => data));
+    return this.api.get<ApiEnvelope<CashRegisterShift | null>>('/pos/register-shifts/current').pipe(
+      map(({ data }) => data),
+      catchError((error: unknown) => this.fallback(error, () => this.offline.currentShift())),
+    );
   }
 
   override quoteCart(input: PosCartRequest) {
-    return this.api
-      .post<ApiEnvelope<PosCartQuote>, PosCartRequest>('/pos/cart/quote', input)
-      .pipe(map(({ data }) => data));
+    return this.api.post<ApiEnvelope<PosCartQuote>, PosCartRequest>('/pos/cart/quote', input).pipe(
+      map(({ data }) => data),
+      catchError((error: unknown) => this.fallback(error, () => this.offline.quote(input))),
+    );
   }
 
   override paymentOptions() {
-    return this.api
-      .get<ApiEnvelope<PosPaymentOptions>>('/pos/payment-options')
-      .pipe(map(({ data }) => data));
+    return this.api.get<ApiEnvelope<PosPaymentOptions>>('/pos/payment-options').pipe(
+      map(({ data }) => data),
+      catchError((error: unknown) =>
+        isOfflineFailure(error) ? of(this.offline.paymentOptions()) : throwError(() => error),
+      ),
+    );
   }
 
   override searchCustomers(query: string) {
@@ -87,7 +103,12 @@ export class PosApi extends PosGateway {
       .post<ApiEnvelope<PosSale>, CreateCashSaleInput>('/pos/sales/cash', input, {
         headers: this.idempotencyHeaders(),
       })
-      .pipe(map(({ data }) => data));
+      .pipe(
+        map(({ data }) => data),
+        catchError((error: unknown) =>
+          this.fallback(error, () => this.offline.createCashSale(input)),
+        ),
+      );
   }
 
   override createSale(input: CreateSaleInput) {
@@ -138,4 +159,12 @@ export class PosApi extends PosGateway {
   private idempotencyHeaders(): HttpHeaders {
     return new HttpHeaders({ 'Idempotency-Key': `web-${crypto.randomUUID()}` });
   }
+
+  private fallback<T>(error: unknown, action: () => Promise<T>) {
+    return isOfflineFailure(error) ? from(action()) : throwError(() => error);
+  }
+}
+
+function isOfflineFailure(error: unknown): boolean {
+  return error instanceof ApiError && ['network', 'timeout'].includes(error.kind);
 }

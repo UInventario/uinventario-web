@@ -175,7 +175,7 @@ export interface CreateCashSaleInput extends PosCartRequest {
 export interface PosSale {
   readonly id: string;
   readonly receiptNumber: string;
-  readonly status: 'COMPLETED' | 'VOIDED';
+  readonly status: 'COMPLETED' | 'VOIDED' | 'PENDING_SYNC';
   readonly currency: string;
   readonly customer: { readonly id: string; readonly name: string } | null;
   readonly totals: PosCartQuote['totals'];
