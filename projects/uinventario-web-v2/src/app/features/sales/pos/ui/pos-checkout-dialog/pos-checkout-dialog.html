@@ -8,10 +8,28 @@
   >
     @if (sale(); as completedSale) {
       <div class="sale-result">
-        <span class="success-icon"><i class="pi pi-check"></i></span>
-        <p>Venta registrada</p>
+        <span class="success-icon"
+          ><i
+            class="pi"
+            [class.pi-check]="completedSale.status === 'COMPLETED'"
+            [class.pi-clock]="completedSale.status === 'PENDING_SYNC'"
+          ></i
+        ></span>
+        <p>
+          {{
+            completedSale.status === 'PENDING_SYNC'
+              ? 'Venta guardada para sincronizar'
+              : 'Venta registrada'
+          }}
+        </p>
         <h2 id="checkout-title">{{ completedSale.receiptNumber }}</h2>
         <strong>{{ money(completedSale.totals.total) }}</strong>
+        @if (completedSale.status === 'PENDING_SYNC') {
+          <div class="inline-warning">
+            El inventario se descontará cuando el servidor confirme esta operación. No vuelvas a
+            capturarla.
+          </div>
+        }
         <div class="receipt-payments">
           @for (payment of completedSale.payments; track payment.id) {
             <span>

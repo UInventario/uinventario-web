@@ -20,7 +20,8 @@ export class ApiRuntimeConfig {
   }
 
   async load(): Promise<void> {
-    const response = await fetch('/config.json', { cache: 'no-store' });
+    const path = new URL('config.json', document.baseURI).pathname;
+    const response = await fetch(path, { cache: 'no-store' });
     if (!response.ok) throw new Error('No fue posible cargar la configuración de UInventario.');
 
     const candidate = (await response.json()) as Partial<ApiRuntimeConfiguration>;

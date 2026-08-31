@@ -88,6 +88,7 @@
           "builder": "@angular/build:application",
           "options": {
             "browser": "projects/uinventario-web-v2/src/main.ts",
+            "baseHref": "/v2/",
             "tsConfig": "projects/uinventario-web-v2/tsconfig.app.json",
             "inlineStyleLanguage": "scss",
             "assets": [
@@ -107,6 +108,7 @@
           },
           "configurations": {
             "production": {
+              "serviceWorker": "projects/uinventario-web-v2/ngsw-config.json",
               "budgets": [
                 {
                   "type": "initial",

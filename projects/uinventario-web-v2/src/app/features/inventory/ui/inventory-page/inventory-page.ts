@@ -208,9 +208,10 @@ export class InventoryPage implements OnInit {
   }
 
   protected submitMovement(input: InventoryMovementInput): void {
-    this.save(
-      this.inventory.createMovement(input),
-      'Movimiento registrado. El saldo fue actualizado.',
+    this.save(this.inventory.createMovement(input), (movement) =>
+      movement.pendingSync
+        ? 'Movimiento guardado en este dispositivo. Se aplicará al sincronizar.'
+        : 'Movimiento registrado. El saldo fue actualizado.',
     );
   }
 
@@ -275,15 +276,18 @@ export class InventoryPage implements OnInit {
       });
   }
 
-  private save(request: Observable<InventoryMovement>, notice: string): void {
+  private save(
+    request: Observable<InventoryMovement>,
+    notice: string | ((movement: InventoryMovement) => string),
+  ): void {
     if (this.saving()) return;
     this.saving.set(true);
     this.error.set(null);
     request.pipe(finalize(() => this.saving.set(false))).subscribe({
-      next: () => {
+      next: (movement) => {
         this.dialogMode.set(null);
         this.selectedProduct.set(null);
-        this.notice.set(notice);
+        this.notice.set(typeof notice === 'function' ? notice(movement) : notice);
         this.refresh();
       },
       error: (error: unknown) => this.error.set(this.messageFor(error)),

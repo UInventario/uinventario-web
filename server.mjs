@@ -121,7 +121,7 @@ export function createApplicationServer({
       return;
     }
 
-    if (requestUrl.pathname === '/config.json') {
+    if (requestUrl.pathname === '/config.json' || requestUrl.pathname === '/v2/config.json') {
       sendJson(response, 200, { environment, apiBaseUrl: '/api/v1' });
       return;
     }

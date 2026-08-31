@@ -319,7 +319,7 @@ export class PosCheckoutDialog implements OnInit {
     this.error.set(null);
     request.pipe(finalize(() => this.busy.set(false))).subscribe({
       next: (sale) => {
-        if (sale.status !== 'COMPLETED') {
+        if (!['COMPLETED', 'PENDING_SYNC'].includes(sale.status)) {
           this.error.set('La API no confirmó la venta. El carrito permanece intacto.');
           return;
         }

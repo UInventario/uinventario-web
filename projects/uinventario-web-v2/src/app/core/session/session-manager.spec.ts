@@ -1,6 +1,9 @@
 import { TestBed } from '@angular/core/testing';
-import { Subject, of } from 'rxjs';
+import { Subject, firstValueFrom, of, throwError } from 'rxjs';
+import { ApiError } from '../api/api-error';
 import { ApiRequestContext } from '../api/api-request-context';
+import { OfflineSessionSnapshot } from '../offline/offline.models';
+import { OfflineStore } from '../offline/offline-store';
 import { SessionApi } from './session-api';
 import { SessionManager } from './session-manager';
 import { SessionResponse } from './session.models';
@@ -37,6 +40,12 @@ describe('SessionManager', () => {
     redirectToLogin: vi.fn(),
     openAuthorizedWorkspace: vi.fn(),
   };
+  const offline = {
+    clearAll: vi.fn(() => Promise.resolve()),
+    restoreSession: vi.fn<() => Promise<OfflineSessionSnapshot | null>>(() =>
+      Promise.resolve(null),
+    ),
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -47,6 +56,7 @@ describe('SessionManager', () => {
         ApiRequestContext,
         { provide: SessionApi, useValue: api },
         { provide: SessionNavigation, useValue: navigation },
+        { provide: OfflineStore, useValue: offline },
       ],
     });
   });
@@ -73,6 +83,22 @@ describe('SessionManager', () => {
     expect(api.current).toHaveBeenCalledTimes(1);
   });
 
+  it('restores only the non-sensitive authorized snapshot when the network is unavailable', async () => {
+    api.current.mockReturnValueOnce(
+      throwError(() => new ApiError('network', 'Sin conexión.', 0, 'NETWORK', 'request-1', true)),
+    );
+    offline.restoreSession.mockResolvedValueOnce({
+      session: response().data,
+      sessionExpiresAt: response().meta.sessionExpiresAt,
+    });
+
+    await expect(firstValueFrom(TestBed.inject(SessionManager).restore())).resolves.toMatchObject({
+      user: { email: 'admin@example.com' },
+      tenant: { id: 'tenant-1' },
+    });
+    expect(TestBed.inject(SessionState).session()).not.toHaveProperty('accessToken');
+  });
+
   it('invalidates the server session and clears local tenant state on logout', () => {
     const manager = TestBed.inject(SessionManager);
     const state = TestBed.inject(SessionState);
@@ -84,6 +110,7 @@ describe('SessionManager', () => {
     expect(api.logout).toHaveBeenCalledTimes(1);
     expect(state.session()).toBeNull();
     expect(context.tenantId()).toBeNull();
+    expect(offline.clearAll).toHaveBeenCalled();
     expect(navigation.redirectToLogin).toHaveBeenCalledWith(null, false);
   });
 

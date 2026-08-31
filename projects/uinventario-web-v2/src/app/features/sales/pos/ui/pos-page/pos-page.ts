@@ -208,7 +208,7 @@ export class PosPage implements OnInit {
   }
 
   protected saleCompleted(sale: PosSale): void {
-    if (sale.status === 'COMPLETED') {
+    if (['COMPLETED', 'PENDING_SYNC'].includes(sale.status)) {
       this.releaseSuspendedContext();
       this.cart.clear();
     }

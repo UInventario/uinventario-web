@@ -61,6 +61,12 @@ test('serves dynamic same-origin configuration and health', async () => {
     environment: 'local',
     apiBaseUrl: '/api/v1',
   });
+  const v2ConfigResponse = await fetch(`${applicationUrl}/v2/config.json`);
+  assert.equal(v2ConfigResponse.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(await v2ConfigResponse.json(), {
+    environment: 'local',
+    apiBaseUrl: '/api/v1',
+  });
 
   const healthResponse = await fetch(`${applicationUrl}/health/live`);
   assert.equal(healthResponse.status, 200);

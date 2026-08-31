@@ -1,9 +1,11 @@
 import { HttpHeaders } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { map } from 'rxjs';
+import { catchError, from, map, throwError } from 'rxjs';
+import { ApiError } from '../../../core/api/api-error';
 import { ApiClient } from '../../../core/api/api-client';
 import { ApiEnvelope } from '../../../core/api/api-contracts';
 import { InventoryGateway } from '../domain/inventory.gateway';
+import { OfflineInventory } from './offline-inventory.service';
 import {
   InventoryLocation,
   InventoryMovement,
@@ -38,6 +40,7 @@ interface MovementResponse {
 @Injectable()
 export class InventoryApi extends InventoryGateway {
   private readonly api = inject(ApiClient);
+  private readonly offline = inject(OfflineInventory);
 
   override listStock(query: StockQuery) {
     return this.api
@@ -49,6 +52,7 @@ export class InventoryApi extends InventoryGateway {
           currency: meta.valuation.currency,
           pagination: meta.pagination,
         })),
+        catchError((error: unknown) => this.fallback(error, () => this.offline.listStock(query))),
       );
   }
 
@@ -65,15 +69,21 @@ export class InventoryApi extends InventoryGateway {
   }
 
   override listLocations() {
-    return this.api
-      .get<ApiEnvelope<readonly InventoryLocation[]>>('/inventory/locations')
-      .pipe(map(({ data }) => data));
+    return this.api.get<ApiEnvelope<readonly InventoryLocation[]>>('/inventory/locations').pipe(
+      map(({ data }) => data),
+      catchError((error: unknown) => this.fallback(error, () => this.offline.listLocations())),
+    );
   }
 
   override getProduct(productId: string) {
     return this.api
       .get<ApiEnvelope<InventoryProductDetails>>(`/products/${encodeURIComponent(productId)}`)
-      .pipe(map(({ data }) => data));
+      .pipe(
+        map(({ data }) => data),
+        catchError((error: unknown) =>
+          this.fallback(error, () => this.offline.getProduct(productId)),
+        ),
+      );
   }
 
   override createMovement(input: InventoryMovementInput) {
@@ -81,7 +91,12 @@ export class InventoryApi extends InventoryGateway {
       .post<ApiEnvelope<InventoryMovement>, InventoryMovementInput>('/inventory/movements', input, {
         headers: this.idempotencyHeaders(),
       })
-      .pipe(map(({ data }) => data));
+      .pipe(
+        map(({ data }) => data),
+        catchError((error: unknown) =>
+          this.fallback(error, () => this.offline.createMovement(input)),
+        ),
+      );
   }
 
   override createStateTransition(input: InventoryStateTransitionInput) {
@@ -108,4 +123,12 @@ export class InventoryApi extends InventoryGateway {
   private idempotencyHeaders(): HttpHeaders {
     return new HttpHeaders({ 'Idempotency-Key': `web-${crypto.randomUUID()}` });
   }
+
+  private fallback<T>(error: unknown, action: () => Promise<T>) {
+    return isOfflineFailure(error) ? from(action()) : throwError(() => error);
+  }
+}
+
+function isOfflineFailure(error: unknown): boolean {
+  return error instanceof ApiError && ['network', 'timeout'].includes(error.kind);
 }

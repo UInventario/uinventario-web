@@ -8,6 +8,7 @@ import { AuthorizationService } from '../../core/authorization/authorization.ser
 import { SessionManager } from '../../core/session/session-manager';
 import { Ribbon } from '../../shared/ui/ribbon/ribbon';
 import { OperationalContextPicker } from '../operational-context-picker/operational-context-picker';
+import { OfflineCenter } from '../offline-center/offline-center';
 import {
   ribbonForWorkspace,
   WORKSPACE_NAVIGATION,
@@ -20,6 +21,7 @@ import {
   imports: [
     ButtonModule,
     OperationalContextPicker,
+    OfflineCenter,
     Ribbon,
     RouterLink,
     RouterLinkActive,
