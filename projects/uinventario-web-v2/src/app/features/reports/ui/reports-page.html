@@ -20,6 +20,12 @@
     @if (canProfitability()) {
       <a routerLink="actividad" routerLinkActive="active">Actividad</a>
     }
+    @if (canAudit()) {
+      <a routerLink="auditoria" routerLinkActive="active">Auditoría</a>
+    }
+    @if (canExportData()) {
+      <a routerLink="exportaciones" routerLinkActive="active">Exportaciones</a>
+    }
   </nav>
   <router-outlet />
 </section>

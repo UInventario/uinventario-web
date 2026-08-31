@@ -12,7 +12,13 @@ export class ReportsDefaultPage implements OnInit {
   private readonly router = inject(Router);
 
   ngOnInit(): void {
-    const destination = this.authorization.has('SALES_MANAGE') ? 'ventas' : 'inventario';
+    const destination = this.authorization.has('SALES_MANAGE')
+      ? 'ventas'
+      : this.authorization.has('INVENTORY_VIEW')
+        ? 'inventario'
+        : this.authorization.has('AUDIT_VIEW')
+          ? 'auditoria'
+          : 'exportaciones';
     void this.router.navigate(['/reportes', destination], { replaceUrl: true });
   }
 }

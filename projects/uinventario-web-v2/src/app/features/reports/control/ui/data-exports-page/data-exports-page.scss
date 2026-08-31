@@ -1,0 +1,249 @@
+.export-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(15rem, 1fr);
+  gap: 0.8rem;
+  align-items: start;
+}
+.export-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.export-form .card-heading,
+.export-form .wide {
+  grid-column: 1 / -1;
+}
+label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--p-text-muted-color);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+input,
+select {
+  width: 100%;
+  min-height: var(--ui-control-height);
+  padding: 0 0.7rem;
+  border: 1px solid var(--p-surface-300);
+  border-radius: var(--radius-md);
+  background: white;
+  color: var(--p-text-color);
+  font: inherit;
+}
+label small {
+  font-size: 0.68rem;
+  font-weight: 500;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+.check input {
+  width: 1rem;
+  min-height: auto;
+}
+.primary,
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: var(--ui-control-height);
+  padding: 0 0.9rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 750;
+}
+.primary {
+  border: 1px solid var(--p-primary-600);
+  background: var(--p-primary-600);
+  color: white;
+}
+.secondary {
+  border: 1px solid var(--p-surface-300);
+  background: white;
+  color: var(--p-text-color);
+}
+button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+.privacy-note {
+  display: flex;
+  gap: 0.75rem;
+  background: var(--p-primary-50);
+  border-color: var(--p-primary-100);
+}
+.privacy-note > i {
+  color: var(--p-primary-600);
+  font-size: 1.5rem;
+}
+.privacy-note h3,
+.privacy-note p {
+  margin: 0;
+}
+.privacy-note p {
+  margin-top: 0.3rem;
+  color: var(--p-text-muted-color);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.jobs-section {
+  display: grid;
+  gap: 0.7rem;
+}
+.job-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr));
+  gap: 0.75rem;
+}
+.export-job {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.9rem;
+  border: 1px solid var(--p-surface-200);
+  border-radius: var(--radius-lg);
+  background: white;
+}
+.export-job.failed {
+  border-color: var(--p-red-200);
+}
+.export-job.expired {
+  opacity: 0.78;
+}
+.export-job header,
+.export-job header > div,
+.export-job footer {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.export-job header {
+  justify-content: space-between;
+}
+.export-job header strong,
+.export-job header span {
+  display: block;
+}
+.export-job header div span {
+  color: var(--p-text-muted-color);
+  font-size: 0.7rem;
+}
+.dataset-icon {
+  display: grid !important;
+  width: 2.35rem;
+  height: 2.35rem;
+  place-content: center;
+  border-radius: var(--radius-md);
+  background: var(--p-primary-50);
+  color: var(--p-primary-700) !important;
+}
+.status {
+  flex: 0 0 auto;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background: var(--p-orange-50);
+  color: var(--p-orange-800);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+.status.good {
+  background: var(--p-green-50);
+  color: var(--p-green-800);
+}
+.status.bad {
+  background: var(--p-red-50);
+  color: var(--p-red-800);
+}
+.progress {
+  height: 0.35rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--p-surface-100);
+}
+.progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--p-primary-500);
+  transition: width 180ms ease;
+}
+.failed .progress span,
+.expired .progress span {
+  background: var(--p-red-400);
+}
+dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin: 0;
+}
+dl .wide {
+  grid-column: 1 / -1;
+}
+dt {
+  color: var(--p-text-muted-color);
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+dd {
+  margin: 0.1rem 0 0;
+  overflow-wrap: anywhere;
+  font-size: 0.78rem;
+}
+.job-error {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0;
+  color: var(--p-red-700);
+  font-size: 0.76rem;
+}
+.export-job footer {
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+.link-button {
+  border: 0;
+  background: transparent;
+  color: var(--p-text-muted-color);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.notice {
+  margin: 0;
+  color: var(--p-green-800);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.empty {
+  display: grid;
+  min-height: 10rem;
+  place-content: center;
+  justify-items: center;
+  gap: 0.35rem;
+  color: var(--p-text-muted-color);
+  text-align: center;
+}
+.empty i {
+  font-size: 1.5rem;
+}
+@media (max-width: 50rem) {
+  .export-layout {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 36rem) {
+  .export-form {
+    grid-template-columns: 1fr;
+  }
+  .export-form .wide {
+    grid-column: auto;
+  }
+  .export-job header {
+    align-items: flex-start;
+  }
+}

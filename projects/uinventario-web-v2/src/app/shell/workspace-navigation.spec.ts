@@ -35,4 +35,16 @@ describe('workspace navigation', () => {
     );
     expect(commands.find(({ id }) => id === 'stock-entry')?.disabled).toBe(true);
   });
+
+  it('lets audit-only roles enter reports without exposing unrelated commands', () => {
+    const permissions = new Set(['AUDIT_VIEW'] as const);
+    const reports = WORKSPACE_NAVIGATION.find(({ id }) => id === 'reportes')!;
+
+    expect(workspaceAllowed(reports, permissions)).toBe(true);
+    const commands = ribbonForWorkspace(reports, permissions)[0].groups.flatMap(
+      (group) => group.commands,
+    );
+    expect(commands.find(({ id }) => id === 'run-report')?.disabled).toBe(false);
+    expect(commands.find(({ id }) => id === 'export-report')?.disabled).toBe(true);
+  });
 });

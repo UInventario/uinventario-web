@@ -62,11 +62,12 @@ export const SALES_ACCESS = [
 export const REPORTS_ACCESS = [
   'SALES_MANAGE',
   'INVENTORY_VIEW',
+  'AUDIT_VIEW',
+  'AUDIT_EXPORT',
 ] as const satisfies readonly AppPermission[];
 export const ADMINISTRATION_ACCESS = [
   'TENANT_MANAGE',
   'ACCESS_MANAGE',
-  'AUDIT_VIEW',
   'PRIVACY_MANAGE',
   'NOTIFICATIONS_MANAGE',
 ] as const satisfies readonly AppPermission[];
