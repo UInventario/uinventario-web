@@ -25,6 +25,7 @@
     "parity:generate": "node scripts/generate-api-parity-matrix.mjs",
     "parity:verify": "node scripts/verify-api-parity-matrix.mjs",
     "architecture:verify": "node --test scripts/verify-web-v2-architecture.spec.mjs && node scripts/verify-web-v2-architecture.mjs",
+    "performance:verify": "node --test scripts/verify-web-v2-performance.spec.mjs && node scripts/verify-web-v2-performance.mjs",
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p projects/uinventario-web-v2/tsconfig.app.json --noEmit"
   },
   "private": true,
