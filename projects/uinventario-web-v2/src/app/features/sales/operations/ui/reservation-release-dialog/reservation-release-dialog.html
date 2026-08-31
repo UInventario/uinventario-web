@@ -1,0 +1,31 @@
+<section class="dialog" role="dialog" aria-modal="true" aria-labelledby="release-title">
+  <header>
+    <div>
+      <h2 id="release-title">Liberar {{ reservation().reservationNumber }}</h2>
+      <p>El stock volverá a estar disponible para venta.</p>
+    </div>
+    <button class="close" type="button" aria-label="Cerrar" (click)="cancelled.emit()">
+      <i class="pi pi-times"></i>
+    </button>
+  </header>
+  <div class="body">
+    <form class="form-grid" id="release-form" [formGroup]="form" (ngSubmit)="submit()">
+      <label class="wide"
+        >Motivo<textarea
+          formControlName="reason"
+          maxlength="160"
+          placeholder="Ej. El cliente canceló su solicitud"
+        ></textarea>
+      </label>
+      @if (error()) {
+        <p class="error wide" role="alert">{{ error() }}</p>
+      }
+    </form>
+  </div>
+  <footer>
+    <button class="secondary" type="button" (click)="cancelled.emit()">Conservar reserva</button
+    ><button class="primary" type="submit" form="release-form" [disabled]="busy()">
+      Liberar stock
+    </button>
+  </footer>
+</section>

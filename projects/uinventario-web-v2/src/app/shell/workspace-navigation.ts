@@ -264,6 +264,30 @@ const COMMANDS: Record<WorkspaceId, readonly PolicyGroup[]> = {
         },
       ],
     },
+    {
+      id: 'assisted-sales',
+      label: 'Venta asistida',
+      commands: [
+        {
+          id: 'sales-quotations',
+          label: 'Cotizaciones',
+          icon: 'pi pi-file-edit',
+          permissionsAny: ['SALES_MANAGE'],
+        },
+        {
+          id: 'customer-orders',
+          label: 'Pedidos',
+          icon: 'pi pi-box',
+          permissionsAny: ['SALES_MANAGE'],
+        },
+        {
+          id: 'product-reservations',
+          label: 'Reservas',
+          icon: 'pi pi-bookmark',
+          permissionsAny: ['SALES_MANAGE'],
+        },
+      ],
+    },
   ],
   reportes: [
     {

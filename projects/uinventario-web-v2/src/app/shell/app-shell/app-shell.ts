@@ -89,6 +89,18 @@ export class AppShell {
       void this.router.navigate(['/ventas/historial']);
       return;
     }
+    if (commandId === 'sales-quotations') {
+      void this.router.navigate(['/ventas/operaciones/cotizaciones']);
+      return;
+    }
+    if (commandId === 'customer-orders') {
+      void this.router.navigate(['/ventas/operaciones/pedidos']);
+      return;
+    }
+    if (commandId === 'product-reservations') {
+      void this.router.navigate(['/ventas/operaciones/reservas']);
+      return;
+    }
     if (commandId === 'company-settings') {
       void this.router.navigate(['/administracion/empresa']);
       return;

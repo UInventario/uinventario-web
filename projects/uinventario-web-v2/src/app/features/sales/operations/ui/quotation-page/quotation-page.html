@@ -1,0 +1,137 @@
+<section class="operation-page" aria-labelledby="quotations-title">
+  <div class="page-heading">
+    <div>
+      <h2 id="quotations-title">Cotizaciones</h2>
+      <p>Crea, actualiza y convierte propuestas sin volver a capturar el carrito.</p>
+    </div>
+    <button class="primary" type="button" [disabled]="!options()" (click)="openCreate()">
+      <i class="pi pi-plus"></i>Nueva cotización
+    </button>
+  </div>
+  <div class="toolbar">
+    <label
+      >Estado<select
+        aria-label="Estado de cotización"
+        [value]="status()"
+        (change)="filter($any($event.target).value)"
+      >
+        <option value="">Todos</option>
+        <option value="ACTIVE">Vigentes</option>
+        <option value="EXPIRED">Vencidas</option>
+        <option value="CONVERTING">Convirtiendo</option>
+        <option value="CONVERTED">Convertidas</option>
+      </select></label
+    ><span>{{ result()?.pagination?.total ?? 0 }} cotización(es)</span>
+  </div>
+  @if (error()) {
+    <div class="state error" role="alert">{{ error() }}</div>
+  }
+  @if (notice()) {
+    <p class="notice" role="status">{{ notice() }}</p>
+  }
+  @if (loading()) {
+    <div class="state"><i class="pi pi-spin pi-spinner"></i>Cargando cotizaciones…</div>
+  } @else if (result(); as page) {
+    <div class="card-grid">
+      @for (quotation of page.quotations; track quotation.id) {
+        <article class="card">
+          <header>
+            <div>
+              <h3>{{ quotation.quotationNumber }}</h3>
+              <p>{{ quotation.customer?.name || 'Público general' }}</p>
+            </div>
+            <span
+              class="badge"
+              [class.good]="quotation.status === 'ACTIVE'"
+              [class.warn]="quotation.status === 'EXPIRED'"
+              >{{ statusLabel(quotation.status) }}</span
+            >
+          </header>
+          <dl>
+            <div>
+              <dt>Total</dt>
+              <dd>{{ quotation.totals.total }} {{ quotation.currency }}</dd>
+            </div>
+            <div>
+              <dt>Vigencia</dt>
+              <dd>{{ quotation.validUntil | date: 'short' }}</dd>
+            </div>
+            <div>
+              <dt>Productos</dt>
+              <dd>{{ quotation.lines.length }}</dd>
+            </div>
+            <div>
+              <dt>Reserva</dt>
+              <dd>{{ quotation.reservation?.reservationNumber || 'Sin reserva' }}</dd>
+            </div>
+          </dl>
+          @if (quotation.sale) {
+            <p>
+              Venta: <strong>{{ quotation.sale.receiptNumber }}</strong>
+            </p>
+          }
+          <footer>
+            @if (quotation.status === 'ACTIVE') {
+              <button class="secondary" type="button" (click)="openEdit(quotation)">
+                <i class="pi pi-pencil"></i>Editar</button
+              ><button
+                class="primary"
+                type="button"
+                [disabled]="acting()"
+                (click)="openPreview(quotation)"
+              >
+                <i class="pi pi-arrow-right"></i>Convertir
+              </button>
+            }
+          </footer>
+        </article>
+      } @empty {
+        <div class="state">
+          <i class="pi pi-file-edit"></i><strong>Sin cotizaciones</strong
+          ><span>Crea una propuesta para comenzar.</span>
+        </div>
+      }
+    </div>
+    <footer class="pagination">
+      <span>Página {{ page.pagination.page }} de {{ page.pagination.totalPages || 1 }}</span>
+      <div>
+        <button
+          class="secondary"
+          type="button"
+          [disabled]="page.pagination.page <= 1"
+          (click)="goToPage(page.pagination.page - 1)"
+        >
+          Anterior</button
+        ><button
+          class="secondary"
+          type="button"
+          [disabled]="page.pagination.page >= page.pagination.totalPages"
+          (click)="goToPage(page.pagination.page + 1)"
+        >
+          Siguiente
+        </button>
+      </div>
+    </footer>
+  }
+</section>
+@if (editorOpen() && options(); as loadedOptions) {
+  <ui-quotation-editor-dialog
+    [options]="loadedOptions"
+    [reservations]="reservations()"
+    [quotation]="editing()"
+    [busy]="acting()"
+    [apiError]="error()"
+    (cancelled)="editorOpen.set(false)"
+    (submitted)="save($event)"
+  />
+}
+@if (preview(); as currentPreview) {
+  <ui-quotation-convert-dialog
+    [preview]="currentPreview"
+    [paymentMethods]="options()?.paymentMethods || ['CASH']"
+    [busy]="acting()"
+    [apiError]="conversionError()"
+    (cancelled)="preview.set(null)"
+    (submitted)="convert($event)"
+  />
+}

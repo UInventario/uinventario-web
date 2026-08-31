@@ -1,0 +1,214 @@
+:host {
+  display: block;
+}
+.operation-page {
+  display: grid;
+  gap: 0.9rem;
+}
+.page-heading,
+.toolbar,
+.pagination,
+.card header,
+.card footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+.page-heading h2,
+.page-heading p,
+.card h3,
+.card p {
+  margin: 0;
+}
+.page-heading p,
+.card p {
+  color: var(--p-text-muted-color);
+  font-size: 0.78rem;
+}
+.primary,
+.secondary,
+.link-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: var(--ui-control-height);
+  padding: 0 0.85rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 750;
+}
+.primary {
+  border: 1px solid var(--p-primary-600);
+  background: var(--p-primary-600);
+  color: white;
+}
+.secondary {
+  border: 1px solid var(--p-surface-300);
+  background: white;
+  color: var(--p-text-color);
+}
+.link-action {
+  min-height: 2rem;
+  padding: 0 0.4rem;
+  border: 0;
+  background: transparent;
+  color: var(--p-primary-700);
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.toolbar {
+  flex-wrap: wrap;
+  padding: 0.75rem;
+  border: 1px solid var(--p-surface-200);
+  border-radius: var(--radius-lg);
+  background: white;
+}
+.toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--p-text-muted-color);
+  font-size: 0.75rem;
+  font-weight: 750;
+}
+.toolbar select,
+.toolbar input {
+  min-height: 2.4rem;
+  padding: 0 0.65rem;
+  border: 1px solid var(--p-surface-300);
+  border-radius: var(--radius-md);
+  background: white;
+  font: inherit;
+}
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: 0.7rem;
+}
+.card {
+  display: grid;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 0.9rem;
+  border: 1px solid var(--p-surface-200);
+  border-radius: var(--radius-lg);
+  background: white;
+  box-shadow: 0 4px 14px rgb(15 23 42 / 0.04);
+}
+.card header > div {
+  min-width: 0;
+}
+.card h3 {
+  overflow-wrap: anywhere;
+  font-size: 1rem;
+}
+.badge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background: var(--p-surface-100);
+  color: var(--p-text-muted-color);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+.badge.good {
+  background: var(--p-green-50);
+  color: var(--p-green-800);
+}
+.badge.warn {
+  background: var(--p-orange-50);
+  color: var(--p-orange-800);
+}
+.badge.bad {
+  background: var(--p-red-50);
+  color: var(--p-red-800);
+}
+dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0;
+}
+dt {
+  color: var(--p-text-muted-color);
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+dd {
+  margin: 0.12rem 0 0;
+  overflow-wrap: anywhere;
+  font-size: 0.8rem;
+}
+.card footer {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-top: auto;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--p-surface-100);
+}
+.state {
+  display: grid;
+  min-height: 10rem;
+  place-content: center;
+  justify-items: center;
+  gap: 0.4rem;
+  color: var(--p-text-muted-color);
+  text-align: center;
+}
+.state.error {
+  min-height: auto;
+  padding: 0.8rem;
+  border: 1px solid var(--p-red-200);
+  border-radius: var(--radius-md);
+  background: var(--p-red-50);
+  color: var(--p-red-800);
+}
+.notice {
+  margin: 0;
+  color: var(--p-green-800);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.pagination {
+  color: var(--p-text-muted-color);
+  font-size: 0.78rem;
+}
+.pagination div {
+  display: flex;
+  gap: 0.4rem;
+}
+@media (max-width: 40rem) {
+  .page-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .primary {
+    width: 100%;
+  }
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .toolbar label {
+    justify-content: space-between;
+  }
+  .toolbar select {
+    flex: 1;
+  }
+  dl {
+    grid-template-columns: 1fr;
+  }
+  .pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .pagination div button {
+    flex: 1;
+  }
+}

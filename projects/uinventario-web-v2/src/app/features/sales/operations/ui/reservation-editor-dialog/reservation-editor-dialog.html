@@ -1,0 +1,59 @@
+<section
+  class="dialog large"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="reservation-editor-title"
+>
+  <header>
+    <div>
+      <h2 id="reservation-editor-title">Nueva reserva</h2>
+      <p>Separa stock real para un cliente y define cuándo se libera.</p>
+    </div>
+    <button class="close" type="button" aria-label="Cerrar" (click)="cancelled.emit()">
+      <i class="pi pi-times"></i>
+    </button>
+  </header>
+  <div class="body">
+    <form class="form-grid" id="reservation-editor-form" [formGroup]="form" (ngSubmit)="submit()">
+      <label
+        >Cliente<select formControlName="customerId">
+          <option value="">Selecciona…</option>
+          @for (customer of options().customers; track customer.id) {
+            <option [value]="customer.id">
+              {{ customer.name }}{{ customer.identifier ? ' · ' + customer.identifier : '' }}
+            </option>
+          }
+        </select></label
+      >
+      <label
+        >Ubicación de stock<select formControlName="locationId">
+          <option value="">Selecciona…</option>
+          @for (location of options().locations; track location.id) {
+            <option [value]="location.id">{{ location.name }} · {{ location.code }}</option>
+          }
+        </select></label
+      >
+      <label
+        >Duración (horas)<input type="number" min="1" max="720" formControlName="expiresInHours"
+      /></label>
+      <div class="wide">
+        <ui-operation-lines-editor [products]="options().products" [(lines)]="lines" />
+      </div>
+      @if (error() || apiError()) {
+        <p class="error wide" role="alert">{{ error() || apiError() }}</p>
+      }
+    </form>
+  </div>
+  <footer>
+    <button class="secondary" type="button" (click)="cancelled.emit()">Cancelar</button
+    ><button class="primary" type="submit" form="reservation-editor-form" [disabled]="busy()">
+      <i
+        class="pi"
+        [class.pi-spin]="busy()"
+        [class.pi-spinner]="busy()"
+        [class.pi-bookmark]="!busy()"
+      ></i
+      >{{ busy() ? 'Reservando…' : 'Crear reserva' }}
+    </button>
+  </footer>
+</section>

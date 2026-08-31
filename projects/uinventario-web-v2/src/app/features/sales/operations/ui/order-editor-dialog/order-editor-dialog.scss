@@ -1,0 +1,26 @@
+.quote-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  padding: 0.75rem;
+  border-radius: var(--radius-md);
+  background: var(--p-primary-50);
+}
+.quote-row div {
+  display: grid;
+  text-align: right;
+}
+.quote-row span {
+  color: var(--p-text-muted-color);
+  font-size: 0.7rem;
+}
+@media (max-width: 36rem) {
+  .quote-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .quote-row div {
+    text-align: left;
+  }
+}
