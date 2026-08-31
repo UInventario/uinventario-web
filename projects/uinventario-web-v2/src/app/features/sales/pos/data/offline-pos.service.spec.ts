@@ -105,6 +105,22 @@ describe('OfflinePos', () => {
       }),
     ).rejects.toThrow('Conéctate para usar cliente');
   });
+
+  it('never sells selected lots or serials through the aggregate offline stock path', async () => {
+    await prepare(store, current);
+    await expect(
+      offline.quote({
+        lines: [
+          {
+            productId: 'product-1',
+            quantity: '1.000',
+            lotId: 'lot-1',
+            serialNumbers: ['SER-001'],
+          },
+        ],
+      }),
+    ).rejects.toThrow('lotes o series');
+  });
 });
 
 function activeSession(): SessionData {

@@ -122,10 +122,17 @@ export class OfflinePos {
       input.customerId ||
       input.loyaltyPointsToRedeem ||
       input.discount ||
-      input.lines.some((line) => line.manualUnitPrice || line.discount)
+      input.lines.some(
+        (line) =>
+          line.manualUnitPrice ||
+          line.discount ||
+          line.lotId ||
+          line.expiredLotOverrideReason ||
+          line.serialNumbers?.length,
+      )
     ) {
       throw new Error(
-        'Conéctate para usar cliente, precios especiales, descuentos o puntos de fidelidad.',
+        'Conéctate para usar cliente, precios especiales, descuentos, fidelidad, lotes o series.',
       );
     }
     const scope = await this.scope();

@@ -29,6 +29,77 @@
         Nota de línea
         <input formControlName="note" maxlength="240" autocomplete="off" />
       </label>
+      @if (line().product.trackLots || line().product.trackSerials) {
+        <section class="tracking-editor" aria-labelledby="line-tracking-title">
+          <header>
+            <div>
+              <p>Trazabilidad</p>
+              <h3 id="line-tracking-title">Identifica las unidades</h3>
+            </div>
+            @if (trackingLoading()) {
+              <span><i class="pi pi-spin pi-spinner"></i>Cargando…</span>
+            }
+          </header>
+          @if (line().product.trackLots) {
+            <label>
+              Lote a descontar
+              <select formControlName="lotId">
+                <option value="">Selecciona un lote</option>
+                @for (lot of lots(); track lot.id) {
+                  <option [value]="lot.id" [disabled]="!canUseLot(lot)">
+                    {{ lot.code }} · {{ lot.quantity }} disp. ·
+                    {{ lot.expiresOn || 'sin vencimiento' }}
+                    {{ lot.expirationStatus === 'EXPIRED' ? '· VENCIDO' : '' }}
+                  </option>
+                }
+              </select>
+            </label>
+            @if (!trackingLoading() && !lots().length) {
+              <p class="tracking-empty">No hay lotes con existencia para vender.</p>
+            }
+            @if (currentLot()?.expirationStatus === 'EXPIRED') {
+              <label class="expired-reason">
+                Motivo para vender lote vencido
+                <input
+                  formControlName="expiredLotOverrideReason"
+                  maxlength="240"
+                  autocomplete="off"
+                />
+                <small>La autorización y el motivo quedarán auditados.</small>
+              </label>
+            }
+          }
+          @if (line().product.trackSerials) {
+            <fieldset>
+              <legend>Series disponibles</legend>
+              <small>Selecciona una por cada unidad del renglón.</small>
+              <div class="serial-options">
+                @for (serial of serials(); track serial.id) {
+                  @if (
+                    serial.status === 'AVAILABLE' ||
+                    form.controls.serialNumbers.value.includes(serial.serialNumber)
+                  ) {
+                    <label>
+                      <input
+                        type="checkbox"
+                        [checked]="form.controls.serialNumbers.value.includes(serial.serialNumber)"
+                        (change)="toggleSerial(serial.serialNumber, $any($event.target).checked)"
+                      />
+                      <span
+                        ><strong>{{ serial.serialNumber }}</strong
+                        ><small>{{ serial.currentLocation?.name || 'Sin ubicación' }}</small></span
+                      >
+                    </label>
+                  }
+                }
+              </div>
+              @if (!trackingLoading() && !serials().length) {
+                <p class="tracking-empty">No hay series disponibles para vender.</p>
+              }
+            </fieldset>
+          }
+        </section>
+      }
       @if (canOverridePrice()) {
         <div class="override">
           <label>
@@ -75,7 +146,9 @@
       }
       <footer>
         <button class="secondary" type="button" (click)="closed.emit()">Cancelar</button>
-        <button class="primary" type="submit">Aplicar cambios</button>
+        <button class="primary" type="submit" [disabled]="trackingLoading()">
+          Aplicar cambios
+        </button>
       </footer>
     </form>
   </section>

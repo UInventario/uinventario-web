@@ -153,6 +153,10 @@ export class AppShell {
       void this.router.navigate(['/inventario/transferencias']);
       return;
     }
+    if (commandId === 'inventory-traceability') {
+      void this.router.navigate(['/inventario/trazabilidad']);
+      return;
+    }
     this.commandStatus.set(`Comando disponible para ${this.activeWorkspace().label}: ${commandId}`);
   }
 

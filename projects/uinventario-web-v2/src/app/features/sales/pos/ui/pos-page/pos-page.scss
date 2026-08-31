@@ -244,9 +244,8 @@
     }
   }
 
-  &.unsupported > button {
-    cursor: not-allowed;
-    opacity: 0.62;
+  &.tracked > button {
+    border-color: var(--p-primary-300);
   }
 }
 

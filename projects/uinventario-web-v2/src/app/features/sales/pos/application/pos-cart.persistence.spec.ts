@@ -102,6 +102,38 @@ describe('POS cart persistence', () => {
     });
   });
 
+  it('restores validated lot and serial selections without trusting malformed values', () => {
+    const raw = JSON.stringify([
+      {
+        product: {
+          id: 'product-1',
+          name: 'Equipo',
+          sku: 'EQ-01',
+          barcode: null,
+          withoutCode: false,
+          stockBehavior: 'TRACKED',
+          taxBehavior: 'STANDARD',
+          baseUnit: 'UNIT',
+          quantityPrecision: 0,
+          quantityRounding: 'HALF_UP',
+          minimumQuantity: '1.000',
+          trackLots: true,
+          trackSerials: true,
+          price: '120.00',
+          active: true,
+          sellable: true,
+        },
+        quantity: '1.000',
+        lotId: 'lot-1',
+        serialNumbers: [' SER-001 ', 'SER-001', 42],
+      },
+    ]);
+    expect(parsePersistedCart(raw)[0]).toMatchObject({
+      lotId: 'lot-1',
+      serialNumbers: ['SER-001'],
+    });
+  });
+
   it('keeps a resumed sale scoped to the complete operational context', () => {
     const lines = parsePersistedCart(
       JSON.stringify([

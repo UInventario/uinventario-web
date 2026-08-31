@@ -20,12 +20,13 @@ export function normalizeQuantity(value: string, product: PosProduct): string | 
   const match = QUANTITY_PATTERN.exec(trimmed);
   const units = quantityUnits(trimmed);
   const minimum = quantityUnits(product.minimumQuantity);
+  const meaningfulDecimals = (match?.[2] ?? '').replace(/0+$/, '').length;
   if (
     !match ||
     units === null ||
     minimum === null ||
     units < minimum ||
-    (match[2]?.length ?? 0) > product.quantityPrecision
+    meaningfulDecimals > product.quantityPrecision
   ) {
     return null;
   }

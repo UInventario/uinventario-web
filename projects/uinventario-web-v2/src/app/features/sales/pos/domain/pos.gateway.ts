@@ -7,6 +7,8 @@ import {
   PaymentTerminalOperation,
   PosCustomerPage,
   PosLoyaltyStatement,
+  PosInventoryLot,
+  PosInventorySerial,
   PosCartQuote,
   PosCartRequest,
   PosPaymentOptions,
@@ -25,6 +27,8 @@ export abstract class PosGateway {
   abstract paymentOptions(): Observable<PosPaymentOptions>;
   abstract searchCustomers(query: string): Observable<PosCustomerPage>;
   abstract loyaltyStatement(customerId: string): Observable<PosLoyaltyStatement>;
+  abstract listLots(productId: string): Observable<readonly PosInventoryLot[]>;
+  abstract listSerials(productId: string): Observable<readonly PosInventorySerial[]>;
   abstract createCashSale(input: CreateCashSaleInput): Observable<PosSale>;
   abstract createSale(input: CreateSaleInput): Observable<PosSale>;
   abstract suspendSale(

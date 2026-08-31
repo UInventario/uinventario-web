@@ -15,6 +15,8 @@ import {
   PosCustomer,
   PosCustomerPage,
   PosLoyaltyStatement,
+  PosInventoryLot,
+  PosInventorySerial,
   PosCartQuote,
   PosCartRequest,
   PosPaymentOptions,
@@ -102,6 +104,22 @@ export class PosApi extends PosGateway {
   override loyaltyStatement(customerId: string) {
     return this.api
       .get<ApiEnvelope<PosLoyaltyStatement>>(`/loyalty/customers/${encodeURIComponent(customerId)}`)
+      .pipe(map(({ data }) => data));
+  }
+
+  override listLots(productId: string) {
+    return this.api
+      .get<ApiEnvelope<readonly PosInventoryLot[]>>(
+        `/inventory/products/${encodeURIComponent(productId)}/lots`,
+      )
+      .pipe(map(({ data }) => data));
+  }
+
+  override listSerials(productId: string) {
+    return this.api
+      .get<ApiEnvelope<readonly PosInventorySerial[]>>(
+        `/inventory/products/${encodeURIComponent(productId)}/serials`,
+      )
       .pipe(map(({ data }) => data));
   }
 

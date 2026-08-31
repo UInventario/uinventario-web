@@ -81,6 +81,11 @@ export class PosCartStore {
         quantity: line.quantity,
         ...(line.note ? { note: line.note } : {}),
         ...(line.discount ? { discount: line.discount } : {}),
+        ...(line.lotId ? { lotId: line.lotId } : {}),
+        ...(line.expiredLotOverrideReason
+          ? { expiredLotOverrideReason: line.expiredLotOverrideReason }
+          : {}),
+        ...(line.serialNumbers?.length ? { serialNumbers: line.serialNumbers } : {}),
       })),
     );
   }
@@ -97,6 +102,11 @@ export class PosCartStore {
               priceOverrideReason: line.priceOverrideReason,
             }
           : {}),
+        ...(line.lotId ? { lotId: line.lotId } : {}),
+        ...(line.expiredLotOverrideReason
+          ? { expiredLotOverrideReason: line.expiredLotOverrideReason }
+          : {}),
+        ...(line.serialNumbers?.length ? { serialNumbers: line.serialNumbers } : {}),
       })),
     );
   }

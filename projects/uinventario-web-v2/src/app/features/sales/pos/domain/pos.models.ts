@@ -15,6 +15,7 @@ export interface PosProduct {
   readonly minimumQuantity: string;
   readonly trackLots: boolean;
   readonly trackSerials: boolean;
+  readonly allowExpiredStockOverride?: boolean;
   readonly price: string;
   readonly active: boolean;
   readonly sellable: boolean;
@@ -37,6 +38,40 @@ export interface PosCartLine {
   readonly manualUnitPrice?: string;
   readonly priceOverrideReason?: string;
   readonly discount?: PosDiscountInput;
+  readonly lotId?: string;
+  readonly expiredLotOverrideReason?: string;
+  readonly serialNumbers?: readonly string[];
+}
+
+export interface PosInventoryLot {
+  readonly id: string;
+  readonly code: string;
+  readonly quantity: string;
+  readonly expiresOn: string | null;
+  readonly expirationStatus: 'NO_EXPIRATION' | 'ACTIVE' | 'EXPIRING' | 'EXPIRED' | 'EXHAUSTED';
+  readonly daysUntilExpiration: number | null;
+  readonly balances: readonly {
+    readonly location: { readonly id: string; readonly name: string; readonly code: string };
+    readonly quantity: string;
+  }[];
+}
+
+export interface PosInventorySerial {
+  readonly id: string;
+  readonly serialNumber: string;
+  readonly status:
+    | 'AVAILABLE'
+    | 'RESERVED'
+    | 'DAMAGED'
+    | 'IN_TRANSIT'
+    | 'SOLD'
+    | 'RETURNED_TO_SUPPLIER'
+    | 'REMOVED';
+  readonly currentLocation: {
+    readonly id: string;
+    readonly name: string;
+    readonly code: string;
+  } | null;
 }
 
 export interface PosDiscountInput {
@@ -64,6 +99,9 @@ export interface PosCartRequest {
     readonly manualUnitPrice?: string;
     readonly priceOverrideReason?: string;
     readonly discount?: PosDiscountInput;
+    readonly lotId?: string;
+    readonly expiredLotOverrideReason?: string;
+    readonly serialNumbers?: readonly string[];
   }[];
 }
 
@@ -119,6 +157,9 @@ export interface PosQuotedLine {
   >;
   readonly quantity: string;
   readonly note: string | null;
+  readonly lotId?: string | null;
+  readonly expiredLotOverrideReason?: string | null;
+  readonly serialNumbers?: readonly string[];
   readonly availableQuantity: string;
   readonly unitPrice: string;
   readonly priceSource: 'BASE' | 'PRICE_LIST' | 'MANUAL';
