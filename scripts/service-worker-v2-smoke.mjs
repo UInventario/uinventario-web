@@ -35,7 +35,8 @@ async function closeApplication() {
 try {
   const context = await browser.newContext({ serviceWorkers: 'allow' });
   const page = await context.newPage();
-  await page.goto(`${origin}/v2/login`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${origin}/login`, { waitUntil: 'domcontentloaded' });
+  assert.equal(new URL(page.url()).pathname, '/v2/login');
   await page.locator('ui-root').filter({ hasText: 'Iniciar sesión' }).waitFor();
   await page.evaluate(() => navigator.serviceWorker.ready.then(() => true));
   await page.reload({ waitUntil: 'domcontentloaded' });

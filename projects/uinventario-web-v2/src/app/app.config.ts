@@ -17,7 +17,10 @@ import { ApiRuntimeConfig } from './core/api/api-runtime-config';
 import { DesktopPeripheralPort } from './core/desktop/desktop-peripheral.port';
 import { WebDesktopPeripheralAdapter } from './core/desktop/web-desktop-peripheral.adapter';
 import { sessionRefreshInterceptor } from './core/session/session-refresh.interceptor';
+import { configuredPrimeUiLicense } from './core/theme/primeui-license';
 import { UINVENTARIO_PRESET } from './core/theme/uinventario-preset';
+
+const primeUiLicense = configuredPrimeUiLicense();
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -39,6 +42,7 @@ export const appConfig: ApplicationConfig = {
     { provide: DesktopPeripheralPort, useExisting: WebDesktopPeripheralAdapter },
     provideRouter(routes),
     providePrimeNG({
+      ...(primeUiLicense ? { license: primeUiLicense } : {}),
       ripple: true,
       theme: {
         preset: UINVENTARIO_PRESET,

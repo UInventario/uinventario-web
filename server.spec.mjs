@@ -91,6 +91,24 @@ test('serves assets and falls back to the Angular entry point', async () => {
   assert.equal(await routeResponse.text(), '<h1>UInventario</h1>');
 });
 
+test('moves legacy entry points to Web V2 without caching the rollback window', async () => {
+  const cases = [
+    ['/?from=legacy', '/v2/?from=legacy'],
+    ['/app', '/v2/dashboard/resumen'],
+    ['/login?returnUrl=%2Fapp', '/v2/login?returnUrl=%2Fapp'],
+    ['/registro', '/v2/registro'],
+    ['/recuperar', '/v2/recuperar'],
+    ['/restablecer?token=test', '/v2/restablecer?token=test'],
+  ];
+
+  for (const [source, target] of cases) {
+    const response = await fetch(`${applicationUrl}${source}`, { redirect: 'manual' });
+    assert.equal(response.status, 307);
+    assert.equal(response.headers.get('location'), target);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+  }
+});
+
 test('serves Web V2 in isolation and keeps its own route fallback', async () => {
   const assetResponse = await fetch(`${applicationUrl}/v2/main-HGFEDCBA.js`);
   assert.equal(assetResponse.status, 200);
