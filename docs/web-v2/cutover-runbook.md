@@ -76,7 +76,8 @@ No iniciar UIN-210 hasta que todas sean verdaderas:
      Durante la observación se usa `307` con `Cache-Control: no-store` para que un rollback no quede
      anulado por cachés permanentes.
 3. Mantener el bundle V1 dentro de la imagen durante la ventana de observación; no enlazarlo desde
-   la navegación pública.
+   la navegación pública. Su shell incluye un redirect de migración para que los clientes que aún
+   estén controlados por el Service Worker V1 salgan hacia Web V2 cuando reciban la nueva versión.
 4. Fusionar a `master` y esperar que Cloud Build Prod termine con `SUCCESS`.
 5. Confirmar que la revisión nueva recibe 100% del tráfico y conservar el nombre de la revisión
    anterior.
