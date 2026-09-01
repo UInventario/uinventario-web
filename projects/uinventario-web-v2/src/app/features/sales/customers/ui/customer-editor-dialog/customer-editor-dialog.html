@@ -1,0 +1,73 @@
+<div class="backdrop" (click)="closed.emit()">
+  <section
+    class="dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="customer-editor-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <p>{{ customer() ? 'Editar cliente' : 'Alta de cliente' }}</p>
+        <h2 id="customer-editor-title">{{ customer()?.name || 'Nuevo cliente' }}</h2>
+      </div>
+      <button class="icon" type="button" aria-label="Cerrar" (click)="closed.emit()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <div class="field full">
+        <label for="customerName">Nombre</label>
+        <input id="customerName" formControlName="name" maxlength="160" />
+      </div>
+      <div class="field full">
+        <label for="customerIdentifier">Identificador fiscal o interno</label>
+        <input id="customerIdentifier" formControlName="identifier" maxlength="80" />
+      </div>
+      <div class="field">
+        <label for="customerEmail">Correo</label>
+        <input id="customerEmail" type="email" formControlName="email" maxlength="254" />
+      </div>
+      <div class="field">
+        <label for="customerPhone">Teléfono</label>
+        <input id="customerPhone" type="tel" formControlName="phone" maxlength="32" />
+      </div>
+      <label class="consent full">
+        <input type="checkbox" formControlName="dataProcessingConsent" />
+        <span>
+          <strong>Consentimiento para datos de contacto</strong>
+          <small>Autoriza almacenar correo y teléfono para la relación comercial.</small>
+        </span>
+      </label>
+      @if (
+        !form.controls.dataProcessingConsent.value &&
+        (form.controls.email.value || form.controls.phone.value)
+      ) {
+        <div class="privacy-warning full" role="status">
+          Al guardar sin consentimiento se eliminarán el correo y el teléfono.
+        </div>
+      }
+      @if (customer() && !customer()!.active) {
+        <label class="consent full">
+          <input type="checkbox" formControlName="active" />
+          <span
+            ><strong>Reactivar cliente</strong
+            ><small>Vuelve a habilitarlo para ventas.</small></span
+          >
+        </label>
+      }
+      @if (form.touched && form.invalid) {
+        <div class="notice error full" role="alert">Revisa nombre, correo y teléfono.</div>
+      }
+      @if (error()) {
+        <div class="notice error full" role="alert">{{ error() }}</div>
+      }
+      <footer class="actions full">
+        <button class="secondary" type="button" (click)="closed.emit()">Cancelar</button>
+        <button class="primary" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Guardando…' : 'Guardar cliente' }}
+        </button>
+      </footer>
+    </form>
+  </section>
+</div>

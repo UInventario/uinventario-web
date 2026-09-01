@@ -1,0 +1,95 @@
+<section class="report-view" aria-labelledby="inventory-report-title">
+  <div class="view-heading">
+    <div>
+      <h2 id="inventory-report-title">Actividad de inventario</h2>
+      <p>Existencias, ventas, pérdidas y rotación por producto.</p>
+    </div>
+    <button
+      class="export"
+      type="button"
+      [disabled]="!result()?.data?.items?.length"
+      (click)="export()"
+    >
+      <i class="pi pi-download"></i>Exportar página
+    </button>
+  </div>
+  <ui-report-filter-bar
+    [query]="query()"
+    [branches]="result()?.data?.scope?.branches || []"
+    [warehouses]="result()?.data?.scope?.warehouses || []"
+    [categories]="result()?.data?.filters?.categories || []"
+    [showProduct]="true"
+    (applied)="apply($event)"
+  />
+  @if (loading()) {
+    <div class="state"><i class="pi pi-spin pi-spinner"></i>Consultando inventario…</div>
+  } @else if (error()) {
+    <div class="state error" role="alert">{{ error() }}</div>
+  } @else if (result(); as page) {
+    <section class="card">
+      <div class="card-heading">
+        <div>
+          <h3>Productos</h3>
+          <p>Selecciona un producto para revisar todos sus movimientos.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>SKU / categoría</th>
+              <th class="number">Apertura</th>
+              <th class="number">Cierre</th>
+              <th class="number">Venta neta</th>
+              <th class="number">Pérdida</th>
+              <th class="number">Rotación</th>
+              <th>Estado</th>
+              <th>Último movimiento</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of page.data.items; track row.product.id) {
+              <tr>
+                <td>
+                  <button class="row-action" type="button" (click)="selected.set(row)">
+                    {{ row.product.name }}
+                  </button>
+                </td>
+                <td>{{ row.product.sku }} · {{ row.product.category?.name || 'Sin categoría' }}</td>
+                <td class="number">{{ row.openingQuantity }}</td>
+                <td class="number">{{ row.closingQuantity }}</td>
+                <td class="number">{{ row.netSoldQuantity }}</td>
+                <td class="number">{{ row.lossQuantity }}</td>
+                <td class="number">{{ row.rotation === null ? '—' : row.rotation.toFixed(2) }}</td>
+                <td>
+                  <span
+                    class="badge"
+                    [class.good]="row.status === 'ACTIVE'"
+                    [class.warn]="row.status === 'SLOW'"
+                    >{{ row.status === 'ACTIVE' ? 'Activo' : 'Lento' }}</span
+                  >
+                </td>
+                <td>{{ date(row.lastMovementAt, timezone()) }} · {{ timezone() }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="9">No hay productos con los filtros seleccionados.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <ui-report-pagination [pagination]="page.pagination" (pageChange)="goToPage($event)" />
+    </section>
+  }
+</section>
+@if (selected(); as row) {
+  <ui-inventory-movement-dialog
+    [productId]="row.product.id"
+    [productName]="row.product.name"
+    [query]="query()"
+    [timezone]="timezone()"
+    (closed)="selected.set(null)"
+  />
+}

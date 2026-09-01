@@ -1,0 +1,221 @@
+<section class="report-view" aria-labelledby="exports-title">
+  <div class="view-heading">
+    <div>
+      <h2 id="exports-title">Exportaciones de datos</h2>
+      <p>Genera archivos en segundo plano sin detener la operación.</p>
+    </div>
+  </div>
+
+  <section class="export-layout">
+    <form class="card export-form" [formGroup]="form" (ngSubmit)="create()">
+      <div class="card-heading">
+        <div>
+          <h3>Nueva exportación</h3>
+          <p>Los datos se limitan a tu empresa y contexto activo.</p>
+        </div>
+      </div>
+      @if (availableDatasets().length) {
+        <label
+          >Conjunto de datos
+          <select formControlName="dataset">
+            @for (dataset of availableDatasets(); track dataset.value) {
+              <option [value]="dataset.value">{{ dataset.label }}</option>
+            }
+          </select>
+          <small
+            >{{ datasetLabel(form.controls.dataset.value) }} ·
+            {{
+              availableDatasets().find((option) => option.value === form.controls.dataset.value)
+                ?.description
+            }}</small
+          >
+        </label>
+        <label
+          >Formato
+          <select formControlName="format">
+            <option value="CSV">CSV</option>
+            <option value="XLSX">Excel (.xlsx)</option>
+          </select>
+        </label>
+        <label class="wide"
+          >Buscar dentro de los datos
+          <input formControlName="q" placeholder="Nombre, SKU, folio o referencia"
+        /></label>
+
+        @if (form.controls.dataset.value === 'PRODUCTS') {
+          <label
+            >Estado del producto
+            <select formControlName="productStatus">
+              <option value="ALL">Todos</option>
+              <option value="ACTIVE">Activos</option>
+              <option value="INACTIVE">Inactivos</option>
+            </select>
+          </label>
+        }
+        @if (form.controls.dataset.value === 'SALES') {
+          <label
+            >Estado de la venta
+            <select formControlName="saleStatus">
+              <option value="ALL">Todas</option>
+              <option value="COMPLETED">Completadas</option>
+              <option value="VOIDED">Anuladas</option>
+            </select>
+          </label>
+        }
+        @if (form.controls.dataset.value === 'MOVEMENTS') {
+          <label
+            >Tipo de movimiento <input formControlName="movementType" placeholder="Ej. STOCK_ENTRY"
+          /></label>
+        }
+        @if (
+          form.controls.dataset.value === 'SALES' || form.controls.dataset.value === 'MOVEMENTS'
+        ) {
+          <label>Desde <input type="date" formControlName="dateFrom" /></label>
+          <label>Hasta <input type="date" formControlName="dateTo" /></label>
+        }
+        @if (
+          canIncludeSensitive() &&
+          (form.controls.dataset.value === 'SALES' || form.controls.dataset.value === 'MOVEMENTS')
+        ) {
+          <label class="check wide"
+            ><input type="checkbox" formControlName="includeSensitive" /><span
+              >Incluir datos personales permitidos</span
+            ></label
+          >
+        }
+        <button class="primary wide" type="submit" [disabled]="acting() === 'create'">
+          <i
+            class="pi"
+            [class.pi-spin]="acting() === 'create'"
+            [class.pi-spinner]="acting() === 'create'"
+            [class.pi-file-export]="acting() !== 'create'"
+          ></i>
+          {{ acting() === 'create' ? 'Solicitando…' : 'Generar exportación' }}
+        </button>
+      } @else {
+        <div class="empty">
+          <i class="pi pi-lock"></i><strong>Sin conjuntos disponibles</strong
+          ><span>Tu rol permite abrir el centro, pero no exportar datos operativos.</span>
+        </div>
+      }
+    </form>
+
+    <section class="card privacy-note" aria-label="Protección de exportaciones">
+      <i class="pi pi-shield"></i>
+      <div>
+        <h3>Descargas protegidas</h3>
+        <p>
+          Cada archivo pertenece a tu usuario y empresa. Los enlaces caducan y el servidor vuelve a
+          validar permisos al descargar.
+        </p>
+      </div>
+    </section>
+  </section>
+
+  @if (error()) {
+    <div class="state error" role="alert">{{ error() }}</div>
+  }
+  @if (notice()) {
+    <p class="notice" role="status">{{ notice() }}</p>
+  }
+
+  <section class="jobs-section" aria-labelledby="jobs-title">
+    <div class="card-heading">
+      <div>
+        <h3 id="jobs-title">Exportaciones recientes</h3>
+        <p>
+          Se conservan en este navegador únicamente los identificadores de tus últimos trabajos.
+        </p>
+      </div>
+    </div>
+    @if (loading()) {
+      <div class="state"><i class="pi pi-spin pi-spinner"></i>Recuperando exportaciones…</div>
+    } @else {
+      <div class="job-list">
+        @for (job of jobs(); track job.id) {
+          <article
+            class="export-job"
+            [class.failed]="job.status === 'FAILED'"
+            [class.expired]="expired(job)"
+          >
+            <header>
+              <div>
+                <span class="dataset-icon"><i class="pi pi-file-export"></i></span>
+                <div>
+                  <strong>{{ datasetLabel(job.dataset) }}</strong
+                  ><span>{{ job.format }} · {{ job.createdAt | date: 'medium' }}</span>
+                </div>
+              </div>
+              <span
+                class="status"
+                [class.good]="job.status === 'COMPLETED' && !expired(job)"
+                [class.bad]="job.status === 'FAILED' || expired(job)"
+                >{{ expired(job) ? 'Caducó' : statusLabel(job) }}</span
+              >
+            </header>
+            <div
+              class="progress"
+              role="progressbar"
+              [attr.aria-valuenow]="progress(job)"
+              aria-valuemin="0"
+              aria-valuemax="100"
+            >
+              <span [style.width.%]="progress(job)"></span>
+            </div>
+            <dl>
+              <div>
+                <dt>Filas</dt>
+                <dd>{{ job.rowCount ?? '—' }}</dd>
+              </div>
+              <div>
+                <dt>Disponible hasta</dt>
+                <dd>{{ job.expiresAt | date: 'short' }}</dd>
+              </div>
+              @if (job.excludedColumns.length) {
+                <div class="wide">
+                  <dt>Columnas protegidas omitidas</dt>
+                  <dd>{{ job.excludedColumns.join(', ') }}</dd>
+                </div>
+              }
+            </dl>
+            @if (job.status === 'FAILED') {
+              <p class="job-error">
+                <i class="pi pi-exclamation-triangle"></i>{{ errorLabel(job.errorCode) }}
+              </p>
+            }
+            <footer>
+              @if (job.status === 'FAILED') {
+                <button
+                  class="secondary"
+                  type="button"
+                  [disabled]="acting() === job.id"
+                  (click)="retry(job)"
+                >
+                  <i class="pi pi-refresh"></i>Reintentar
+                </button>
+              }
+              @if (downloadable(job)) {
+                <button
+                  class="primary"
+                  type="button"
+                  [disabled]="acting() === job.id"
+                  (click)="download(job)"
+                >
+                  <i class="pi pi-download"></i>Descargar
+                </button>
+              }
+              @if (job.status === 'FAILED' || expired(job)) {
+                <button class="link-button" type="button" (click)="remove(job)">Quitar</button>
+              }
+            </footer>
+          </article>
+        } @empty {
+          <div class="empty">
+            <i class="pi pi-inbox"></i><strong>Aún no hay exportaciones</strong
+            ><span>Configura el primer archivo en el panel superior.</span>
+          </div>
+        }
+      </div>
+    }
+  </section>
+</section>

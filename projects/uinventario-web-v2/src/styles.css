@@ -1,0 +1,6 @@
+@import 'tailwindcss';
+@import 'tailwindcss-primeui';
+@import './styles/tokens.css';
+@import './styles/base.css';
+
+@source './**/*.{html,ts}';

@@ -1,0 +1,94 @@
+<section class="report-view" aria-labelledby="profit-report-title">
+  <div class="view-heading">
+    <div>
+      <h2 id="profit-report-title">Márgenes</h2>
+      <p>Ingresos, costo histórico y margen por moneda y producto.</p>
+    </div>
+    <button
+      class="export"
+      type="button"
+      [disabled]="!result()?.data?.products?.length"
+      (click)="export()"
+    >
+      <i class="pi pi-download"></i>Exportar página
+    </button>
+  </div>
+  <ui-report-filter-bar
+    [query]="query()"
+    [branches]="result()?.data?.scope || []"
+    (applied)="apply($event)"
+  />
+  @if (loading()) {
+    <div class="state"><i class="pi pi-spin pi-spinner"></i>Calculando márgenes…</div>
+  } @else if (error()) {
+    <div class="state error" role="alert">{{ error() }}</div>
+  } @else if (result(); as page) {
+    <div class="summary">
+      @for (currency of page.data.currencies; track currency.currency) {
+        <span class="metric"
+          ><small>Margen · {{ currency.currency }}</small
+          ><strong>{{ money(currency.margin, currency.currency) }}</strong
+          ><small
+            >{{
+              currency.marginRate === null
+                ? 'Sin tasa calculable'
+                : (currency.marginRate * 100).toFixed(1) + '%'
+            }}
+            · {{ currency.sales }} ventas</small
+          ></span
+        ><span class="metric"
+          ><small>Ingreso neto · {{ currency.currency }}</small
+          ><strong>{{ money(currency.netRevenue, currency.currency) }}</strong
+          ><small>{{
+            currency.salesMatchPayments ? 'Pagos conciliados' : 'Revisar conciliación'
+          }}</small></span
+        >
+      }
+    </div>
+    <section class="card">
+      <div class="card-heading">
+        <div>
+          <h3>Rentabilidad por producto</h3>
+          <p>Costo histórico de las unidades vendidas, no costo actual.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>SKU</th>
+              <th class="number">Vendido</th>
+              <th class="number">Devuelto</th>
+              <th class="number">Ingreso neto</th>
+              <th class="number">Costo neto</th>
+              <th class="number">Margen</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of page.data.products; track row.product.id + row.currency) {
+              <tr>
+                <td>{{ row.product.name }}</td>
+                <td>{{ row.product.sku }}</td>
+                <td class="number">{{ row.soldQuantity }}</td>
+                <td class="number">{{ row.returnedQuantity }}</td>
+                <td class="number">{{ money(row.netRevenue, row.currency) }}</td>
+                <td class="number">{{ money(row.netCost, row.currency) }}</td>
+                <td class="number">{{ money(row.margin, row.currency) }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="7">No hay rentabilidad calculable con los filtros seleccionados.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <ui-report-pagination [pagination]="page.pagination" (pageChange)="goToPage($event)" />
+    </section>
+    <p class="formula">
+      Los descuentos reducen el ingreso neto; devoluciones y anulaciones se reconocen en la fecha de
+      la actividad correspondiente.
+    </p>
+  }
+</section>

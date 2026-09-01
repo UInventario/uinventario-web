@@ -1,0 +1,114 @@
+:host {
+  display: block;
+}
+.procurement {
+  display: grid;
+  gap: 1rem;
+}
+.page-header,
+.title-group,
+.filters,
+.notice {
+  display: flex;
+  align-items: center;
+}
+.page-header {
+  justify-content: space-between;
+  gap: 1rem;
+}
+.title-group {
+  gap: 1rem;
+}
+.title-group p,
+.title-group h1 {
+  margin: 0;
+}
+.title-group p {
+  color: var(--p-primary-700);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.title-group h1 {
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  font-weight: 500;
+}
+.title-group div > span {
+  color: var(--p-text-muted-color);
+}
+.page-icon {
+  display: grid;
+  width: 4rem;
+  height: 4rem;
+  place-content: center;
+  border-radius: var(--radius-lg);
+  background: var(--p-primary-100);
+  color: var(--p-primary-700);
+}
+button {
+  min-height: var(--ui-control-height);
+  padding: 0 0.9rem;
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 700;
+}
+.primary {
+  background: var(--p-primary-600);
+  color: white;
+}
+.secondary {
+  background: var(--p-surface-100);
+  color: var(--p-text-color);
+}
+.notice {
+  gap: 0.5rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--radius-md);
+}
+.notice.success {
+  border: 1px solid var(--p-green-200);
+  background: var(--p-green-50);
+  color: var(--p-green-700);
+}
+.notice.error {
+  border: 1px solid var(--p-red-200);
+  background: var(--p-red-50);
+  color: var(--p-red-700);
+}
+.filters {
+  gap: 0.7rem;
+  padding: 0.75rem;
+  border: 1px solid var(--p-surface-200);
+  border-radius: var(--radius-lg);
+  background: white;
+}
+.search-field {
+  position: relative;
+  flex: 1;
+}
+.search-field i {
+  position: absolute;
+  top: 50%;
+  left: 0.75rem;
+  transform: translateY(-50%);
+  color: var(--p-text-muted-color);
+}
+.search-field input {
+  width: 100%;
+  min-height: var(--ui-control-height);
+  padding: 0 0.75rem 0 2.3rem;
+  border: 1px solid var(--p-surface-300);
+  border-radius: var(--radius-md);
+  font: inherit;
+}
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(17rem, 0.72fr) minmax(0, 2fr);
+  gap: 0.85rem;
+  align-items: start;
+}
+.back-to-list {
+  display: none;
+}

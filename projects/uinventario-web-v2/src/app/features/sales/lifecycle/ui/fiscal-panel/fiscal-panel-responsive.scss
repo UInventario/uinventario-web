@@ -1,0 +1,21 @@
+@media (max-width: 520px) {
+  .adapter-card {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .simulator-badge {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  .fiscal-email {
+    gap: 8px;
+    grid-template-columns: 1fr;
+  }
+
+  .fiscal-email input,
+  .fiscal-email button {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+}

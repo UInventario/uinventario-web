@@ -1,0 +1,219 @@
+:host {
+  --card: var(--p-surface-0);
+  --border: var(--p-surface-200);
+  --muted: var(--p-text-muted-color);
+  --primary: var(--p-primary-600);
+  display: block;
+}
+
+.fiscal-view {
+  display: grid;
+  gap: 10px;
+}
+
+.adapter-card {
+  align-items: center;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  padding: 12px;
+}
+
+.adapter-card > span:nth-child(2),
+.simulator-warning span,
+.fiscal-document > header > span:first-child {
+  display: grid;
+}
+
+.adapter-card small,
+.fiscal-document small,
+.timeline time {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.adapter-icon {
+  align-items: center;
+  background: var(--p-primary-50);
+  border-radius: 9px;
+  color: var(--primary);
+  display: flex;
+  height: 40px;
+  justify-content: center;
+}
+
+.simulator-badge,
+.fiscal-status {
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 5px 8px;
+}
+
+.simulator-badge {
+  background: var(--p-orange-100);
+  color: var(--p-orange-800);
+}
+
+.simulator-warning,
+.fiscal-error {
+  align-items: flex-start;
+  border-radius: 10px;
+  display: flex;
+  gap: 9px;
+  padding: 11px;
+}
+
+.simulator-warning {
+  background: var(--p-orange-50);
+  color: var(--p-orange-900);
+}
+
+.fiscal-error {
+  background: var(--p-red-50);
+  color: var(--p-red-700);
+}
+
+.fiscal-document,
+.issue-fiscal {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.fiscal-document > header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.fiscal-status {
+  background: var(--p-orange-50);
+  color: var(--p-orange-800);
+}
+
+.fiscal-status[data-status='ACCEPTED'] {
+  background: var(--p-green-50);
+  color: var(--p-green-700);
+}
+
+.fiscal-status[data-status='REJECTED'],
+.fiscal-status[data-status='CANCELLED'] {
+  background: var(--p-red-50);
+  color: var(--p-red-700);
+}
+
+.fiscal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.fiscal-actions button,
+.fiscal-email button,
+.issue-fiscal button {
+  align-items: center;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--p-text-color);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  gap: 6px;
+  justify-content: center;
+  min-height: 38px;
+  padding: 7px 11px;
+}
+
+.fiscal-actions button.danger {
+  color: var(--p-red-700);
+}
+
+.timeline {
+  border-left: 2px solid var(--border);
+  display: grid;
+  gap: 10px;
+  margin-left: 6px;
+  padding-left: 14px;
+}
+
+.timeline span {
+  align-items: center;
+  display: grid;
+  gap: 7px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.timeline i {
+  color: var(--primary);
+  font-size: 7px;
+  margin-left: -19px;
+}
+
+.fiscal-email {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.fiscal-email input,
+.issue-fiscal select {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--p-text-color);
+  font: inherit;
+  min-height: 40px;
+  padding: 8px 10px;
+}
+
+.fiscal-email input {
+  border-radius: 8px 0 0 8px;
+}
+
+.fiscal-email button {
+  border-left: 0;
+  border-radius: 0 8px 8px 0;
+  color: var(--primary);
+}
+
+.issue-fiscal h3 {
+  font-size: 15px;
+  margin: 0;
+}
+
+.issue-fiscal label {
+  display: grid;
+  font-weight: 700;
+  gap: 5px;
+}
+
+.issue-fiscal button {
+  background: var(--primary);
+  color: var(--p-primary-contrast-color);
+}
+
+.empty-section {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  justify-content: center;
+  min-height: 260px;
+  padding: 24px;
+  text-align: center;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}

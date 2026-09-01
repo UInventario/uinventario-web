@@ -1,0 +1,84 @@
+.tracking-editor {
+  background: var(--p-blue-50);
+  border: 1px solid var(--p-blue-200);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+}
+
+.tracking-editor > header {
+  border: 0;
+  padding: 0;
+}
+
+.tracking-editor > header h3,
+.tracking-editor > header p {
+  margin: 0;
+}
+
+.tracking-editor > header h3 {
+  font-size: 1rem;
+}
+
+.tracking-editor > header span {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.tracking-editor fieldset {
+  border: 0;
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+}
+
+.tracking-editor legend {
+  color: var(--p-text-color);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  padding: 0;
+}
+
+.serial-options {
+  border: 1px solid var(--p-surface-300);
+  border-radius: var(--radius-sm);
+  display: grid;
+  max-height: 10rem;
+  overflow: auto;
+}
+
+.serial-options label {
+  align-items: center;
+  background: var(--p-surface-0);
+  border-bottom: 1px solid var(--p-surface-200);
+  display: flex;
+  gap: 0.55rem;
+  padding: 0.55rem 0.65rem;
+}
+
+.serial-options label:last-child {
+  border-bottom: 0;
+}
+
+.serial-options input {
+  min-height: auto;
+}
+
+.serial-options span {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.tracking-empty {
+  color: var(--p-orange-800);
+  font-size: 0.78rem;
+  margin: 0;
+}
+
+.expired-reason {
+  border-left: 3px solid var(--p-red-500);
+  padding-left: 0.65rem;
+}

@@ -55,7 +55,7 @@ function setSecurityHeaders(response, environment) {
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('X-Frame-Options', 'DENY');
   response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  response.setHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
   if (environment !== 'local') {
     response.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   }
@@ -69,6 +69,31 @@ function sendJson(response, statusCode, body) {
     'Content-Type': 'application/json; charset=utf-8',
   });
   response.end(payload);
+}
+
+function legacyRedirect(requestUrl) {
+  const routes = new Map([
+    ['/', '/v2/'],
+    ['/app', '/v2/dashboard/resumen'],
+    ['/login', '/v2/login'],
+    ['/onboarding', '/v2/onboarding'],
+    ['/recuperar', '/v2/recuperar'],
+    ['/registro', '/v2/registro'],
+    ['/restablecer', '/v2/restablecer'],
+  ]);
+  const target =
+    routes.get(requestUrl.pathname) ??
+    (requestUrl.pathname.startsWith('/app/') ? '/v2/dashboard/resumen' : undefined);
+  return target ? `${target}${requestUrl.search}` : null;
+}
+
+function sendTemporaryRedirect(response, location) {
+  response.writeHead(307, {
+    'Cache-Control': 'no-store',
+    'Content-Length': '0',
+    Location: location,
+  });
+  response.end();
 }
 
 function proxyToApi(request, response, upstream) {
@@ -116,12 +141,17 @@ export function createApplicationServer({
     setSecurityHeaders(response, environment);
 
     const requestUrl = new URL(request.url ?? '/', 'http://localhost');
+    const redirectLocation = legacyRedirect(requestUrl);
+    if (redirectLocation) {
+      sendTemporaryRedirect(response, redirectLocation);
+      return;
+    }
     if (requestUrl.pathname === '/health/live') {
       sendJson(response, 200, { status: 'ok' });
       return;
     }
 
-    if (requestUrl.pathname === '/config.json') {
+    if (requestUrl.pathname === '/config.json' || requestUrl.pathname === '/v2/config.json') {
       sendJson(response, 200, { environment, apiBaseUrl: '/api/v1' });
       return;
     }
@@ -163,7 +193,11 @@ export function createApplicationServer({
         return;
       }
       try {
-        await sendFile(response, resolve(normalizedRoot, 'index.html'), 'no-cache');
+        const indexPath =
+          decodedPath === '/v2' || decodedPath.startsWith('/v2/')
+            ? resolve(normalizedRoot, 'v2', 'index.html')
+            : resolve(normalizedRoot, 'index.html');
+        await sendFile(response, indexPath, 'no-cache');
       } catch {
         sendJson(response, 500, { message: 'La aplicación no está disponible.' });
       }

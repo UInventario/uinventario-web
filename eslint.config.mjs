@@ -8,7 +8,7 @@ export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ['src/**/*.ts'],
+    files: ['src/**/*.ts', 'projects/**/*.ts', 'e2e/**/*.ts', 'e2e-v2/**/*.ts'],
     languageOptions: {
       globals: {
         ...globals.browser,

@@ -1,0 +1,341 @@
+<div class="backdrop" (click)="closed.emit()">
+  <section
+    class="detail"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="customer-detail-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header class="detail-header">
+      <div>
+        <p>Ficha de cliente</p>
+        <h2 id="customer-detail-title">{{ customer().name }}</h2>
+        <span
+          >{{ customer().identifier || 'Sin identificador' }} ·
+          {{ customer().active ? 'Activo' : 'Inactivo' }}</span
+        >
+      </div>
+      <button class="icon" type="button" aria-label="Cerrar" (click)="closed.emit()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+
+    <div class="contact-grid">
+      <span
+        ><small>Correo</small><strong>{{ customer().email || 'No registrado' }}</strong></span
+      >
+      <span
+        ><small>Teléfono</small><strong>{{ customer().phone || 'No registrado' }}</strong></span
+      >
+      <span
+        ><small>Consentimiento</small
+        ><strong>{{ customer().dataProcessingConsent ? 'Otorgado' : 'No otorgado' }}</strong></span
+      >
+      <span
+        ><small>Privacidad</small
+        ><strong>{{
+          customer().privacyStatus === 'ACTIVE' ? 'Datos activos' : 'Anonimizado'
+        }}</strong></span
+      >
+    </div>
+
+    <nav class="tabs" aria-label="Detalle del cliente">
+      <button type="button" [class.active]="tab() === 'HISTORY'" (click)="selectTab('HISTORY')">
+        Historial
+      </button>
+      @if (canCredit()) {
+        <button type="button" [class.active]="tab() === 'CREDIT'" (click)="selectTab('CREDIT')">
+          Crédito
+        </button>
+      }
+      @if (canPrivacy()) {
+        <button type="button" [class.active]="tab() === 'PRIVACY'" (click)="selectTab('PRIVACY')">
+          Privacidad
+        </button>
+      }
+    </nav>
+
+    @if (notice()) {
+      <div class="notice success" role="status">{{ notice() }}</div>
+    }
+    @if (error()) {
+      <div class="notice error" role="alert">{{ error() }}</div>
+    }
+    @if (loading()) {
+      <div class="state"><i class="pi pi-spin pi-spinner"></i>Cargando…</div>
+    }
+
+    @if (!loading() && tab() === 'HISTORY' && history(); as page) {
+      <div class="summary-grid">
+        <span
+          ><small>Ventas</small><strong>{{ page.history.summary.salesCount }}</strong></span
+        >
+        <span
+          ><small>Completadas</small
+          ><strong
+            >{{ page.history.summary.completedAmount }}
+            {{ page.history.summary.currency || '' }}</strong
+          ></span
+        >
+        <span
+          ><small>Anuladas</small><strong>{{ page.history.summary.voidedCount }}</strong></span
+        >
+      </div>
+      <div class="history-list">
+        @for (sale of page.history.items; track sale.id) {
+          <article>
+            <span
+              ><strong>{{ sale.receiptNumber }}</strong
+              ><small
+                >{{ sale.cashRegister.name }} ·
+                {{ sale.createdAt | date: 'dd/MM/yyyy HH:mm' }}</small
+              ></span
+            >
+            <span
+              ><strong>{{ sale.total }} {{ sale.currency }}</strong
+              ><small>{{ sale.status === 'COMPLETED' ? 'Completada' : 'Anulada' }}</small></span
+            >
+          </article>
+        } @empty {
+          <div class="state compact">Este cliente aún no tiene ventas.</div>
+        }
+      </div>
+    }
+
+    @if (!loading() && tab() === 'CREDIT' && credit(); as statement) {
+      <div class="summary-grid">
+        <span
+          ><small>Saldo</small
+          ><strong>{{ statement.balance }} {{ statement.currency }}</strong></span
+        >
+        <span
+          ><small>Vencido</small
+          ><strong>{{ statement.overdueAmount }} {{ statement.currency }}</strong></span
+        >
+        <span
+          ><small>Estado</small><strong>{{ statement.status }}</strong></span
+        >
+      </div>
+      @if (+statement.balance > 0) {
+        <div class="credit-actions">
+          <button class="primary" type="button" [disabled]="acting()" (click)="openPayment()">
+            <i class="pi pi-money-bill"></i>Registrar abono
+          </button>
+        </div>
+      }
+      @if (paymentOpen()) {
+        <form
+          class="credit-payment-form"
+          [formGroup]="paymentForm"
+          (ngSubmit)="submitCreditPayment()"
+        >
+          <h3>Nuevo abono</h3>
+          <div class="field">
+            <label for="creditPaymentAmount">Importe ({{ statement.currency }})</label>
+            <input id="creditPaymentAmount" formControlName="amount" inputmode="decimal" />
+          </div>
+          <div class="field">
+            <label for="creditPaymentMethod">Método</label>
+            <select id="creditPaymentMethod" formControlName="method">
+              <option value="CASH">Efectivo</option>
+              <option value="CARD">Tarjeta</option>
+              <option value="TRANSFER">Transferencia</option>
+            </select>
+          </div>
+          @if (paymentNeedsReference()) {
+            <div class="field reference-field">
+              <label for="creditPaymentReference">Referencia</label>
+              <input id="creditPaymentReference" formControlName="reference" maxlength="120" />
+            </div>
+          }
+          <div class="form-actions">
+            <button
+              class="secondary"
+              type="button"
+              [disabled]="acting()"
+              (click)="paymentOpen.set(false)"
+            >
+              Cancelar
+            </button>
+            <button class="primary" type="submit" [disabled]="acting()">Aplicar abono</button>
+          </div>
+          @if (paymentForm.touched && paymentForm.invalid) {
+            <div class="notice error">Captura un importe válido y la referencia requerida.</div>
+          }
+        </form>
+      }
+      <div class="history-list">
+        @for (account of statement.accounts; track account.id) {
+          <article>
+            <span
+              ><strong>{{ account.sale.receiptNumber }}</strong
+              ><small>Vence {{ account.dueDate | date: 'dd/MM/yyyy' }}</small></span
+            ><span
+              ><strong>{{ account.balance }} {{ statement.currency }}</strong
+              ><small>{{ account.status }}</small></span
+            >
+          </article>
+        } @empty {
+          <div class="state compact">No existen cuentas por cobrar.</div>
+        }
+      </div>
+      @if (statement.payments.length) {
+        <div class="section-caption">Abonos registrados</div>
+        <div class="history-list payment-history">
+          @for (payment of statement.payments; track payment.id) {
+            <article>
+              <span>
+                <strong>{{ payment.receiptNumber }}</strong>
+                <small
+                  >{{ payment.createdAt | date: 'dd/MM/yyyy HH:mm' }} · {{ payment.method }}</small
+                >
+              </span>
+              <span>
+                <strong>{{ payment.amount }} {{ payment.currency }}</strong>
+                <small>{{ payment.status === 'COMPLETED' ? 'Aplicado' : 'Revertido' }}</small>
+              </span>
+              @if (payment.status === 'COMPLETED') {
+                <button
+                  class="secondary compact"
+                  type="button"
+                  [disabled]="acting()"
+                  (click)="beginReversal(payment)"
+                >
+                  Revertir
+                </button>
+              }
+            </article>
+          }
+        </div>
+      }
+      @if (reversingPayment(); as payment) {
+        <form
+          class="credit-payment-form reversal"
+          [formGroup]="reversalForm"
+          (ngSubmit)="submitReversal()"
+        >
+          <h3>Revertir {{ payment.receiptNumber }}</h3>
+          <p>
+            Esta acción restaura el saldo y, si fue efectivo, registra la salida correspondiente en
+            caja.
+          </p>
+          <div class="field">
+            <label for="creditReversalReason">Motivo</label>
+            <input id="creditReversalReason" formControlName="reason" maxlength="160" />
+          </div>
+          <div class="form-actions">
+            <button
+              class="secondary"
+              type="button"
+              [disabled]="acting()"
+              (click)="reversingPayment.set(null)"
+            >
+              Cancelar
+            </button>
+            <button class="danger" type="submit" [disabled]="acting() || reversalForm.invalid">
+              Confirmar reversión
+            </button>
+          </div>
+        </form>
+      }
+    }
+
+    @if (!loading() && tab() === 'PRIVACY' && privacy(); as report) {
+      <div class="retention">
+        <span
+          ><small>Transacciones preservadas</small
+          ><strong>{{ report.transactions.count }}</strong></span
+        >
+        <span
+          ><small>Retención hasta</small
+          ><strong>{{
+            (report.transactions.retainedUntil | date: 'dd/MM/yyyy') || 'Sin fecha calculada'
+          }}</strong></span
+        >
+        <span
+          ><small>Bloqueo legal</small
+          ><strong>{{ report.activeLegalHold ? 'Activo' : 'No activo' }}</strong></span
+        >
+      </div>
+      <div class="privacy-actions">
+        <button class="secondary" type="button" [disabled]="acting()" (click)="exportData()">
+          <i class="pi pi-download"></i>Exportar datos
+        </button>
+        @if (report.activeLegalHold) {
+          <button class="secondary" type="button" (click)="beginAction('RELEASE')">
+            Liberar bloqueo
+          </button>
+        } @else {
+          <button class="secondary" type="button" (click)="beginAction('HOLD')">
+            Aplicar bloqueo legal
+          </button>
+        }
+        <button class="danger" type="button" (click)="beginAction('ANONYMIZE')">Anonimizar</button>
+      </div>
+      @if (privacyAction(); as action) {
+        <form
+          class="privacy-form"
+          [formGroup]="actionForm"
+          (ngSubmit)="submitPrivacyAction()"
+          novalidate
+        >
+          <h3>
+            {{
+              action === 'HOLD'
+                ? 'Aplicar bloqueo legal'
+                : action === 'RELEASE'
+                  ? 'Liberar bloqueo legal'
+                  : 'Anonimizar datos personales'
+            }}
+          </h3>
+          <div class="field">
+            <label for="privacyReason">Razón</label
+            ><input id="privacyReason" formControlName="reason" maxlength="240" />
+          </div>
+          <div class="field">
+            <label for="privacyReference">Referencia</label
+            ><input id="privacyReference" formControlName="requestReference" maxlength="120" />
+          </div>
+          @if (action === 'HOLD') {
+            <div class="field">
+              <label for="holdExpiry">Vigencia opcional</label
+              ><input id="holdExpiry" type="datetime-local" formControlName="expiresAt" />
+            </div>
+          }
+          @if (action === 'ANONYMIZE') {
+            <div class="field">
+              <label for="privacyConfirmation">Escribe {{ customer().name }} para confirmar</label
+              ><input id="privacyConfirmation" formControlName="confirmation" />
+            </div>
+          }
+          <div class="form-actions">
+            <button class="secondary" type="button" (click)="privacyAction.set(null)">
+              Cancelar</button
+            ><button
+              [class]="action === 'ANONYMIZE' ? 'danger' : 'primary'"
+              type="submit"
+              [disabled]="acting()"
+            >
+              Confirmar
+            </button>
+          </div>
+          @if (actionForm.touched && actionForm.invalid) {
+            <div class="notice error">
+              Indica una razón de al menos 8 caracteres y completa la confirmación requerida.
+            </div>
+          }
+        </form>
+      }
+      <div class="decision-list">
+        @for (decision of report.recentDecisions; track decision.id) {
+          <span
+            ><strong>{{ decision.decisionCode }}</strong
+            ><small
+              >{{ decision.createdAt | date: 'dd/MM/yyyy HH:mm' }} · {{ decision.status }}</small
+            ></span
+          >
+        }
+      </div>
+    }
+  </section>
+</div>

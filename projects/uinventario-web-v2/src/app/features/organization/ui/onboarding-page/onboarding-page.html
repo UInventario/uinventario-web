@@ -1,0 +1,176 @@
+<main class="onboarding-page">
+  <header class="topbar">
+    <a class="brand" routerLink="/dashboard" aria-label="UInventario">
+      <span class="brand-mark" aria-hidden="true">UI</span>
+      <span><strong>UInventario</strong><small>Configuración inicial</small></span>
+    </a>
+    <button class="text-button" type="button" (click)="logout()" [disabled]="loggingOut()">
+      <i class="pi pi-sign-out" aria-hidden="true"></i>
+      {{ loggingOut() ? 'Cerrando…' : 'Cerrar sesión' }}
+    </button>
+  </header>
+
+  <section class="onboarding-layout" aria-labelledby="onboarding-title">
+    <aside class="progress-panel">
+      <p class="eyebrow">Primeros pasos</p>
+      <h1 id="onboarding-title">Prepara tu operación</h1>
+      <p>Configura únicamente lo indispensable para crear productos, recibir stock y vender.</p>
+      <ol aria-label="Progreso de configuración">
+        @for (item of ['COMPANY', 'LOCATION', 'REGISTER']; track item; let index = $index) {
+          <li
+            [class.active]="step() === item"
+            [class.complete]="stepNumber(step()) > index + 1"
+            [attr.aria-current]="step() === item ? 'step' : null"
+          >
+            <span>{{ stepNumber(step()) > index + 1 ? '✓' : index + 1 }}</span>
+            <div>
+              <strong>{{ ['Empresa', 'Sucursal y bodega', 'Caja inicial'][index] }}</strong>
+              <small>{{
+                ['Datos legales mínimos', 'Dónde guardarás stock', 'Dónde cobrarás'][index]
+              }}</small>
+            </div>
+          </li>
+        }
+      </ol>
+    </aside>
+
+    <section class="form-panel">
+      @if (loading()) {
+        <div class="loading-state" role="status">
+          <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+          <p>Cargando tu configuración…</p>
+        </div>
+      } @else {
+        @if (step() === 'COMPANY') {
+          <div class="step-heading">
+            <span>Paso 1 de 3</span>
+            <h2>Identifica tu empresa</h2>
+            <p>Estos datos definen el país y las reglas base de tu operación.</p>
+          </div>
+          <form [formGroup]="companyForm" (ngSubmit)="saveCompany()" novalidate>
+            <div class="field full">
+              <label for="legalName">Razón social</label>
+              <input
+                id="legalName"
+                formControlName="legalName"
+                autocomplete="organization"
+                maxlength="160"
+              />
+              @if (
+                companyForm.controls.legalName.touched && companyForm.controls.legalName.invalid
+              ) {
+                <small class="field-error">Escribe entre 2 y 160 caracteres.</small>
+              }
+            </div>
+            <div class="field full">
+              <label for="tradeName">Nombre comercial</label>
+              <input id="tradeName" formControlName="tradeName" maxlength="120" />
+              @if (
+                companyForm.controls.tradeName.touched && companyForm.controls.tradeName.invalid
+              ) {
+                <small class="field-error">Escribe entre 2 y 120 caracteres.</small>
+              }
+            </div>
+            <div class="field full">
+              <label for="countryCode">País</label>
+              <select id="countryCode" formControlName="countryCode">
+                <option value="">Selecciona un país</option>
+                @for (country of countries; track country.value) {
+                  <option [value]="country.value">{{ country.label }}</option>
+                }
+              </select>
+              @if (
+                companyForm.controls.countryCode.touched && companyForm.controls.countryCode.invalid
+              ) {
+                <small class="field-error">Selecciona un país válido.</small>
+              }
+            </div>
+            <ng-container *ngTemplateOutlet="formActions"></ng-container>
+          </form>
+        } @else if (step() === 'LOCATION') {
+          <div class="step-heading">
+            <span>Paso 2 de 3</span>
+            <h2>Crea tu operación inicial</h2>
+            <p>La sucursal, bodega y ubicación quedarán conectadas desde el primer movimiento.</p>
+          </div>
+          <form [formGroup]="locationForm" (ngSubmit)="saveLocation()" novalidate>
+            <div class="field full">
+              <label for="branchName">Sucursal</label>
+              <input id="branchName" formControlName="branchName" maxlength="120" />
+            </div>
+            <div class="field full">
+              <label for="timezone">Zona horaria</label>
+              <select id="timezone" formControlName="timezone">
+                @for (timezone of timezones; track timezone.value) {
+                  <option [value]="timezone.value">{{ timezone.label }}</option>
+                }
+              </select>
+            </div>
+            <div class="field">
+              <label for="warehouseName">Bodega</label>
+              <input id="warehouseName" formControlName="warehouseName" maxlength="120" />
+            </div>
+            <div class="field">
+              <label for="locationName">Ubicación</label>
+              <input id="locationName" formControlName="locationName" maxlength="120" />
+            </div>
+            @if (locationForm.touched && locationForm.invalid) {
+              <small class="field-error full"
+                >Completa todos los campos con al menos 2 caracteres.</small
+              >
+            }
+            <ng-container *ngTemplateOutlet="formActions"></ng-container>
+          </form>
+        } @else {
+          <div class="step-heading">
+            <span>Paso 3 de 3</span>
+            <h2>Agrega tu primera caja</h2>
+            <p>
+              La caja se vinculará con {{ initialLocation()?.branch?.name }} para comenzar a vender.
+            </p>
+          </div>
+          <form [formGroup]="registerForm" (ngSubmit)="saveRegister()" novalidate>
+            <div class="operation-summary">
+              <div>
+                <span>Sucursal</span><strong>{{ initialLocation()?.branch?.name }}</strong>
+              </div>
+              <div>
+                <span>Bodega</span><strong>{{ initialLocation()?.warehouse?.name }}</strong>
+              </div>
+              <div>
+                <span>Ubicación</span><strong>{{ initialLocation()?.location?.name }}</strong>
+              </div>
+            </div>
+            <div class="field full">
+              <label for="registerName">Nombre de la caja</label>
+              <input id="registerName" formControlName="name" maxlength="120" />
+              @if (registerForm.controls.name.touched && registerForm.controls.name.invalid) {
+                <small class="field-error">Escribe entre 2 y 120 caracteres.</small>
+              }
+            </div>
+            <ng-container *ngTemplateOutlet="formActions"></ng-container>
+          </form>
+        }
+      }
+
+      <ng-template #formActions>
+        @if (errorMessage()) {
+          <div class="form-error full" role="alert">{{ errorMessage() }}</div>
+        }
+        <div class="actions full">
+          <span>Tus cambios se guardan al continuar.</span>
+          <button class="primary-button" type="submit" [disabled]="saving()">
+            {{
+              saving()
+                ? 'Guardando…'
+                : step() === 'REGISTER'
+                  ? 'Finalizar configuración'
+                  : 'Guardar y continuar'
+            }}
+            <i class="pi pi-arrow-right" aria-hidden="true"></i>
+          </button>
+        </div>
+      </ng-template>
+    </section>
+  </section>
+</main>

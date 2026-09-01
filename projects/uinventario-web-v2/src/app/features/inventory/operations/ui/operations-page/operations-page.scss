@@ -1,0 +1,97 @@
+:host {
+  --surface-card: var(--p-surface-0);
+  --surface-border: var(--p-surface-200);
+  --surface-ground: var(--p-surface-100);
+  --text-color: var(--p-text-color);
+  --text-color-secondary: var(--p-text-muted-color);
+  --primary-color: var(--p-primary-600);
+  --primary-color-text: var(--p-primary-contrast-color);
+  --highlight-bg: var(--p-primary-50);
+  --green-100: var(--p-green-100);
+  --green-500: var(--p-green-500);
+  --green-700: var(--p-green-700);
+  --orange-100: var(--p-orange-100);
+  --orange-500: var(--p-orange-500);
+  --orange-700: var(--p-orange-700);
+  --red-100: var(--p-red-100);
+  --red-500: var(--p-red-500);
+  --red-700: var(--p-red-700);
+  display: block;
+}
+
+.operations-page {
+  display: grid;
+  gap: 16px;
+  margin: 0 auto;
+  max-width: 1320px;
+  padding: 26px 24px 36px;
+}
+
+.page-header {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+}
+
+.page-icon {
+  align-items: center;
+  background: var(--highlight-bg);
+  border-radius: 14px;
+  color: var(--primary-color);
+  display: flex;
+  font-size: 22px;
+  height: 54px;
+  justify-content: center;
+  min-width: 54px;
+}
+
+.page-header div {
+  display: grid;
+  gap: 4px;
+}
+
+.page-header p,
+.page-header h1 {
+  margin: 0;
+}
+
+.page-header p {
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.page-header h1 {
+  font-size: clamp(26px, 3vw, 38px);
+  font-weight: 500;
+}
+
+.page-header div > span {
+  color: var(--text-color-secondary);
+}
+
+.view-tabs {
+  align-items: center;
+  border-bottom: 1px solid var(--surface-border);
+  display: flex;
+  gap: 4px;
+}
+
+.view-tabs button {
+  background: transparent;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  color: var(--text-color-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  min-height: 44px;
+  padding: 10px 14px 8px;
+}
+
+.view-tabs button.active {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}

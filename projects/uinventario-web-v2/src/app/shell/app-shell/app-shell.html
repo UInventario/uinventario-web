@@ -1,0 +1,88 @@
+<a class="skip-link" href="#workspace-content" (click)="skipToWorkspace($event)"
+  >Saltar al contenido</a
+>
+
+<div class="app-shell" [class.pos-mode]="posMode()">
+  <header class="topbar">
+    <button
+      class="navigation-toggle"
+      type="button"
+      aria-label="Alternar navegación"
+      [attr.aria-expanded]="navigationOpen()"
+      (click)="navigationOpen.set(!navigationOpen())"
+    >
+      <i class="pi pi-bars" aria-hidden="true"></i>
+    </button>
+    <a class="brand" routerLink="/dashboard" aria-label="UInventario, ir al dashboard">
+      <span class="brand-mark" aria-hidden="true">UI</span>
+      <span><strong>UInventario</strong><small>Operación</small></span>
+    </a>
+    <div class="topbar-context">
+      <ui-operational-context-picker />
+      <ui-offline-center />
+      <p-tag class="environment-tag" severity="info" value="Dev" />
+      <button
+        pButton
+        type="button"
+        severity="secondary"
+        [text]="true"
+        class="logout-button"
+        [disabled]="loggingOut()"
+        aria-label="Cerrar sesión"
+        (click)="logout()"
+      >
+        <i class="pi pi-sign-out" aria-hidden="true"></i>
+        <span>{{ loggingOut() ? 'Saliendo…' : 'Salir' }}</span>
+      </button>
+    </div>
+  </header>
+
+  <ui-ribbon
+    [tabs]="ribbonTabs()"
+    [activeTabId]="selectedRibbonTab()"
+    [ariaLabel]="'Comandos de ' + activeWorkspace().label"
+    (tabSelected)="activeRibbonTab.set($event)"
+    (commandInvoked)="invokeCommand($event)"
+  />
+
+  <div class="workspace-layout">
+    <aside class="sidebar" [class.sidebar-open]="navigationOpen()">
+      <nav aria-label="Workspaces de UInventario">
+        @for (item of navigation(); track item.id) {
+          <a
+            [routerLink]="item.path"
+            routerLinkActive="active"
+            [routerLinkActiveOptions]="{ exact: item.id === 'dashboard' }"
+            [attr.aria-label]="item.label"
+            (click)="closeNavigation()"
+          >
+            <i [class]="item.icon" aria-hidden="true"></i>
+            <span>{{ item.label }}</span>
+          </a>
+        }
+      </nav>
+    </aside>
+
+    <main
+      #workspaceContent
+      id="workspace-content"
+      class="workspace-content"
+      [class.pos-workspace]="posMode()"
+      tabindex="-1"
+    >
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a routerLink="/dashboard">UInventario</a>
+        <i class="pi pi-angle-right" aria-hidden="true"></i>
+        <span aria-current="page">{{ activeWorkspace().label }}</span>
+      </nav>
+      @if (accessDenied()) {
+        <div class="access-denied" role="alert">
+          <i class="pi pi-lock" aria-hidden="true"></i>
+          Tu cuenta no tiene permiso para abrir esa sección.
+        </div>
+      }
+      <p class="command-status" role="status">{{ commandStatus() }}</p>
+      <router-outlet />
+    </main>
+  </div>
+</div>

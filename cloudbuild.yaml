@@ -18,6 +18,10 @@ steps:
         npm run format:check
         npm run lint
         npm run typecheck
+        npm run parity:verify
+        npm run architecture:verify
+        npm run performance:verify
+        npm run test:strategy
         npm run test:ci
         npm run test:server
         npm run build
@@ -32,11 +36,17 @@ steps:
 
   - id: build-image
     name: gcr.io/cloud-builders/docker
+    entrypoint: bash
     args:
-      - build
-      - --tag
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/web:$COMMIT_SHA
-      - .
+      - -ceu
+      - |
+        DOCKER_BUILDKIT=1 docker build \
+          --secret type=env,id=primeui_license,env=PRIMEUI_LICENSE \
+          --build-arg LICENSE_CACHE_BUST="$BUILD_ID" \
+          --tag "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPOSITORY}/web:$COMMIT_SHA" \
+          .
+    secretEnv:
+      - PRIMEUI_LICENSE
 
   - id: push-image
     name: gcr.io/cloud-builders/docker
@@ -79,5 +89,10 @@ substitutions:
 
 options:
   logging: CLOUD_LOGGING_ONLY
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_ID/secrets/uinventario-${_DEPLOY_ENV}-primeui-license/versions/latest
+      env: PRIMEUI_LICENSE
 
 timeout: 1800s

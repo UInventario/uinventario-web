@@ -1,0 +1,122 @@
+<section class="alert-panel" aria-labelledby="alerts-title">
+  <header class="section-header">
+    <div>
+      <p>Alertas de stock</p>
+      <h2 id="alerts-title">Umbrales por ubicación</h2>
+      <span>Las alertas se recuperan automáticamente cuando el saldo supera el umbral.</span>
+    </div>
+  </header>
+  @if (notice()) {
+    <div class="notice success" role="status"><i class="pi pi-check-circle"></i>{{ notice() }}</div>
+  }
+  @if (error()) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle"></i>{{ error() }}
+    </div>
+  }
+
+  <form class="filters" [formGroup]="filters" (ngSubmit)="apply()">
+    <label
+      ><i class="pi pi-search"></i
+      ><input type="search" formControlName="q" placeholder="Producto o SKU"
+    /></label>
+    <select formControlName="status" aria-label="Estado">
+      @for (status of statuses; track status.value) {
+        <option [value]="status.value">{{ status.label }}</option>
+      }
+    </select>
+    <button type="submit" class="secondary">Aplicar</button>
+  </form>
+
+  @if (page(); as current) {
+    <div class="scope">
+      <span
+        ><i class="pi pi-building"></i>{{ current.scope.branch.name }} ·
+        {{ current.scope.warehouse.name }}</span
+      ><span>Umbral predeterminado {{ current.defaultThreshold }}</span>
+    </div>
+    <div class="alerts">
+      @if (loading()) {
+        <div class="empty"><i class="pi pi-spin pi-spinner"></i>Cargando alertas…</div>
+      } @else {
+        @for (alert of current.items; track key(alert)) {
+          <article
+            [class.recovered]="alert.status === 'RECOVERED'"
+            [class.depleted]="alert.status === 'OUT_OF_STOCK'"
+          >
+            <span class="alert-icon"
+              ><i
+                class="pi"
+                [class.pi-check-circle]="alert.status === 'RECOVERED'"
+                [class.pi-exclamation-triangle]="alert.status !== 'RECOVERED'"
+              ></i
+            ></span>
+            <div class="identity">
+              <strong>{{ alert.product.name }}</strong
+              ><span
+                >{{ alert.product.sku }} · {{ alert.location.code }} {{ alert.location.name }}</span
+              ><small>Transición {{ alert.transitionedAt | date: 'dd/MM/yyyy HH:mm' }}</small>
+            </div>
+            <div class="quantities">
+              <span
+                >Disponible<strong>{{ alert.availableQuantity }}</strong></span
+              ><span
+                >Umbral<strong>{{ alert.threshold }}</strong></span
+              >
+            </div>
+            <span class="status">{{ statusLabel(alert.status) }}</span>
+            @if (canAdjust()) {
+              <label class="threshold"
+                >Nuevo umbral
+                <span
+                  ><input
+                    type="text"
+                    inputmode="decimal"
+                    [value]="thresholds()[key(alert)]"
+                    (input)="updateThreshold(alert, $any($event.target).value)"
+                  /><button
+                    type="button"
+                    class="secondary"
+                    [disabled]="savingKey() === key(alert)"
+                    (click)="saveThreshold(alert)"
+                  >
+                    Guardar
+                  </button></span
+                >
+              </label>
+            }
+            <a [routerLink]="['/inventario']" [queryParams]="{ q: alert.product.sku }"
+              >Revisar stock <i class="pi pi-arrow-right"></i
+            ></a>
+          </article>
+        } @empty {
+          <div class="empty">
+            <i class="pi pi-check-circle"></i><strong>Sin alertas para este filtro</strong>
+          </div>
+        }
+      }
+    </div>
+    <footer class="pagination">
+      <button
+        type="button"
+        class="secondary"
+        [disabled]="current.pagination.page <= 1"
+        (click)="goTo(current.pagination.page - 1)"
+      >
+        <i class="pi pi-chevron-left"></i>
+      </button>
+      <span
+        >{{ current.pagination.page }} / {{ current.pagination.totalPages || 1 }} ·
+        {{ current.pagination.total }} alerta(s)</span
+      >
+      <button
+        type="button"
+        class="secondary"
+        [disabled]="current.pagination.page >= current.pagination.totalPages"
+        (click)="goTo(current.pagination.page + 1)"
+      >
+        <i class="pi pi-chevron-right"></i>
+      </button>
+    </footer>
+  }
+</section>

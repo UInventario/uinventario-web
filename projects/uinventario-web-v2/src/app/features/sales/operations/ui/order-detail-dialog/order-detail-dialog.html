@@ -1,0 +1,247 @@
+<section
+  class="dialog large"
+  role="dialog"
+  aria-modal="true"
+  [attr.aria-label]="order().orderNumber"
+>
+  <header>
+    <div>
+      <h2>{{ order().orderNumber }}</h2>
+      <p>{{ order().customer.name }} · {{ statusLabel() }}</p>
+    </div>
+    <button class="close" type="button" aria-label="Cerrar detalle" (click)="closed.emit()">
+      <i class="pi pi-times"></i>
+    </button>
+  </header>
+  <div class="body detail">
+    <section class="summary">
+      <div>
+        <span>Total</span><strong>{{ order().totals.total }} {{ order().currency }}</strong>
+      </div>
+      <div>
+        <span>Entrega</span
+        ><strong>{{ order().fulfillment.method === 'PICKUP' ? 'Retiro' : 'Despacho' }}</strong>
+      </div>
+      <div>
+        <span>Estado operativo</span
+        ><strong>{{ fulfillmentLabel(order().fulfillment.status) }}</strong>
+      </div>
+      <div>
+        <span>Prioridad</span><strong>{{ priorityLabel(order().priority) }}</strong>
+      </div>
+    </section>
+    <section>
+      <h3>Productos</h3>
+      <div class="rows">
+        @for (line of order().lines; track line.id) {
+          <div>
+            <span>{{ line.product.name }} · {{ line.product.sku }}</span
+            ><strong>{{ line.quantity }} · {{ line.total }} {{ order().currency }}</strong>
+          </div>
+        }
+      </div>
+    </section>
+    <section>
+      <h3>Preparación y entrega</h3>
+      <dl>
+        <div>
+          <dt>Ubicación</dt>
+          <dd>{{ order().context.location.name }}</dd>
+        </div>
+        <div>
+          <dt>Ventana</dt>
+          <dd>
+            {{ order().fulfillment.window.start | date: 'short' }} –
+            {{ order().fulfillment.window.end | date: 'short' }}
+          </dd>
+        </div>
+        <div>
+          <dt>Preparó</dt>
+          <dd>{{ order().fulfillment.responsible.preparation?.email || 'Pendiente' }}</dd>
+        </div>
+        <div>
+          <dt>Entregó</dt>
+          <dd>{{ order().fulfillment.responsible.delivery?.email || 'Pendiente' }}</dd>
+        </div>
+      </dl>
+      @if (order().fulfillment.address; as address) {
+        <p class="address">
+          <i class="pi pi-map-marker"></i>{{ address.recipientNameMasked }} ·
+          {{ address.phoneMasked }} · {{ address.summary }}
+        </p>
+      }
+    </section>
+    @if (order().fulfillment.method === 'DELIVERY') {
+      <section>
+        <div class="section-heading">
+          <div>
+            <h3>Transportista</h3>
+            <p>
+              {{ contract()?.provider?.mode || 'No disponible' }} · Producción:
+              {{ contract()?.provider?.production ? 'Sí' : 'No' }}
+            </p>
+          </div>
+          @if (
+            order().status === 'READY' &&
+            ['READY', 'RETRYABLE_FAILURE'].includes(order().fulfillment.status)
+          ) {
+            <button
+              class="secondary"
+              type="button"
+              [disabled]="busy()"
+              (click)="quoteShipping.emit()"
+            >
+              <i class="pi pi-calculator"></i>Cotizar envío
+            </button>
+          }
+        </div>
+        @if (shippingQuote(); as quote) {
+          <div class="shipping-quote">
+            <strong>{{ quote.service }}</strong
+            ><span
+              >{{ quote.amount }} {{ quote.currency }} · Entrega estimada
+              {{ quote.estimatedDeliveryAt | date: 'short' }}</span
+            >
+          </div>
+        }
+        @if (order().fulfillment.carrier; as carrier) {
+          <dl>
+            <div>
+              <dt>Proveedor</dt>
+              <dd>{{ carrier.name }}</dd>
+            </div>
+            <div>
+              <dt>Rastreo</dt>
+              <dd>{{ carrier.trackingReference || 'Pendiente' }}</dd>
+            </div>
+            <div>
+              <dt>Seguimiento</dt>
+              <dd>{{ trackingLabel(carrier.trackingStatus) }}</dd>
+            </div>
+            <div>
+              <dt>Intentos</dt>
+              <dd>{{ carrier.attempts }}</dd>
+            </div>
+          </dl>
+          @if (carrier.manualActionRequired) {
+            <p class="warning">
+              <i class="pi pi-exclamation-triangle"></i>Se requiere intervención manual.
+            </p>
+          }
+        }
+        @if (order().fulfillment.status === 'DISPATCHED') {
+          <div class="tracking-actions">
+            <button type="button" (click)="pollShipping.emit('IN_TRANSIT')">En tránsito</button
+            ><button type="button" (click)="pollShipping.emit('OUT_FOR_DELIVERY')">
+              En reparto</button
+            ><button type="button" (click)="pollShipping.emit('DELIVERED')">
+              Transportista entregó</button
+            ><button type="button" (click)="pollShipping.emit('TIMEOUT')">Simular timeout</button
+            ><button type="button" (click)="cancelShipping.emit('SUCCESS')">Cancelar envío</button>
+          </div>
+        }
+      </section>
+    }
+    @if (order().transitions.length) {
+      <section>
+        <h3>Historial</h3>
+        <ol class="timeline">
+          @for (step of order().transitions; track step.id) {
+            <li>
+              <strong>{{ step.toStatus }}</strong
+              ><span>{{ step.actor.email }} · {{ step.createdAt | date: 'short' }}</span>
+              @if (step.reason) {
+                <small>{{ step.reason }}</small>
+              }
+            </li>
+          }
+        </ol>
+      </section>
+    }
+    @if (cancelling()) {
+      <section class="cancel-box">
+        <label
+          >Motivo de cancelación<textarea
+            [value]="cancelReason()"
+            (input)="cancelReason.set($any($event.target).value)"
+            maxlength="240"
+          ></textarea>
+        </label>
+        <div>
+          <button class="secondary" type="button" (click)="cancelling.set(false)">Volver</button
+          ><button class="danger" type="button" [disabled]="busy()" (click)="cancelOrder()">
+            Confirmar cancelación
+          </button>
+        </div>
+      </section>
+    }
+    @if (localError() || apiError()) {
+      <p class="error" role="alert">{{ localError() || apiError() }}</p>
+    }
+  </div>
+  <footer>
+    @if (!cancelling()) {
+      @if (canCancel()) {
+        <button class="secondary" type="button" (click)="cancelling.set(true)">
+          Cancelar pedido
+        </button>
+      }
+      @if (order().status === 'DRAFT') {
+        <button
+          class="primary"
+          type="button"
+          [disabled]="busy()"
+          (click)="transition.emit({ action: 'confirm' })"
+        >
+          Confirmar y reservar
+        </button>
+      }
+      @if (order().status === 'CONFIRMED') {
+        <button
+          class="primary"
+          type="button"
+          [disabled]="busy()"
+          (click)="transition.emit({ action: 'prepare' })"
+        >
+          Iniciar preparación
+        </button>
+      }
+      @if (order().status === 'PREPARING') {
+        <button
+          class="primary"
+          type="button"
+          [disabled]="busy()"
+          (click)="transition.emit({ action: 'ready' })"
+        >
+          Marcar listo
+        </button>
+      }
+      @if (
+        order().status === 'READY' &&
+        order().fulfillment.method === 'DELIVERY' &&
+        ['READY', 'RETRYABLE_FAILURE'].includes(order().fulfillment.status)
+      ) {
+        <button
+          class="primary"
+          type="button"
+          [disabled]="busy()"
+          (click)="transition.emit({ action: 'dispatch' })"
+        >
+          {{
+            order().fulfillment.status === 'RETRYABLE_FAILURE' ? 'Reintentar despacho' : 'Despachar'
+          }}
+        </button>
+      }
+      @if (canDeliver()) {
+        <button
+          class="primary"
+          type="button"
+          [disabled]="busy()"
+          (click)="transition.emit({ action: 'deliver' })"
+        >
+          Completar entrega y venta
+        </button>
+      }
+    }
+  </footer>
+</section>

@@ -1,0 +1,50 @@
+@media (max-width: 900px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+  .approval {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .approval label {
+    min-width: 0;
+  }
+}
+@media (max-width: 660px) {
+  .section-header,
+  .detail-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .section-header button {
+    width: 100%;
+  }
+  .count-line {
+    grid-template-columns: 1fr 1fr;
+  }
+  .product {
+    grid-column: 1 / -1;
+  }
+  .product-search {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .dialog footer {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .dialog footer > div button {
+    flex: 1;
+  }
+  .workspace.has-selection .session-list {
+    display: none;
+  }
+  .workspace.has-selection .back-to-list {
+    align-items: center;
+    display: flex;
+    gap: 7px;
+    margin: 12px 12px 0;
+  }
+}

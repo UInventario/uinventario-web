@@ -1,0 +1,188 @@
+.tracking-section > header > span {
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.4rem;
+  color: var(--p-green-600);
+  background: color-mix(in srgb, var(--p-green-600) 10%, transparent);
+}
+.tracking-section > header > span.warning {
+  color: var(--p-red-600);
+  background: color-mix(in srgb, var(--p-red-600) 10%, transparent);
+}
+.lot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 0.75rem;
+}
+.lot-grid article {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.85rem;
+  border: 1px solid var(--p-surface-200);
+  border-radius: 0.65rem;
+}
+.lot-grid article.expired {
+  border-color: color-mix(in srgb, var(--p-red-600) 45%, var(--p-surface-200));
+}
+.lot-grid article.expiring {
+  border-color: color-mix(in srgb, var(--p-orange-600) 55%, var(--p-surface-200));
+}
+.lot-grid article > header {
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.lot-grid article > header span {
+  display: inline-flex;
+  gap: 0.4rem;
+  font-weight: 800;
+}
+.lot-grid em,
+.serial-status {
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.35rem;
+  color: var(--p-text-muted-color);
+  background: var(--p-surface-50);
+  font-size: 0.72rem;
+  font-style: normal;
+}
+[data-status='EXPIRED'],
+[data-status='DAMAGED'],
+[data-status='REMOVED'] {
+  color: var(--p-red-600);
+  background: color-mix(in srgb, var(--p-red-600) 10%, transparent);
+}
+[data-status='EXPIRING'],
+[data-status='RESERVED'],
+[data-status='IN_TRANSIT'] {
+  color: var(--p-orange-600);
+  background: color-mix(in srgb, var(--p-orange-600) 12%, transparent);
+}
+[data-status='ACTIVE'],
+[data-status='AVAILABLE'] {
+  color: var(--p-green-600);
+  background: color-mix(in srgb, var(--p-green-600) 10%, transparent);
+}
+.lot-grid dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.45rem;
+  margin: 0;
+}
+.lot-grid dl div {
+  display: grid;
+  gap: 0.1rem;
+}
+.lot-grid dt,
+.origins small {
+  color: var(--p-text-muted-color);
+  font-size: 0.7rem;
+}
+.lot-grid dd {
+  margin: 0;
+  font-weight: 700;
+}
+.locations,
+.origins {
+  display: grid;
+  gap: 0.3rem;
+}
+.locations span {
+  display: flex;
+  gap: 0.35rem;
+  justify-content: space-between;
+  padding: 0.35rem 0.45rem;
+  border-radius: 0.35rem;
+  background: var(--p-surface-50);
+  font-size: 0.78rem;
+}
+.origins {
+  padding-top: 0.55rem;
+  border-top: 1px dashed var(--p-surface-200);
+  font-size: 0.76rem;
+}
+.serial-table {
+  border: 1px solid var(--p-surface-200);
+  border-radius: 0.6rem;
+  overflow: hidden;
+}
+.serial-head,
+.serial-row {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr 1.2fr 1fr auto;
+  gap: 0.7rem;
+  align-items: center;
+  padding: 0.65rem 0.75rem;
+}
+.serial-head {
+  color: var(--p-text-muted-color);
+  background: var(--p-surface-50);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.serial-row {
+  border-top: 1px solid var(--p-surface-200);
+}
+.serial-row button {
+  border: 0;
+  color: var(--p-primary-600);
+  background: transparent;
+  font-weight: 700;
+}
+.tracking-workspace {
+  min-width: 0;
+  padding: 1.1rem;
+}
+.product-header {
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--p-surface-200);
+}
+.tracking-badges {
+  justify-content: flex-end;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+.tracking-badges > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.45rem;
+  color: var(--p-primary-600);
+  background: var(--p-primary-50);
+}
+.tracking-section {
+  margin-top: 1.25rem;
+}
+.tracking-section > header {
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+.state {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 1.2rem;
+  color: var(--p-text-muted-color);
+}
+.state.compact {
+  min-height: 5rem;
+}
+.state.hero {
+  min-height: 22rem;
+  flex-direction: column;
+  text-align: center;
+}
+.state.hero > i {
+  color: var(--p-primary-600);
+  font-size: 2rem;
+}
+.state.hero p {
+  max-width: 26rem;
+}
+.primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

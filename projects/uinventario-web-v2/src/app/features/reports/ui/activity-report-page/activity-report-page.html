@@ -1,0 +1,95 @@
+<section class="report-view" aria-labelledby="activity-report-title">
+  <div class="view-heading">
+    <div>
+      <h2 id="activity-report-title">Actividad comercial</h2>
+      <p>Ventas, devoluciones y anulaciones en una secuencia conciliable.</p>
+    </div>
+    <button
+      class="export"
+      type="button"
+      [disabled]="!result()?.data?.activities?.length"
+      (click)="export()"
+    >
+      <i class="pi pi-download"></i>Exportar página
+    </button>
+  </div>
+  <ui-report-filter-bar
+    [query]="query()"
+    [branches]="result()?.data?.scope || []"
+    (applied)="apply($event)"
+  />
+  @if (loading()) {
+    <div class="state"><i class="pi pi-spin pi-spinner"></i>Consultando actividad…</div>
+  } @else if (error()) {
+    <div class="state error" role="alert">{{ error() }}</div>
+  } @else if (result(); as page) {
+    <section class="card">
+      <div class="card-heading">
+        <div>
+          <h3>Secuencia de actividad</h3>
+          <p>Fechas en la zona horaria de cada sucursal.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha local</th>
+              <th>Tipo</th>
+              <th>Folio</th>
+              <th>Sucursal / caja</th>
+              <th class="number">Ingreso</th>
+              <th class="number">Costo</th>
+              <th class="number">Margen</th>
+              <th>Conciliación</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of page.data.activities; track row.id) {
+              <tr>
+                <td>{{ date(row.occurredAt, timezone(row.branchName)) }}</td>
+                <td>
+                  <span
+                    class="badge"
+                    [class.good]="row.type === 'SALE'"
+                    [class.warn]="row.type !== 'SALE'"
+                    >{{ row.type }}</span
+                  >
+                </td>
+                <td>
+                  <button
+                    class="row-action"
+                    type="button"
+                    (click)="
+                      selectedSale.set({ id: row.saleId, timezone: timezone(row.branchName) })
+                    "
+                  >
+                    {{ row.receiptNumber }}
+                  </button>
+                </td>
+                <td>{{ row.branchName }} · {{ row.cashRegisterName }}</td>
+                <td class="number">{{ money(row.netRevenue, row.currency) }}</td>
+                <td class="number">{{ money(row.historicalCost, row.currency) }}</td>
+                <td class="number">{{ money(row.marginImpact, row.currency) }}</td>
+                <td>{{ row.reconciles ? 'Conciliado' : 'Revisar' }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="8">No hay actividad con los filtros seleccionados.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <ui-report-pagination [pagination]="page.pagination" (pageChange)="goToPage($event)" />
+    </section>
+  }
+</section>
+@if (selectedSale(); as selected) {
+  <ui-sale-detail-dialog
+    [saleId]="selected.id"
+    [timezone]="selected.timezone"
+    [canViewReturns]="canViewReturns()"
+    (closed)="selectedSale.set(null)"
+  />
+}

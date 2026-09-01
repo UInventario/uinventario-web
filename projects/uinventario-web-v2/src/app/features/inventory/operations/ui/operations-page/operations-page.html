@@ -1,0 +1,34 @@
+<main class="operations-page" aria-labelledby="operations-title">
+  <header class="page-header">
+    <span class="page-icon"><i class="pi pi-list-check"></i></span>
+    <div>
+      <p>Control operativo</p>
+      <h1 id="operations-title">Conteos, importación y alertas</h1>
+      <span>Convierte diferencias físicas en movimientos trazables.</span>
+    </div>
+  </header>
+
+  <nav class="view-tabs" aria-label="Vistas de control">
+    <button type="button" [class.active]="view() === 'COUNTS'" (click)="selectView('COUNTS')">
+      <i class="pi pi-list-check"></i> Conteos
+    </button>
+    <button type="button" [class.active]="view() === 'IMPORT'" (click)="selectView('IMPORT')">
+      <i class="pi pi-upload"></i> Importación
+    </button>
+    <button type="button" [class.active]="view() === 'ALERTS'" (click)="selectView('ALERTS')">
+      <i class="pi pi-bell"></i> Alertas
+    </button>
+  </nav>
+
+  @switch (view()) {
+    @case ('IMPORT') {
+      <ui-inventory-import-panel />
+    }
+    @case ('ALERTS') {
+      <ui-stock-alert-panel />
+    }
+    @default {
+      <ui-count-workspace />
+    }
+  }
+</main>

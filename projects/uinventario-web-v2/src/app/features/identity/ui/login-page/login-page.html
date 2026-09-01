@@ -1,0 +1,64 @@
+<main class="auth-page">
+  <aside class="auth-context" aria-label="Acerca de UInventario">
+    <a class="brand" routerLink="/login" aria-label="UInventario">
+      <span class="brand-mark" aria-hidden="true">UI</span>
+      <span><strong>UInventario</strong><small>Operación</small></span>
+    </a>
+    <h2>Tu operación, bajo control.</h2>
+    <p>
+      Accede al contexto autorizado de tu empresa, sucursal y caja sin guardar tokens en el
+      navegador.
+    </p>
+    <ul class="trust-list">
+      <li><i class="pi pi-lock"></i> Sesión protegida con cookie HttpOnly</li>
+      <li><i class="pi pi-sync"></i> Renovación transparente y controlada</li>
+      <li><i class="pi pi-shield"></i> Permisos y empresa derivados por el servidor</li>
+    </ul>
+  </aside>
+
+  <section class="auth-content">
+    <div class="auth-card" aria-labelledby="login-title">
+      <p class="eyebrow">Acceso seguro</p>
+      <h1 id="login-title">Iniciar sesión</h1>
+      <p class="intro">Continúa en el workspace correspondiente a tu cuenta.</p>
+
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        <label for="loginEmail">Correo electrónico</label>
+        <input
+          pInputText
+          id="loginEmail"
+          type="email"
+          formControlName="email"
+          autocomplete="email"
+          maxlength="254"
+        />
+        @if (form.controls.email.touched && form.controls.email.invalid) {
+          <p class="field-error">Escribe un correo electrónico válido.</p>
+        }
+
+        <label for="loginPassword">Contraseña</label>
+        <input
+          pInputText
+          id="loginPassword"
+          type="password"
+          formControlName="password"
+          autocomplete="current-password"
+        />
+        @if (form.controls.password.touched && form.controls.password.invalid) {
+          <p class="field-error">Escribe tu contraseña.</p>
+        }
+
+        @if (errorMessage()) {
+          <div class="form-error" role="alert">{{ errorMessage() }}</div>
+        }
+
+        <button pButton class="submit-button" type="submit" [disabled]="submitting()">
+          <span>{{ submitting() ? 'Ingresando…' : 'Iniciar sesión' }}</span>
+        </button>
+      </form>
+
+      <p class="secondary"><a routerLink="/recuperar">¿Olvidaste tu contraseña?</a></p>
+      <p class="secondary">¿Aún no tienes cuenta? <a routerLink="/registro">Crear cuenta</a></p>
+    </div>
+  </section>
+</main>

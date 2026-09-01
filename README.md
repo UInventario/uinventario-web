@@ -83,6 +83,8 @@ la configuración y el rollback están documentados en
 `uinventario-api/docs/operations/cloud-build.md`.
 El checklist y runbook coordinado de release se mantienen en
 `uinventario-api/docs/operations/production-runbook.md`.
+La preparación, cutover reversible y retirada de Web V1 se detallan en
+[`docs/web-v2/cutover-runbook.md`](docs/web-v2/cutover-runbook.md).
 
 El E2E requiere MySQL local sano y el build actual de `uinventario-api`; Playwright levanta temporalmente API y Web.
 

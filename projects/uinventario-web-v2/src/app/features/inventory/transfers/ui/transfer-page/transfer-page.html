@@ -1,0 +1,120 @@
+<main class="transfer-page" aria-labelledby="transfer-title">
+  <header class="page-header">
+    <span class="page-icon"><i class="pi pi-truck"></i></span>
+    <div>
+      <p>Inventario en movimiento</p>
+      <h1 id="transfer-title">Transferencias</h1>
+      <span>Despacha, recibe y concilia mercancía entre bodegas con trazabilidad completa.</span>
+    </div>
+    @if (canCreate()) {
+      <button class="new-transfer" type="button" (click)="createOpen.set(true)">
+        <i class="pi pi-plus"></i>Nueva transferencia
+      </button>
+    }
+  </header>
+
+  @if (error()) {
+    <div class="page-notice" role="alert">
+      <i class="pi pi-exclamation-circle"></i>{{ error() }}
+      <button type="button" (click)="load()">Reintentar</button>
+    </div>
+  }
+
+  <section class="transfer-workspace">
+    <aside class="transfer-list" aria-label="Transferencias registradas">
+      <form class="filters" [formGroup]="filterForm">
+        <label>
+          <span>Buscar</span>
+          <div>
+            <i class="pi pi-search"></i
+            ><input formControlName="query" placeholder="Referencia o bodega" />
+          </div>
+        </label>
+        <label>
+          <span>Estado</span>
+          <select formControlName="status">
+            <option value="">Todos</option>
+            <option value="DRAFT">Borrador</option>
+            <option value="DISPATCHED">En tránsito</option>
+            <option value="PARTIALLY_RECEIVED">Recepción parcial</option>
+            <option value="RECEIVED">Recibida</option>
+            <option value="CANCELLED">Cancelada</option>
+          </select>
+        </label>
+      </form>
+
+      @if (loading()) {
+        <div class="list-state" role="status">
+          <i class="pi pi-spin pi-spinner"></i>Cargando transferencias…
+        </div>
+      } @else {
+        <div class="transfer-items">
+          @for (transfer of visibleTransfers(); track transfer.id) {
+            <button
+              type="button"
+              class="transfer-item"
+              [class.selected]="selectedId() === transfer.id"
+              (click)="selectedId.set(transfer.id)"
+            >
+              <span class="direction" [attr.data-direction]="direction(transfer)">
+                <i
+                  class="pi"
+                  [class.pi-arrow-up-right]="direction(transfer) === 'SALIDA'"
+                  [class.pi-arrow-down-left]="direction(transfer) === 'ENTRADA'"
+                ></i>
+              </span>
+              <span class="item-copy">
+                <strong>{{ transfer.reference }}</strong>
+                <small
+                  >{{ transfer.originWarehouse.name }} →
+                  {{ transfer.destinationWarehouse.name }}</small
+                >
+                <small>{{ transfer.createdAt | date: 'dd MMM, HH:mm' }}</small>
+              </span>
+              <span class="item-meta">
+                <span class="status" [attr.data-status]="transfer.status">{{
+                  statusLabel(transfer.status)
+                }}</span>
+                <small>{{ lineTotal(transfer) }} unidades</small>
+              </span>
+            </button>
+          } @empty {
+            <div class="list-state empty">
+              <i class="pi pi-inbox"></i><strong>Sin transferencias</strong
+              ><span>No hay resultados para estos filtros.</span>
+            </div>
+          }
+        </div>
+        <footer>
+          <span>{{ visibleTransfers().length }} de {{ transfers().length }}</span
+          ><small>Bodega actual: {{ currentWarehouseName() }}</small>
+        </footer>
+      }
+    </aside>
+
+    <section class="detail-slot">
+      @if (selectedId(); as transferId) {
+        <ui-transfer-detail-panel
+          [transferId]="transferId"
+          (closed)="selectedId.set(null)"
+          (changed)="changed($event)"
+        />
+      } @else {
+        <div class="empty-detail">
+          <span><i class="pi pi-arrow-left"></i></span>
+          <h2>Selecciona una transferencia</h2>
+          <p>Consulta el trayecto, cantidades pendientes, recepciones y diferencias auditadas.</p>
+        </div>
+      }
+    </section>
+  </section>
+</main>
+
+@if (createOpen()) {
+  <ui-transfer-create-dialog
+    [branches]="branches()"
+    [originWarehouseId]="currentWarehouseId()!"
+    (closed)="createOpen.set(false)"
+    (created)="created($event)"
+  />
+}

@@ -1,0 +1,69 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.operational-state {
+  align-items: center;
+  background: var(--p-surface-0);
+  border: 1px solid var(--p-surface-200);
+  border-left: 3px solid var(--state-color);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: calc(var(--spacing) * 3);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 7rem;
+  padding: calc(var(--spacing) * 4);
+
+  h3 {
+    font-size: 0.9375rem;
+    margin: 0;
+  }
+
+  p {
+    color: var(--p-text-muted-color);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    margin: var(--spacing) 0 0;
+  }
+}
+
+.state-loading {
+  --state-color: var(--ui-state-loading);
+}
+
+.state-empty {
+  --state-color: var(--ui-state-empty);
+}
+
+.state-error {
+  --state-color: var(--ui-state-error);
+}
+
+.state-offline {
+  --state-color: var(--ui-state-offline);
+}
+
+.state-forbidden {
+  --state-color: var(--ui-state-forbidden);
+}
+
+.state-icon {
+  color: var(--state-color);
+  font-size: 1.5rem;
+}
+
+p-progress-spinner {
+  height: 1.75rem;
+  width: 1.75rem;
+}
+
+@media (max-width: 36rem) {
+  .operational-state {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  p-button {
+    grid-column: 1 / -1;
+  }
+}

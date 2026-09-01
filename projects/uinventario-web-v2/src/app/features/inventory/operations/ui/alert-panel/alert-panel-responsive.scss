@@ -1,0 +1,36 @@
+@media (max-width: 1050px) {
+  .alerts article {
+    grid-template-columns: auto minmax(180px, 1fr) auto auto;
+  }
+  .threshold {
+    grid-column: 2 / 4;
+  }
+}
+@media (max-width: 650px) {
+  .filters {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .scope {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .alerts article {
+    align-items: start;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .quantities,
+  .status,
+  .threshold,
+  .alerts a {
+    grid-column: 2;
+  }
+  .threshold > span {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .threshold input {
+    max-width: none;
+  }
+}

@@ -1,0 +1,159 @@
+<section class="import-panel" aria-labelledby="import-title">
+  <header>
+    <div>
+      <p>Importación de stock</p>
+      <h2 id="import-title">Vista previa atómica</h2>
+      <span>Ningún movimiento se aplica hasta confirmar un archivo completamente válido.</span>
+    </div>
+  </header>
+  @if (!canAdjust()) {
+    <div class="notice error">
+      <i class="pi pi-lock"></i>No tienes permiso para importar o ajustar inventario.
+    </div>
+  }
+  @if (notice()) {
+    <div class="notice success" role="status"><i class="pi pi-check-circle"></i>{{ notice() }}</div>
+  }
+  @if (error()) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle"></i>{{ error() }}
+    </div>
+  }
+
+  <div class="upload-card">
+    <div class="mode">
+      <label
+        ><input
+          type="radio"
+          name="mode"
+          value="COUNT"
+          [checked]="mode() === 'COUNT'"
+          (change)="setMode('COUNT')"
+        />Conteo: lleva el saldo al valor indicado</label
+      >
+      <label
+        ><input
+          type="radio"
+          name="mode"
+          value="INITIAL"
+          [checked]="mode() === 'INITIAL'"
+          (change)="setMode('INITIAL')"
+        />Inicial: carga saldos de apertura</label
+      >
+    </div>
+    <label class="dropzone" [class.disabled]="!canAdjust()">
+      <i class="pi pi-file-excel"></i>
+      <strong>{{ filename() || 'Selecciona un CSV o Excel' }}</strong>
+      <span>Máximo 2 MB · columnas: sku, location, quantity, state, reason</span>
+      <input
+        type="file"
+        accept=".csv,.xlsx"
+        [disabled]="!canAdjust()"
+        (change)="selectFile($event)"
+      />
+    </label>
+    <button
+      type="button"
+      class="primary"
+      [disabled]="!file || loading() || !canAdjust()"
+      (click)="previewFile()"
+    >
+      <i
+        class="pi"
+        [class.pi-spin]="loading()"
+        [class.pi-spinner]="loading()"
+        [class.pi-search]="!loading()"
+      ></i>
+      Previsualizar
+    </button>
+  </div>
+
+  @if (preview(); as batch) {
+    <section class="preview">
+      <header>
+        <div>
+          <strong>{{ batch.sourceFilename }}</strong
+          ><span
+            >{{ batch.mode === 'COUNT' ? 'Conteo de stock' : 'Carga inicial' }} · política
+            {{ batch.policy }}</span
+          >
+        </div>
+        <span class="batch-status" [class.confirmed]="batch.status === 'CONFIRMED'">{{
+          batch.status === 'CONFIRMED' ? 'Confirmada' : 'Previsualizada'
+        }}</span>
+      </header>
+      <div class="summary">
+        <article>
+          <small>Filas</small><strong>{{ batch.summary.rows }}</strong>
+        </article>
+        <article class="valid">
+          <small>Válidas</small><strong>{{ batch.summary.validRows }}</strong>
+        </article>
+        <article [class.invalid]="batch.summary.errorRows">
+          <small>Con error</small><strong>{{ batch.summary.errorRows }}</strong>
+        </article>
+        <article>
+          <small>Movimientos</small><strong>{{ batch.summary.movements ?? 'Pendiente' }}</strong>
+        </article>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Fila</th>
+              <th>Producto</th>
+              <th>Ubicación</th>
+              <th>Estado</th>
+              <th>Actual</th>
+              <th>Objetivo</th>
+              <th>Diferencia</th>
+              <th>Validación</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of batch.rows; track row.id) {
+              <tr [class.invalid-row]="row.errors.length">
+                <td>{{ row.rowNumber }}</td>
+                <td>
+                  <strong>{{ row.product?.sku || '—' }}</strong
+                  ><small>{{ row.product?.name }}</small>
+                </td>
+                <td>{{ row.location?.code || '—' }}</td>
+                <td>{{ row.state || '—' }}</td>
+                <td>{{ row.currentQuantity ?? '—' }}</td>
+                <td>{{ row.targetQuantity ?? '—' }}</td>
+                <td>{{ row.difference ?? '—' }}</td>
+                <td>
+                  @if (row.errors.length) {
+                    @for (issue of row.errors; track issue.code) {
+                      <span class="row-error">{{ issue.message }}</span>
+                    }
+                  } @else {
+                    <span class="ok"><i class="pi pi-check"></i> Válida</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (batch.status === 'PREVIEWED') {
+        <footer>
+          <span>{{
+            batch.canConfirm
+              ? 'Lista para aplicar.'
+              : 'Corrige el archivo y genera una vista previa nueva.'
+          }}</span>
+          <button
+            type="button"
+            class="primary"
+            [disabled]="!batch.canConfirm || loading()"
+            (click)="confirm()"
+          >
+            <i class="pi pi-check"></i> Confirmar importación
+          </button>
+        </footer>
+      }
+    </section>
+  }
+</section>

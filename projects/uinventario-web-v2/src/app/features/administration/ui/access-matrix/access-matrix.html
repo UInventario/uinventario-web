@@ -1,0 +1,55 @@
+<div class="matrix-heading">
+  <div>
+    <strong>Matriz de permisos</strong
+    ><span>Los permisos críticos comprometen dinero, inventario o datos personales.</span>
+  </div>
+  <div class="risk-legend">
+    <span class="risk standard">Estándar</span><span class="risk elevated">Elevado</span
+    ><span class="risk critical">Crítico</span>
+  </div>
+</div>
+<div class="matrix-scroll">
+  <table>
+    <thead>
+      <tr>
+        <th scope="col">Permiso</th>
+        @for (role of roles(); track role.id) {
+          <th scope="col">{{ role.name }}</th>
+        }
+      </tr>
+    </thead>
+    <tbody>
+      @for (group of permissionGroups; track group.id) {
+        <tr class="group-row">
+          <th [attr.colspan]="roles().length + 1"><i [class]="group.icon"></i>{{ group.label }}</th>
+        </tr>
+        @for (permission of group.permissions; track permission.id) {
+          <tr>
+            <th scope="row">
+              <span>{{ permission.label }}</span
+              ><small>{{ permission.description }}</small
+              ><em
+                class="risk"
+                [class.standard]="permission.risk === 'STANDARD'"
+                [class.elevated]="permission.risk === 'ELEVATED'"
+                [class.critical]="permission.risk === 'CRITICAL'"
+                >{{ riskLabel(permission.risk) }}</em
+              >
+            </th>
+            @for (role of roles(); track role.id) {
+              <td>
+                <i
+                  class="pi"
+                  [class.pi-check-circle]="roleHas(role, permission.id)"
+                  [class.pi-minus]="!roleHas(role, permission.id)"
+                  [class.granted]="roleHas(role, permission.id)"
+                  [attr.aria-label]="roleHas(role, permission.id) ? 'Permitido' : 'No permitido'"
+                ></i>
+              </td>
+            }
+          </tr>
+        }
+      }
+    </tbody>
+  </table>
+</div>

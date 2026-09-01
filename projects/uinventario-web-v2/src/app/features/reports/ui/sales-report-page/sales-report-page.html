@@ -1,0 +1,114 @@
+<section class="report-view" aria-labelledby="sales-report-title">
+  <div class="view-heading">
+    <div>
+      <h2 id="sales-report-title">Historial de ventas</h2>
+      <p>Folios, cobros e inventario enlazados por operación.</p>
+    </div>
+    <button
+      class="export"
+      type="button"
+      [disabled]="!result()?.data?.sales?.length"
+      (click)="export()"
+    >
+      <i class="pi pi-download"></i>Exportar página
+    </button>
+  </div>
+  <ui-report-filter-bar
+    [query]="query()"
+    [branches]="result()?.data?.options?.branches || []"
+    [registers]="result()?.data?.options?.registers || []"
+    [users]="result()?.data?.options?.users || []"
+    [showStatus]="true"
+    (applied)="apply($event)"
+  />
+  @if (loading()) {
+    <div class="state"><i class="pi pi-spin pi-spinner"></i>Consultando ventas…</div>
+  } @else if (error()) {
+    <div class="state error" role="alert">{{ error() }}</div>
+  } @else if (result(); as page) {
+    <div class="summary">
+      <span class="metric"
+        ><small>Ventas netas</small
+        ><strong>{{ page.data.summary.sales.net }} {{ summaryCurrency() }}</strong></span
+      ><span class="metric"
+        ><small>Completadas</small><strong>{{ page.data.summary.sales.completed }}</strong></span
+      ><span class="metric"
+        ><small>Anuladas</small><strong>{{ page.data.summary.sales.voided }}</strong></span
+      ><span class="metric"
+        ><small>Conciliación</small
+        ><strong>{{
+          page.data.summary.reconciliation.matches ? 'Cuadra' : 'Revisar'
+        }}</strong></span
+      >
+    </div>
+    <section class="card">
+      <div class="card-heading">
+        <div>
+          <h3>Operaciones</h3>
+          <p>Las fechas se muestran en la zona horaria de cada sucursal.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Folio</th>
+              <th>Fecha local</th>
+              <th>Sucursal / caja</th>
+              <th>Responsable</th>
+              <th>Estado</th>
+              <th>Pago</th>
+              <th class="number">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (sale of page.data.sales; track sale.id) {
+              <tr>
+                <td>
+                  <button
+                    class="row-action"
+                    type="button"
+                    (click)="selectedSale.set({ id: sale.id, timezone: timezone(sale.branch.id) })"
+                  >
+                    {{ sale.receiptNumber }}
+                  </button>
+                </td>
+                <td>{{ date(sale.createdAt, timezone(sale.branch.id)) }}</td>
+                <td>{{ sale.branch.name }} · {{ sale.cashRegister.name }}</td>
+                <td>{{ sale.user.email }}</td>
+                <td>
+                  <span
+                    class="badge"
+                    [class.good]="sale.status === 'COMPLETED'"
+                    [class.warn]="sale.status === 'VOIDED'"
+                    >{{ sale.status === 'COMPLETED' ? 'Completada' : 'Anulada' }}</span
+                  >
+                </td>
+                <td>
+                  {{ sale.payments[0]?.method || '—'
+                  }}<span [attr.aria-label]="sale.payments.length + ' pagos'">{{
+                    sale.payments.length > 1 ? ' +' + (sale.payments.length - 1) : ''
+                  }}</span>
+                </td>
+                <td class="number">{{ money(sale.total, sale.currency) }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="7">No hay ventas con los filtros seleccionados.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <ui-report-pagination [pagination]="page.pagination" (pageChange)="goToPage($event)" />
+    </section>
+  }
+</section>
+@if (selectedSale(); as selected) {
+  <ui-sale-detail-dialog
+    [saleId]="selected.id"
+    [timezone]="selected.timezone"
+    [canViewReturns]="canViewReturns()"
+    (closed)="selectedSale.set(null)"
+  />
+}

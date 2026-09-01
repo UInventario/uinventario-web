@@ -1,0 +1,76 @@
+<section
+  class="dialog large"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="quotation-editor-title"
+>
+  <header>
+    <div>
+      <h2 id="quotation-editor-title">
+        {{ quotation() ? 'Editar cotización' : 'Nueva cotización' }}
+      </h2>
+      <p>Guarda una propuesta que podrás convertir directamente en venta.</p>
+    </div>
+    <button class="close" type="button" aria-label="Cerrar" (click)="cancelled.emit()">
+      <i class="pi pi-times"></i>
+    </button>
+  </header>
+  <div class="body">
+    <form class="form-grid" [formGroup]="form" (ngSubmit)="submit()" id="quotation-editor-form">
+      <label
+        >Cliente (opcional)<select formControlName="customerId">
+          <option value="">Público general</option>
+          @for (customer of options().customers; track customer.id) {
+            <option [value]="customer.id">
+              {{ customer.name }}{{ customer.identifier ? ' · ' + customer.identifier : '' }}
+            </option>
+          }
+        </select></label
+      >
+      <label
+        >Reserva vinculada<select formControlName="reservationId" (change)="reservationChanged()">
+          <option value="">Sin reserva</option>
+          @for (reservation of reservations(); track reservation.id) {
+            <option [value]="reservation.id">
+              {{ reservation.reservationNumber }} · {{ reservation.customer.name }}
+            </option>
+          }
+        </select></label
+      >
+      <label
+        >Canal<select formControlName="channel">
+          <option value="WEB">Web</option>
+          <option value="POS">POS</option>
+          <option value="MOBILE">Móvil</option>
+          <option value="DESKTOP">Desktop</option>
+        </select></label
+      >
+      <label>Vigente hasta<input type="datetime-local" formControlName="validUntil" /></label>
+      <label class="wide"
+        >Notas<textarea
+          formControlName="notes"
+          maxlength="1000"
+          placeholder="Condiciones o información para el cliente"
+        ></textarea>
+      </label>
+      <div class="wide">
+        <ui-operation-lines-editor [products]="options().products" [(lines)]="lines" />
+      </div>
+      @if (error() || apiError()) {
+        <p class="error wide" role="alert">{{ error() || apiError() }}</p>
+      }
+    </form>
+  </div>
+  <footer>
+    <button class="secondary" type="button" (click)="cancelled.emit()">Cancelar</button
+    ><button class="primary" type="submit" form="quotation-editor-form" [disabled]="busy()">
+      <i
+        class="pi"
+        [class.pi-spin]="busy()"
+        [class.pi-spinner]="busy()"
+        [class.pi-save]="!busy()"
+      ></i
+      >{{ busy() ? 'Guardando…' : 'Guardar cotización' }}
+    </button>
+  </footer>
+</section>

@@ -1,0 +1,132 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.list {
+  overflow: hidden;
+  border: 1px solid var(--p-surface-200);
+  border-radius: var(--radius-lg);
+  background: white;
+}
+
+header,
+.topline,
+.meta,
+footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+header {
+  min-height: 3rem;
+  padding: 0 1rem;
+  border-bottom: 1px solid var(--p-surface-200);
+
+  span {
+    color: var(--p-text-muted-color);
+    font-size: 0.75rem;
+  }
+}
+
+.items {
+  display: grid;
+}
+
+.order {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.85rem 1rem;
+  border: 0;
+  border-bottom: 1px solid var(--p-surface-200);
+  background: white;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover,
+  &.selected {
+    background: var(--p-primary-50);
+  }
+
+  &.selected {
+    box-shadow: inset 3px 0 var(--p-primary-500);
+  }
+}
+
+.topline small {
+  padding: 0.18rem 0.45rem;
+  border-radius: 999px;
+  background: var(--p-surface-100);
+  color: var(--p-text-muted-color);
+  font-size: 0.64rem;
+  font-weight: 750;
+
+  &[data-status='APPROVED'],
+  &[data-status='SENT'] {
+    background: var(--p-blue-50);
+    color: var(--p-blue-700);
+  }
+
+  &[data-status='PARTIALLY_RECEIVED'] {
+    background: var(--p-orange-50);
+    color: var(--p-orange-700);
+  }
+
+  &[data-status='RECEIVED'] {
+    background: var(--p-green-50);
+    color: var(--p-green-700);
+  }
+
+  &[data-status='CANCELLED'] {
+    background: var(--p-red-50);
+    color: var(--p-red-700);
+  }
+}
+
+.supplier {
+  overflow-wrap: anywhere;
+  font-size: 0.82rem;
+}
+
+.meta {
+  color: var(--p-text-muted-color);
+  font-size: 0.72rem;
+
+  strong {
+    color: var(--p-text-color);
+  }
+}
+
+footer {
+  min-height: 3rem;
+  padding: 0 0.75rem;
+  color: var(--p-text-muted-color);
+  font-size: 0.75rem;
+
+  button {
+    width: 2rem;
+    height: 2rem;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: var(--p-surface-100);
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: default;
+    opacity: 0.4;
+  }
+}
+
+.state {
+  display: grid;
+  min-height: 18rem;
+  place-content: center;
+  justify-items: center;
+  gap: 0.45rem;
+  padding: 1rem;
+  color: var(--p-text-muted-color);
+  text-align: center;
+}

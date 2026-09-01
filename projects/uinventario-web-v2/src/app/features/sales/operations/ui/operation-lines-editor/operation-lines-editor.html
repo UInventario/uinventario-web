@@ -1,0 +1,48 @@
+<section class="lines" aria-labelledby="operation-lines-title">
+  <div class="heading">
+    <div>
+      <h3 id="operation-lines-title">Productos</h3>
+      <p>Cada producto debe aparecer una sola vez.</p>
+    </div>
+    <button type="button" (click)="add()"><i class="pi pi-plus"></i>Agregar</button>
+  </div>
+  @for (line of lines(); track $index; let index = $index) {
+    <div class="line">
+      <label
+        >Producto
+        <select [value]="line.productId" (change)="product(index, $any($event.target).value)">
+          <option value="">Selecciona…</option>
+          @for (product of products(); track product.id) {
+            <option [value]="product.id">{{ product.name }} · {{ product.sku }}</option>
+          }
+        </select>
+      </label>
+      <label
+        >Cantidad
+        <input
+          inputmode="decimal"
+          [value]="line.quantity"
+          (input)="quantity(index, $any($event.target).value)"
+        />
+      </label>
+      <button
+        class="remove"
+        type="button"
+        [disabled]="lines().length === 1"
+        aria-label="Quitar producto"
+        (click)="remove(index)"
+      >
+        <i class="pi pi-trash"></i>
+      </button>
+      @if (option(line.productId); as selected) {
+        <small
+          >Disponible ahora: {{ selected.availableQuantity }}
+          {{ selected.minimumQuantity === '1' ? 'unidad(es)' : '' }}</small
+        >
+      }
+    </div>
+  }
+  @if (!valid()) {
+    <p class="validation">Completa productos únicos y cantidades mayores que cero.</p>
+  }
+</section>

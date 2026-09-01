@@ -1,0 +1,116 @@
+<section class="operation-page" aria-labelledby="reservations-title">
+  <div class="page-heading">
+    <div>
+      <h2 id="reservations-title">Reservas de producto</h2>
+      <p>Consulta stock separado, vencimiento, responsable y destino final.</p>
+    </div>
+    <button class="primary" type="button" [disabled]="!options()" (click)="editorOpen.set(true)">
+      <i class="pi pi-plus"></i>Nueva reserva
+    </button>
+  </div>
+  <div class="toolbar">
+    <label
+      >Estado<select
+        aria-label="Estado de reserva"
+        [value]="filter()"
+        (change)="filter.set($any($event.target).value)"
+      >
+        <option value="">Todos</option>
+        <option value="ACTIVE">Activas</option>
+        <option value="RELEASED">Liberadas</option>
+        <option value="EXPIRED">Vencidas</option>
+        <option value="CONSUMED">Consumidas</option>
+      </select></label
+    ><button class="secondary" type="button" [disabled]="acting()" (click)="expireDue()">
+      <i class="pi pi-clock"></i>Conciliar vencidas
+    </button>
+  </div>
+  @if (error()) {
+    <div class="state error" role="alert">{{ error() }}</div>
+  }
+  @if (notice()) {
+    <p class="notice" role="status">{{ notice() }}</p>
+  }
+  @if (loading()) {
+    <div class="state"><i class="pi pi-spin pi-spinner"></i>Cargando reservas…</div>
+  } @else {
+    <div class="card-grid">
+      @for (reservation of visible(); track reservation.id) {
+        <article class="card">
+          <header>
+            <div>
+              <h3>{{ reservation.reservationNumber }}</h3>
+              <p>{{ reservation.customer.name }}</p>
+            </div>
+            <span
+              class="badge"
+              [class.good]="reservation.status === 'ACTIVE'"
+              [class.warn]="reservation.status === 'EXPIRED'"
+              >{{ statusLabel(reservation.status) }}</span
+            >
+          </header>
+          <dl>
+            <div>
+              <dt>Stock separado</dt>
+              <dd>{{ reservation.lines.length }} producto(s)</dd>
+            </div>
+            <div>
+              <dt>Vence</dt>
+              <dd>{{ reservation.expiresAt | date: 'short' }}</dd>
+            </div>
+            <div>
+              <dt>Ubicación</dt>
+              <dd>{{ reservation.context.location.name }}</dd>
+            </div>
+            <div>
+              <dt>Responsable</dt>
+              <dd>{{ reservation.responsible.email }}</dd>
+            </div>
+          </dl>
+          <p>
+            @for (line of reservation.lines; track line.id) {
+              <span>{{ line.product.name }} · {{ line.quantity }}<br /></span>
+            }
+          </p>
+          @if (reservation.sale) {
+            <p>
+              Consumida en <strong>{{ reservation.sale.receiptNumber }}</strong>
+            </p>
+          }
+          @if (reservation.closureReason) {
+            <p>Motivo: {{ reservation.closureReason }}</p>
+          }
+          <footer>
+            @if (reservation.status === 'ACTIVE') {
+              <button class="secondary" type="button" (click)="releasing.set(reservation)">
+                <i class="pi pi-unlock"></i>Liberar
+              </button>
+            }
+          </footer>
+        </article>
+      } @empty {
+        <div class="state">
+          <i class="pi pi-bookmark"></i><strong>Sin reservas</strong
+          ><span>No hay reservas con este estado.</span>
+        </div>
+      }
+    </div>
+  }
+</section>
+@if (editorOpen() && options(); as loadedOptions) {
+  <ui-reservation-editor-dialog
+    [options]="loadedOptions"
+    [busy]="acting()"
+    [apiError]="error()"
+    (cancelled)="editorOpen.set(false)"
+    (submitted)="create($event)"
+  />
+}
+@if (releasing(); as reservation) {
+  <ui-reservation-release-dialog
+    [reservation]="reservation"
+    [busy]="acting()"
+    (cancelled)="releasing.set(null)"
+    (submitted)="release($event)"
+  />
+}

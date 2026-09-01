@@ -1,0 +1,391 @@
+<section class="traceability" aria-labelledby="traceability-title">
+  <header class="page-header">
+    <div class="title-group">
+      <span class="page-icon"><i class="pi pi-qrcode"></i></span>
+      <div>
+        <p>Inventario identificable</p>
+        <h1 id="traceability-title">Lotes, series y vencimientos</h1>
+        <span>Consulta el origen, ubicación y destino de cada unidad controlada.</span>
+      </div>
+    </div>
+    <a class="secondary" routerLink="/inventario"><i class="pi pi-box"></i>Existencias</a>
+  </header>
+
+  @if (notice()) {
+    <div class="notice success" role="status"><i class="pi pi-check-circle"></i>{{ notice() }}</div>
+  }
+  @if (error() && !movementOpen()) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle"></i>{{ error() }}
+    </div>
+  }
+
+  <section class="alert-summary" aria-label="Resumen de vencimientos">
+    <article class="expired">
+      <i class="pi pi-times-circle"></i><span>Vencidos</span><strong>{{ expiredCount() }}</strong>
+    </article>
+    <article class="expiring">
+      <i class="pi pi-clock"></i><span>Próximos a vencer</span
+      ><strong>{{ expiringCount() }}</strong>
+    </article>
+    <article>
+      <i class="pi pi-calendar"></i><span>Fecha operativa</span
+      ><strong>{{ alerts()?.businessDate || '—' }}</strong>
+    </article>
+  </section>
+
+  <section class="alerts-panel" aria-labelledby="expiration-title">
+    <header>
+      <div>
+        <p>Atención requerida</p>
+        <h2 id="expiration-title">Alertas de vencimiento</h2>
+      </div>
+      <div class="filter-row">
+        <label>
+          <span class="sr-only">Buscar alertas</span>
+          <input
+            type="search"
+            placeholder="Producto, lote o ubicación"
+            [value]="alertQuery()"
+            (input)="alertQuery.set($any($event.target).value)"
+          />
+        </label>
+        <select
+          aria-label="Filtrar alertas por estado"
+          [value]="alertFilter()"
+          (change)="alertFilter.set($any($event.target).value)"
+        >
+          <option value="ALL">Todas</option>
+          <option value="EXPIRED">Vencidas</option>
+          <option value="EXPIRING">Próximas a vencer</option>
+        </select>
+      </div>
+    </header>
+    @if (!alerts()) {
+      <div class="state" role="status"><i class="pi pi-spin pi-spinner"></i>Cargando alertas…</div>
+    } @else if (!filteredAlerts().length) {
+      <div class="state compact">
+        <i class="pi pi-check-circle"></i>No hay alertas con estos filtros.
+      </div>
+    } @else {
+      <div class="alert-list">
+        @for (alert of filteredAlerts(); track alert.id) {
+          <button
+            type="button"
+            [class.expired]="alert.status === 'EXPIRED'"
+            (click)="selectAlert(alert)"
+          >
+            <span class="status-icon"
+              ><i
+                class="pi"
+                [class.pi-times-circle]="alert.status === 'EXPIRED'"
+                [class.pi-clock]="alert.status === 'EXPIRING'"
+              ></i
+            ></span>
+            <span
+              ><strong>{{ alert.product.name }}</strong
+              ><small>{{ alert.product.sku }} · Lote {{ alert.lot.code }}</small></span
+            >
+            <span
+              ><strong>{{ alert.quantity }}</strong
+              ><small>{{ alert.location.name }}</small></span
+            >
+            <span
+              ><strong>{{ alert.lot.expiresOn }}</strong
+              ><small>{{
+                alert.daysUntilExpiration < 0
+                  ? -alert.daysUntilExpiration + ' días vencido'
+                  : alert.daysUntilExpiration + ' días restantes'
+              }}</small></span
+            >
+            <i class="pi pi-angle-right"></i>
+          </button>
+        }
+      </div>
+    }
+  </section>
+
+  <section class="explorer" aria-labelledby="explorer-title">
+    <aside class="product-picker">
+      <header>
+        <p>Producto</p>
+        <h2 id="explorer-title">Explorar trazabilidad</h2>
+      </header>
+      <form [formGroup]="searchForm" (ngSubmit)="searchProducts()">
+        <i class="pi pi-search"></i>
+        <input
+          formControlName="query"
+          aria-label="Buscar producto trazable"
+          placeholder="Nombre o SKU"
+        />
+        <button type="submit" aria-label="Buscar"><i class="pi pi-arrow-right"></i></button>
+      </form>
+      <div class="product-list">
+        @if (loadingProducts()) {
+          <div class="state compact" role="status">
+            <i class="pi pi-spin pi-spinner"></i>Buscando…
+          </div>
+        } @else if (!products().length) {
+          <div class="state compact">Sin productos.</div>
+        } @else {
+          @for (item of products(); track item.product.id) {
+            <button
+              type="button"
+              [class.active]="selectedProduct()?.id === item.product.id"
+              (click)="selectProduct(item)"
+            >
+              <span
+                ><strong>{{ item.product.name }}</strong
+                ><small>{{ item.product.sku }}</small></span
+              >
+              @if (item.product.trackLots) {
+                <em>Lotes</em>
+              }
+              <i class="pi pi-angle-right"></i>
+            </button>
+          }
+        }
+      </div>
+    </aside>
+
+    <div class="tracking-workspace">
+      @if (!selectedProduct()) {
+        <div class="state hero">
+          <i class="pi pi-qrcode"></i>
+          <h2>Selecciona un producto</h2>
+          <p>Verás sus lotes, series, ubicaciones y movimientos relacionados.</p>
+        </div>
+      } @else if (loadingTracking()) {
+        <div class="state hero" role="status">
+          <i class="pi pi-spin pi-spinner"></i>Cargando trazabilidad…
+        </div>
+      } @else {
+        <header class="product-header">
+          <div>
+            <p>{{ selectedProduct()!.sku }}</p>
+            <h2>{{ selectedProduct()!.name }}</h2>
+            <span
+              >{{ selectedProduct()!.baseUnit }} · precisión
+              {{ selectedProduct()!.quantityPrecision }}</span
+            >
+          </div>
+          <div class="tracking-badges">
+            @if (selectedProduct()!.trackLots) {
+              <span><i class="pi pi-tags"></i>Control por lotes</span>
+            }
+            @if (selectedProduct()!.trackSerials) {
+              <span><i class="pi pi-hashtag"></i>Control por series</span>
+            }
+            @if (canAdjust() && (selectedProduct()!.trackLots || selectedProduct()!.trackSerials)) {
+              <button
+                class="primary"
+                type="button"
+                [disabled]="!locations().length"
+                (click)="openMovement()"
+              >
+                <i class="pi pi-plus"></i>Registrar entrada
+              </button>
+            }
+          </div>
+        </header>
+
+        @if (!selectedProduct()!.trackLots && !selectedProduct()!.trackSerials) {
+          <div class="state hero">
+            <i class="pi pi-info-circle"></i>
+            <h3>Producto sin control individual</h3>
+            <p>Activa lotes o series desde Catálogo si necesitas trazabilidad por unidad.</p>
+          </div>
+        }
+
+        @if (selectedProduct()!.trackLots && lots(); as currentLots) {
+          <section class="tracking-section" aria-labelledby="lots-title">
+            <header>
+              <div>
+                <p>{{ currentLots.items.length }} lote(s)</p>
+                <h3 id="lots-title">Lotes y procedencia</h3>
+              </div>
+              <span [class.warning]="!currentLots.reconciled"
+                >{{ currentLots.lotQuantity }} de {{ currentLots.totalQuantity }} conciliado</span
+              >
+            </header>
+            @if (!currentLots.items.length) {
+              <div class="state compact">Registra una entrada para crear el primer lote.</div>
+            } @else {
+              <div class="lot-grid">
+                @for (lot of currentLots.items; track lot.id) {
+                  <article
+                    [class.expired]="lot.expirationStatus === 'EXPIRED'"
+                    [class.expiring]="lot.expirationStatus === 'EXPIRING'"
+                  >
+                    <header>
+                      <span><i class="pi pi-tag"></i>{{ lot.code }}</span
+                      ><em [attr.data-status]="lot.expirationStatus">{{
+                        lotStatus(lot.expirationStatus)
+                      }}</em>
+                    </header>
+                    <dl>
+                      <div>
+                        <dt>Existencia</dt>
+                        <dd>{{ lot.quantity }}</dd>
+                      </div>
+                      <div>
+                        <dt>Vence</dt>
+                        <dd>{{ lot.expiresOn || 'No aplica' }}</dd>
+                      </div>
+                      <div>
+                        <dt>Valor</dt>
+                        <dd>{{ lot.inventoryValue }} {{ lot.currency }}</dd>
+                      </div>
+                    </dl>
+                    <div class="locations">
+                      @for (balance of lot.balances; track balance.location.id) {
+                        <span
+                          ><i class="pi pi-map-marker"></i>{{ balance.location.name }}
+                          <strong>{{ balance.quantity }}</strong></span
+                        >
+                      }
+                    </div>
+                    @if (lot.origins.length) {
+                      <div class="origins">
+                        <small>Origen</small>
+                        @for (origin of lot.origins; track origin.purchaseReceiptLineId) {
+                          <span
+                            >OC {{ origin.purchaseOrder.folio }} ·
+                            {{ origin.receipt.documentReference }} · {{ origin.quantity }}</span
+                          >
+                        }
+                      </div>
+                    }
+                  </article>
+                }
+              </div>
+            }
+          </section>
+        }
+
+        @if (selectedProduct()!.trackSerials && serials(); as currentSerials) {
+          <section class="tracking-section" aria-labelledby="serials-title">
+            <header>
+              <div>
+                <p>{{ currentSerials.items.length }} serie(s)</p>
+                <h3 id="serials-title">Unidades serializadas</h3>
+              </div>
+              <div class="filter-row">
+                <input
+                  type="search"
+                  aria-label="Buscar número de serie"
+                  placeholder="Número de serie"
+                  [value]="serialQuery()"
+                  (input)="serialQuery.set($any($event.target).value)"
+                /><select
+                  aria-label="Filtrar series por estado"
+                  [value]="serialFilter()"
+                  (change)="serialFilter.set($any($event.target).value)"
+                >
+                  @for (status of serialStatuses; track status.value) {
+                    <option [value]="status.value">{{ status.label }}</option>
+                  }
+                </select>
+              </div>
+            </header>
+            @if (!filteredSerials().length) {
+              <div class="state compact">No hay series con estos filtros.</div>
+            } @else {
+              <div class="serial-table" role="table" aria-label="Series del producto">
+                <div class="serial-head" role="row">
+                  <span>Serie</span><span>Estado</span><span>Ubicación actual</span
+                  ><span>Actualizada</span><span></span>
+                </div>
+                @for (serial of filteredSerials(); track serial.id) {
+                  <div class="serial-row" role="row">
+                    <strong>{{ serial.serialNumber }}</strong
+                    ><span class="serial-status" [attr.data-status]="serial.status">{{
+                      serialStatus(serial.status)
+                    }}</span
+                    ><span>{{ serial.currentLocation?.name || 'Fuera de inventario' }}</span
+                    ><span>{{ serial.updatedAt | date: 'short' }}</span
+                    ><button type="button" (click)="openHistory(serial)">Ver historial</button>
+                  </div>
+                }
+              </div>
+            }
+          </section>
+        }
+      }
+    </div>
+  </section>
+</section>
+
+@if (loadingHistory() || history()) {
+  <div class="history-backdrop" (click)="history.set(null)">
+    <section
+      class="history-panel"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="history-title"
+      (click)="$event.stopPropagation()"
+    >
+      @if (loadingHistory()) {
+        <div class="state hero"><i class="pi pi-spin pi-spinner"></i>Cargando historial…</div>
+      }
+      @if (history(); as current) {
+        <header>
+          <div>
+            <p>Serie</p>
+            <h2 id="history-title">{{ current.serial.serialNumber }}</h2>
+            <span
+              >{{ current.serial.product.name }} · {{ serialStatus(current.serial.status) }}</span
+            >
+          </div>
+          <button type="button" aria-label="Cerrar historial" (click)="history.set(null)">
+            <i class="pi pi-times"></i>
+          </button>
+        </header>
+        <div class="timeline">
+          @for (event of current.events; track event.id) {
+            <article>
+              <span class="dot"><i class="pi pi-arrow-right"></i></span>
+              <div>
+                <header>
+                  <strong>{{ movementLabel(event.movement.type) }}</strong
+                  ><time>{{ event.createdAt | date: 'medium' }}</time>
+                </header>
+                <p>
+                  {{ event.movement.reason }}<br /><small>{{
+                    event.movement.reference || 'Sin referencia'
+                  }}</small>
+                </p>
+                <div class="route">
+                  <span
+                    >{{ event.fromLocation?.name || 'Origen externo'
+                    }}<small>{{
+                      event.fromStatus ? serialStatus(event.fromStatus) : 'Alta'
+                    }}</small></span
+                  ><i class="pi pi-arrow-right"></i
+                  ><span
+                    >{{ event.toLocation?.name || 'Destino externo'
+                    }}<small>{{ serialStatus(event.toStatus) }}</small></span
+                  >
+                </div>
+                <footer>Responsable: {{ event.responsible.email }}</footer>
+              </div>
+            </article>
+          } @empty {
+            <div class="state compact">No hay eventos registrados.</div>
+          }
+        </div>
+      }
+    </section>
+  </div>
+}
+
+@if (movementOpen() && selectedProduct(); as product) {
+  <ui-inventory-movement-dialog
+    [product]="product"
+    [locations]="locations()"
+    [saving]="saving()"
+    [error]="error()"
+    (closed)="movementOpen.set(false)"
+    (submitted)="saveMovement($event)"
+  />
+}

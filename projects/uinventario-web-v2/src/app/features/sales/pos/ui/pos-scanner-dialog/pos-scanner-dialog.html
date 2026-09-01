@@ -1,0 +1,28 @@
+<div class="backdrop" (click)="close()">
+  <section
+    class="scanner"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="scanner-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <p>Escáner</p>
+        <h2 id="scanner-title">Leer producto con cámara</h2>
+      </div>
+      <button type="button" aria-label="Cerrar cámara" (click)="close()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+    <div class="viewport" [class.failed]="failed()">
+      <video #camera muted playsinline></video>
+      <span class="target" aria-hidden="true"></span>
+      @if (failed()) {
+        <i class="pi pi-camera" aria-hidden="true"></i>
+      }
+    </div>
+    <p class="status" [class.error]="failed()" role="status">{{ status() }}</p>
+    <button class="secondary" type="button" (click)="close()">Volver al teclado</button>
+  </section>
+</div>

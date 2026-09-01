@@ -1,0 +1,51 @@
+<div class="backdrop" (click)="closed.emit()">
+  <section
+    class="dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="transition-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <p>Cambio de estado</p>
+        <h2 id="transition-title">{{ title() }} · {{ order().folio }}</h2>
+      </div>
+      <button class="icon" type="button" aria-label="Cerrar" (click)="closed.emit()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <p class="full">{{ description() }}</p>
+      @if (action() !== 'SEND') {
+        <div class="field full">
+          <label for="purchaseTransitionReason">{{
+            action() === 'CANCEL' ? 'Motivo obligatorio' : 'Nota de aprobación (opcional)'
+          }}</label>
+          <textarea
+            id="purchaseTransitionReason"
+            formControlName="reason"
+            maxlength="500"
+          ></textarea>
+        </div>
+      }
+      @if (form.touched && form.invalid) {
+        <div class="notice error full" role="alert">Indica un motivo de al menos 3 caracteres.</div>
+      }
+      @if (error()) {
+        <div class="notice error full" role="alert">{{ error() }}</div>
+      }
+      <footer class="actions full">
+        <button class="secondary" type="button" (click)="closed.emit()">Volver</button>
+        <button
+          [class.danger]="action() === 'CANCEL'"
+          [class.primary]="action() !== 'CANCEL'"
+          type="submit"
+          [disabled]="saving()"
+        >
+          {{ saving() ? 'Procesando…' : title() }}
+        </button>
+      </footer>
+    </form>
+  </section>
+</div>

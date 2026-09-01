@@ -1,0 +1,155 @@
+<div class="backdrop" (click)="closed.emit()">
+  <section
+    class="dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="line-editor-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <p>Editar línea</p>
+        <h2 id="line-editor-title">{{ line().product.name }}</h2>
+        <span>{{ line().product.sku }}</span>
+      </div>
+      <button class="icon" type="button" aria-label="Cerrar" (click)="closed.emit()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <label>
+        Cantidad
+        <input formControlName="quantity" inputmode="decimal" autocomplete="off" />
+        <small
+          >Mínimo {{ line().product.minimumQuantity }} · máximo
+          {{ line().product.quantityPrecision }} decimales</small
+        >
+      </label>
+      <label>
+        Nota de línea
+        <input formControlName="note" maxlength="240" autocomplete="off" />
+      </label>
+      @if (line().product.trackLots || line().product.trackSerials) {
+        <section class="tracking-editor" aria-labelledby="line-tracking-title">
+          <header>
+            <div>
+              <p>Trazabilidad</p>
+              <h3 id="line-tracking-title">Identifica las unidades</h3>
+            </div>
+            @if (trackingLoading()) {
+              <span><i class="pi pi-spin pi-spinner"></i>Cargando…</span>
+            }
+          </header>
+          @if (line().product.trackLots) {
+            <label>
+              Lote a descontar
+              <select formControlName="lotId">
+                <option value="">Selecciona un lote</option>
+                @for (lot of lots(); track lot.id) {
+                  <option [value]="lot.id" [disabled]="!canUseLot(lot)">
+                    {{ lot.code }} · {{ lot.quantity }} disp. ·
+                    {{ lot.expiresOn || 'sin vencimiento' }}
+                    {{ lot.expirationStatus === 'EXPIRED' ? '· VENCIDO' : '' }}
+                  </option>
+                }
+              </select>
+            </label>
+            @if (!trackingLoading() && !lots().length) {
+              <p class="tracking-empty">No hay lotes con existencia para vender.</p>
+            }
+            @if (currentLot()?.expirationStatus === 'EXPIRED') {
+              <label class="expired-reason">
+                Motivo para vender lote vencido
+                <input
+                  formControlName="expiredLotOverrideReason"
+                  maxlength="240"
+                  autocomplete="off"
+                />
+                <small>La autorización y el motivo quedarán auditados.</small>
+              </label>
+            }
+          }
+          @if (line().product.trackSerials) {
+            <fieldset>
+              <legend>Series disponibles</legend>
+              <small>Selecciona una por cada unidad del renglón.</small>
+              <div class="serial-options">
+                @for (serial of serials(); track serial.id) {
+                  @if (
+                    serial.status === 'AVAILABLE' ||
+                    form.controls.serialNumbers.value.includes(serial.serialNumber)
+                  ) {
+                    <label>
+                      <input
+                        type="checkbox"
+                        [checked]="form.controls.serialNumbers.value.includes(serial.serialNumber)"
+                        (change)="toggleSerial(serial.serialNumber, $any($event.target).checked)"
+                      />
+                      <span
+                        ><strong>{{ serial.serialNumber }}</strong
+                        ><small>{{ serial.currentLocation?.name || 'Sin ubicación' }}</small></span
+                      >
+                    </label>
+                  }
+                }
+              </div>
+              @if (!trackingLoading() && !serials().length) {
+                <p class="tracking-empty">No hay series disponibles para vender.</p>
+              }
+            </fieldset>
+          }
+        </section>
+      }
+      @if (canOverridePrice()) {
+        <div class="override">
+          <label>
+            Precio manual
+            <input formControlName="manualUnitPrice" inputmode="decimal" autocomplete="off" />
+          </label>
+          <label>
+            Motivo del override
+            <input formControlName="priceOverrideReason" maxlength="240" autocomplete="off" />
+          </label>
+          <p>El backend limita el precio manual entre 50% y 200% del vigente.</p>
+        </div>
+      }
+      @if (canDiscount()) {
+        <div class="discount-editor">
+          <label class="check-row">
+            <input type="checkbox" formControlName="discountEnabled" />
+            Aplicar descuento a esta línea
+          </label>
+          @if (form.controls.discountEnabled.value) {
+            <div class="discount-grid">
+              <label>
+                Tipo
+                <select formControlName="discountType">
+                  <option value="PERCENT">Porcentaje</option>
+                  <option value="AMOUNT">Importe</option>
+                </select>
+              </label>
+              <label>
+                Valor
+                <input formControlName="discountValue" inputmode="decimal" autocomplete="off" />
+              </label>
+            </div>
+            <label>
+              Motivo del descuento
+              <input formControlName="discountReason" maxlength="240" autocomplete="off" />
+            </label>
+            <p>El permiso de descuentos se vuelve a validar al cotizar y al cobrar.</p>
+          }
+        </div>
+      }
+      @if (error()) {
+        <div class="notice" role="alert">{{ error() }}</div>
+      }
+      <footer>
+        <button class="secondary" type="button" (click)="closed.emit()">Cancelar</button>
+        <button class="primary" type="submit" [disabled]="trackingLoading()">
+          Aplicar cambios
+        </button>
+      </footer>
+    </form>
+  </section>
+</div>

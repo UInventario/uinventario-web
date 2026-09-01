@@ -1,0 +1,118 @@
+<section class="detail" aria-label="Detalle del proveedor">
+  @if (!supplier()) {
+    <div class="empty-detail">
+      <span><i class="pi pi-building"></i></span>
+      <h2>Selecciona un proveedor</h2>
+      <p>Consulta sus contactos y productos asociados sin abandonar el workspace.</p>
+    </div>
+  } @else if (supplier(); as current) {
+    <header class="detail-header">
+      <div class="supplier-title">
+        <span class="avatar">{{ (current.tradeName || current.legalName).slice(0, 2) }}</span>
+        <div>
+          <p>{{ current.identifierType }} {{ current.taxIdentifier }}</p>
+          <h2>{{ current.tradeName || current.legalName }}</h2>
+          @if (current.tradeName) {
+            <span>{{ current.legalName }}</span>
+          }
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="secondary" type="button" (click)="editRequested.emit(current)">
+          <i class="pi pi-pencil"></i> Editar
+        </button>
+        @if (current.active) {
+          <button class="danger-outline" type="button" (click)="retirementRequested.emit(current)">
+            <i class="pi pi-ban"></i> Retirar
+          </button>
+        }
+      </div>
+    </header>
+
+    <div class="summary">
+      <span
+        ><small>País</small><strong>{{ current.countryCode }}</strong></span
+      >
+      <span
+        ><small>Contactos</small><strong>{{ current.contacts.length }}</strong></span
+      >
+      <span
+        ><small>Estado</small
+        ><strong [class.inactive-text]="!current.active">{{
+          current.active ? 'Operativo' : 'Retirado'
+        }}</strong></span
+      >
+      <span
+        ><small>Actualizado</small
+        ><strong>{{ current.updatedAt | date: 'mediumDate' }}</strong></span
+      >
+    </div>
+
+    <nav class="tabs" aria-label="Información del proveedor">
+      <button
+        type="button"
+        [class.active]="tab() === 'CONTACTS'"
+        (click)="tabChanged.emit('CONTACTS')"
+      >
+        Contactos
+      </button>
+      <button
+        type="button"
+        [class.active]="tab() === 'PRODUCTS'"
+        (click)="tabChanged.emit('PRODUCTS')"
+      >
+        Productos y costos
+      </button>
+    </nav>
+
+    @if (tab() === 'CONTACTS') {
+      <div class="contacts">
+        @if (!current.contacts.length) {
+          <div class="section-state">
+            <i class="pi pi-address-book"></i>
+            <strong>Sin contactos</strong>
+            <span>Edita el proveedor para agregar personas de contacto.</span>
+          </div>
+        } @else {
+          @for (contact of current.contacts; track contact.id) {
+            <article class="contact-card">
+              <span class="contact-icon"><i class="pi pi-user"></i></span>
+              <div>
+                <span class="name-line">
+                  <strong>{{ contact.name }}</strong>
+                  @if (contact.primary) {
+                    <small>Principal</small>
+                  }
+                </span>
+                <p>{{ contact.role || 'Contacto operativo' }}</p>
+                <span class="contact-methods">
+                  @if (contact.email) {
+                    <a [href]="'mailto:' + contact.email"
+                      ><i class="pi pi-envelope"></i>{{ contact.email }}</a
+                    >
+                  }
+                  @if (contact.phone) {
+                    <a [href]="'tel:' + contact.phone"
+                      ><i class="pi pi-phone"></i>{{ contact.phone }}</a
+                    >
+                  }
+                </span>
+              </div>
+            </article>
+          }
+        }
+      </div>
+    } @else {
+      <ui-supplier-product-list
+        [supplier]="current"
+        [page]="products()"
+        [loading]="productsLoading()"
+        [filter]="productFilter()"
+        (createRequested)="productCreateRequested.emit()"
+        (editRequested)="productEditRequested.emit($event)"
+        (filterChanged)="productFilterChanged.emit($event)"
+        (pageChanged)="productPageChanged.emit($event)"
+      />
+    }
+  }
+</section>

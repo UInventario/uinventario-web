@@ -1,0 +1,372 @@
+<article class="transfer-detail" aria-labelledby="transfer-detail-title">
+  @if (loading()) {
+    <div class="detail-state" role="status">
+      <i class="pi pi-spin pi-spinner"></i>Cargando trazabilidad…
+    </div>
+  } @else if (transfer(); as item) {
+    <header class="detail-header">
+      <div>
+        <span class="status" [attr.data-status]="item.status">{{ statusLabel(item.status) }}</span>
+        <h2 id="transfer-detail-title">{{ item.reference }}</h2>
+        <small>{{ item.createdAt | date: 'medium' }} · {{ item.createdBy.email }}</small>
+      </div>
+      <div class="header-total">
+        <small>Cantidad enviada</small><strong>{{ total('quantity') | number: '1.0-3' }}</strong>
+      </div>
+      <button type="button" class="close" aria-label="Cerrar detalle" (click)="closed.emit()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+
+    <section class="route-map">
+      <article class="warehouse origin">
+        <span><i class="pi pi-warehouse"></i></span>
+        <div>
+          <small>Origen</small><strong>{{ item.originWarehouse.name }}</strong>
+          <p>{{ item.originWarehouse.branch.name }}</p>
+        </div>
+      </article>
+      <div class="route-line">
+        <span></span><i class="pi pi-truck"></i><span></span
+        ><small>{{
+          item.status === 'DRAFT'
+            ? 'Sin despachar'
+            : item.status === 'CANCELLED'
+              ? 'Cancelada'
+              : 'Trayecto auditado'
+        }}</small>
+      </div>
+      <article class="warehouse destination">
+        <span><i class="pi pi-map-marker"></i></span>
+        <div>
+          <small>Destino</small><strong>{{ item.destinationWarehouse.name }}</strong>
+          <p>{{ item.destinationWarehouse.branch.name }}</p>
+        </div>
+      </article>
+    </section>
+
+    <div class="detail-actions">
+      @if (canDispatch()) {
+        <button
+          class="primary"
+          type="button"
+          [disabled]="!!busy()"
+          (click)="dispatchOpen.set(true)"
+        >
+          <i class="pi pi-send"></i>Aprobar y despachar
+        </button>
+      }
+      @if (canReceive()) {
+        <button class="success" type="button" [disabled]="!!busy()" (click)="receiptOpen.set(true)">
+          <i class="pi pi-inbox"></i>Registrar recepción
+        </button>
+      }
+      @if (canCancel()) {
+        <button class="danger" type="button" [disabled]="!!busy()" (click)="cancelOpen.set(true)">
+          <i class="pi pi-ban"></i>Cancelar borrador
+        </button>
+      }
+    </div>
+
+    @if (notice()) {
+      <div class="notice success" role="status">
+        <i class="pi pi-check-circle"></i>{{ notice() }}
+      </div>
+    }
+    @if (error()) {
+      <div class="notice error" role="alert">
+        <i class="pi pi-exclamation-circle"></i>{{ error() }}
+      </div>
+    }
+
+    <div class="detail-body">
+      <section class="impact-strip" [attr.data-status]="item.status">
+        <span
+          ><small>Enviado</small><strong>{{ total('quantity') | number: '1.0-3' }}</strong></span
+        >
+        <i class="pi pi-angle-right"></i>
+        <span
+          ><small>Disponible destino</small
+          ><strong>{{ total('receivedQuantity') | number: '1.0-3' }}</strong></span
+        >
+        <i class="pi pi-angle-right"></i>
+        <span class="discrepancy"
+          ><small>Diferencia</small
+          ><strong>{{ total('discrepancyQuantity') | number: '1.0-3' }}</strong></span
+        >
+        <i class="pi pi-angle-right"></i>
+        <span
+          ><small>En tránsito</small
+          ><strong>{{ total('pendingQuantity') | number: '1.0-3' }}</strong></span
+        >
+      </section>
+
+      <section class="stock-explanation">
+        <i class="pi pi-info-circle"></i>
+        @switch (item.status) {
+          @case ('DRAFT') {
+            <p>
+              <strong>Sin impacto de stock.</strong> El borrador puede revisarse o cancelarse antes
+              de despachar.
+            </p>
+          }
+          @case ('DISPATCHED') {
+            <p>
+              <strong>Stock en tránsito.</strong> Salió del disponible del origen y todavía no está
+              disponible en destino.
+            </p>
+          }
+          @case ('PARTIALLY_RECEIVED') {
+            <p>
+              <strong>Recepción parcial.</strong> Lo recibido ya está disponible en destino; el
+              pendiente continúa en tránsito.
+            </p>
+          }
+          @case ('RECEIVED') {
+            <p>
+              <strong>Trayecto conciliado.</strong> Lo recibido está disponible en destino y las
+              diferencias quedaron auditadas.
+            </p>
+          }
+          @case ('CANCELLED') {
+            <p><strong>Sin impacto de stock.</strong> El borrador se canceló antes del despacho.</p>
+          }
+        }
+      </section>
+
+      <section class="detail-section lines-section">
+        <header>
+          <div>
+            <h3>Productos y ubicaciones</h3>
+            <p>Origen y destino permanecen explícitos en cada línea.</p>
+          </div>
+          <span>{{ item.lines.length }} línea(s)</span>
+        </header>
+        <div class="transfer-lines">
+          @for (line of item.lines; track line.id) {
+            <article>
+              <span class="line-number">{{ line.lineNumber }}</span>
+              <div class="product">
+                <strong>{{ line.product.name }}</strong
+                ><small>{{ line.product.sku }}</small>
+              </div>
+              <div class="locations">
+                <span
+                  ><small>Sale de</small
+                  ><strong
+                    >{{ line.sourceLocation.code }} · {{ line.sourceLocation.name }}</strong
+                  ></span
+                ><i class="pi pi-arrow-right"></i
+                ><span
+                  ><small>Llega a</small
+                  ><strong
+                    >{{ line.destinationLocation.code }} ·
+                    {{ line.destinationLocation.name }}</strong
+                  ></span
+                >
+              </div>
+              <dl>
+                <div>
+                  <dt>Enviado</dt>
+                  <dd>{{ line.quantity }}</dd>
+                </div>
+                <div>
+                  <dt>Recibido</dt>
+                  <dd>{{ line.receivedQuantity }}</dd>
+                </div>
+                <div class="difference">
+                  <dt>Diferencia</dt>
+                  <dd>{{ line.discrepancyQuantity }}</dd>
+                </div>
+                <div>
+                  <dt>Pendiente</dt>
+                  <dd>{{ line.pendingQuantity }}</dd>
+                </div>
+              </dl>
+              @if (line.serialNumbers.length) {
+                <div class="serial-list">
+                  <i class="pi pi-hashtag"></i>{{ line.serialNumbers.join(', ') }}
+                </div>
+              }
+            </article>
+          }
+        </div>
+      </section>
+
+      <section class="detail-section receipt-section">
+        <header>
+          <div>
+            <h3>Recepciones</h3>
+            <p>Cada entrega parcial conserva responsable y diferencias.</p>
+          </div>
+          <span>{{ item.receipts.length }} evento(s)</span>
+        </header>
+        <div class="receipts">
+          @for (receipt of item.receipts; track receipt.id) {
+            <article>
+              <header>
+                <span><i class="pi pi-inbox"></i></span>
+                <div>
+                  <strong>{{ receipt.createdAt | date: 'medium' }}</strong
+                  ><small>{{ receipt.receivedBy.email }}</small>
+                </div>
+              </header>
+              <div class="receipt-lines">
+                @for (line of receipt.lines; track line.id) {
+                  <span
+                    ><span
+                      ><strong>{{ line.product.name }}</strong
+                      ><small>{{ line.product.sku }}</small></span
+                    ><span
+                      ><small>Recibido</small><strong>{{ line.receivedQuantity }}</strong></span
+                    ><span class="difference"
+                      ><small>Diferencia</small
+                      ><strong>{{ line.discrepancyQuantity }}</strong></span
+                    ></span
+                  >
+                }
+              </div>
+              @if (receipt.discrepancyReason) {
+                <footer>
+                  <i class="pi pi-exclamation-triangle"></i
+                  ><span
+                    ><small>Motivo de diferencia</small
+                    ><strong>{{ receipt.discrepancyReason }}</strong></span
+                  >
+                </footer>
+              }
+            </article>
+          } @empty {
+            <div class="receipt-empty">
+              <i class="pi pi-clock"></i
+              ><span
+                ><strong>Sin recepciones</strong>El inventario seguirá en tránsito después del
+                despacho.</span
+              >
+            </div>
+          }
+        </div>
+      </section>
+
+      <section class="audit-trail">
+        <span class="done"
+          ><i class="pi pi-check"></i
+          ><span
+            ><strong>Borrador creado</strong
+            ><small>{{ item.createdAt | date: 'short' }} · {{ item.createdBy.email }}</small></span
+          ></span
+        >
+        <span [class.done]="item.dispatchedAt"
+          ><i
+            class="pi"
+            [class.pi-check]="item.dispatchedAt"
+            [class.pi-circle]="!item.dispatchedAt"
+          ></i
+          ><span
+            ><strong>Aprobado y despachado</strong
+            ><small>{{
+              item.dispatchedAt
+                ? (item.dispatchedAt | date: 'short') + ' · ' + item.dispatchedBy?.email
+                : 'Pendiente'
+            }}</small></span
+          ></span
+        >
+        <span [class.done]="item.status === 'RECEIVED'"
+          ><i
+            class="pi"
+            [class.pi-check]="item.status === 'RECEIVED'"
+            [class.pi-circle]="item.status !== 'RECEIVED'"
+          ></i
+          ><span
+            ><strong>Recepción conciliada</strong
+            ><small>{{ item.status === 'RECEIVED' ? 'Completada' : 'Pendiente' }}</small></span
+          ></span
+        >
+      </section>
+    </div>
+  } @else {
+    <div class="detail-state error">
+      <i class="pi pi-exclamation-circle"></i>{{ error() || 'No encontramos la transferencia.' }}
+    </div>
+  }
+</article>
+
+@if (receiptOpen() && transfer(); as current) {
+  <ui-transfer-receipt-dialog
+    [transfer]="current"
+    (closed)="receiptOpen.set(false)"
+    (received)="received($event)"
+  />
+}
+
+@if (dispatchOpen() && transfer(); as current) {
+  <div class="modal-backdrop" (click)="dispatchOpen.set(false)">
+    <section
+      class="confirm-dialog"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="dispatch-title"
+      (click)="$event.stopPropagation()"
+    >
+      <span class="confirm-icon"><i class="pi pi-send"></i></span>
+      <p>Aprobación de inventario</p>
+      <h2 id="dispatch-title">Despachar {{ current.reference }}</h2>
+      <div class="confirm-impact">
+        <strong>{{ total('quantity') | number: '1.0-3' }} unidades</strong
+        ><span
+          >saldrán del disponible de <b>{{ current.originWarehouse.name }}</b> y quedarán en
+          tránsito hacia <b>{{ current.destinationWarehouse.name }}</b
+          >.</span
+        >
+      </div>
+      <small>Esta acción es transaccional, auditada y no puede editarse después.</small>
+      <footer>
+        <button
+          class="secondary"
+          type="button"
+          [disabled]="!!busy()"
+          (click)="dispatchOpen.set(false)"
+        >
+          Volver</button
+        ><button class="primary" type="button" [disabled]="!!busy()" (click)="dispatch()">
+          Confirmar despacho
+        </button>
+      </footer>
+    </section>
+  </div>
+}
+
+@if (cancelOpen() && transfer(); as current) {
+  <div class="modal-backdrop" (click)="cancelOpen.set(false)">
+    <section
+      class="confirm-dialog danger-dialog"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="cancel-title"
+      (click)="$event.stopPropagation()"
+    >
+      <span class="confirm-icon"><i class="pi pi-ban"></i></span>
+      <p>Cancelar borrador</p>
+      <h2 id="cancel-title">Cancelar {{ current.reference }}</h2>
+      <div class="confirm-impact">
+        <strong>Sin movimiento de stock</strong
+        ><span
+          >El borrador dejará de estar disponible para despacho. No se modificará el inventario de
+          ninguna bodega.</span
+        >
+      </div>
+      <footer>
+        <button
+          class="secondary"
+          type="button"
+          [disabled]="!!busy()"
+          (click)="cancelOpen.set(false)"
+        >
+          Conservar</button
+        ><button class="danger-fill" type="button" [disabled]="!!busy()" (click)="cancel()">
+          Cancelar borrador
+        </button>
+      </footer>
+    </section>
+  </div>
+}

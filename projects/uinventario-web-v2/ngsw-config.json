@@ -1,0 +1,44 @@
+{
+  "$schema": "../../node_modules/@angular/service-worker/config/schema.json",
+  "index": "/index.html",
+  "navigationUrls": ["/**", "!/**/*.*", "!/**/*__*", "!/**/*__*/**"],
+  "assetGroups": [
+    {
+      "name": "uinventario-v2-shell",
+      "installMode": "prefetch",
+      "updateMode": "prefetch",
+      "resources": {
+        "files": ["/favicon.ico", "/index.html", "/*.css"]
+      }
+    },
+    {
+      "name": "uinventario-v2-route-chunks",
+      "installMode": "lazy",
+      "updateMode": "lazy",
+      "resources": {
+        "files": ["/*.js"]
+      }
+    },
+    {
+      "name": "uinventario-v2-assets",
+      "installMode": "lazy",
+      "updateMode": "prefetch",
+      "resources": {
+        "files": ["/**/*.(svg|png|jpg|jpeg|webp|woff|woff2)"]
+      }
+    }
+  ],
+  "dataGroups": [
+    {
+      "name": "uinventario-v2-runtime-config",
+      "urls": ["/v2/config.json"],
+      "version": 1,
+      "cacheConfig": {
+        "strategy": "freshness",
+        "maxSize": 1,
+        "maxAge": "1d",
+        "timeout": "2s"
+      }
+    }
+  ]
+}

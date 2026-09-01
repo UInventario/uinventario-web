@@ -1,0 +1,57 @@
+<div class="suspend-backdrop" (click)="close()">
+  <section
+    class="suspend-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="suspend-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <span><i class="pi pi-pause-circle"></i></span>
+      <div>
+        <p>Venta pendiente</p>
+        <h2 id="suspend-title">Suspender carrito</h2>
+      </div>
+      <button type="button" aria-label="Cerrar" [disabled]="busy()" (click)="close()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+
+    <div class="impact">
+      <i class="pi pi-info-circle"></i>
+      <p>
+        Se guardarán {{ request().lines.length }} línea(s) durante 24 horas. No se apartará
+        inventario ni se registrará una venta hasta completar el cobro.
+      </p>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <label for="suspendedNotes">Nota para identificarla <span>Opcional</span></label>
+      <textarea
+        id="suspendedNotes"
+        formControlName="notes"
+        maxlength="500"
+        rows="4"
+        placeholder="Ej. Cliente regresa a las 16:00"
+      ></textarea>
+      <small>{{ form.controls.notes.value.length }}/500</small>
+      @if (error()) {
+        <div class="error" role="alert"><i class="pi pi-exclamation-circle"></i>{{ error() }}</div>
+      }
+      <footer>
+        <button class="secondary" type="button" [disabled]="busy()" (click)="close()">
+          Seguir vendiendo
+        </button>
+        <button class="primary" type="submit" [disabled]="busy() || form.invalid">
+          <i
+            class="pi"
+            [class.pi-spin]="busy()"
+            [class.pi-spinner]="busy()"
+            [class.pi-pause]="!busy()"
+          ></i>
+          {{ busy() ? 'Guardando…' : 'Suspender venta' }}
+        </button>
+      </footer>
+    </form>
+  </section>
+</div>

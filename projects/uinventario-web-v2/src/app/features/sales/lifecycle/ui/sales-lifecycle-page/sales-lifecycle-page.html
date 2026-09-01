@@ -1,0 +1,133 @@
+<main class="lifecycle-page" aria-labelledby="lifecycle-title">
+  <header class="page-header">
+    <span class="page-icon"><i class="pi pi-receipt"></i></span>
+    <div>
+      <p>Operación de venta</p>
+      <h1 id="lifecycle-title">Tickets y postventa</h1>
+      <span>Consulta el impacto real en pagos, inventario y fiscalidad.</span>
+    </div>
+    @if (canManage()) {
+      <a routerLink="/ventas/pos"><i class="pi pi-plus"></i>Nueva venta</a>
+    }
+  </header>
+
+  <nav class="view-tabs" aria-label="Vistas de ventas">
+    <button type="button" [class.active]="view() === 'SALES'" (click)="selectView('SALES')">
+      <i class="pi pi-history"></i> Historial
+    </button>
+    @if (canManage()) {
+      <button
+        type="button"
+        [class.active]="view() === 'SUSPENDED'"
+        (click)="selectView('SUSPENDED')"
+      >
+        <i class="pi pi-pause-circle"></i> Suspendidas
+      </button>
+    }
+  </nav>
+
+  @if (view() === 'SUSPENDED') {
+    <ui-suspended-sales-panel />
+  } @else {
+    <section class="sales-workspace">
+      <aside class="sales-list" aria-label="Ventas registradas">
+        <form class="filters" [formGroup]="filterForm" (ngSubmit)="applyFilters()">
+          <label class="receipt-search">
+            <span>Ticket o cliente</span>
+            <div>
+              <i class="pi pi-search"></i
+              ><input formControlName="receipt" placeholder="Buscar en esta página" />
+            </div>
+          </label>
+          <div class="date-row">
+            <label><span>Desde</span><input type="date" formControlName="dateFrom" /></label>
+            <label><span>Hasta</span><input type="date" formControlName="dateTo" /></label>
+            <button type="submit" aria-label="Aplicar fechas"><i class="pi pi-filter"></i></button>
+          </div>
+        </form>
+
+        @if (loading()) {
+          <div class="list-state" role="status">
+            <i class="pi pi-spin pi-spinner"></i>Cargando ventas…
+          </div>
+        } @else if (error()) {
+          <div class="list-state error" role="alert">
+            <i class="pi pi-exclamation-circle"></i>{{ error() }}
+            <button type="button" (click)="applyFilters()">Reintentar</button>
+          </div>
+        } @else {
+          <div class="sale-items">
+            @for (sale of visibleSales(); track sale.id) {
+              <button
+                type="button"
+                class="sale-item"
+                [class.selected]="selectedSaleId() === sale.id"
+                (click)="selectedSaleId.set(sale.id)"
+              >
+                <span class="sale-icon" [class.voided]="sale.status === 'VOIDED'">
+                  <i
+                    class="pi"
+                    [class.pi-receipt]="sale.status === 'COMPLETED'"
+                    [class.pi-ban]="sale.status === 'VOIDED'"
+                  ></i>
+                </span>
+                <span class="sale-copy">
+                  <strong>{{ sale.receiptNumber }}</strong>
+                  <small>{{ sale.customer?.name || 'Público general' }}</small>
+                  <small>{{ sale.createdAt | date: 'dd MMM, HH:mm' }}</small>
+                </span>
+                <span class="sale-amount">
+                  <strong>{{ sale.total | currency: sale.currency : 'symbol-narrow' }}</strong>
+                  <small>{{ sale.paymentMethod }}</small>
+                </span>
+              </button>
+            } @empty {
+              <div class="list-state">
+                <i class="pi pi-inbox"></i>No hay ventas con estos filtros.
+              </div>
+            }
+          </div>
+        }
+
+        <footer>
+          <span>{{ total() }} venta(s)</span>
+          <div>
+            <button
+              type="button"
+              aria-label="Página anterior"
+              [disabled]="page() === 1"
+              (click)="movePage(-1)"
+            >
+              <i class="pi pi-angle-left"></i>
+            </button>
+            <strong>{{ page() }} / {{ totalPages() }}</strong>
+            <button
+              type="button"
+              aria-label="Página siguiente"
+              [disabled]="page() === totalPages()"
+              (click)="movePage(1)"
+            >
+              <i class="pi pi-angle-right"></i>
+            </button>
+          </div>
+        </footer>
+      </aside>
+
+      <section class="detail-slot">
+        @if (selectedSaleId(); as saleId) {
+          <ui-sale-lifecycle-detail
+            [saleId]="saleId"
+            (saleChanged)="saleChanged()"
+            (closed)="selectedSaleId.set(null)"
+          />
+        } @else {
+          <div class="empty-detail">
+            <span><i class="pi pi-arrow-left"></i></span>
+            <h2>Selecciona una venta</h2>
+            <p>Verás productos, pagos, movimientos, devoluciones, ticket y estado fiscal.</p>
+          </div>
+        }
+      </section>
+    </section>
+  }
+</main>

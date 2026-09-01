@@ -1,0 +1,108 @@
+<div class="backdrop" (click)="closed.emit()">
+  <section
+    class="dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="policy-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <p>Política de valorización</p>
+        <h2 id="policy-title">Evaluar cambio de método</h2>
+      </div>
+      <button type="button" class="icon" aria-label="Cerrar" (click)="closed.emit()">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+    <form [formGroup]="form" (ngSubmit)="confirm()">
+      <div class="current">
+        <span>Método vigente</span>
+        <strong>{{ methodLabel(policy().method) }} · versión {{ policy().version }}</strong>
+      </div>
+      <div class="field">
+        <label for="valuationTarget">Método objetivo</label>
+        <select id="valuationTarget" formControlName="targetMethod" (change)="methodChanged.emit()">
+          @for (method of methods; track method.value) {
+            <option [value]="method.value" [disabled]="method.value === policy().method">
+              {{ method.label }}{{ method.value === policy().method ? ' (actual)' : '' }}
+            </option>
+          }
+        </select>
+      </div>
+      <button
+        class="secondary preview"
+        type="button"
+        [disabled]="previewing() || form.controls.targetMethod.value === policy().method"
+        (click)="preview()"
+      >
+        <i
+          class="pi"
+          [class.pi-search]="!previewing()"
+          [class.pi-spin]="previewing()"
+          [class.pi-spinner]="previewing()"
+        ></i>
+        {{ previewing() ? 'Prevalidando…' : 'Prevalidar impacto' }}
+      </button>
+
+      @if (plan(); as currentPlan) {
+        <section class="plan" [class.blocked]="!currentPlan.allowed">
+          <header>
+            <span
+              ><i
+                class="pi"
+                [class.pi-check-circle]="currentPlan.allowed"
+                [class.pi-ban]="!currentPlan.allowed"
+              ></i
+            ></span>
+            <div>
+              <strong>{{ currentPlan.allowed ? 'Cambio permitido' : 'Cambio bloqueado' }}</strong>
+              <small>{{ strategyLabel(currentPlan.strategy) }}</small>
+            </div>
+          </header>
+          <div class="impact">
+            <span
+              ><small>Productos</small><strong>{{ currentPlan.productsToMigrate }}</strong></span
+            >
+            <span
+              ><small>Ubicaciones</small><strong>{{ currentPlan.locationsToMigrate }}</strong></span
+            >
+            <span
+              ><small>Dispositivos</small
+              ><strong>{{ currentPlan.devicesToRebootstrap }}</strong></span
+            >
+          </div>
+          @if (currentPlan.blockingReasons.length) {
+            <ul>
+              @for (reason of currentPlan.blockingReasons; track reason) {
+                <li>{{ blockerLabel(reason) }}</li>
+              }
+            </ul>
+          }
+        </section>
+        @if (currentPlan.allowed) {
+          <label class="acknowledgement">
+            <input type="checkbox" formControlName="acknowledged" />
+            <span>
+              Entiendo que el corte es hacia adelante: conserva la historia y obliga a los
+              dispositivos indicados a descargar un nuevo bootstrap.
+            </span>
+          </label>
+        }
+      }
+      @if (error()) {
+        <div class="notice error" role="alert">{{ error() }}</div>
+      }
+      <footer>
+        <button type="button" class="secondary" (click)="closed.emit()">Cancelar</button>
+        <button
+          type="submit"
+          class="primary"
+          [disabled]="!plan()?.allowed || form.invalid || saving()"
+        >
+          {{ saving() ? 'Aplicando…' : 'Aplicar cambio' }}
+        </button>
+      </footer>
+    </form>
+  </section>
+</div>

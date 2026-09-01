@@ -1,0 +1,17 @@
+<section class="operations-workspace" aria-labelledby="operations-title">
+  <header>
+    <div>
+      <p>Venta asistida</p>
+      <h1 id="operations-title">Pedidos y reservas</h1>
+      <span>Gestiona cada operación en una vista enfocada, sin recapturar información.</span>
+    </div>
+  </header>
+  <nav aria-label="Operaciones de venta">
+    <a routerLink="cotizaciones" routerLinkActive="active"
+      ><i class="pi pi-file-edit"></i>Cotizaciones</a
+    >
+    <a routerLink="pedidos" routerLinkActive="active"><i class="pi pi-box"></i>Pedidos</a>
+    <a routerLink="reservas" routerLinkActive="active"><i class="pi pi-bookmark"></i>Reservas</a>
+  </nav>
+  <router-outlet />
+</section>

@@ -1,0 +1,260 @@
+<section class="customers" aria-labelledby="customers-title">
+  <header class="page-header">
+    <div class="title-group">
+      <span class="page-icon"><i class="pi pi-users"></i></span>
+      <div>
+        <p>Ventas</p>
+        <h1 id="customers-title">Clientes</h1>
+        <span>Contacto, consentimiento, crédito e historial sin perder trazabilidad.</span>
+      </div>
+    </div>
+    @if (tab() === 'CUSTOMERS') {
+      <button class="primary" type="button" (click)="openCreate()">
+        <i class="pi pi-plus"></i>Nuevo cliente
+      </button>
+    }
+  </header>
+
+  <nav class="tabs" aria-label="Áreas de clientes">
+    <button type="button" [class.active]="tab() === 'CUSTOMERS'" (click)="selectTab('CUSTOMERS')">
+      Clientes
+    </button>
+    @if (canPrivacy()) {
+      <button type="button" [class.active]="tab() === 'POLICY'" (click)="selectTab('POLICY')">
+        Retención y privacidad
+      </button>
+    }
+  </nav>
+
+  @if (notice()) {
+    <div class="notice success" role="status"><i class="pi pi-check-circle"></i>{{ notice() }}</div>
+  }
+  @if (error() && editor() === undefined && !retirement() && !creditEditor()) {
+    <div class="notice error" role="alert">
+      <i class="pi pi-exclamation-circle"></i>{{ error() }}
+    </div>
+  }
+
+  @if (tab() === 'CUSTOMERS') {
+    <form class="filters" [formGroup]="filters" (ngSubmit)="applyFilters()">
+      <div class="search-field">
+        <i class="pi pi-search"></i
+        ><input
+          formControlName="q"
+          aria-label="Buscar clientes"
+          placeholder="Nombre, identificador, correo o teléfono"
+        />
+      </div>
+      <select formControlName="status" aria-label="Estado del cliente">
+        <option value="ACTIVE">Activos</option>
+        <option value="INACTIVE">Inactivos</option>
+        <option value="ALL">Todos</option>
+      </select>
+      <button class="secondary" type="submit">Aplicar</button>
+    </form>
+
+    @if (loading()) {
+      <div class="state" role="status"><i class="pi pi-spin pi-spinner"></i>Cargando clientes…</div>
+    } @else if (!page()?.customers?.length) {
+      <div class="state">
+        <i class="pi pi-users"></i>
+        <h2>No encontramos clientes</h2>
+        <p>Ajusta los filtros o crea el primer cliente.</p>
+        <button class="primary" type="button" (click)="openCreate()">Crear cliente</button>
+      </div>
+    } @else {
+      <div class="customer-table" role="table" aria-label="Clientes">
+        <div class="customer-head" role="row">
+          <span>Cliente</span><span>Contacto</span><span>Consentimiento</span>
+          @if (canCredit()) {
+            <span>Crédito</span>
+          }
+          <span>Estado</span><span></span>
+        </div>
+        @for (customer of page()!.customers; track customer.id) {
+          <article class="customer-row" role="row" [class.without-credit]="!canCredit()">
+            <span class="identity"
+              ><strong>{{ customer.name }}</strong
+              ><small>{{ customer.identifier || 'Sin identificador' }}</small></span
+            >
+            <span class="contact"
+              ><strong>{{ customer.email || customer.phone || 'Sin contacto' }}</strong
+              ><small>
+                @if (customer.email && customer.phone) {
+                  {{ customer.phone }}
+                }
+              </small></span
+            >
+            <span
+              ><span class="status-pill" [class.warning]="!customer.dataProcessingConsent">{{
+                customer.dataProcessingConsent ? 'Otorgado' : 'No otorgado'
+              }}</span></span
+            >
+            @if (canCredit()) {
+              <span class="credit"
+                ><strong
+                  >{{ customer.credit?.balance || '0.00' }}
+                  {{ customer.credit?.currency || '' }}</strong
+                ><small>{{
+                  customer.credit?.enabled
+                    ? 'Disponible ' + customer.credit?.available
+                    : 'No habilitado'
+                }}</small></span
+              >
+            }
+            <span
+              ><span
+                class="status-pill"
+                [class.inactive]="!customer.active || customer.privacyStatus === 'ANONYMIZED'"
+                >{{
+                  customer.privacyStatus === 'ANONYMIZED'
+                    ? 'Anonimizado'
+                    : customer.active
+                      ? 'Activo'
+                      : 'Inactivo'
+                }}</span
+              ></span
+            >
+            <span class="row-actions">
+              <button
+                class="icon"
+                type="button"
+                [attr.aria-label]="'Ver ' + customer.name"
+                (click)="detail.set(customer)"
+              >
+                <i class="pi pi-eye"></i>
+              </button>
+              @if (customer.privacyStatus !== 'ANONYMIZED') {
+                <button
+                  class="icon"
+                  type="button"
+                  [attr.aria-label]="'Editar ' + customer.name"
+                  (click)="openEdit(customer)"
+                >
+                  <i class="pi pi-pencil"></i>
+                </button>
+                @if (canCredit() && customer.active) {
+                  <button
+                    class="icon"
+                    type="button"
+                    [attr.aria-label]="'Configurar crédito de ' + customer.name"
+                    (click)="creditEditor.set(customer)"
+                  >
+                    <i class="pi pi-wallet"></i>
+                  </button>
+                }
+                @if (customer.active) {
+                  <button
+                    class="icon danger-icon"
+                    type="button"
+                    [attr.aria-label]="'Desactivar ' + customer.name"
+                    (click)="requestRetirement(customer)"
+                  >
+                    <i class="pi pi-user-minus"></i>
+                  </button>
+                }
+              }
+            </span>
+          </article>
+        }
+      </div>
+      <footer class="pagination">
+        <span>{{ page()!.pagination.total }} cliente(s)</span>
+        <div>
+          <button
+            class="secondary"
+            type="button"
+            [disabled]="page()!.pagination.page <= 1"
+            (click)="goToPage(page()!.pagination.page - 1)"
+          >
+            Anterior</button
+          ><span
+            >Página {{ page()!.pagination.page }} de {{ page()!.pagination.totalPages || 1 }}</span
+          ><button
+            class="secondary"
+            type="button"
+            [disabled]="page()!.pagination.page >= page()!.pagination.totalPages"
+            (click)="goToPage(page()!.pagination.page + 1)"
+          >
+            Siguiente
+          </button>
+        </div>
+      </footer>
+    }
+  } @else if (loading()) {
+    <div class="state" role="status"><i class="pi pi-spin pi-spinner"></i>Cargando política…</div>
+  } @else if (policy(); as currentPolicy) {
+    <ui-privacy-policy-panel
+      [policy]="currentPolicy"
+      [saving]="saving()"
+      [error]="error()"
+      (submitted)="savePolicy($event)"
+    />
+  }
+</section>
+
+@if (editor() !== undefined) {
+  <ui-customer-editor-dialog
+    [customer]="editor() ?? null"
+    [saving]="saving()"
+    [error]="error()"
+    (closed)="closeEditor()"
+    (submitted)="saveCustomer($event)"
+  />
+}
+@if (creditEditor(); as customer) {
+  <ui-customer-credit-dialog
+    [customer]="customer"
+    [saving]="saving()"
+    [error]="error()"
+    (closed)="creditEditor.set(null)"
+    (submitted)="saveCredit($event)"
+  />
+}
+@if (detail(); as customer) {
+  <ui-customer-detail-dialog
+    [customer]="customer"
+    [canCredit]="canCredit()"
+    [canPrivacy]="canPrivacy()"
+    (closed)="detail.set(null)"
+    (changed)="refreshAfterDetailChange()"
+  />
+}
+
+@if (retirement(); as customer) {
+  <div class="backdrop">
+    <section
+      class="retirement"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="retire-customer-title"
+    >
+      <i class="pi pi-exclamation-triangle"></i>
+      <h2 id="retire-customer-title">Desactivar {{ customer.name }}</h2>
+      <p>
+        No podrá seleccionarse en nuevas ventas, pero su historial y obligaciones se conservarán.
+      </p>
+      <label for="retireCustomerConfirmation"
+        >Escribe <strong>{{ customer.name }}</strong> para confirmar</label
+      ><input
+        id="retireCustomerConfirmation"
+        [value]="retirementConfirmation()"
+        (input)="updateRetirement($event)"
+      />
+      @if (error()) {
+        <div class="notice error">{{ error() }}</div>
+      }
+      <footer>
+        <button class="secondary" type="button" (click)="retirement.set(null)">Cancelar</button
+        ><button
+          class="danger-button"
+          type="button"
+          [disabled]="retirementConfirmation().trim() !== customer.name || saving()"
+          (click)="confirmRetirement()"
+        >
+          Desactivar
+        </button>
+      </footer>
+    </section>
+  </div>
+}

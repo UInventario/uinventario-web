@@ -72,6 +72,81 @@
           "builder": "@angular/build:unit-test"
         }
       }
+    },
+    "uinventario-web-v2": {
+      "projectType": "application",
+      "schematics": {
+        "@schematics/angular:component": {
+          "style": "scss"
+        }
+      },
+      "root": "projects/uinventario-web-v2",
+      "sourceRoot": "projects/uinventario-web-v2/src",
+      "prefix": "ui",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "browser": "projects/uinventario-web-v2/src/main.ts",
+            "baseHref": "/v2/",
+            "tsConfig": "projects/uinventario-web-v2/tsconfig.app.json",
+            "inlineStyleLanguage": "scss",
+            "assets": [
+              {
+                "glob": "**/*",
+                "input": "projects/uinventario-web-v2/public"
+              },
+              {
+                "glob": "config.json",
+                "input": "public"
+              }
+            ],
+            "styles": [
+              "node_modules/primeicons/primeicons.css",
+              "projects/uinventario-web-v2/src/styles.css"
+            ]
+          },
+          "configurations": {
+            "production": {
+              "serviceWorker": "projects/uinventario-web-v2/ngsw-config.json",
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "550kB",
+                  "maximumError": "600kB"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "5kB",
+                  "maximumError": "8kB"
+                }
+              ],
+              "outputHashing": "all"
+            },
+            "development": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "configurations": {
+            "production": {
+              "buildTarget": "uinventario-web-v2:build:production"
+            },
+            "development": {
+              "buildTarget": "uinventario-web-v2:build:development"
+            }
+          },
+          "defaultConfiguration": "development"
+        },
+        "test": {
+          "builder": "@angular/build:unit-test"
+        }
+      }
     }
   }
 }

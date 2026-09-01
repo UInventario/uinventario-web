@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -25,6 +25,9 @@ before(async () => {
   rootDirectory = await mkdtemp(join(tmpdir(), 'uinventario-web-'));
   await writeFile(join(rootDirectory, 'index.html'), '<h1>UInventario</h1>');
   await writeFile(join(rootDirectory, 'main-ABCDEFGH.js'), 'globalThis.ready=true;');
+  await mkdir(join(rootDirectory, 'v2'));
+  await writeFile(join(rootDirectory, 'v2', 'index.html'), '<h1>UInventario Web V2</h1>');
+  await writeFile(join(rootDirectory, 'v2', 'main-HGFEDCBA.js'), 'globalThis.v2Ready=true;');
 
   upstream = createServer((request, response) => {
     response.writeHead(200, {
@@ -58,10 +61,20 @@ test('serves dynamic same-origin configuration and health', async () => {
     environment: 'local',
     apiBaseUrl: '/api/v1',
   });
+  const v2ConfigResponse = await fetch(`${applicationUrl}/v2/config.json`);
+  assert.equal(v2ConfigResponse.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(await v2ConfigResponse.json(), {
+    environment: 'local',
+    apiBaseUrl: '/api/v1',
+  });
 
   const healthResponse = await fetch(`${applicationUrl}/health/live`);
   assert.equal(healthResponse.status, 200);
   assert.match(healthResponse.headers.get('content-security-policy'), /frame-ancestors 'none'/);
+  assert.match(
+    healthResponse.headers.get('permissions-policy'),
+    /camera=\(self\).*microphone=\(\)/,
+  );
   assert.equal(healthResponse.headers.get('x-frame-options'), 'DENY');
   assert.equal(healthResponse.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(healthResponse.headers.get('strict-transport-security'), null);
@@ -76,6 +89,40 @@ test('serves assets and falls back to the Angular entry point', async () => {
   const routeResponse = await fetch(`${applicationUrl}/productos/123`);
   assert.equal(routeResponse.status, 200);
   assert.equal(await routeResponse.text(), '<h1>UInventario</h1>');
+});
+
+test('moves legacy entry points to Web V2 without caching the rollback window', async () => {
+  const cases = [
+    ['/?from=legacy', '/v2/?from=legacy'],
+    ['/app', '/v2/dashboard/resumen'],
+    ['/login?returnUrl=%2Fapp', '/v2/login?returnUrl=%2Fapp'],
+    ['/onboarding', '/v2/onboarding'],
+    ['/app/inventory-activity', '/v2/dashboard/resumen'],
+    ['/registro', '/v2/registro'],
+    ['/recuperar', '/v2/recuperar'],
+    ['/restablecer?token=test', '/v2/restablecer?token=test'],
+  ];
+
+  for (const [source, target] of cases) {
+    const response = await fetch(`${applicationUrl}${source}`, { redirect: 'manual' });
+    assert.equal(response.status, 307);
+    assert.equal(response.headers.get('location'), target);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+  }
+});
+
+test('serves Web V2 in isolation and keeps its own route fallback', async () => {
+  const assetResponse = await fetch(`${applicationUrl}/v2/main-HGFEDCBA.js`);
+  assert.equal(assetResponse.status, 200);
+  assert.match(assetResponse.headers.get('cache-control'), /immutable/);
+
+  const entryResponse = await fetch(`${applicationUrl}/v2`);
+  assert.equal(entryResponse.status, 200);
+  assert.equal(await entryResponse.text(), '<h1>UInventario Web V2</h1>');
+
+  const routeResponse = await fetch(`${applicationUrl}/v2/productos/123`);
+  assert.equal(routeResponse.status, 200);
+  assert.equal(await routeResponse.text(), '<h1>UInventario Web V2</h1>');
 });
 
 test('proxies API requests and preserves session cookies', async () => {
