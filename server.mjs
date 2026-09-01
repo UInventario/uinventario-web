@@ -76,11 +76,14 @@ function legacyRedirect(requestUrl) {
     ['/', '/v2/'],
     ['/app', '/v2/dashboard/resumen'],
     ['/login', '/v2/login'],
+    ['/onboarding', '/v2/onboarding'],
     ['/recuperar', '/v2/recuperar'],
     ['/registro', '/v2/registro'],
     ['/restablecer', '/v2/restablecer'],
   ]);
-  const target = routes.get(requestUrl.pathname);
+  const target =
+    routes.get(requestUrl.pathname) ??
+    (requestUrl.pathname.startsWith('/app/') ? '/v2/dashboard/resumen' : undefined);
   return target ? `${target}${requestUrl.search}` : null;
 }
 

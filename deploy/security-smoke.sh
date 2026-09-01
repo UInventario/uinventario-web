@@ -15,12 +15,18 @@ trap 'rm -f "$headers" "$body"; rmdir "$temporary_directory"' EXIT
 
 status="$(curl --silent --show-error --dump-header "$headers" --output "$body" \
   --write-out '%{http_code}' "$web_origin/")"
-[ "$status" = "200" ] || { echo "Web root returned $status." >&2; exit 1; }
+[ "$status" = "307" ] || { echo "Web root returned $status instead of the reversible cutover redirect." >&2; exit 1; }
+grep -Eiq '^location:[[:space:]]*/v2/' "$headers"
 grep -Eiq '^content-security-policy:.*frame-ancestors .none.' "$headers"
 grep -Eiq '^x-content-type-options:[[:space:]]*nosniff' "$headers"
 grep -Eiq '^x-frame-options:[[:space:]]*DENY' "$headers"
 grep -Eiq '^permissions-policy:.*camera=\(self\).*microphone=\(\)' "$headers"
 grep -Eiq '^strict-transport-security:' "$headers"
+
+status="$(curl --silent --show-error --dump-header "$headers" --output "$body" \
+  --write-out '%{http_code}' "$web_origin/v2/")"
+[ "$status" = "200" ] || { echo "Angular entry point returned $status." >&2; exit 1; }
+grep -Eiq '<ui-root' "$body"
 
 status="$(curl --silent --show-error --output "$body" --write-out '%{http_code}' \
   --request POST --data '' "$web_origin/not-api")"
