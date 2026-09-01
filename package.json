@@ -21,7 +21,7 @@
     "test:e2e": "playwright test",
     "test:e2e:v2": "playwright test --config playwright.v2.config.ts",
     "test:e2e:real": "node scripts/run-real-e2e.mjs",
-    "test:service-worker": "node scripts/service-worker-smoke.mjs && node scripts/service-worker-v2-smoke.mjs",
+    "test:service-worker": "node scripts/service-worker-v2-smoke.mjs",
     "parity:generate": "node scripts/generate-api-parity-matrix.mjs",
     "parity:verify": "node scripts/verify-api-parity-matrix.mjs",
     "architecture:verify": "node --test scripts/verify-web-v2-architecture.spec.mjs && node scripts/verify-web-v2-architecture.mjs",

@@ -1,7 +1,7 @@
 # Cutover de Web V2
 
-Este runbook prepara UIN-210 sin ejecutar el cambio productivo. El corte permanece bloqueado por
-UIN-212 hasta que la licencia PrimeUI esté registrada y verificada sin exponer su valor.
+Este runbook gobierna UIN-210. UIN-212 quedó resuelto con licencias Community almacenadas en
+Secret Manager para Dev y Prod; Jira y Git contienen sólo los nombres, nunca los valores.
 
 ## Estado previo y contrato
 
@@ -13,6 +13,9 @@ UIN-212 hasta que la licencia PrimeUI esté registrada y verificada sin exponer 
   requiere recompilar Desktop.
 - La revisión Cloud Run anterior al corte es el rollback primario. No se elimina durante la ventana
   de observación.
+- Cloud Build inyecta la licencia correspondiente mediante un secreto efímero de BuildKit. La
+  licencia no se pasa como `ARG`, no queda en el historial de capas y sólo el bundle cliente recibe
+  el valor requerido por PrimeNG.
 
 ## Evidencia del release candidate
 
@@ -53,8 +56,9 @@ Prod y que sólo permite navegación dentro del origen configurado.
 
 No iniciar UIN-210 hasta que todas sean verdaderas:
 
-1. UIN-212 contiene una resolución inequívoca y la licencia está disponible mediante el mecanismo
-   seguro indicado; Jira nunca contiene el valor.
+1. UIN-212 contiene una resolución inequívoca y las versiones habilitadas existen como
+   `uinventario-dev-primeui-license` y `uinventario-prod-primeui-license`; Jira nunca contiene el
+   valor.
 2. El banner de licencia no aparece en un build equivalente al candidato productivo.
 3. La matriz de paridad coincide con el SHA API que se promoverá.
 4. CI, security checks y E2E críticos del candidato están verdes, sin P0/P1 abiertos.
@@ -68,7 +72,9 @@ No iniciar UIN-210 hasta que todas sean verdaderas:
 2. En el cambio de UIN-210, convertir las entradas antiguas en redirecciones hacia Web V2:
    - `/` → `/v2/`;
    - `/registro`, `/login`, `/recuperar` y `/restablecer` → su ruta equivalente bajo `/v2/`;
-   - `/app` y enlaces con fragmentos del frontend anterior → `/v2/dashboard`.
+   - `/app` y enlaces con fragmentos del frontend anterior → `/v2/dashboard/resumen`.
+     Durante la observación se usa `307` con `Cache-Control: no-store` para que un rollback no quede
+     anulado por cachés permanentes.
 3. Mantener el bundle V1 dentro de la imagen durante la ventana de observación; no enlazarlo desde
    la navegación pública.
 4. Fusionar a `master` y esperar que Cloud Build Prod termine con `SUCCESS`.
@@ -115,6 +121,7 @@ Sólo después de completar los siete días sin P0/P1:
 
 1. Crear un cambio separado dentro de UIN-210 que elimine el build y los archivos de Web V1.
 2. Conservar las redirecciones de rutas antiguas hacia Web V2.
+   Al terminar la ventana pueden cambiarse a `308` porque Web V1 ya no será un destino de rollback.
 3. Ejecutar nuevamente build, pruebas del servidor y E2E de rutas/deep links.
 4. Publicar el cambio por `develop` y después `master` siguiendo el flujo normal.
 5. Cerrar UIN-210 únicamente cuando Producción y Desktop estén validados y el código anterior ya no

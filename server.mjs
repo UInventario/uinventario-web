@@ -71,6 +71,28 @@ function sendJson(response, statusCode, body) {
   response.end(payload);
 }
 
+function legacyRedirect(requestUrl) {
+  const routes = new Map([
+    ['/', '/v2/'],
+    ['/app', '/v2/dashboard/resumen'],
+    ['/login', '/v2/login'],
+    ['/recuperar', '/v2/recuperar'],
+    ['/registro', '/v2/registro'],
+    ['/restablecer', '/v2/restablecer'],
+  ]);
+  const target = routes.get(requestUrl.pathname);
+  return target ? `${target}${requestUrl.search}` : null;
+}
+
+function sendTemporaryRedirect(response, location) {
+  response.writeHead(307, {
+    'Cache-Control': 'no-store',
+    'Content-Length': '0',
+    Location: location,
+  });
+  response.end();
+}
+
 function proxyToApi(request, response, upstream) {
   const target = new URL(request.url, upstream);
   const transport = target.protocol === 'https:' ? httpsRequest : httpRequest;
@@ -116,6 +138,11 @@ export function createApplicationServer({
     setSecurityHeaders(response, environment);
 
     const requestUrl = new URL(request.url ?? '/', 'http://localhost');
+    const redirectLocation = legacyRedirect(requestUrl);
+    if (redirectLocation) {
+      sendTemporaryRedirect(response, redirectLocation);
+      return;
+    }
     if (requestUrl.pathname === '/health/live') {
       sendJson(response, 200, { status: 'ok' });
       return;
